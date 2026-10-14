@@ -22,9 +22,9 @@ const PALETTE: Record<string, string> = {
   v: '#6b3a96', // lich robes
   V: '#3a1d55',
   o: '#7a5532', // cork
-  l: '#8fd0ff', // tonic shine
-  L: '#2f86e0', // tonic
-  D: '#1a4a94', // tonic depth
+  l: '#ff9aa5', // tonic shine
+  L: '#d8323f', // tonic
+  D: '#7a1220', // tonic depth
 };
 
 type SpriteName = 'player' | EnemyKind | 'potion';
@@ -170,7 +170,7 @@ const ART: Record<SpriteName, string[]> = {
     '...kb..bk...',
     '..kk....kk..',
   ],
-  // A corked glass vial of glowing blue tonic (it used to read as an apple).
+  // A corked glass vial of glowing red tonic (it used to read as an apple).
   potion: [
     '.....kk.....',
     '....kook....',
@@ -178,7 +178,7 @@ const ART: Record<SpriteName, string[]> = {
     '....kwsk....',
     '....kwck....',
     '...kLlLLk...',
-    '..kLcLLLLk..',
+    '..kLwLLLLk..',
     '..kLlLLLLk..',
     '..kLLLLLDk..',
     '..kDLLLDDk..',
