@@ -18,7 +18,7 @@ A daily dark-fantasy roguelite that runs in the browser. Same crypt for everyone
 - **Daily Descent:** a seed fixed by the UTC date, a hero of the day, one official attempt, and a Wordle-style share card for X. The results screen says what percentage of today's players you beat.
 - **Endless:** random seeds for practice. Your best depth is saved.
 - **The hero changes with every relic:** new weapons (pike, scythe, flaming or frozen blades), armour, shields, crowns, horns, cloak colours, and matching auras. The results screen shows your final form.
-- **Background music:** generated in the browser. A crypt theme, a faster boss theme on every 5th floor, and a Music toggle in the pause menu.
+- **Background music:** a synthwave score generated in the browser that builds as you descend: a hazy pad on the menus, then kick and bass, snare and hats from floor 10, a lead arpeggio from floor 20 and double-time drums in the Abyss (floor 30+). Boss floors play one level hotter. Music toggle in the pause menu.
 - **Live player count:** "12 souls in the crypt right now" on the title, pause and results screens, using Supabase Realtime Presence. It only counts visible tabs. The free plan allows 200 players connected at once.
 - **Accounts and leaderboards:** claim a name in one tap (guest account), or sign in with email or X. There's a daily leaderboard per crypt, an all-time endless leaderboard, and a profile page with your stats.
 

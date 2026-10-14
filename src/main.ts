@@ -1,5 +1,5 @@
 import './style.css';
-import { isMusicEnabled, isMuted, setMusicEnabled, setMusicMood, setMuted, sfx, unlockAudio } from './audio';
+import { isMusicEnabled, isMuted, setMusicDepth, setMusicEnabled, setMusicMood, setMuted, sfx, unlockAudio } from './audio';
 import { dailyNumber, formatCountdown, msUntilNextDaily } from './daily';
 import { ELITES, FEATURES, HERO_BY_ID, dailyHero, type ComboDef } from './content';
 import { heroPortrait } from './hero';
@@ -64,7 +64,8 @@ function startRun(mode: Mode) {
   unlockAudio();
   newGame(mode);
   saveRun();
-  setMusicMood('crypt');
+  setMusicDepth(game.floor);
+  setMusicMood(game.isBossFloor() ? 'boss' : 'crypt');
   hideOverlay();
   sfx.stairs();
 }
@@ -125,6 +126,7 @@ function savedRun(): Game | null {
 function resumeRun(g: Game) {
   unlockAudio();
   showGame(g);
+  setMusicDepth(g.floor);
   setMusicMood(g.isBossFloor() ? 'boss' : 'crypt');
   hideOverlay();
   sfx.stairs();
@@ -207,7 +209,10 @@ function processEvents() {
   const events = game.events.splice(0);
   renderer.consume(events);
   playSounds(events);
-  if (events.some((e) => e.t === 'floor')) setMusicMood(game.isBossFloor() ? 'boss' : 'crypt');
+  if (events.some((e) => e.t === 'floor')) {
+    setMusicDepth(game.floor);
+    setMusicMood(game.isBossFloor() ? 'boss' : 'crypt');
+  }
   // Progress: codex entries, combos and achievements.
   for (const ev of events) {
     if (ev.t !== 'relic') continue;
@@ -427,6 +432,7 @@ function updateTip() {
 // ---------- overlays ----------
 
 function showTitle() {
+  setMusicDepth(0);
   setMusicMood('crypt');
   const today = dailyNumber();
   const done = save.daily[today];
