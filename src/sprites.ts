@@ -19,6 +19,8 @@ const PALETTE: Record<string, string> = {
   c: '#9fe8ff', // spectral
   C: '#3e8db5',
   n: '#7b6a8c', // brute hide
+  v: '#6b3a96', // lich robes
+  V: '#3a1d55',
 };
 
 type SpriteName = 'player' | EnemyKind | 'potion';
@@ -121,6 +123,48 @@ const ART: Record<SpriteName, string[]> = {
     'kRkRRbbRRkRk',
     'kk.kRRRRk.kk',
     '...kk..kk...',
+  ],
+  abbot: [
+    '...kkkkk....',
+    '..kGGGGGk...',
+    '.kGGGGGGGk..',
+    '.kGkbbbkGk..',
+    '.kGbrkbbkk..',
+    '..kbbbbbbbk.',
+    '..kGbbbk.kk.',
+    '.kGGGGGGk.n.',
+    'kGGgGGgGGknk',
+    'kGgGGGGgGkyk',
+    '.kGGGGGGk.k.',
+    '..kk..kk....',
+  ],
+  lich: [
+    '.c..c..c..c.',
+    '.cccccccccc.',
+    '..kbbbbbbk..',
+    '.kbkckkckbk.',
+    '.kbbbbbbbbk.',
+    '..kbkbkbkk..',
+    '.kVVkbbkVVk.',
+    'kVVVvbbvVVVk',
+    'kVvVVvvVVvVk',
+    'kVkVVVVVVkVk',
+    '.kVVvVVvVVk.',
+    '..kkVVVVkk..',
+  ],
+  thrall: [
+    '....kkkk....',
+    '...kbbbbk...',
+    '...kgbbgk...',
+    '...kbkkbk...',
+    '....kbbk....',
+    '..kkbbbbkk.s',
+    '.kb.kbBk.kks',
+    '.kb.kbBk..ks',
+    '....kbbk..ky',
+    '...kb..bk...',
+    '...kb..bk...',
+    '..kk....kk..',
   ],
   potion: [
     '............',

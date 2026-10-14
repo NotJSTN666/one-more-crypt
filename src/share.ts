@@ -25,8 +25,9 @@ export function shareText(r: RunResult, label: string): string {
   return [
     `🕯️ ${GAME_NAME} · ${label}`,
     `${descentStrip(r.floor)}`,
-    `Fell on floor ${r.floor} to a ${r.killedBy} · ${r.kills} kills`,
+    `Fell on floor ${r.floor}${r.hero ? ` as the ${r.hero}` : ''} to ${r.killedBy} · ${r.kills} kills`,
     r.relics ? `Relics: ${r.relics}` : 'No relics. Pure skill.',
+    ...(r.combos ? [`Combos: ${r.combos}`] : []),
     `How deep can you go?`,
   ].join('\n');
 }

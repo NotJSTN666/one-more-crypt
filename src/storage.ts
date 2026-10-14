@@ -9,6 +9,10 @@ export interface RunResult {
   turns: number;
   relics: string;
   killedBy: string;
+  /** Hero name, e.g. "Rogue". */
+  hero?: string;
+  /** Combos completed this run, e.g. "🔥 Inferno". */
+  combos?: string;
 }
 
 export interface Save {

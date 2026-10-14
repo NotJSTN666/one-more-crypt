@@ -9,8 +9,13 @@ A daily dark-fantasy roguelite that runs in the browser. Same crypt for everyone
 - 7×7 single-screen floors in a turn-based grid. Every move you make, every enemy makes one.
 - Bump into an enemy to attack it. Kill everything on the floor to unseal the stairs.
 - After each floor, take 1 of 3 relics or rest. Relics stack: 2 Vampire Fangs heal for 2.
-- The Bone Warden boss waits every 5th floor.
-- **Daily Descent:** a seed fixed by the UTC date, one official attempt, with a Wordle-style share card for X.
+- Three heroes: the Knight, the Rogue (every 3rd step is free) and the Necromancer (slain foes rise as thralls).
+- Elite foes with special tricks, spike traps you can lure enemies across, and floor events (Blood Shrine, Iron Chest, Pale Fountain).
+- A boss every 5th floor: the Bone Warden, the Plague Abbot, then the Lich King. Below floor 30, the Abyss makes every hit hurt more.
+- **Souls and the Ossuary:** every run earns Souls to unlock heroes and six forbidden relics for Endless.
+- **Grimoire:** a relic codex, 22 achievements and 8 named relic combos.
+- **Runs resume:** closing the tab mid-run loses nothing; the run is rebuilt from its saved inputs.
+- **Daily Descent:** a seed fixed by the UTC date, a hero of the day, one official attempt, and a Wordle-style share card for X. The results screen says what percentage of today's players you beat.
 - **Endless:** random seeds for practice. Your best depth is saved.
 - **The hero changes with every relic:** new weapons (pike, scythe, flaming or frozen blades), armour, shields, crowns, horns, cloak colours, and matching auras. The results screen shows your final form.
 - **Background music:** generated in the browser. A crypt theme, a faster boss theme on every 5th floor, and a Music toggle in the pause menu.
@@ -37,6 +42,9 @@ No game engine: TypeScript, Vite and a `<canvas>`. Sprites are 12×12 pixel art 
 | `src/game.ts` | All game rules (pure logic, no DOM) |
 | `src/relics.ts` | Relic catalogue: add new relics here, effects go in `game.ts` |
 | `src/render.ts` | Canvas renderer, particles, lighting |
+| `src/content.ts` | Heroes, elites, floor events, combos and achievements |
+| `src/meta.ts` | Souls, unlocks, achievements and codex that carry between runs |
+| `src/progress-ui.ts` | Hero select, Ossuary and Grimoire screens |
 | `src/hero.ts` | The hero sprite, layered by relic (preview every look at `/scripts/heroes.html` under `npm run dev`) |
 | `src/audio.ts` | Synthesized sound effects and the generative background music |
 | `src/main.ts` | UI, input, overlays |

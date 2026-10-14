@@ -27,7 +27,14 @@ export type RelicId =
   | 'mirror'
   | 'phylactery'
   | 'flask'
-  | 'harvest';
+  | 'harvest'
+  // Unlocked in the Ossuary (always in the daily pool)
+  | 'echo'
+  | 'necro'
+  | 'caltrops'
+  | 'key'
+  | 'mask'
+  | 'tome';
 
 export type Rarity = 'common' | 'rare' | 'cursed';
 
@@ -51,7 +58,7 @@ export const RELICS: RelicDef[] = [
   { id: 'frost', name: 'Frost Sigil', emoji: '❄️', rarity: 'common', maxStack: 3, desc: (n) => `Your hits freeze foes for ${n} turn${n > 1 ? 's' : ''}.` },
   { id: 'storm', name: 'Storm Rune', emoji: '⚡', rarity: 'common', maxStack: 5, desc: (n) => `On kill, lightning strikes a random foe for ${n + 1} damage.` },
   { id: 'bloom', name: 'Corpse Bloom', emoji: '💥', rarity: 'common', maxStack: 5, desc: (n) => `Slain foes burst, dealing ${n} damage to adjacent foes.` },
-  { id: 'dust', name: 'Grave Dust', emoji: '🌫️', rarity: 'common', maxStack: 3, desc: (n) => `${Math.min(60, n * 20)}% chance to dodge attacks.` },
+  { id: 'dust', name: 'Grave Dust', emoji: '🌫️', rarity: 'common', maxStack: 3, desc: (n) => `${Math.min(50, n * 20)}% chance to dodge attacks.` },
   { id: 'mark', name: "Hunter's Mark", emoji: '🎯', rarity: 'common', maxStack: 5, desc: (n) => `Your first hit on each foe deals +${n * 2} damage.` },
   { id: 'lantern', name: 'Soul Lantern', emoji: '🏮', rarity: 'common', maxStack: 5, desc: (n) => `Every 6 kills, gain +${n} max HP.` },
   { id: 'crown', name: 'Cursed Crown', emoji: '👑', rarity: 'cursed', maxStack: 3, desc: () => `+2 attack, but -3 max HP.` },
@@ -69,7 +76,16 @@ export const RELICS: RelicDef[] = [
   { id: 'phylactery', name: 'Phylactery', emoji: '⚱️', rarity: 'rare', maxStack: 1, desc: () => `Once, survive a killing blow at 1 HP.` },
   { id: 'flask', name: 'Ichor Flask', emoji: '🧪', rarity: 'common', maxStack: 3, desc: (n) => `Potions heal ${n * 2} more.` },
   { id: 'harvest', name: 'Grim Harvest', emoji: '🪓', rarity: 'rare', maxStack: 3, desc: (n) => `Each kill grants +${n} attack until the floor ends.` },
+  { id: 'echo', name: 'Echo Bell', emoji: '🔔', rarity: 'rare', maxStack: 2, desc: (n) => `Every ${n > 1 ? '3rd' : '4th'} attack strikes twice.` },
+  { id: 'necro', name: 'Necrotic Touch', emoji: '🦴', rarity: 'rare', maxStack: 3, desc: (n) => `Slain foes have a ${n * 15}% chance to rise as your thralls.` },
+  { id: 'caltrops', name: 'Caltrops', emoji: '🪤', rarity: 'common', maxStack: 2, desc: (n) => `Spike traps can't hurt you and deal +${n * 2} damage to foes.` },
+  { id: 'key', name: 'Skeleton Key', emoji: '🗝️', rarity: 'common', maxStack: 1, desc: () => `Iron chests open freely, and each holds a second relic.` },
+  { id: 'mask', name: 'Plague Mask', emoji: '🎭', rarity: 'rare', maxStack: 3, desc: (n) => `Foes next to you at the end of your turn take ${n} damage.` },
+  { id: 'tome', name: 'Black Tome', emoji: '📕', rarity: 'rare', maxStack: 1, desc: () => `Every 3rd floor you enter grants a random relic.` },
 ];
+
+/** Relics that start locked in Endless and are bought in the Ossuary. */
+export const UNLOCKABLE_RELICS: RelicId[] = ['echo', 'necro', 'caltrops', 'key', 'mask', 'tome'];
 
 export const RELIC_BY_ID: Record<RelicId, RelicDef> = Object.fromEntries(
   RELICS.map((r) => [r.id, r]),

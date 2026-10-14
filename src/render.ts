@@ -1,7 +1,8 @@
 // Canvas renderer. Reads game state every frame and turns game events into
 // short-lived effects (damage numbers, particles, screen shake).
 
-import { Game, H, W, type EnemyKind, type GameEvent, type Pos } from './game';
+import { ELITES } from './content';
+import { ENEMY_INFO, Game, H, W, isBoss, type EnemyKind, type GameEvent, type Pos } from './game';
 import { hashSeed, mulberry32 } from './rng';
 import { heroSprite, relicColor } from './hero';
 import { RELIC_BY_ID, type RelicId } from './relics';
@@ -33,6 +34,7 @@ export class Renderer {
   private particles: Particle[] = [];
   private lines: Line[] = [];
   private corpses: Corpse[] = [];
+  private bannerText: { text: string; color: string; t: number } | null = null;
   private shake = 0;
   private hurtFlash = 0;
   private healFlash = 0;
@@ -83,7 +85,11 @@ export class Renderer {
           this.corpses = [];
           this.lines = [];
           this.floaters = [];
-          this.floaters.push(this.floater(3, 3, ev.floor % 5 === 0 ? 'THE WARDEN' : `FLOOR ${ev.floor}`, '#f2c14e', 1.6));
+          {
+            const boss = g.enemies.find((e) => isBoss(e));
+            const title = boss ? ENEMY_INFO[boss.kind].name.replace(/^The /, '').toUpperCase() : `FLOOR ${ev.floor}`;
+            this.floaters.push(this.floater(3, 3, title, '#f2c14e', 1.6));
+          }
           break;
         case 'pattack':
           this.lunges.set(PLAYER_ID, { dx: ev.dir.x, dy: ev.dir.y, t: 0 });
@@ -96,6 +102,7 @@ export class Renderer {
           const colors: Record<string, string> = {
             melee: '#ffffff', burn: '#ff8a2a', thorns: '#7f9a52', bolt: '#9fe8ff',
             burst: '#d23a46', pierce: '#ffffff', whirl: '#c9d1e0', hellfire: '#ff5a2a',
+            spike: '#c9d1e0', mask: '#7f9a52', ally: '#7ee081', claw: '#ff4d5a',
           };
           const f = this.floater(ev.x, ev.y, `${ev.amount}${ev.crit ? '!' : ''}`, ev.crit ? '#f2c14e' : colors[ev.kind], 0.8);
           f.y -= (stack++ % 3) * 4;
@@ -107,10 +114,30 @@ export class Renderer {
         case 'kill': {
           const d = this.disp.get(ev.id) ?? { x: ev.x, y: ev.y };
           this.corpses.push({ kind: ev.kind, x: d.x, y: d.y, t: 0 });
-          this.burstParticles(ev.x, ev.y, ev.kind === 'wraith' ? '#9fe8ff' : '#e8dcc4', 10);
-          this.shake = Math.max(this.shake, ev.kind === 'boss' ? 6 : 1.5);
+          this.burstParticles(ev.x, ev.y, ev.ally ? '#7ee081' : ev.kind === 'wraith' ? '#9fe8ff' : '#e8dcc4', 10);
+          if (ev.elite) this.burstParticles(ev.x, ev.y, ELITES[ev.elite].color, 14, 1.5);
+          this.shake = Math.max(this.shake, isBoss(ev) ? 6 : 1.5);
           break;
         }
+        case 'eblock':
+          this.floaters.push(this.floater(ev.x, ev.y, 'BLOCK', '#9fe8ff', 0.8));
+          this.burstParticles(ev.x, ev.y, '#9fe8ff', 8);
+          break;
+        case 'raise':
+          this.burstParticles(ev.x, ev.y, '#7ee081', 16, 1.2);
+          this.floaters.push(this.floater(ev.x, ev.y, 'RISE', '#7ee081', 1));
+          break;
+        case 'teleport':
+          this.burstParticles(ev.from.x, ev.from.y, '#9b6bd6', 14);
+          this.burstParticles(ev.to.x, ev.to.y, '#9b6bd6', 14);
+          this.disp.set(ev.id, { x: ev.to.x, y: ev.to.y });
+          break;
+        case 'spike':
+          this.burstParticles(ev.x, ev.y, '#c9d1e0', 6);
+          break;
+        case 'shadow':
+          this.floaters.push(this.floater(g.player.x, g.player.y, 'UNSEEN', '#9aa3b5', 0.7));
+          break;
         case 'hurt':
           this.flashes.set(PLAYER_ID, 0.15);
           this.hurtFlash = 1;
@@ -165,6 +192,40 @@ export class Renderer {
     }
     // Handled last: claiming a relic also starts a new floor, which clears effects.
     for (const id of claimed) this.transform(id);
+  }
+
+  /** Big centred title, used for completed combos. */
+  banner(text: string, color: string) {
+    this.bannerText = { text, color, t: 0 };
+    this.shake = Math.max(this.shake, 4);
+    for (let i = 0; i < 4; i++) this.burstParticles(1 + i * 1.6, 3, color, 10, 1.6);
+  }
+
+  private drawBanner(dt: number) {
+    const b = this.bannerText;
+    if (!b) return;
+    b.t += dt;
+    const life = 1.8;
+    if (b.t > life) {
+      this.bannerText = null;
+      return;
+    }
+    const ctx = this.ctx;
+    const grow = Math.min(1, b.t / 0.18);
+    const fade = b.t > life - 0.4 ? (life - b.t) / 0.4 : 1;
+    ctx.save();
+    ctx.globalAlpha = fade;
+    ctx.translate(BOARD_W / 2, 28);
+    ctx.scale(0.6 + 0.4 * grow, 0.6 + 0.4 * grow);
+    ctx.textAlign = 'center';
+    ctx.font = '20px "Pirata One", serif';
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(-BOARD_W / 2, -15, BOARD_W, 22);
+    ctx.fillStyle = '#000';
+    ctx.fillText(b.text, 1, 3);
+    ctx.fillStyle = b.color;
+    ctx.fillText(b.text, 0, 2);
+    ctx.restore();
   }
 
   /** The moment a relic changes the hero: a flash, a burst in the relic's colour, and its name. */
@@ -246,6 +307,8 @@ export class Renderer {
 
     if (this.bg) ctx.drawImage(this.bg, 0, 0);
     this.drawStairs(g);
+    this.drawSpikes(g);
+    this.drawFeature(g);
     if (g.potion) {
       const bob = Math.round(Math.sin(this.time * 4) * 1);
       ctx.drawImage(sprites().potion.normal, g.potion.x * TILE + PAD, g.potion.y * TILE + PAD + bob);
@@ -263,7 +326,8 @@ export class Renderer {
     }
     if (g.phase !== 'dead') {
       const pd = this.smooth(PLAYER_ID, g.player, k);
-      this.drawSprite(PLAYER_ID, heroSprite(g.relics, g.relicLog), pd, dt, 1);
+      // The rogue fades when the next step will go unseen.
+      this.drawSprite(PLAYER_ID, heroSprite(g.hero, g.relics, g.relicLog), pd, dt, g.shadowReady ? 0.55 : 1);
       this.drawAura(g, pd);
     }
     for (const id of [...this.disp.keys()]) if (!seen.has(id)) this.disp.delete(id);
@@ -272,6 +336,7 @@ export class Renderer {
     this.drawParticles(dt);
     this.drawLighting(g);
     this.drawFloaters(dt);
+    this.drawBanner(dt);
 
     this.hurtFlash = Math.max(0, this.hurtFlash - dt * 3);
     this.healFlash = Math.max(0, this.healFlash - dt * 2);
@@ -333,6 +398,20 @@ export class Renderer {
     const onWall = g.isWall(e.x, e.y);
     const alpha = e.kind === 'wraith' ? (onWall ? 0.45 : 0.8) : 1;
     const { x, y } = this.drawSprite(e.id, spr, d, dt, alpha, bob);
+    if (e.elite) {
+      ctx.strokeStyle = ELITES[e.elite].color;
+      ctx.globalAlpha = 0.55 + 0.35 * Math.sin(this.time * 6 + e.id);
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x - 1.5, y - 1.5, SPRITE_SIZE + 3, SPRITE_SIZE + 3);
+      ctx.globalAlpha = 1;
+      if (e.shield > 0) {
+        ctx.fillStyle = '#9fe8ff';
+        ctx.fillRect(x - 2, y - 2, 3, 3);
+      }
+    }
+    if (e.ally && Math.random() < 0.08) {
+      this.particles.push({ x: x + 4 + Math.random() * 4, y: y + 3, vx: 0, vy: -10, color: '#7ee081', t: 0, life: 0.4, size: 1 });
+    }
 
     if (e.frozen > 0) {
       ctx.fillStyle = 'rgba(159, 232, 255, 0.45)';
@@ -347,7 +426,7 @@ export class Renderer {
         color: Math.random() < 0.5 ? '#ff8a2a' : '#f2c14e', t: 0, life: 0.35, size: 1,
       });
     }
-    if (e.rest > 0 && (e.kind === 'brute' || e.kind === 'boss')) {
+    if (e.rest > 0 && (e.kind === 'brute' || isBoss(e))) {
       ctx.fillStyle = '#9aa3b5';
       ctx.font = '6px Silkscreen, monospace';
       ctx.fillText('z', x + SPRITE_SIZE - 1, y + 2 - Math.sin(this.time * 3));
@@ -359,7 +438,7 @@ export class Renderer {
     const px = Math.round(d.x * TILE + (TILE - total) / 2);
     const py = Math.round(d.y * TILE + TILE - 1);
     for (let i = 0; i < pips; i++) {
-      ctx.fillStyle = e.hp > i * per ? '#d23a46' : '#2a1820';
+      ctx.fillStyle = e.hp > i * per ? (e.ally ? '#7ee081' : '#d23a46') : '#2a1820';
       ctx.fillRect(px + i * 3, py, 2, 1);
     }
   }
@@ -367,6 +446,19 @@ export class Renderer {
   private drawTelegraphs(g: Game) {
     const ctx = this.ctx;
     const pulse = 0.25 + 0.2 * Math.sin(this.time * 10);
+    // Boss attacks landing next turn: plague (green) and bolts (violet).
+    for (const w of g.warnings) {
+      const px = w.x * TILE;
+      const py = w.y * TILE;
+      ctx.fillStyle = w.kind === 'plague' ? `rgba(127, 154, 82, ${pulse + 0.1})` : `rgba(155, 107, 214, ${pulse + 0.1})`;
+      ctx.fillRect(px + 1, py + 1, TILE - 2, TILE - 2);
+      ctx.strokeStyle = w.kind === 'plague' ? '#b5e07a' : '#d3b0ff';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(px + 1.5, py + 1.5, TILE - 3, TILE - 3);
+      if (Math.random() < 0.05) {
+        this.particles.push({ x: px + 3 + Math.random() * 10, y: py + 12, vx: 0, vy: -14, color: w.kind === 'plague' ? '#b5e07a' : '#d3b0ff', t: 0, life: 0.4, size: 1 });
+      }
+    }
     for (const e of g.enemies) {
       if (e.dead || !e.aim) continue;
       for (const p of g.shotPath(e)) {
@@ -379,6 +471,73 @@ export class Renderer {
         else ctx.fillRect(cx, cy - 3, 1, 6);
       }
     }
+  }
+
+  private drawSpikes(g: Game) {
+    const ctx = this.ctx;
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (!g.isSpike(x, y)) continue;
+        const px = x * TILE;
+        const py = y * TILE;
+        ctx.fillStyle = '#120c18';
+        ctx.fillRect(px + 2, py + 2, TILE - 4, TILE - 4);
+        for (let i = 0; i < 3; i++) {
+          for (let j = 0; j < 3; j++) {
+            const sx = px + 3 + i * 4;
+            const sy = py + 4 + j * 4;
+            ctx.fillStyle = '#5d667a';
+            ctx.fillRect(sx, sy, 2, 2);
+            ctx.fillStyle = '#c9d1e0';
+            ctx.fillRect(sx, sy - 1, 1, 1);
+          }
+        }
+      }
+    }
+  }
+
+  private drawFeature(g: Game) {
+    const f = g.feature;
+    if (!f) return;
+    const ctx = this.ctx;
+    const px = f.x * TILE;
+    const py = f.y * TILE;
+    const glow = f.used ? 0 : 0.4 + 0.3 * Math.sin(this.time * 3);
+    const color = f.kind === 'shrine' ? '#d23a46' : f.kind === 'chest' ? '#f2c14e' : '#9fe8ff';
+    if (!f.used) {
+      ctx.fillStyle = color;
+      ctx.globalAlpha = glow * 0.35;
+      ctx.fillRect(px, py, TILE, TILE);
+      ctx.globalAlpha = 1;
+    }
+    ctx.globalAlpha = f.used ? 0.45 : 1;
+    if (f.kind === 'shrine') {
+      ctx.fillStyle = '#3a3346';
+      ctx.fillRect(px + 4, py + 6, 8, 8);
+      ctx.fillStyle = '#4b4259';
+      ctx.fillRect(px + 3, py + 5, 10, 2);
+      ctx.fillStyle = '#701826';
+      ctx.fillRect(px + 6, py + 8, 4, 4);
+      ctx.fillStyle = '#d23a46';
+      ctx.fillRect(px + 7, py + 3, 2, 3);
+    } else if (f.kind === 'chest') {
+      ctx.fillStyle = '#5a3d22';
+      ctx.fillRect(px + 3, py + 6, 10, 7);
+      ctx.fillStyle = '#7a5532';
+      ctx.fillRect(px + 3, py + 5, 10, 3);
+      ctx.fillStyle = '#5d667a';
+      ctx.fillRect(px + 3, py + 8, 10, 1);
+      ctx.fillStyle = '#f2c14e';
+      ctx.fillRect(px + 7, py + 8, 2, 2);
+    } else {
+      ctx.fillStyle = '#4b4259';
+      ctx.fillRect(px + 2, py + 8, 12, 5);
+      ctx.fillStyle = '#3e8db5';
+      ctx.fillRect(px + 3, py + 9, 10, 2);
+      ctx.fillStyle = '#9fe8ff';
+      ctx.fillRect(px + 7, py + 3 + Math.round(Math.sin(this.time * 5)), 2, 5);
+    }
+    ctx.globalAlpha = 1;
   }
 
   private drawStairs(g: Game) {

@@ -801,3 +801,223 @@ details.card summary {
   box-shadow: 0 0 8px var(--heal);
   animation: pulse 1.6s infinite alternate;
 }
+
+/* ---------- progress: souls, heroes, ossuary, grimoire ---------- */
+
+.souls-chip {
+  display: inline-block;
+  margin: 4px 0 8px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.souls-chip b {
+  color: var(--text);
+  font-weight: normal;
+}
+
+.btn .souls-chip {
+  margin: 0 0 0 8px;
+  padding: 2px 6px;
+}
+
+.hero-list,
+.shop,
+.codex {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0;
+  text-align: left;
+}
+
+.hero-card {
+  display: grid;
+  grid-template-columns: 60px 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--gold);
+  text-align: left;
+}
+
+.hero-card img,
+.shop-item img {
+  image-rendering: pixelated;
+}
+
+.hero-card.selected {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.hero-card.locked {
+  border-left-color: var(--line);
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.hero-card:not(.locked):hover {
+  background: var(--panel-2);
+}
+
+.hero-info .name,
+.shop-info .name {
+  display: block;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.hero-info .tag {
+  display: block;
+  font-size: 10px;
+  color: var(--gold);
+  margin-top: 2px;
+}
+
+.hero-info .desc,
+.shop-info .desc {
+  display: block;
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+  line-height: 1.35;
+}
+
+.shop-head {
+  font-family: var(--gothic);
+  font-weight: normal;
+  font-size: 24px;
+  color: var(--gold);
+  margin: 14px 0 0;
+  text-align: left;
+}
+
+.shop-item,
+.codex-item {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+
+.codex-item {
+  grid-template-columns: 34px 1fr;
+}
+
+.shop-item.owned {
+  border-color: #3f5a3a;
+}
+
+.codex-item.unknown {
+  opacity: 0.5;
+}
+
+.shop-emoji {
+  font-size: 24px;
+  text-align: center;
+}
+
+.buy {
+  padding: 8px 10px;
+  background: linear-gradient(var(--blood), var(--blood-dark));
+  border: 1px solid #ff6a74;
+  color: #fff;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.buy:disabled {
+  background: var(--panel-2);
+  border-color: var(--line);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.owned-tag {
+  font-size: 10px;
+  color: var(--heal);
+}
+
+.souls-earned {
+  margin: 10px 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.souls-earned b {
+  display: block;
+  font-size: 18px;
+  color: var(--gold);
+  font-weight: normal;
+}
+
+.souls-earned span {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.combo-line {
+  margin: 4px 0;
+  font-size: 12px;
+  color: var(--gold);
+}
+
+.event-offer button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+#feat {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  left: 50%;
+  transform: translate(-50%, -140%);
+  min-width: 240px;
+  max-width: calc(100% - 32px);
+  padding: 10px 16px;
+  background: var(--panel-2);
+  border: 1px solid var(--gold);
+  box-shadow: 0 0 24px rgba(242, 193, 78, 0.35);
+  text-align: center;
+  z-index: 30;
+}
+
+#feat[hidden] {
+  display: none;
+}
+
+#feat.show {
+  animation: feat-in 2.6s ease-out forwards;
+}
+
+@keyframes feat-in {
+  0% { transform: translate(-50%, -140%); }
+  12%, 85% { transform: translate(-50%, 0); }
+  100% { transform: translate(-50%, -140%); }
+}
+
+#feat b {
+  display: block;
+  color: var(--gold);
+  font-weight: normal;
+  font-size: 13px;
+}
+
+#feat span {
+  display: block;
+  margin-top: 3px;
+  font-size: 10px;
+  color: var(--muted);
+}

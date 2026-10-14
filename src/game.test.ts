@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { Game, H, W, type Pos } from './game';
+import type { HeroId } from './content';
+import { Game, H, W, basePool, fullPool, isBoss, type Pos } from './game';
 import { descentStrip } from './share';
 
 const DIRS: Pos[] = [
@@ -35,10 +36,11 @@ function botStep(g: Game) {
   return g.act(0, 0);
 }
 
-function playOut(seed: number, maxTurns = 3000): Game {
-  const g = new Game('endless', seed);
+function playOut(seed: number, maxTurns = 3000, hero: HeroId = 'knight', pool = fullPool()): Game {
+  const g = new Game('endless', seed, 0, { hero, pool });
   for (let i = 0; i < maxTurns && g.phase !== 'dead'; i++) {
     if (g.phase === 'choose') g.choose(g.offer?.relics.length ? 0 : -1);
+    else if (g.phase === 'event') g.resolveEvent(i % 2 === 0);
     else botStep(g);
     g.events.length = 0;
   }
@@ -84,7 +86,8 @@ describe('Game', () => {
     g.offer = { relics: [], restHeal: 4 };
     g.choose(-1);
     expect(g.floor).toBe(2);
-    expect(g.player.hp).toBe(7);
+    // 3 + 4 from resting, +1 from the Knight's Second Wind on the new floor
+    expect(g.player.hp).toBe(8);
   });
 
   it('phylactery saves the player once', () => {
@@ -101,12 +104,70 @@ describe('Game', () => {
 });
 
 describe('replay', () => {
-  it('reproduces a run exactly from its input log', () => {
-    for (const seed of [1, 2, 3, 42, 777]) {
-      const g = playOut(seed);
-      const r = Game.replay('endless', seed, 0, g.log);
-      expect([r.floor, r.kills, r.turns, r.phase, r.player.hp]).toEqual([g.floor, g.kills, g.turns, g.phase, g.player.hp]);
+  it('reproduces a run exactly from its header and input log', () => {
+    const heroes: HeroId[] = ['knight', 'rogue', 'necro'];
+    for (const seed of [1, 2, 3, 42, 777, 9001]) {
+      const hero = heroes[seed % 3];
+      const pool = seed % 2 ? fullPool() : basePool(['key', 'echo']);
+      const g = playOut(seed, 3000, hero, pool);
+      const r = Game.replay('endless', seed, 0, g.header() + g.log);
+      expect(r.hero).toBe(hero);
+      expect([r.floor, r.kills, r.turns, r.phase, r.player.hp, r.relicLog.join()]).toEqual([
+        g.floor, g.kills, g.turns, g.phase, g.player.hp, g.relicLog.join(),
+      ]);
     }
+  });
+});
+
+describe('new content', () => {
+  it('every hero survives hundreds of full runs without errors', () => {
+    for (const hero of ['knight', 'rogue', 'necro'] as HeroId[]) {
+      for (let seed = 0; seed < 150; seed++) playOut(seed + 5000, 3000, hero);
+    }
+  });
+
+  it('spawns elites, traps and floor events', () => {
+    let elites = 0;
+    let spikes = 0;
+    let features = 0;
+    for (let seed = 0; seed < 100; seed++) {
+      const g = new Game('endless', seed);
+      for (let f = 2; f <= 9; f++) {
+        (g as unknown as { enterFloor: (n: number) => void }).enterFloor(f);
+        elites += g.alive.filter((e) => e.elite).length;
+        spikes += g.spikes.filter(Boolean).length;
+        if (g.feature) features++;
+      }
+    }
+    expect(elites).toBeGreaterThan(50);
+    expect(spikes).toBeGreaterThan(50);
+    expect(features).toBeGreaterThan(100);
+  });
+
+  it('rotates the three bosses', () => {
+    const g = new Game('endless', 3);
+    const bossOn = (f: number) => {
+      (g as unknown as { enterFloor: (n: number) => void }).enterFloor(f);
+      return g.enemies.find((e) => isBoss(e))?.kind;
+    };
+    expect([bossOn(5), bossOn(10), bossOn(15), bossOn(20)]).toEqual(['boss', 'abbot', 'lich', 'boss']);
+  });
+
+  it('the necromancer raises thralls that fight', () => {
+    let raised = 0;
+    for (let seed = 0; seed < 40; seed++) raised += playOut(seed, 3000, 'necro').stats.maxAllies;
+    expect(raised).toBeGreaterThan(20);
+  });
+
+  it('the blood shrine trades max HP for a relic', () => {
+    const g = new Game('endless', 11);
+    g.feature = { x: g.player.x, y: g.player.y, kind: 'shrine', used: false };
+    g.phase = 'event';
+    const before = g.player.maxHp;
+    g.resolveEvent(true);
+    expect(g.player.maxHp).toBe(before - 3);
+    expect(g.relicLog.length).toBe(1);
+    expect(g.phase).toBe('play');
   });
 });
 
@@ -119,8 +180,10 @@ describe('share', () => {
 // Balance report, printed when run with BALANCE=1.
 if (process.env.BALANCE) {
   it('balance report', () => {
-    const floors = Array.from({ length: 500 }, (_, s) => playOut(s + 10_000).floor).sort((a, b) => a - b);
-    const q = (p: number) => floors[Math.floor(p * (floors.length - 1))];
-    console.log(`bot floors: p10=${q(0.1)} p50=${q(0.5)} p90=${q(0.9)} max=${q(1)}`);
+    for (const hero of ['knight', 'rogue', 'necro'] as HeroId[]) {
+      const floors = Array.from({ length: 400 }, (_, s) => playOut(s + 10_000, 3000, hero).floor).sort((a, b) => a - b);
+      const q = (p: number) => floors[Math.floor(p * (floors.length - 1))];
+      console.log(`${hero} bot floors: p10=${q(0.1)} p50=${q(0.5)} p90=${q(0.9)} max=${q(1)}`);
+    }
   });
 }

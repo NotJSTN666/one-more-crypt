@@ -27,6 +27,12 @@ create table if not exists public.runs (
   check ((mode = 'daily') = (daily_no is not null))
 );
 
+-- Progress that carries between runs (Souls, unlocks, achievements), synced across devices.
+alter table public.profiles add column if not exists meta jsonb not null default '{}'::jsonb;
+do $$ begin
+  alter table public.profiles add constraint profiles_meta_size check (pg_column_size(meta) < 32000);
+exception when duplicate_object then null; end $$;
+
 -- One official daily attempt per player.
 create unique index if not exists runs_one_daily_per_user on public.runs (user_id, daily_no) where mode = 'daily';
 create index if not exists runs_daily_rank on public.runs (daily_no, floor desc, kills desc, turns) where mode = 'daily';
@@ -99,3 +105,6 @@ grant select on public.leaderboard_daily, public.leaderboard_endless to anon, au
 grant select on public.profiles, public.runs to anon, authenticated;
 grant insert, update on public.profiles to authenticated;
 grant insert on public.runs to authenticated;
+
+-- Tell the API to pick up any new columns straight away.
+notify pgrst, 'reload schema';

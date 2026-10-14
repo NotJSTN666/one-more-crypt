@@ -1,6 +1,7 @@
 // The player's sprite, assembled from layers so the hero visibly changes as relics
 // are collected: weapons swap, armour and trinkets appear, the cloak changes colour.
 
+import type { HeroId } from './content';
 import type { RelicId } from './relics';
 import { SPRITE_SIZE, type Sprite } from './sprites';
 
@@ -38,6 +39,8 @@ const BODY = [
 
 const CLOAKS = {
   default: { p: '#3b4f7d', P: '#22304f' },
+  rogue: { p: '#2f5238', P: '#1b3021' },
+  necro: { p: '#45285a', P: '#26142f' },
   pact: { p: '#8a2232', P: '#4f0f1b' }, // Blood Pact: crimson
   dust: { p: '#6d6880', P: '#433f52' }, // Grave Dust: ashen
   crown: { p: '#4b3a78', P: '#2c2148' }, // Cursed Crown: royal purple
@@ -56,19 +59,23 @@ function bladeColor(relics: Relics, log: RelicId[]): string {
   return relics.whetstone ? '#e8eef8' : COL.steel;
 }
 
-function paint(ctx: CanvasRenderingContext2D, relics: Relics, log: RelicId[], solid?: string) {
+function paint(ctx: CanvasRenderingContext2D, hero: HeroId, relics: Relics, log: RelicId[], solid?: string) {
   const n = (id: RelicId) => relics[id] ?? 0;
   const dot = (x: number, y: number, color: string) => {
     ctx.fillStyle = solid ?? color;
     ctx.fillRect(x, y, 1, 1);
   };
 
-  const cloak = n('pact') ? CLOAKS.pact : n('crown') ? CLOAKS.crown : n('dust') ? CLOAKS.dust : CLOAKS.default;
-  const eyes = n('fang') ? COL.red : n('frost') >= 2 ? COL.ice : COL.gold;
+  const heroCloak = hero === 'rogue' ? CLOAKS.rogue : hero === 'necro' ? CLOAKS.necro : CLOAKS.default;
+  const cloak = n('pact') ? CLOAKS.pact : n('crown') ? CLOAKS.crown : n('dust') ? CLOAKS.dust : heroCloak;
+  const eyes = n('fang') ? COL.red : n('frost') >= 2 ? COL.ice : hero === 'necro' ? COL.ice : COL.gold;
   const palette: Record<string, string> = { k: COL.outline, P: cloak.P, p: cloak.p, S: COL.steelDark, E: eyes };
   BODY.forEach((row, y) => {
     for (let x = 0; x < row.length; x++) if (row[x] !== '.') dot(x, y, palette[row[x]]);
   });
+
+  // --- class details ---
+  if (hero === 'rogue') for (let x = 4; x <= 7; x++) dot(x, 5, COL.redDark); // scarf
 
   // --- body ---
   if (n('bloom')) [[3, 7], [7, 9], [6, 6]].slice(0, 1 + n('bloom')).forEach(([x, y]) => dot(x, y, COL.rot));
@@ -128,7 +135,7 @@ function paint(ctx: CanvasRenderingContext2D, relics: Relics, log: RelicId[], so
     dot(1, 9, rim);
   }
 
-  // --- weapon hand: scythe > pike > sword ---
+  // --- weapon hand: scythe > pike > the class weapon ---
   dot(10, 7, COL.outline); // gauntlet
   if (n('harvest')) {
     for (let y = 1; y <= 10; y++) dot(11, y, COL.wood);
@@ -140,6 +147,21 @@ function paint(ctx: CanvasRenderingContext2D, relics: Relics, log: RelicId[], so
     dot(11, 1, blade);
     dot(10, 1, COL.steelDark);
     if (n('pike') >= 2) dot(10, 2, COL.steelDark);
+  } else if (hero === 'rogue') {
+    // Twin daggers; whetstones lengthen them.
+    const top = 5 - Math.min(2, n('whetstone'));
+    for (let y = top; y <= 6; y++) dot(11, y, blade);
+    dot(11, 7, COL.gold);
+    if (!n('mirror') && !n('whirl')) {
+      for (let y = top; y <= 6; y++) dot(0, y, blade);
+      dot(0, 7, COL.gold);
+    }
+  } else if (hero === 'necro') {
+    // Bone staff topped with a skull.
+    for (let y = 2; y <= 10; y++) dot(11, y, COL.wood);
+    dot(11, 1, COL.bone);
+    dot(10, 1, COL.bone);
+    dot(11, 0, blade === COL.steel ? COL.ice : blade);
   } else {
     // Whetstones lengthen the blade.
     const top = 3 - Math.min(2, n('whetstone'));
@@ -150,11 +172,11 @@ function paint(ctx: CanvasRenderingContext2D, relics: Relics, log: RelicId[], so
   }
 }
 
-function bake(relics: Relics, log: RelicId[], solid?: string): HTMLCanvasElement {
+function bake(hero: HeroId, relics: Relics, log: RelicId[], solid?: string): HTMLCanvasElement {
   const c = document.createElement('canvas');
   c.width = SPRITE_SIZE;
   c.height = SPRITE_SIZE;
-  paint(c.getContext('2d')!, relics, log, solid);
+  paint(c.getContext('2d')!, hero, relics, log, solid);
   return c;
 }
 
@@ -162,23 +184,23 @@ let cacheKey = '';
 let cached: Sprite | null = null;
 
 /** Sprite for the current build, rebuilt only when the relics change. */
-export function heroSprite(relics: Relics, log: RelicId[]): Sprite {
-  const key = log.join(',');
+export function heroSprite(hero: HeroId, relics: Relics, log: RelicId[]): Sprite {
+  const key = hero + ':' + log.join(',');
   if (!cached || key !== cacheKey) {
-    cached = { normal: bake(relics, log), white: bake(relics, log, '#ffffff') };
+    cached = { normal: bake(hero, relics, log), white: bake(hero, relics, log, '#ffffff') };
     cacheKey = key;
   }
   return cached;
 }
 
 /** A large, crisp portrait of the hero as a data URL, for the results screen. */
-export function heroPortrait(relics: Relics, log: RelicId[], scale = 8): string {
+export function heroPortrait(hero: HeroId, relics: Relics, log: RelicId[], scale = 8): string {
   const c = document.createElement('canvas');
   c.width = SPRITE_SIZE * scale;
   c.height = SPRITE_SIZE * scale;
   const ctx = c.getContext('2d')!;
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(bake(relics, log), 0, 0, c.width, c.height);
+  ctx.drawImage(bake(hero, relics, log), 0, 0, c.width, c.height);
   return c.toDataURL();
 }
 

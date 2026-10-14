@@ -195,8 +195,28 @@ export function dailyBoard(dailyNo: number, userId: string | null, limit = 50): 
   return board('leaderboard_daily', (q) => q.eq('daily_no', dailyNo), userId, limit);
 }
 
+/** How many players finished strictly below this rank in a daily crypt (ties don't count). */
+export async function dailyBelow(dailyNo: number, rank: number): Promise<number> {
+  const sb = await client();
+  const { count } = await sb.from('leaderboard_daily').select('*', { count: 'exact', head: true }).eq('daily_no', dailyNo).gt('rank', rank);
+  return count ?? 0;
+}
+
 export function endlessBoard(userId: string | null, limit = 50): Promise<Board> {
   return board('leaderboard_endless', (q) => q, userId, limit);
+}
+
+/** Progress saved on the account, or null if there is none (or the column isn't set up yet). */
+export async function loadRemoteMeta(userId: string): Promise<Record<string, unknown> | null> {
+  const sb = await client();
+  const { data, error } = await sb.from('profiles').select('meta').eq('id', userId).maybeSingle();
+  if (error || !data) return null;
+  return (data.meta as Record<string, unknown>) ?? null;
+}
+
+export async function saveRemoteMeta(userId: string, value: unknown): Promise<void> {
+  const sb = await client();
+  await sb.from('profiles').update({ meta: value }).eq('id', userId);
 }
 
 export async function myRuns(userId: string): Promise<MyRun[]> {

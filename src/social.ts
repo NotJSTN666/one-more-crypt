@@ -7,6 +7,7 @@ import {
   OnlineError,
   X_LOGIN,
   currentAccount,
+  dailyBelow,
   dailyBoard,
   endlessBoard,
   linkEmail,
@@ -22,11 +23,14 @@ import {
   validName,
   verifyEmailCode,
   watchPlayerCount,
+  loadRemoteMeta,
+  saveRemoteMeta,
   type Account,
   type Board,
   type BoardRow,
   type RunSubmission,
 } from './online';
+import { meta, mergeMeta, onMetaChange, type Meta } from './meta';
 import { currentStreak, writeSave, type Save } from './storage';
 import { esc, field, formStatus, on, onSubmit, screen, showOverlay, toast } from './ui';
 
@@ -99,7 +103,33 @@ async function refreshAccount() {
 async function afterSignIn() {
   await flushPending();
   await syncFromServer();
+  await syncMeta();
 }
+
+/** Merge progress saved on the account with this device's, then save the result back. */
+async function syncMeta() {
+  const acc = session.account;
+  if (!acc) return;
+  try {
+    const remote = await loadRemoteMeta(acc.id);
+    if (remote) mergeMeta(remote as Partial<Meta>);
+    await saveRemoteMeta(acc.id, meta);
+    onChange();
+  } catch {
+    // Offline or not set up yet: progress stays on this device.
+  }
+}
+
+// Push progress to the account shortly after it changes.
+let metaTimer = 0;
+onMetaChange(() => {
+  if (!signedIn()) return;
+  window.clearTimeout(metaTimer);
+  metaTimer = window.setTimeout(() => {
+    const acc = session.account;
+    if (acc) void saveRemoteMeta(acc.id, meta).catch(() => undefined);
+  }, 2500);
+});
 
 /** Pull this account's daily results so "one attempt a day" holds across devices. */
 async function syncFromServer() {
@@ -173,7 +203,12 @@ export async function rankLine(mode: 'daily' | 'endless', dailyNo: number, floor
   if (!acc) return '';
   const board = mode === 'daily' ? await dailyBoard(dailyNo, acc.id, 1) : await endlessBoard(acc.id, 1);
   if (!board.me) return '';
-  if (mode === 'daily') return `Rank #${board.me.rank} of ${board.total} today`;
+  if (mode === 'daily') {
+    if (board.total <= 1) return "Rank #1 of 1. You're the first to fall today";
+    const below = await dailyBelow(dailyNo, board.me.rank);
+    const beat = Math.round((below / (board.total - 1)) * 100);
+    return `Rank #${board.me.rank} of ${board.total} · you beat ${beat}% of today's delvers`;
+  }
   return board.me.floor > floor
     ? `Your best: floor ${board.me.floor} · #${board.me.rank} of ${board.total}`
     : `Rank #${board.me.rank} of ${board.total} all-time`;
