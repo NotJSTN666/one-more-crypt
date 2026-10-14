@@ -289,7 +289,7 @@ button {
 
 .logo {
   font-family: var(--gothic);
-  font-size: clamp(52px, 17vw, 76px);
+  font-size: clamp(40px, 12.5vw, 66px);
   line-height: 1;
   margin: 0;
   color: var(--blood);

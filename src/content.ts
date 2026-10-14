@@ -103,7 +103,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'floor5', name: 'Delver', desc: 'Reach floor 5.', souls: 20 },
   { id: 'floor10', name: 'Deep Delver', desc: 'Reach floor 10.', souls: 50 },
   { id: 'floor15', name: 'Abyss Walker', desc: 'Reach floor 15.', souls: 100 },
-  { id: 'warden', name: 'Wardenfall', desc: 'Slay the Bone Warden.', souls: 40 },
+  { id: 'warden', name: "Warden's Fall", desc: 'Slay the Bone Warden.', souls: 40 },
   { id: 'abbot', name: 'Plague Doctor', desc: 'Slay the Plague Abbot.', souls: 75 },
   { id: 'lich', name: 'Lichbane', desc: 'Slay the Lich King.', souls: 120 },
   { id: 'close-call', name: 'Close Call', desc: 'Slay a boss with 1 HP left.', souls: 50 },

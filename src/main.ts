@@ -448,7 +448,7 @@ function showTitle() {
     : '';
   showOverlay('title', `
     ${accountChip()}
-    <h1 class="logo">Wardenfall</h1>
+    <h1 class="logo">One More Crypt</h1>
     <p class="tagline">One crypt. One try a day. How deep can you go?</p>
     ${onlineCountHtml()}
     ${continueBlock}

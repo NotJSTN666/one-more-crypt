@@ -1,4 +1,4 @@
--- Wardenfall backend schema for Supabase.
+-- One More Crypt backend schema for Supabase.
 -- Run once in the Supabase dashboard: SQL Editor -> New query -> paste -> Run.
 -- Safe to re-run: it only creates what is missing and replaces views/policies.
 
