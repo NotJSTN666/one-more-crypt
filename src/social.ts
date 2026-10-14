@@ -160,7 +160,8 @@ export async function rankLine(mode: 'daily' | 'endless', dailyNo: number, floor
 type Step = 'start' | 'email' | 'code' | 'name';
 
 export function showLogin(back: () => void, step: Step = 'start', email = '') {
-  save.seenLogin = true;
+  if (ONLINE) save.seenOnlineLogin = true;
+  else save.seenLogin = true;
   writeSave(save);
   const done = () => {
     onChange();
@@ -190,7 +191,7 @@ export function showLogin(back: () => void, step: Step = 'start', email = '') {
     showOverlay('login', `
       <h2>Claim your name</h2>
       <p class="sub">Your name goes on the leaderboards. Progress is saved to your account.</p>
-      ${nameForm(randomName(), 'Enter the crypt')}
+      ${nameForm(save.name || randomName(), 'Enter the crypt')}
       <p class="fine">Starts a guest account on this device. Add an email later to play on other devices too.</p>
       <div class="divider"><span>or sign in</span></div>
       ${X_LOGIN ? '<button class="btn x" id="x-login">Continue with 𝕏</button>' : ''}

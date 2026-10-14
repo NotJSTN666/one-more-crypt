@@ -19,6 +19,8 @@ export interface Save {
   seenHelp: boolean;
   /** True once the player has seen (or skipped) the sign-in screen. */
   seenLogin: boolean;
+  /** Same, for the online sign-in screen, so offline players still get asked once leaderboards go live. */
+  seenOnlineLogin: boolean;
   /** Name used when playing offline. */
   name: string;
   totals: { runs: number; kills: number; bestDaily: number };
@@ -36,6 +38,7 @@ function empty(): Save {
     muted: false,
     seenHelp: false,
     seenLogin: false,
+    seenOnlineLogin: false,
     name: '',
     totals: { runs: 0, kills: 0, bestDaily: 0 },
     pending: [],

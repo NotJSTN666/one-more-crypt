@@ -529,7 +529,7 @@ void initSocial(save, () => {
   if (screen !== 'title') return;
   // First visit, or back from an email link / X sign-in that still needs a name.
   if (needsName()) showLogin(showTitle, 'name');
-  else if (!session.account && !save.seenLogin) showLogin(showTitle);
+  else if (!session.account && !save.seenOnlineLogin) showLogin(showTitle);
   else showTitle();
 });
 showTitle();
