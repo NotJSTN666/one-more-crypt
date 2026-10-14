@@ -3,7 +3,7 @@
 
 import type { RunResult } from './storage';
 
-export const GAME_NAME = 'CRYPTFALL';
+export const GAME_NAME = 'WARDENFALL';
 
 export function siteUrl(): string {
   return location.origin + location.pathname;

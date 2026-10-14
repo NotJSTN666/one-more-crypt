@@ -1,8 +1,8 @@
-# Cryptfall
+# Wardenfall
 
 A daily dark-fantasy roguelite that runs in the browser. Same crypt for everyone, one attempt a day. Players go down floor by floor, stack relics into broken builds, and share how deep they got.
 
-**Play:** https://notjstn666.github.io/cryptfall/
+**Play:** https://notjstn666.github.io/wardenfall/
 
 ## How it plays
 
@@ -52,7 +52,7 @@ With no configuration the game runs fully offline: names and progress are saved 
 1. Create a free project at [supabase.com](https://supabase.com).
 2. **SQL Editor → New query**: paste all of `supabase/schema.sql` and click **Run**.
 3. **Authentication → Sign In / Providers**: turn on **Allow anonymous sign-ins**. Email sign-in is on by default.
-4. **Authentication → URL Configuration**: set **Site URL** to the game's address (for example `https://notjstn666.github.io/cryptfall/`) and add the same URL under **Redirect URLs**.
+4. **Authentication → URL Configuration**: set **Site URL** to the game's address (for example `https://notjstn666.github.io/wardenfall/`) and add the same URL under **Redirect URLs**.
 5. **Authentication → Emails → Magic Link**: add `Your code: {{ .Token }}` to the template. Players who open the email outside the game's browser (common in the X app) can then type the code instead of tapping the link.
 6. **Project Settings → API**: copy the **Project URL** and the **anon public** key.
 7. In this GitHub repo, go to **Settings → Secrets and variables → Actions → Variables** and add `SUPABASE_URL` and `SUPABASE_ANON_KEY`. Then re-run the deploy workflow.
@@ -69,6 +69,6 @@ Every run uploads its full input log. The game is deterministic, so `Game.replay
 
 `.github/workflows/deploy.yml` builds and publishes to GitHub Pages on every push to `main`. One-time setup: **Settings → Pages → Source: GitHub Actions**.
 
-The site's address in the link-preview tags is worked out from the repo name at build time, so renaming the repo needs no code change. For a custom domain, set a repo variable `SITE_URL` (e.g. `https://cryptfall.gg/`).
+The site's address in the link-preview tags is worked out from the repo name at build time, so renaming the repo needs no code change. For a custom domain, set a repo variable `SITE_URL` (e.g. `https://wardenfall.com/`).
 
 The social preview image is `public/og.png`. To regenerate it, run `npx vite --port 5199` and then `node scripts/make-og.mjs` (needs Playwright installed).

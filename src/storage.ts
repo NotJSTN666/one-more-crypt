@@ -29,6 +29,7 @@ export interface Save {
   pending: RunSubmission[];
 }
 
+// Named after the game's launch title; kept so existing players keep their progress.
 const KEY = 'cryptfall:v1';
 
 function empty(): Save {

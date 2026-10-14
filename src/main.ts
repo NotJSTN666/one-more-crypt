@@ -39,6 +39,7 @@ window.addEventListener('resize', fitBoard);
 
 function newGame(mode: Mode) {
   const today = dailyNumber();
+  // The game was called Cryptfall at launch; the seed keeps that name so every daily stays the same crypt.
   const seed = mode === 'daily' ? hashSeed('cryptfall-daily', today) : (Math.random() * 2 ** 32) >>> 0;
   game = new Game(mode, seed, mode === 'daily' ? today : 0);
   renderer.setGame(game);
@@ -326,7 +327,7 @@ function showTitle() {
     : `<button class="btn primary" id="daily">Daily Descent #${today}<small>Same crypt for everyone. One attempt.</small></button>`;
   showOverlay('title', `
     ${accountChip()}
-    <h1 class="logo">Cryptfall</h1>
+    <h1 class="logo">Wardenfall</h1>
     <p class="tagline">One crypt. One try a day. How deep can you go?</p>
     ${dailyBlock}
     <button class="btn" id="endless">Endless Descent<small>${save.bestEndless ? `Deepest: floor ${save.bestEndless}` : 'Practice runs, random crypts'}</small></button>
