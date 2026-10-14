@@ -1,12 +1,12 @@
 import './style.css';
 import { isMusicEnabled, isMuted, setMusicEnabled, setMusicMood, setMuted, sfx, unlockAudio } from './audio';
 import { dailyNumber, formatCountdown, msUntilNextDaily } from './daily';
-import { ELITES, FEATURES, HERO_BY_ID, dailyHero, type ComboDef } from './content';
+import { ELITES, FEATURES, HEROES, HERO_BY_ID, dailyHero, type ComboDef } from './content';
 import { heroPortrait } from './hero';
-import { ENEMY_INFO, Game, isBoss, type GameEvent, type Mode } from './game';
+import { ENEMY_INFO, Game, fullPool, isBoss, type GameEvent, type Mode } from './game';
 import { checkRun, finishRunMeta, meta, noteRelic, runConfig, type RunReward } from './meta';
 import { celebrate, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
-import { RELIC_BY_ID, type RelicId } from './relics';
+import { RELICS, RELIC_BY_ID, type RelicId } from './relics';
 import { Renderer } from './render';
 import { hashSeed } from './rng';
 import { ONLINE } from './online';
@@ -59,8 +59,80 @@ function showGame(g: Game) {
   updateHud(true);
 }
 
+// ---------- attract mode ----------
+// Behind the title and menus, a ghost hero plays the crypt by itself, like an arcade
+// cabinet. It never touches saves, Souls or achievements.
+
+let attractTimer = 0;
+let attractDeadTicks = 0;
+
+function startAttract() {
+  if (attractTimer || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const hero = HEROES[Math.floor(Math.random() * HEROES.length)].id;
+  const g = new Game('endless', (Math.random() * 2 ** 32) >>> 0, 0, { hero, pool: fullPool() });
+  // A few relics up front so the hero looks the part, and extra health so it reaches bosses.
+  for (let i = 0; i < 3; i++) g.addRelic(RELICS[Math.floor(Math.random() * RELICS.length)].id);
+  g.player.maxHp = g.player.hp = 30;
+  showGame(g);
+  attractDeadTicks = 0;
+  overlay.classList.add('attract');
+  document.body.classList.add('attract');
+  fitBoard();
+  attractTimer = window.setInterval(attractStep, 320);
+}
+
+function stopAttract() {
+  window.clearInterval(attractTimer);
+  attractTimer = 0;
+  overlay.classList.remove('attract');
+  document.body.classList.remove('attract');
+  fitBoard();
+}
+
+function attractStep() {
+  const g = game;
+  if (g.phase === 'dead') {
+    // Linger on the death for a moment, then a new hero descends.
+    if (++attractDeadTicks > 6) {
+      stopAttract();
+      startAttract();
+    }
+    return;
+  }
+  if (g.phase === 'choose') g.choose(g.offer?.relics.length ? Math.floor(Math.random() * g.offer.relics.length) : -1);
+  else if (g.phase === 'event') g.resolveEvent(Math.random() < 0.6);
+  else attractMove(g);
+  renderer.consume(g.events.splice(0));
+  updateHud();
+}
+
+/** Greedy ghost player: strike if adjacent, else walk toward a foe (or the open stairs). */
+function attractMove(g: Game) {
+  const p = g.player;
+  const dirs = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+  for (const [x, y] of dirs) if (g.enemyAt(p.x + x, p.y + y) && g.act(x, y)) return;
+  const goals = g.stairsOpen ? [g.stairs] : g.alive.map((e) => ({ x: e.x, y: e.y }));
+  let best: number[] | null = null;
+  let bestD = Infinity;
+  for (const goal of goals) {
+    const dist = g.distanceMap(goal, false);
+    for (const [x, y] of dirs) {
+      const nx = p.x + x;
+      const ny = p.y + y;
+      if (!g.inBounds(nx, ny) || g.isWall(nx, ny)) continue;
+      const d = dist[ny * 7 + nx];
+      if (d >= 0 && d < bestD) {
+        bestD = d;
+        best = [x, y];
+      }
+    }
+  }
+  if (!(best && g.act(best[0], best[1]))) g.act(0, 0);
+}
+
 function startRun(mode: Mode) {
   unlockAudio();
+  stopAttract();
   newGame(mode);
   saveRun();
   setMusicMood('crypt');
@@ -123,6 +195,7 @@ function savedRun(): Game | null {
 
 function resumeRun(g: Game) {
   unlockAudio();
+  stopAttract();
   showGame(g);
   setMusicMood(g.isBossFloor() ? 'boss' : 'crypt');
   hideOverlay();
@@ -395,6 +468,10 @@ function updateHud(reset = false) {
 
 function updateTip() {
   const tip = $('tip');
+  if (attractTimer) {
+    tip.innerHTML = `A lost <b>${HERO_BY_ID[game.hero].name}</b> descends alone… Start a run to take over.`;
+    return;
+  }
   if (selectedRelic) {
     const def = RELIC_BY_ID[selectedRelic];
     const n = game.r(selectedRelic);
@@ -427,6 +504,7 @@ function updateTip() {
 
 function showTitle() {
   setMusicMood('crypt');
+  startAttract();
   const today = dailyNumber();
   const done = save.daily[today];
   const streak = currentStreak(save, today);

@@ -1021,3 +1021,36 @@ details.card summary {
   font-size: 10px;
   color: var(--muted);
 }
+
+/* Attract mode: let the ghost run show through behind the title and menus. */
+#overlay.attract {
+  background: radial-gradient(ellipse at 50% 45%, rgba(5, 2, 9, 0.6) 0%, rgba(5, 2, 9, 0.76) 55%, rgba(5, 2, 9, 0.9) 100%);
+  backdrop-filter: none;
+}
+
+#overlay.attract .btn {
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.6);
+}
+
+#overlay.attract .tagline,
+#overlay.attract .sub {
+  text-shadow: 0 1px 3px #000, 0 0 8px #000;
+}
+
+/* Wide screens: menu on the left, the ghost run on the right, side by side. */
+@media (min-width: 1000px) {
+  body.attract #app {
+    margin-left: 50%;
+    padding-left: 24px;
+  }
+
+  #overlay.attract {
+    justify-content: flex-start;
+    padding-left: max(24px, calc(50% - 460px));
+    background: linear-gradient(to right, rgba(5, 2, 9, 0.94) 0%, rgba(5, 2, 9, 0.9) 42%, rgba(5, 2, 9, 0.25) 56%, rgba(5, 2, 9, 0.1) 100%);
+  }
+
+  #overlay.attract .panel {
+    margin: auto 0;
+  }
+}
