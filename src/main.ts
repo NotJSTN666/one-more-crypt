@@ -11,6 +11,7 @@ import { RELIC_BY_ID, type RelicId } from './relics';
 import { Renderer } from './render';
 import { hashSeed } from './rng';
 import { ONLINE } from './online';
+import { howToHtml, startHowTo } from './howto';
 import { copyText, descentStrip, followXHtml, shareText, siteUrl, xIntentUrl } from './share';
 import { initSocial, needsName, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
 import { currentStreak, loadSave, recordDaily, writeSave, type RunResult } from './storage';
@@ -491,14 +492,10 @@ function accountChip(): string {
 function showHelp(back: () => void) {
   showOverlay('help', `
     <h2>How to play</h2>
+    ${howToHtml()}
     <ul class="help">
-      <li>Move with <b>arrows / WASD</b>, or <b>swipe / tap</b> on mobile.</li>
-      <li><b>Bump</b> a foe to strike it. Every move you make, the dead make one too.</li>
-      <li>Slay every foe to <b>unseal the stairs</b>, then descend.</li>
-      <li>Each floor, claim a <b>relic</b>. They stack and combo, so build something broken.</li>
-      <li>Every 5th floor a boss awaits: the <b>Bone Warden</b>, the <b>Plague Abbot</b>, then the <b>Lich King</b>.</li>
-      <li><b>Glowing foes</b> are elites with a special trick. <b>Spikes</b> hurt anything that steps on them.</li>
       <li>Shrines, chests and fountains offer <b>deals</b>. Step on them to choose.</li>
+      <li><b>Spikes</b> hurt anything that steps on them, foes included.</li>
       <li>Every run earns <b>Souls</b>. Spend them in the <b>Ossuary</b> on new heroes and relics.</li>
       <li>The <b>Daily Descent</b> is the same crypt and hero for everyone, once a day. Share your depth.</li>
     </ul>
@@ -523,6 +520,7 @@ function showHelp(back: () => void) {
   save.seenHelp = true;
   writeSave(save);
   on('#back', back);
+  startHowTo(overlay);
 }
 
 function showChoice() {

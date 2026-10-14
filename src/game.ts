@@ -327,6 +327,36 @@ export class Game {
     }
   }
 
+  /** Replace the floor with a hand-made scene. Used by the How to play demos. */
+  stage(scene: {
+    player: Pos;
+    enemies: { kind: EnemyKind; x: number; y: number; elite?: EliteMod; hp?: number }[];
+    walls?: Pos[];
+    stairs?: Pos;
+    hp?: number;
+  }) {
+    this.floor = 1;
+    this.walls = new Array(W * H).fill(false);
+    for (const w of scene.walls ?? []) this.walls[w.y * W + w.x] = true;
+    this.spikes = new Array(W * H).fill(false);
+    this.potion = null;
+    this.feature = null;
+    this.warnings = [];
+    this.enemies = [];
+    for (const e of scene.enemies) {
+      const made = this.makeEnemy(e.kind, e.x, e.y);
+      if (e.elite) this.makeElite(made, e.elite);
+      if (e.hp) made.hp = made.maxHp = e.hp;
+    }
+    this.stairs = scene.stairs ?? { x: 3, y: 0 };
+    this.stairsOpen = false;
+    this.player.x = scene.player.x;
+    this.player.y = scene.player.y;
+    if (scene.hp) this.player.hp = this.player.maxHp = scene.hp;
+    this.phase = 'play';
+    this.events = [];
+  }
+
   private generateLayout(rng: Rng) {
     for (let attempt = 0; attempt < 200; attempt++) {
       this.walls = new Array(W * H).fill(false);
