@@ -1022,35 +1022,49 @@ details.card summary {
   color: var(--muted);
 }
 
-/* Attract mode: let the ghost run show through behind the title and menus. */
-#overlay.attract {
-  background: radial-gradient(ellipse at 50% 45%, rgba(5, 2, 9, 0.6) 0%, rgba(5, 2, 9, 0.76) 55%, rgba(5, 2, 9, 0.9) 100%);
-  backdrop-filter: none;
+/* ---------- ghost runs in the empty space beside the game (wide screens) ---------- */
+
+.ghost {
+  position: fixed;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 0.35;
+  pointer-events: none;
+  z-index: 0;
+  image-rendering: pixelated;
+  /* Fade the board's edges into the darkness. */
+  -webkit-mask-image: radial-gradient(closest-side, #000 72%, transparent 100%);
+  mask-image: radial-gradient(closest-side, #000 72%, transparent 100%);
 }
 
-#overlay.attract .btn {
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.6);
+.ghost[hidden] {
+  display: none;
 }
 
-#overlay.attract .tagline,
-#overlay.attract .sub {
-  text-shadow: 0 1px 3px #000, 0 0 8px #000;
+#ghost-left {
+  left: calc((100% - 520px) / 4);
 }
 
-/* Wide screens: menu on the left, the ghost run on the right, side by side. */
-@media (min-width: 1000px) {
-  body.attract #app {
-    margin-left: 50%;
-    padding-left: 24px;
-  }
+#ghost-right {
+  left: calc(100% - (100% - 520px) / 4);
+}
 
-  #overlay.attract {
-    justify-content: flex-start;
-    padding-left: max(24px, calc(50% - 460px));
-    background: linear-gradient(to right, rgba(5, 2, 9, 0.94) 0%, rgba(5, 2, 9, 0.9) 42%, rgba(5, 2, 9, 0.25) 56%, rgba(5, 2, 9, 0.1) 100%);
-  }
+#app {
+  position: relative;
+  z-index: 1;
+}
 
-  #overlay.attract .panel {
-    margin: auto 0;
+/* Keep the menus dark over the game column but let the ghosts show at the sides. */
+@media (min-width: 976px) {
+  #overlay {
+    backdrop-filter: none;
+    background: linear-gradient(
+      to right,
+      transparent 0,
+      transparent calc(50% - 290px),
+      rgba(5, 2, 9, 0.92) calc(50% - 250px),
+      rgba(5, 2, 9, 0.92) calc(50% + 250px),
+      transparent calc(50% + 290px)
+    );
   }
 }
