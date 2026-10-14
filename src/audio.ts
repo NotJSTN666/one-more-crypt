@@ -103,13 +103,16 @@ export const sfx = {
 // (floor 30+). Boss floors play one level hotter on a darker progression. Every
 // sound is synthesized live; nothing to download.
 
-export type Mood = 'crypt' | 'boss' | 'silent';
+export type Mood = 'crypt' | 'boss' | 'fallen' | 'silent';
 
 // D minor i - VI - iv - V, and Phrygian dread i - bII - i - vii° for bosses (MIDI notes).
-const CHORDS: Record<'crypt' | 'boss', number[][]> = {
+const CHORDS: Record<'crypt' | 'boss' | 'fallen', number[][]> = {
   crypt: [[50, 53, 57], [46, 50, 53], [43, 46, 50], [45, 49, 52]],
   boss: [[50, 53, 57], [51, 55, 58], [50, 53, 57], [49, 52, 56]],
+  // The death screen: a slow lament, i - iv - VI - V.
+  fallen: [[50, 53, 57], [43, 46, 50], [46, 50, 53], [45, 49, 52]],
 };
+const FALLEN_TEMPO = 96;
 const ARP = [0, 1, 2, 1, 2, 0, 2, 1];
 const TEMPO = [112, 120, 126, 133, 140]; // BPM per intensity level
 const MUSIC_VOLUME = 0.32;
@@ -139,6 +142,11 @@ export function setMusicEnabled(on: boolean) {
 export function setMusicMood(next: Mood) {
   if (next === mood) return;
   mood = next;
+  // The lament starts cleanly on a downbeat instead of waiting for the bar line.
+  if (next === 'fallen') {
+    level = 0;
+    stepIndex = 0;
+  }
   applyMusicVolume();
 }
 
@@ -148,7 +156,7 @@ export function setMusicDepth(floor: number) {
 }
 
 function targetLevel(): number {
-  if (depth <= 0) return 0;
+  if (depth <= 0 || mood === 'fallen') return 0;
   const base = depth >= 30 ? 4 : depth >= 20 ? 3 : depth >= 10 ? 2 : 1;
   return Math.min(4, base + (mood === 'boss' ? 1 : 0));
 }
@@ -226,17 +234,21 @@ function schedule() {
       level = next;
     }
     if (mood !== 'silent') playStep(stepIndex, nextTime);
-    nextTime += 60 / TEMPO[level] / 4;
+    nextTime += 60 / tempo() / 4;
     stepIndex++;
   }
+}
+
+function tempo(): number {
+  return mood === 'fallen' ? FALLEN_TEMPO : TEMPO[level];
 }
 
 function playStep(i: number, t: number) {
   const s = i % 16;
   const bar = Math.floor(i / 16);
-  const chords = CHORDS[mood === 'boss' ? 'boss' : 'crypt'];
+  const chords = CHORDS[mood === 'boss' ? 'boss' : mood === 'fallen' ? 'fallen' : 'crypt'];
   const chord = chords[bar % chords.length];
-  const s16 = 60 / TEMPO[level] / 4;
+  const s16 = 60 / tempo() / 4;
   const L = level;
 
   if (s === 0) pad(chord, t, s16 * 16, L === 0 ? 0.045 : 0.035);

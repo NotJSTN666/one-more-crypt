@@ -675,6 +675,8 @@ function showPause() {
 
 function showDeath(r: RunResult, best: boolean) {
   const daily = game.mode === 'daily';
+  setMusicDepth(0);
+  setMusicMood('fallen');
   showOverlay('death', `
     <img class="hero-portrait" src="${heroPortrait(game.hero, game.relics, game.relicLog)}" alt="Your hero's final form" width="96" height="96" />
     <h2 class="dead">You have fallen</h2>
