@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#07040b" />
+    <title>Cryptfall · A daily roguelite descent</title>
+    <meta name="description" content="One crypt. One try a day. Descend floor by floor, stack cursed relics into broken builds, and see how deep you can go." />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Cryptfall · How deep can you go?" />
+    <meta property="og:description" content="A daily dark-fantasy roguelite. Same crypt for everyone, one attempt a day. Plays in your browser in seconds." />
+    <meta property="og:image" content="https://notjstn666.github.io/Browser-game/og.png" />
+    <meta property="og:url" content="https://notjstn666.github.io/Browser-game/" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Cryptfall · How deep can you go?" />
+    <meta name="twitter:description" content="A daily dark-fantasy roguelite. Same crypt for everyone, one attempt a day." />
+    <meta name="twitter:image" content="https://notjstn666.github.io/Browser-game/og.png" />
+
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Silkscreen&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <div id="app">
+      <header id="hud">
+        <div class="hp">
+          <div class="hp-bar"><div class="hp-fill" id="hp-fill"></div></div>
+          <span id="hp-text">10/10</span>
+        </div>
+        <div class="stats">
+          <span title="Floor">⛧ <b id="floor">1</b></span>
+          <span title="Attack">⚔ <b id="atk">1</b></span>
+          <span title="Kills">☠ <b id="kills">0</b></span>
+        </div>
+        <div class="hud-buttons">
+          <button id="mute" class="icon-btn" aria-label="Toggle sound">🔊</button>
+          <button id="menu-btn" class="icon-btn" aria-label="Menu">☰</button>
+        </div>
+      </header>
+
+      <div id="boss-bar" hidden>
+        <span>The Bone Warden</span>
+        <div class="boss-track"><div id="boss-fill"></div></div>
+      </div>
+
+      <main id="stage">
+        <canvas id="board"></canvas>
+      </main>
+
+      <div id="relic-bar" aria-label="Your relics"></div>
+      <p id="tip">Bump into foes to strike. Clear the floor to unseal the stairs.</p>
+
+      <div id="dpad">
+        <button data-dir="0,-1" aria-label="Up">▲</button>
+        <button data-dir="-1,0" aria-label="Left">◀</button>
+        <button data-dir="0,0" aria-label="Wait" class="wait">WAIT</button>
+        <button data-dir="1,0" aria-label="Right">▶</button>
+        <button data-dir="0,1" aria-label="Down">▼</button>
+      </div>
+    </div>
+
+    <div id="overlay" hidden></div>
+    <div id="toast" hidden></div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
