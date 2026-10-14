@@ -32,8 +32,8 @@ jobs:
           VITE_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
           VITE_AUTH_X: ${{ vars.AUTH_X }}
-          # Optional: set when using a custom domain. Otherwise it follows the repo name.
-          SITE_URL: ${{ vars.SITE_URL }}
+          # The game's public address, used in the link-preview tags. A SITE_URL repo variable overrides it.
+          SITE_URL: ${{ vars.SITE_URL || 'https://onemorecrypt.com/' }}
       - uses: actions/configure-pages@v5
         with:
           enablement: true
