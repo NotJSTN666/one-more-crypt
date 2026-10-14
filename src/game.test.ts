@@ -100,6 +100,16 @@ describe('Game', () => {
   });
 });
 
+describe('replay', () => {
+  it('reproduces a run exactly from its input log', () => {
+    for (const seed of [1, 2, 3, 42, 777]) {
+      const g = playOut(seed);
+      const r = Game.replay('endless', seed, 0, g.log);
+      expect([r.floor, r.kills, r.turns, r.phase, r.player.hp]).toEqual([g.floor, g.kills, g.turns, g.phase, g.player.hp]);
+    }
+  });
+});
+
 describe('share', () => {
   it('builds a descent strip with bosses and the death floor', () => {
     expect(descentStrip(6)).toBe('🟪🟪🟪🟪💀🩸');

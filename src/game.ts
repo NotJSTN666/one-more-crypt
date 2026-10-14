@@ -106,6 +106,8 @@ export class Game {
   kills = 0;
   turns = 0;
   killedBy = '';
+  /** Every input, in order: U/D/L/R moves, W waits, 0-3 relic picks, r rests. Enough to replay the run exactly. */
+  log = '';
   events: GameEvent[] = [];
 
   private harvestBonus = 0;
@@ -314,6 +316,12 @@ export class Game {
 
   /** Returns true if the action consumed a turn. */
   act(dx: number, dy: number): boolean {
+    const ok = this.doAct(dx, dy);
+    if (ok) this.log += dx === 0 && dy === 0 ? 'W' : dx > 0 ? 'R' : dx < 0 ? 'L' : dy > 0 ? 'D' : 'U';
+    return ok;
+  }
+
+  private doAct(dx: number, dy: number): boolean {
     if (this.phase !== 'play') return false;
     if (dx === 0 && dy === 0) {
       this.endTurn();
@@ -406,10 +414,12 @@ export class Game {
     if (this.phase !== 'choose' || !this.offer) return;
     if (index < 0) {
       this.heal(this.offer.restHeal);
+      this.log += 'r';
     } else {
       const relic = this.offer.relics[index];
       if (!relic) return;
       this.addRelic(relic.id);
+      this.log += String(index);
     }
     this.offer = null;
     this.phase = 'play';
@@ -719,6 +729,20 @@ export class Game {
       y += e.aim.y;
     }
     return path;
+  }
+
+  /** Re-simulate a run from its input log. Used to verify submitted scores. */
+  static replay(mode: Mode, seed: number, dailyNo: number, log: string): Game {
+    const g = new Game(mode, seed, dailyNo);
+    const moves: Record<string, [number, number]> = { U: [0, -1], D: [0, 1], L: [-1, 0], R: [1, 0], W: [0, 0] };
+    for (const ch of log) {
+      if (g.phase === 'dead') break;
+      if (moves[ch]) g.act(moves[ch][0], moves[ch][1]);
+      else if (ch === 'r') g.choose(-1);
+      else g.choose(Number(ch));
+    }
+    g.events.length = 0;
+    return g;
   }
 
   /** Short run summary used by the share card and results screen. */

@@ -5,13 +5,13 @@ import { ENEMY_INFO, Game, type GameEvent, type Mode } from './game';
 import { RELIC_BY_ID, type RelicId } from './relics';
 import { Renderer } from './render';
 import { hashSeed } from './rng';
+import { ONLINE } from './online';
 import { copyText, descentStrip, shareText, siteUrl, xIntentUrl } from './share';
+import { initSocial, needsName, playerName, rankLine, recordRun, session, showLeaderboard, showLogin, showProfile, signedIn, syncNow } from './social';
 import { currentStreak, loadSave, recordDaily, writeSave, type RunResult } from './storage';
-
-const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
+import { $, esc, hideOverlay, on, overlay, screen, showOverlay, toast } from './ui';
 
 const canvas = $<HTMLCanvasElement>('board');
-const overlay = $('overlay');
 const renderer = new Renderer(canvas);
 const save = loadSave();
 setMuted(save.muted);
@@ -74,10 +74,38 @@ function finishRun(abandoned = false) {
     }
     lastLabel = 'Endless';
   }
+  save.totals.runs += 1;
+  save.totals.kills += result.kills;
+  if (game.mode === 'daily') save.totals.bestDaily = Math.max(save.totals.bestDaily, result.floor);
   writeSave(save);
   lastResult = result;
+
+  const mode = game.mode;
+  const dailyNo = game.dailyNo;
+  const uploaded = recordRun({
+    mode,
+    daily_no: mode === 'daily' ? dailyNo : null,
+    seed: game.seed,
+    floor: result.floor,
+    kills: result.kills,
+    turns: result.turns,
+    relics: result.relics,
+    killed_by: result.killedBy,
+    log: game.log,
+  });
   window.clearTimeout(overlayTimer);
-  overlayTimer = window.setTimeout(() => showDeath(result, best), abandoned ? 0 : 1100);
+  overlayTimer = window.setTimeout(() => {
+    showDeath(result, best);
+    void uploaded
+      .then((ok) => (ok ? rankLine(mode, dailyNo, result.floor) : ''))
+      .then((line) => setRank(line))
+      .catch(() => setRank('Saved. It will upload when you are back online.'));
+  }, abandoned ? 0 : 1100);
+}
+
+function setRank(text: string) {
+  const el = document.getElementById('rank');
+  if (el && screen === 'death') el.textContent = text;
 }
 
 // ---------- input ----------
@@ -281,21 +309,6 @@ function updateTip() {
 
 // ---------- overlays ----------
 
-function showOverlay(html: string) {
-  overlay.innerHTML = `<div class="panel">${html}</div>`;
-  overlay.hidden = false;
-  overlay.scrollTop = 0;
-}
-
-function hideOverlay() {
-  overlay.hidden = true;
-  overlay.innerHTML = '';
-}
-
-function on(selector: string, fn: () => void) {
-  overlay.querySelector(selector)?.addEventListener('click', fn);
-}
-
 function showTitle() {
   const today = dailyNumber();
   const done = save.daily[today];
@@ -309,14 +322,18 @@ function showTitle() {
         <div class="sub" style="margin:6px 0 0">Next crypt opens in <span class="countdown">--:--:--</span></div>
       </div>`
     : `<button class="btn primary" id="daily">Daily Descent #${today}<small>Same crypt for everyone. One attempt.</small></button>`;
-  showOverlay(`
+  showOverlay('title', `
+    ${accountChip()}
     <h1 class="logo">Cryptfall</h1>
     <p class="tagline">One crypt. One try a day. How deep can you go?</p>
     ${dailyBlock}
     <button class="btn" id="endless">Endless Descent<small>${save.bestEndless ? `Deepest: floor ${save.bestEndless}` : 'Practice runs, random crypts'}</small></button>
+    ${ONLINE ? '<button class="btn" id="leaderboard">🏆 Leaderboards</button>' : ''}
     <button class="btn" id="help">How to play</button>
     ${streak > 1 ? `<div class="streak">🕯️ ${streak}-day streak</div>` : ''}
   `);
+  on('#account', () => showProfile(showTitle));
+  on('#leaderboard', () => showLeaderboard(showTitle));
   on('#daily', () => startRun('daily'));
   on('#endless', () => startRun('endless'));
   on('#help', () => showHelp(showTitle));
@@ -324,8 +341,14 @@ function showTitle() {
   tickCountdowns();
 }
 
+function accountChip(): string {
+  if (ONLINE && !session.ready) return '<div class="account-row"></div>';
+  const name = playerName();
+  return `<div class="account-row"><button class="account-chip" id="account">👤 ${name ? esc(name) : 'Sign in'}</button></div>`;
+}
+
 function showHelp(back: () => void) {
-  showOverlay(`
+  showOverlay('help', `
     <h2>How to play</h2>
     <ul class="help">
       <li>Move with <b>arrows / WASD</b>, or <b>swipe / tap</b> on mobile.</li>
@@ -364,7 +387,7 @@ function showChoice() {
       </button>`;
     })
     .join('');
-  showOverlay(`
+  showOverlay('choose', `
     <h2>Floor ${game.floor} cleared</h2>
     <p class="sub">Claim a relic from the dead</p>
     <div class="offer">${cards}</div>
@@ -387,7 +410,7 @@ function pickRelic(i: number) {
 function showPause() {
   if (!game || game.phase !== 'play' || !overlay.hidden) return;
   const daily = game.mode === 'daily';
-  showOverlay(`
+  showOverlay('pause', `
     <h2>Paused</h2>
     <p class="sub">${daily ? `Daily #${game.dailyNo}` : 'Endless'} · Floor ${game.floor}</p>
     <button class="btn primary" id="resume">Resume</button>
@@ -416,7 +439,7 @@ function showPause() {
 
 function showDeath(r: RunResult, best: boolean) {
   const daily = game.mode === 'daily';
-  showOverlay(`
+  showOverlay('death', `
     <h2 class="dead">You have fallen</h2>
     <p class="sub">${lastLabel} · slain by ${r.killedBy}</p>
     <div class="strip">${descentStrip(r.floor)}</div>
@@ -427,14 +450,34 @@ function showDeath(r: RunResult, best: boolean) {
     </div>
     ${r.relics ? `<div class="strip" style="font-size:18px">${r.relics}</div>` : ''}
     ${best ? '<p class="streak">New deepest descent!</p>' : ''}
+    ${ONLINE ? `<p class="rank-line" id="rank">${signedIn() ? 'Carving your name into the crypt…' : ''}</p>` : ''}
+    ${ONLINE && !signedIn() ? '<button class="btn" id="join">Claim a name for the leaderboard</button>' : ''}
     <button class="btn x" id="share">Share on 𝕏</button>
     <div class="row">
       <button class="btn" id="copy">Copy result</button>
       <button class="btn" id="again">${daily ? 'Endless run' : 'Descend again'}</button>
     </div>
-    <button class="btn" id="title">Title</button>
+    <div class="row">
+      ${ONLINE ? '<button class="btn" id="leaderboard">🏆 Leaderboard</button>' : ''}
+      <button class="btn" id="title">Title</button>
+    </div>
     ${daily ? '<p class="sub">Next crypt opens in <span class="countdown">--:--:--</span></p>' : ''}
   `);
+  const backHere = () => showDeath(r, best);
+  on('#leaderboard', () => showLeaderboard(backHere, game.mode === 'daily' ? 'today' : 'endless'));
+  on('#join', () =>
+    showLogin(() => {
+      backHere();
+      // Joining uploads the queued run; show where it landed.
+      if (signedIn()) {
+        setRank('Carving your name into the crypt…');
+        void syncNow()
+          .then(() => rankLine(game.mode, game.dailyNo, r.floor))
+          .then(setRank)
+          .catch(() => setRank(''));
+      }
+    }),
+  );
   on('#share', () => share(r, lastLabel));
   on('#copy', async () => toast((await copyText(shareText(r, lastLabel) + '\n' + siteUrl())) ? 'Copied!' : 'Copy failed'));
   on('#again', () => startRun('endless'));
@@ -447,15 +490,6 @@ function showDeath(r: RunResult, best: boolean) {
 
 function share(r: RunResult, label: string) {
   window.open(xIntentUrl(shareText(r, label)), '_blank', 'noopener');
-}
-
-let toastTimer = 0;
-function toast(msg: string) {
-  const t = $('toast');
-  t.textContent = msg;
-  t.hidden = false;
-  window.clearTimeout(toastTimer);
-  toastTimer = window.setTimeout(() => (t.hidden = true), 1600);
 }
 
 function tickCountdowns() {
@@ -490,6 +524,15 @@ function loop(now: number) {
 updateMuteIcon();
 fitBoard();
 newGame('endless');
+// Starts restoring any session in the background; must run before the first screen draws.
+void initSocial(save, () => {
+  if (screen !== 'title') return;
+  // First visit, or back from an email link / X sign-in that still needs a name.
+  if (needsName()) showLogin(showTitle, 'name');
+  else if (!session.account && !save.seenLogin) showLogin(showTitle);
+  else showTitle();
+});
 showTitle();
+if (!ONLINE && !save.seenLogin) showLogin(showTitle);
 requestAnimationFrame(loop);
 document.fonts?.load('8px Silkscreen').catch(() => undefined);

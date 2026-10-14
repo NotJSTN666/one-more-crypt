@@ -1,3 +1,5 @@
+import type { RunSubmission } from './online';
+
 // Local save data. Wrapped in try/catch because storage can be blocked
 // (private windows, embedded webviews such as the X in-app browser).
 
@@ -15,12 +17,29 @@ export interface Save {
   streak: { last: number; count: number };
   muted: boolean;
   seenHelp: boolean;
+  /** True once the player has seen (or skipped) the sign-in screen. */
+  seenLogin: boolean;
+  /** Name used when playing offline. */
+  name: string;
+  totals: { runs: number; kills: number; bestDaily: number };
+  /** Finished runs waiting to be uploaded to the leaderboard. */
+  pending: RunSubmission[];
 }
 
 const KEY = 'cryptfall:v1';
 
 function empty(): Save {
-  return { daily: {}, bestEndless: 0, streak: { last: 0, count: 0 }, muted: false, seenHelp: false };
+  return {
+    daily: {},
+    bestEndless: 0,
+    streak: { last: 0, count: 0 },
+    muted: false,
+    seenHelp: false,
+    seenLogin: false,
+    name: '',
+    totals: { runs: 0, kills: 0, bestDaily: 0 },
+    pending: [],
+  };
 }
 
 export function loadSave(): Save {

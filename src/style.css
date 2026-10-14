@@ -535,3 +535,217 @@ h2.dead {
 #toast[hidden] {
   display: none;
 }
+
+/* ---------- accounts ---------- */
+
+.account-row {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 32px;
+  margin-bottom: 8px;
+}
+
+.account-chip {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  padding: 6px 10px;
+  font-size: 11px;
+  max-width: 70%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.form {
+  margin: 8px 0;
+}
+
+.form input {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  background: #0b0710;
+  border: 1px solid var(--line);
+  color: var(--text);
+  font: 16px var(--pixel); /* 16px stops iOS zooming on focus */
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.form input:focus {
+  outline: none;
+  border-color: var(--gold);
+}
+
+.name-row {
+  display: flex;
+  gap: 6px;
+}
+
+.name-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.icon-btn.dice {
+  width: 48px;
+  height: auto;
+  font-size: 20px;
+}
+
+.form-status {
+  min-height: 1.2em;
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--gold);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 11px;
+  text-decoration: underline;
+  padding: 10px;
+}
+
+.fine {
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+  margin: 4px 0 8px;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 10px;
+  margin: 14px 0 6px;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid var(--line);
+}
+
+details.card summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin: 12px 0;
+}
+
+.stat-grid div {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  padding: 10px 4px;
+  font-size: 9px;
+  color: var(--muted);
+}
+
+.stat-grid b {
+  display: block;
+  font-size: 22px;
+  color: var(--text);
+  font-weight: normal;
+  margin-bottom: 2px;
+}
+
+.rank-line {
+  color: var(--gold);
+  font-size: 13px;
+  min-height: 1.2em;
+  margin: 6px 0;
+}
+
+/* ---------- leaderboard ---------- */
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin: 10px 0;
+}
+
+.tabs button {
+  flex: 1;
+  padding: 10px 4px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.tabs button[aria-selected='true'] {
+  color: var(--gold);
+  border-color: var(--gold);
+  background: var(--panel-2);
+}
+
+.board ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+}
+
+.board ol.mine {
+  margin-top: 8px;
+  border-top: 1px dashed var(--line);
+  padding-top: 8px;
+}
+
+.board li {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--panel);
+  border: 1px solid transparent;
+  margin-bottom: 3px;
+  font-size: 13px;
+}
+
+.board li.me {
+  border-color: var(--gold);
+  background: var(--panel-2);
+}
+
+.board .rank {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.board .who {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board small {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+  font-family: system-ui, sans-serif;
+}
+
+.board .depth {
+  text-align: right;
+  color: var(--text);
+}

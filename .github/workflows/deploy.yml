@@ -26,6 +26,12 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+        env:
+          # Public Supabase settings, from Settings -> Secrets and variables -> Actions -> Variables.
+          # Leave unset to ship the offline-only game.
+          VITE_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+          VITE_AUTH_X: ${{ vars.AUTH_X }}
       - uses: actions/configure-pages@v5
         with:
           enablement: true
