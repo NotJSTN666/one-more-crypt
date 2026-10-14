@@ -242,7 +242,8 @@ export function showLogin(back: () => void, step: Step = 'start', email = '') {
   if (step === 'code') {
     showOverlay('login', `
       <h2>Check your email</h2>
-      <p class="sub">Sent to ${esc(email)}. Tap the link in it, or enter the code here.</p>
+      <p class="sub">Sent to ${esc(email)}. Tap the sign-in link in the email.</p>
+      <p class="fine">If the email shows a 6-digit code, you can type it here instead. Handy when the link opens in a different browser.</p>
       <form id="code-form" class="form">
         <input name="code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" maxlength="10" required />
         <button class="btn primary" type="submit">Sign in</button>
