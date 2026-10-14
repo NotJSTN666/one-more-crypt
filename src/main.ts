@@ -157,11 +157,7 @@ let lastRepeat = 0;
 window.addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (!overlay.hidden) {
-    if (game?.phase === 'choose' && game.offer) {
-      const n = Number(e.key);
-      if (n >= 1 && n <= game.offer.relics.length) pickRelic(n - 1);
-      else if (e.key === 'r' || e.key === 'R') pickRelic(-1);
-    }
+    if (screen === 'choose' && game?.phase === 'choose' && game.offer) choiceKey(e);
     return;
   }
   const dir = KEYS[e.key];
@@ -389,7 +385,7 @@ function showChoice() {
     .join('');
   showOverlay('choose', `
     <h2>Floor ${game.floor} cleared</h2>
-    <p class="sub">Claim a relic from the dead</p>
+    <p class="sub">Claim a relic from the dead<span class="keys-hint"> · ↑↓ or W/S to choose, Enter or Space to take</span></p>
     <div class="offer">${cards}</div>
     <button class="btn" id="rest">🔥 Rest instead<small>Heal ${offer.restHeal} HP (${game.player.hp}/${game.player.maxHp})</small></button>
   `);
@@ -397,6 +393,49 @@ function showChoice() {
     b.addEventListener('click', () => pickRelic(Number(b.dataset.i)));
   });
   on('#rest', () => pickRelic(-1));
+  choiceButtons().forEach((b, k) => b.addEventListener('mousemove', () => k !== choiceIndex && selectChoice(k)));
+  // A button focused earlier (e.g. mute) would otherwise also react to Enter/Space.
+  (document.activeElement as HTMLElement | null)?.blur();
+  choiceShownAt = performance.now();
+  selectChoice(0);
+}
+
+// Keyboard selection on the relic screen: arrows/WASD move, Enter/Space confirm.
+const CHOICE_NAV: Record<string, number> = {
+  ArrowUp: -1, ArrowLeft: -1, w: -1, W: -1, a: -1, A: -1, k: -1, h: -1,
+  ArrowDown: 1, ArrowRight: 1, s: 1, S: 1, d: 1, D: 1, j: 1, l: 1,
+};
+let choiceIndex = 0;
+let choiceShownAt = 0;
+
+function choiceButtons(): HTMLButtonElement[] {
+  return [...overlay.querySelectorAll<HTMLButtonElement>('.offer button, #rest')];
+}
+
+function selectChoice(i: number) {
+  const buttons = choiceButtons();
+  if (!buttons.length) return;
+  choiceIndex = (i + buttons.length) % buttons.length;
+  buttons.forEach((b, k) => b.classList.toggle('selected', k === choiceIndex));
+  buttons[choiceIndex].scrollIntoView({ block: 'nearest' });
+}
+
+function choiceKey(e: KeyboardEvent) {
+  const nav = CHOICE_NAV[e.key];
+  const confirm = e.key === 'Enter' || e.key === ' ';
+  if (nav || confirm) e.preventDefault();
+  // Ignore keys held over from walking onto the stairs, so a held key can't skip the choice.
+  if (e.repeat || performance.now() - choiceShownAt < 250) return;
+  if (nav) {
+    selectChoice(choiceIndex + nav);
+    sfx.step();
+  } else if (confirm) {
+    choiceButtons()[choiceIndex]?.click();
+  } else {
+    const n = Number(e.key);
+    if (n >= 1 && n <= game.offer!.relics.length) pickRelic(n - 1);
+    else if (e.key === 'r' || e.key === 'R') pickRelic(-1);
+  }
 }
 
 function pickRelic(i: number) {

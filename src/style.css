@@ -450,6 +450,7 @@ h2.dead {
 }
 
 .offer button:hover,
+.offer button.selected,
 .offer button:focus-visible {
   background: var(--panel-2);
   outline: none;
@@ -748,4 +749,20 @@ details.card summary {
 .board .depth {
   text-align: right;
   color: var(--text);
+}
+
+.offer button.selected,
+#rest.selected {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+#rest.selected {
+  background: var(--panel-2);
+}
+
+@media (pointer: coarse) {
+  .keys-hint {
+    display: none;
+  }
 }
