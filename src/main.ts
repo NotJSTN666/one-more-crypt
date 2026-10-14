@@ -1,6 +1,7 @@
 import './style.css';
-import { isMuted, setMuted, sfx, unlockAudio } from './audio';
+import { isMusicEnabled, isMuted, setMusicEnabled, setMusicMood, setMuted, sfx, unlockAudio } from './audio';
 import { dailyNumber, formatCountdown, msUntilNextDaily } from './daily';
+import { heroPortrait } from './hero';
 import { ENEMY_INFO, Game, type GameEvent, type Mode } from './game';
 import { RELIC_BY_ID, type RelicId } from './relics';
 import { Renderer } from './render';
@@ -15,6 +16,7 @@ const canvas = $<HTMLCanvasElement>('board');
 const renderer = new Renderer(canvas);
 const save = loadSave();
 setMuted(save.muted);
+setMusicEnabled(!save.musicOff);
 
 let game: Game;
 let lastResult: RunResult | null = null;
@@ -47,6 +49,7 @@ function newGame(mode: Mode) {
 function startRun(mode: Mode) {
   unlockAudio();
   newGame(mode);
+  setMusicMood('crypt');
   hideOverlay();
   sfx.stairs();
 }
@@ -121,11 +124,13 @@ function processEvents() {
   const events = game.events.splice(0);
   renderer.consume(events);
   playSounds(events);
+  if (events.some((e) => e.t === 'floor')) setMusicMood(game.isBossFloor() ? 'boss' : 'crypt');
   updateHud();
   if (game.phase === 'choose') {
     window.clearTimeout(overlayTimer);
     overlayTimer = window.setTimeout(showChoice, 280);
   } else if (game.phase === 'dead') {
+    setMusicMood('silent');
     finishRun();
   }
 }
@@ -306,6 +311,7 @@ function updateTip() {
 // ---------- overlays ----------
 
 function showTitle() {
+  setMusicMood('crypt');
   const today = dailyNumber();
   const done = save.daily[today];
   const streak = currentStreak(save, today);
@@ -454,9 +460,17 @@ function showPause() {
     <p class="sub">${daily ? `Daily #${game.dailyNo}` : 'Endless'} · Floor ${game.floor}</p>
     <button class="btn primary" id="resume">Resume</button>
     <button class="btn" id="help">How to play</button>
+    <button class="btn" id="music">🎵 Music: ${isMusicEnabled() ? 'On' : 'Off'}</button>
     <button class="btn" id="abandon">Abandon run<small>${daily ? "Counts as today's attempt" : 'Back to the title'}</small></button>
   `);
   on('#resume', hideOverlay);
+  on('#music', () => {
+    setMusicEnabled(!isMusicEnabled());
+    save.musicOff = !isMusicEnabled();
+    writeSave(save);
+    const btn = overlay.querySelector('#music');
+    if (btn) btn.textContent = `🎵 Music: ${isMusicEnabled() ? 'On' : 'Off'}`;
+  });
   on('#help', () => {
     hideOverlay();
     showHelp(() => {
@@ -479,6 +493,7 @@ function showPause() {
 function showDeath(r: RunResult, best: boolean) {
   const daily = game.mode === 'daily';
   showOverlay('death', `
+    <img class="hero-portrait" src="${heroPortrait(game.relics, game.relicLog)}" alt="Your hero's final form" width="96" height="96" />
     <h2 class="dead">You have fallen</h2>
     <p class="sub">${lastLabel} · slain by ${r.killedBy}</p>
     <div class="strip">${descentStrip(r.floor)}</div>

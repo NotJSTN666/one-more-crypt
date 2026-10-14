@@ -62,7 +62,8 @@ export type GameEvent =
   | { t: 'stairs' }
   | { t: 'potion' }
   | { t: 'floor'; floor: number }
-  | { t: 'death' };
+  | { t: 'death' }
+  | { t: 'relic'; id: RelicId };
 
 export type Mode = 'daily' | 'endless';
 export type Phase = 'play' | 'choose' | 'dead';
@@ -429,6 +430,7 @@ export class Game {
   addRelic(id: RelicId) {
     this.relics[id] = this.r(id) + 1;
     this.relicLog.push(id);
+    this.events.push({ t: 'relic', id });
     if (id === 'heart') {
       this.changeMaxHp(3);
       this.heal(3);

@@ -3,6 +3,8 @@
 
 import { Game, H, W, type EnemyKind, type GameEvent, type Pos } from './game';
 import { hashSeed, mulberry32 } from './rng';
+import { heroSprite, relicColor } from './hero';
+import { RELIC_BY_ID, type RelicId } from './relics';
 import { SPRITE_SIZE, sprites } from './sprites';
 
 export const TILE = 16;
@@ -73,6 +75,7 @@ export class Renderer {
     const g = this.game;
     if (!g) return;
     let stack = 0;
+    const claimed: RelicId[] = [];
     for (const ev of events) {
       switch (ev.t) {
         case 'floor':
@@ -155,7 +158,50 @@ export class Renderer {
           this.shake = 8;
           this.burstParticles(g.player.x, g.player.y, '#d23a46', 30, 2);
           break;
+        case 'relic':
+          claimed.push(ev.id);
+          break;
       }
+    }
+    // Handled last: claiming a relic also starts a new floor, which clears effects.
+    for (const id of claimed) this.transform(id);
+  }
+
+  /** The moment a relic changes the hero: a flash, a burst in the relic's colour, and its name. */
+  private transform(id: RelicId) {
+    const g = this.game!;
+    this.flashes.set(PLAYER_ID, 0.35);
+    this.burstParticles(g.player.x, g.player.y, relicColor(id), 24, 1.4);
+    this.floaters.push(this.floater(g.player.x, g.player.y - 0.6, RELIC_BY_ID[id].name.toUpperCase(), relicColor(id), 1.6));
+  }
+
+  /** Ambient effects from the hero's relics, drawn around the player each frame. */
+  private drawAura(g: Game, d: Pos) {
+    const r = (id: RelicId) => g.r(id);
+    const x = d.x * TILE + PAD;
+    const y = d.y * TILE + PAD;
+    const tipX = x + 11;
+    const tipY = y + 3 - Math.min(2, r('whetstone'));
+    const emit = (chance: number, px: number, py: number, vy: number, color: string) => {
+      if (Math.random() < chance) {
+        this.particles.push({ x: px, y: py, vx: (Math.random() - 0.5) * 6, vy, color, t: 0, life: 0.5, size: 1 });
+      }
+    };
+    if (r('ember') || r('wildfire')) emit(0.35, tipX, tipY + Math.random() * 3, -16, Math.random() < 0.5 ? '#ff8a2a' : '#f2c14e');
+    if (r('frost')) emit(0.2, x + Math.random() * 12, y + Math.random() * 6, 6, '#9fe8ff');
+    if (r('storm') && Math.random() < 0.06) {
+      const sx = tipX + (Math.random() - 0.5) * 6;
+      const sy = tipY + Math.random() * 4;
+      this.lines.push({ from: { x: (sx - TILE / 2) / TILE, y: (sy - TILE / 2) / TILE }, to: { x: (tipX - TILE / 2) / TILE, y: (tipY - TILE / 2) / TILE }, t: 0, life: 0.08, color: '#9fe8ff' });
+    }
+    if (r('hellfire')) emit(0.15, x + 2 + Math.random() * 8, y + 11, -10, Math.random() < 0.5 ? '#d23a46' : '#701826');
+    if (r('dust')) emit(0.12, x + Math.random() * 12, y + 8 + Math.random() * 4, -4, 'rgba(200,195,215,0.6)');
+    if (r('phylactery') && Math.sin(this.time * 4) > 0.9) emit(0.5, x + 6, y + 6, -8, '#9fe8ff');
+    if (r('pact') && g.player.hp <= 4) {
+      const ctx = this.ctx;
+      ctx.strokeStyle = `rgba(210, 58, 70, ${0.4 + 0.3 * Math.sin(this.time * 8)})`;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(Math.round(x) - 1.5, Math.round(y) - 1.5, SPRITE_SIZE + 3, SPRITE_SIZE + 3);
     }
   }
 
@@ -217,7 +263,8 @@ export class Renderer {
     }
     if (g.phase !== 'dead') {
       const pd = this.smooth(PLAYER_ID, g.player, k);
-      this.drawSprite(PLAYER_ID, sprites().player, pd, dt, 1);
+      this.drawSprite(PLAYER_ID, heroSprite(g.relics, g.relicLog), pd, dt, 1);
+      this.drawAura(g, pd);
     }
     for (const id of [...this.disp.keys()]) if (!seen.has(id)) this.disp.delete(id);
 
@@ -446,7 +493,9 @@ export class Renderer {
     const cx = d.x * TILE + TILE / 2;
     const cy = d.y * TILE + TILE / 2;
     const flicker = Math.sin(this.time * 9) * 1.5 + Math.sin(this.time * 23) * 0.8;
-    const grad = ctx.createRadialGradient(cx, cy, 18 + flicker, cx, cy, 95 + flicker * 2);
+    // Candles and lanterns push the darkness back.
+    const light = Math.min(5, g.r('candle') + g.r('lantern'));
+    const grad = ctx.createRadialGradient(cx, cy, 18 + light * 4 + flicker, cx, cy, 95 + light * 14 + flicker * 2);
     grad.addColorStop(0, 'rgba(255, 170, 80, 0.06)');
     grad.addColorStop(0.35, 'rgba(10, 4, 16, 0)');
     grad.addColorStop(1, 'rgba(6, 2, 10, 0.62)');

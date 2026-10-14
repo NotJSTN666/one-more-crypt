@@ -16,6 +16,7 @@ export interface Save {
   bestEndless: number;
   streak: { last: number; count: number };
   muted: boolean;
+  musicOff: boolean;
   seenHelp: boolean;
   /** True once the player has seen (or skipped) the sign-in screen. */
   seenLogin: boolean;
@@ -36,6 +37,7 @@ function empty(): Save {
     bestEndless: 0,
     streak: { last: 0, count: 0 },
     muted: false,
+    musicOff: false,
     seenHelp: false,
     seenLogin: false,
     seenOnlineLogin: false,

@@ -12,6 +12,8 @@ A daily dark-fantasy roguelite that runs in the browser. Same crypt for everyone
 - The Bone Warden boss waits every 5th floor.
 - **Daily Descent:** a seed fixed by the UTC date, one official attempt, with a Wordle-style share card for X.
 - **Endless:** random seeds for practice. Your best depth is saved.
+- **The hero changes with every relic:** new weapons (pike, scythe, flaming or frozen blades), armour, shields, crowns, horns, cloak colours, and matching auras. The results screen shows your final form.
+- **Background music:** generated in the browser. A crypt theme, a faster boss theme on every 5th floor, and a Music toggle in the pause menu.
 - **Accounts and leaderboards:** claim a name in one tap (guest account), or sign in with email or X. There's a daily leaderboard per crypt, an all-time endless leaderboard, and a profile page with your stats.
 
 Controls: arrows / WASD / hjkl to move, Space to wait. On mobile, swipe, tap a tile, or use the d-pad.
@@ -34,6 +36,8 @@ No game engine: TypeScript, Vite and a `<canvas>`. Sprites are 12×12 pixel art 
 | `src/game.ts` | All game rules (pure logic, no DOM) |
 | `src/relics.ts` | Relic catalogue: add new relics here, effects go in `game.ts` |
 | `src/render.ts` | Canvas renderer, particles, lighting |
+| `src/hero.ts` | The hero sprite, layered by relic (preview every look at `/scripts/heroes.html` under `npm run dev`) |
+| `src/audio.ts` | Synthesized sound effects and the generative background music |
 | `src/main.ts` | UI, input, overlays |
 | `src/share.ts` | Share text for X |
 | `src/daily.ts` | Daily numbering (Daily #1 = 2026-10-14 UTC) |

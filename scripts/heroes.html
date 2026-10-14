@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+  <head><meta charset="UTF-8" /><style>
+    body { margin: 0; background: #07040b; color: #9a8fa8; font: 12px monospace; }
+    .grid { display: grid; grid-template-columns: repeat(6, 150px); gap: 10px; padding: 16px; }
+    figure { margin: 0; text-align: center; background: #1d1824; padding: 8px 4px; }
+    img { width: 120px; height: 120px; image-rendering: pixelated; }
+    figcaption { margin-top: 4px; min-height: 2.4em; }
+  </style></head>
+  <body>
+    <div class="grid" id="g"></div>
+    <script type="module">
+      // Gallery of hero looks for reviewing the relic layers: npx vite, then open /scripts/heroes.html
+      import { heroPortrait } from '/src/hero.ts';
+      const builds = [
+        [], ['whetstone'], ['whetstone', 'whetstone', 'whetstone'], ['ember'], ['frost', 'frost'], ['storm'],
+        ['pike'], ['harvest'], ['mirror'], ['whirl', 'mirror'], ['crown'], ['hellfire'],
+        ['fang'], ['pact'], ['dust'], ['heart', 'heart', 'heart'], ['thorns', 'thorns', 'thorns'], ['lantern', 'candle'],
+        ['mark', 'coin', 'dice', 'flask'], ['phylactery', 'conductor', 'storm'], ['bloom', 'bloom'], ['shatter', 'frost'],
+        ['crown', 'hellfire', 'ember', 'mirror', 'heart'], ['pact', 'fang', 'harvest', 'thorns', 'hellfire', 'lantern'],
+      ];
+      const g = document.getElementById('g');
+      for (const log of builds) {
+        const relics = {};
+        log.forEach((id) => (relics[id] = (relics[id] ?? 0) + 1));
+        g.insertAdjacentHTML('beforeend', `<figure><img src="${heroPortrait(relics, log, 10)}"><figcaption>${log.join(' ') || 'base'}</figcaption></figure>`);
+      }
+      window.ready = true;
+    </script>
+  </body>
+</html>

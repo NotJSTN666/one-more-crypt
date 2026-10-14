@@ -766,3 +766,12 @@ details.card summary {
     display: none;
   }
 }
+
+.hero-portrait {
+  display: block;
+  width: 96px;
+  height: 96px;
+  margin: 0 auto 4px;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 0 18px rgba(210, 58, 70, 0.45));
+}
