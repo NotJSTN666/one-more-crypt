@@ -1204,3 +1204,80 @@ kbd {
 @media (prefers-reduced-motion: reduce) {
   .evolution img { animation: none; }
 }
+
+/* ---------- tutorial coach ---------- */
+#coach {
+  margin: 0 0 6px;
+  padding: 8px 12px 10px;
+  border: 1px solid var(--gold);
+  border-radius: 4px;
+  background: rgba(20, 13, 28, 0.92);
+  box-shadow: 0 0 14px rgba(242, 193, 78, 0.25);
+  text-align: left;
+}
+
+#coach.pop {
+  animation: coach-pop 0.35s ease-out;
+}
+
+@keyframes coach-pop {
+  from { transform: scale(0.96); opacity: 0.4; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.coach-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: var(--pixel);
+  font-size: 11px;
+  color: var(--gold);
+  letter-spacing: 1px;
+}
+
+.coach-head .link-btn {
+  padding: 2px 0;
+  font-size: 10px;
+}
+
+#coach-text {
+  margin: 4px 0 0;
+  font-family: system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+#coach-text b {
+  color: var(--gold);
+}
+
+body.tutorial #tip,
+body.tutorial #relic-bar {
+  display: none;
+}
+
+.coach-inline {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--gold);
+  border-radius: 4px;
+  background: rgba(20, 13, 28, 0.92);
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.coach-inline span {
+  display: block;
+  font-family: var(--pixel);
+  font-size: 11px;
+  color: var(--gold);
+  letter-spacing: 1px;
+}
+
+.coach-inline b {
+  color: var(--gold);
+}

@@ -22,6 +22,7 @@ export interface Save {
   muted: boolean;
   musicOff: boolean;
   seenHelp: boolean;
+  tutorialDone: boolean;
   /** True once the player has seen (or skipped) the sign-in screen. */
   seenLogin: boolean;
   /** Same, for the online sign-in screen, so offline players still get asked once leaderboards go live. */
@@ -44,6 +45,7 @@ function empty(): Save {
     muted: false,
     musicOff: false,
     seenHelp: false,
+    tutorialDone: false,
     seenLogin: false,
     seenOnlineLogin: false,
     name: '',

@@ -6,6 +6,7 @@ A daily dark-fantasy roguelite that runs in the browser. Same crypt for everyone
 
 ## How it plays
 
+- **Tutorial:** first-time players are offered a one-minute guided run (move, strike, dodge, descend, claim a relic), also playable from How to play. How to play itself shows each rule as a small live scene.
 - 7×7 single-screen floors in a turn-based grid. Every move you make, every enemy makes one.
 - Bump into an enemy to attack it. Kill everything on the floor to unseal the stairs.
 - After each floor, take 1 of 3 relics or rest. Relics stack: 2 Vampire Fangs heal for 2.

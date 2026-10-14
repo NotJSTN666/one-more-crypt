@@ -3,7 +3,7 @@ import { isMusicEnabled, isMuted, setMusicDepth, setMusicEnabled, setMusicMood, 
 import { dailyNumber, formatCountdown, msUntilNextDaily } from './daily';
 import { ELITES, FEATURES, HERO_BY_ID, dailyHero, type ComboDef } from './content';
 import { heroPortrait } from './hero';
-import { ENEMY_INFO, Game, isBoss, type GameEvent, type Mode } from './game';
+import { ENEMY_INFO, Game, fullPool, isBoss, type GameEvent, type Mode } from './game';
 import { checkRun, finishRunMeta, meta, noteRelic, runConfig, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
@@ -12,6 +12,7 @@ import { Renderer } from './render';
 import { hashSeed } from './rng';
 import { ONLINE } from './online';
 import { howToHtml, startHowTo } from './howto';
+import { RELIC_COACH, TUTORIAL } from './tutorial';
 import { copyText, descentStrip, followXHtml, shareText, siteUrl, xIntentUrl } from './share';
 import { initSocial, needsName, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
 import { currentStreak, loadSave, recordDaily, writeSave, type RunResult } from './storage';
@@ -33,17 +34,21 @@ let runCombos: ComboDef[] = [];
 
 // ---------- layout ----------
 
+/** The guided first run. While it's on, nothing is saved or counted. */
+let tutorial: { step: number; busy: boolean; then: () => void; label: string } | null = null;
+
 function fitBoard() {
   const app = $('app');
   const width = app.clientWidth - 24;
   const touch = matchMedia('(pointer: coarse)').matches;
-  const reserved = touch ? 330 : 190;
+  const reserved = (touch ? 330 : 190) + (tutorial ? 40 : 0);
   const size = Math.max(200, Math.min(width, window.innerHeight - reserved));
   renderer.resize(size);
 }
 window.addEventListener('resize', fitBoard);
 
 // ---------- run lifecycle ----------
+
 
 function newGame(mode: Mode) {
   const today = dailyNumber();
@@ -69,6 +74,112 @@ function startRun(mode: Mode) {
   setMusicMood(game.isBossFloor() ? 'boss' : 'crypt');
   hideOverlay();
   sfx.stairs();
+}
+
+// ---------- tutorial ----------
+
+function startTutorial(then: () => void, label = 'Enter the crypt') {
+  unlockAudio();
+  tutorial = { step: 0, busy: false, then, label };
+  game = new Game('endless', 7, 0, { hero: 'knight', pool: fullPool() });
+  runCombos = [];
+  document.body.classList.add('tutorial');
+  $('coach').hidden = false;
+  hideOverlay();
+  fitBoard();
+  stageTutorial();
+  setMusicDepth(1);
+  setMusicMood('crypt');
+  sfx.stairs();
+}
+
+function stageTutorial() {
+  if (!tutorial) return;
+  const step = TUTORIAL[tutorial.step];
+  game.stage(step.scene);
+  renderer.setGame(game);
+  updateHud(true);
+  coach(`${tutorial.step + 1} / ${TUTORIAL.length + 1} · ${step.title}`, step.coach);
+  tutorial.busy = false;
+}
+
+function coach(head: string, text: string) {
+  $('coach-step').textContent = head;
+  $('coach-text').innerHTML = text;
+  const box = $('coach');
+  box.classList.remove('pop');
+  void box.offsetWidth;
+  box.classList.add('pop');
+}
+
+function tutorialEvents(events: GameEvent[]) {
+  if (!tutorial) return;
+  updateHud();
+  if (game.phase === 'dead') {
+    tutorial.busy = true;
+    toast('Fallen! Try that again.');
+    window.setTimeout(stageTutorial, 1100);
+    return;
+  }
+  if (!TUTORIAL[tutorial.step].done(game, events)) return;
+  if (game.phase === 'choose') {
+    coach(`${TUTORIAL.length + 1} / ${TUTORIAL.length + 1} · Relics`, RELIC_COACH);
+    window.clearTimeout(overlayTimer);
+    overlayTimer = window.setTimeout(showChoice, 280);
+    return;
+  }
+  tutorial.busy = true;
+  tutorial.step++;
+  renderer.banner('NICELY DONE!', '#7ee081');
+  window.setTimeout(() => sfx.relic(), 150);
+  window.setTimeout(stageTutorial, 1100);
+}
+
+function endTutorial() {
+  tutorial = null;
+  document.body.classList.remove('tutorial');
+  $('coach').hidden = true;
+  save.tutorialDone = true;
+  writeSave(save);
+  fitBoard();
+}
+
+function finishTutorial() {
+  if (!tutorial) return;
+  const { then, label } = tutorial;
+  endTutorial();
+  showOverlay('tutorial-done', `
+    <img class="hero-portrait" src="${heroPortrait(game.hero, game.relics, game.relicLog)}" alt="" width="96" height="96" />
+    <h2>You're ready</h2>
+    <p class="sub">That's all you need to know. Each floor gets meaner, so build well. Bosses wait on every 5th floor.</p>
+    <button class="btn primary" id="go">${label}</button>
+    <button class="link-btn" id="back">Back to the title</button>`);
+  on('#go', then);
+  on('#back', showTitle);
+}
+
+function skipTutorial() {
+  if (!tutorial) return;
+  const { then } = tutorial;
+  endTutorial();
+  then();
+}
+$('coach-skip').addEventListener('click', skipTutorial);
+
+/** First run ever: offer the tutorial before the real thing. */
+function withTutorialOffer(go: () => void) {
+  if (save.tutorialDone || save.totals.runs > 0) return go();
+  showOverlay('tutorial-offer', `
+    <h2>First time in the crypt?</h2>
+    <p class="sub">Learn the basics in a minute: move, strike, dodge, descend.</p>
+    <button class="btn primary" id="learn">Play the tutorial<small>About a minute</small></button>
+    <button class="btn" id="skip">Skip, I know how to play</button>`);
+  on('#learn', () => startTutorial(go));
+  on('#skip', () => {
+    save.tutorialDone = true;
+    writeSave(save);
+    go();
+  });
 }
 
 // ---------- resuming an interrupted run ----------
@@ -201,7 +312,7 @@ function setRank(text: string) {
 
 function act(dx: number, dy: number) {
   unlockAudio();
-  if (!game || game.phase !== 'play' || !overlay.hidden) return;
+  if (!game || game.phase !== 'play' || !overlay.hidden || tutorial?.busy) return;
   if (game.act(dx, dy)) processEvents();
   else sfx.bump();
 }
@@ -210,6 +321,7 @@ function processEvents() {
   const events = game.events.splice(0);
   renderer.consume(events);
   playSounds(events);
+  if (tutorial) return tutorialEvents(events);
   if (events.some((e) => e.t === 'floor')) {
     setMusicDepth(game.floor);
     setMusicMood(game.isBossFloor() ? 'boss' : 'crypt');
@@ -473,9 +585,9 @@ function showTitle() {
   `);
   on('#account', () => showProfile(showTitle));
   on('#leaderboard', () => showLeaderboard(showTitle));
-  on('#daily', () => startRun('daily'));
+  on('#daily', () => withTutorialOffer(() => startRun('daily')));
   on('#continue', () => resumable && resumeRun(resumable));
-  on('#endless', () => showHeroSelect(() => startRun('endless'), showTitle));
+  on('#endless', () => withTutorialOffer(() => showHeroSelect(() => startRun('endless'), showTitle)));
   on('#ossuary', () => showOssuary(showTitle));
   on('#grimoire', () => showGrimoire(showTitle));
   on('#help', () => showHelp(showTitle));
@@ -490,8 +602,10 @@ function accountChip(): string {
 }
 
 function showHelp(back: () => void) {
+  const fromTitle = back === showTitle;
   showOverlay('help', `
     <h2>How to play</h2>
+    ${fromTitle ? '<button class="btn primary" id="tutorial">▶ Play the tutorial<small>Learn by doing, about a minute</small></button>' : ''}
     ${howToHtml()}
     <ul class="help">
       <li>Shrines, chests and fountains offer <b>deals</b>. Step on them to choose.</li>
@@ -520,6 +634,7 @@ function showHelp(back: () => void) {
   save.seenHelp = true;
   writeSave(save);
   on('#back', back);
+  on('#tutorial', () => startTutorial(showTitle, 'Back to the title'));
   startHowTo(overlay);
 }
 
@@ -540,6 +655,7 @@ function showChoice() {
   showOverlay('choose', `
     <h2>Floor ${game.floor} cleared</h2>
     <p class="sub">Claim a relic from the dead<span class="keys-hint"> · ↑↓ or W/S to choose, Enter or Space to take</span></p>
+    ${tutorial ? `<div class="coach-inline"><span>5 / 5 · Relics</span>${RELIC_COACH}</div>` : ''}
     <div class="offer">${cards}</div>
     <button class="btn" id="rest">🔥 Rest instead<small>Heal ${offer.restHeal} HP (${game.player.hp}/${game.player.maxHp})</small></button>
   `);
@@ -630,11 +746,12 @@ function pickRelic(i: number) {
   game.choose(i);
   hideOverlay();
   sfx.stairs();
+  if (tutorial) return finishTutorial();
   processEvents();
 }
 
 function showPause() {
-  if (!game || game.phase !== 'play' || !overlay.hidden) return;
+  if (!game || game.phase !== 'play' || !overlay.hidden || tutorial) return;
   const daily = game.mode === 'daily';
   showOverlay('pause', `
     <h2>Paused</h2>

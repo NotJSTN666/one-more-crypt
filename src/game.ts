@@ -333,13 +333,14 @@ export class Game {
     enemies: { kind: EnemyKind; x: number; y: number; elite?: EliteMod; hp?: number }[];
     walls?: Pos[];
     stairs?: Pos;
+    potion?: Pos;
     hp?: number;
   }) {
     this.floor = 1;
     this.walls = new Array(W * H).fill(false);
     for (const w of scene.walls ?? []) this.walls[w.y * W + w.x] = true;
     this.spikes = new Array(W * H).fill(false);
-    this.potion = null;
+    this.potion = scene.potion ?? null;
     this.feature = null;
     this.warnings = [];
     this.enemies = [];
