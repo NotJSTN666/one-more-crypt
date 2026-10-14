@@ -6,7 +6,9 @@ import type { SupabaseClient, User } from '@supabase/supabase-js';
 import type { Mode } from './game';
 import { siteUrl } from './share';
 
-const URL = import.meta.env.VITE_SUPABASE_URL ?? '';
+// Accept the project URL however it was pasted, e.g. with the /rest/v1/ suffix the
+// Supabase dashboard shows on its Data API page.
+const URL = (import.meta.env.VITE_SUPABASE_URL ?? '').trim().replace(/\/(rest|auth)\/v1\/?$/, '').replace(/\/+$/, '');
 const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
 
 export const ONLINE = Boolean(URL && KEY);
