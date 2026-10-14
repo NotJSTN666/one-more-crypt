@@ -8,7 +8,7 @@ import { Renderer } from './render';
 import { hashSeed } from './rng';
 import { ONLINE } from './online';
 import { copyText, descentStrip, shareText, siteUrl, xIntentUrl } from './share';
-import { initSocial, needsName, playerName, rankLine, recordRun, session, showLeaderboard, showLogin, showProfile, signedIn, syncNow } from './social';
+import { initSocial, needsName, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
 import { currentStreak, loadSave, recordDaily, writeSave, type RunResult } from './storage';
 import { $, esc, hideOverlay, on, overlay, screen, showOverlay, toast } from './ui';
 
@@ -329,6 +329,7 @@ function showTitle() {
     ${accountChip()}
     <h1 class="logo">Wardenfall</h1>
     <p class="tagline">One crypt. One try a day. How deep can you go?</p>
+    ${onlineCountHtml()}
     ${dailyBlock}
     <button class="btn" id="endless">Endless Descent<small>${save.bestEndless ? `Deepest: floor ${save.bestEndless}` : 'Practice runs, random crypts'}</small></button>
     ${ONLINE ? '<button class="btn" id="leaderboard">🏆 Leaderboards</button>' : ''}
@@ -459,6 +460,7 @@ function showPause() {
   showOverlay('pause', `
     <h2>Paused</h2>
     <p class="sub">${daily ? `Daily #${game.dailyNo}` : 'Endless'} · Floor ${game.floor}</p>
+    ${onlineCountHtml()}
     <button class="btn primary" id="resume">Resume</button>
     <button class="btn" id="help">How to play</button>
     <button class="btn" id="music">🎵 Music: ${isMusicEnabled() ? 'On' : 'Off'}</button>
@@ -517,6 +519,7 @@ function showDeath(r: RunResult, best: boolean) {
       <button class="btn" id="title">Title</button>
     </div>
     ${daily ? '<p class="sub">Next crypt opens in <span class="countdown">--:--:--</span></p>' : ''}
+    ${onlineCountHtml()}
   `);
   const backHere = () => showDeath(r, best);
   on('#leaderboard', () => showLeaderboard(backHere, game.mode === 'daily' ? 'today' : 'endless'));

@@ -218,3 +218,38 @@ export function randomName(): string {
   const pick = (a: string[]) => a[Math.floor(Math.random() * a.length)];
   return `${pick(ADJ)}${pick(NOUN)}${Math.floor(Math.random() * 90) + 10}`;
 }
+
+// ---------- live player count ----------
+
+/** Stable per-device id, so several tabs on one device count once. */
+function deviceId(): string {
+  try {
+    let id = localStorage.getItem('wardenfall:device');
+    if (!id) {
+      id = crypto.randomUUID?.() ?? String(Math.random()).slice(2);
+      localStorage.setItem('wardenfall:device', id);
+    }
+    return id;
+  } catch {
+    return String(Math.random()).slice(2);
+  }
+}
+
+/**
+ * Join the shared presence channel and report how many players have the game open
+ * and visible. Uses Supabase Realtime Presence, so it needs no tables.
+ */
+export async function watchPlayerCount(onCount: (n: number) => void): Promise<void> {
+  const sb = await client();
+  const channel = sb.channel('wardenfall:online', { config: { presence: { key: deviceId() } } });
+  const update = () => onCount(Object.keys(channel.presenceState()).length);
+  channel.on('presence', { event: 'sync' }, update);
+  channel.subscribe((status) => {
+    if (status === 'SUBSCRIBED' && !document.hidden) void channel.track({ since: Date.now() });
+  });
+  // Only count people actually looking at the game.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) void channel.untrack();
+    else void channel.track({ since: Date.now() });
+  });
+}

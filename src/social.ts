@@ -21,6 +21,7 @@ import {
   submitRun,
   validName,
   verifyEmailCode,
+  watchPlayerCount,
   type Account,
   type Board,
   type BoardRow,
@@ -30,6 +31,25 @@ import { currentStreak, writeSave, type Save } from './storage';
 import { esc, field, formStatus, on, onSubmit, screen, showOverlay, toast } from './ui';
 
 export const session: { account: Account | null; ready: boolean } = { account: null, ready: !ONLINE };
+
+/** Players with the game open right now, or null until known (or offline). */
+let playersOnline: number | null = null;
+
+/** Markup for the live player count; empty until the first count arrives. */
+export function onlineCountHtml(): string {
+  return `<p class="online-count" data-online-count>${onlineCountText()}</p>`;
+}
+
+function onlineCountText(): string {
+  if (playersOnline === null) return '';
+  return playersOnline <= 1
+    ? '<span class="live-dot"></span>Just you in the crypt right now'
+    : `<span class="live-dot"></span>${playersOnline} souls in the crypt right now`;
+}
+
+function renderOnlineCount() {
+  document.querySelectorAll('[data-online-count]').forEach((el) => (el.innerHTML = onlineCountText()));
+}
 
 let save: Save;
 let onChange: () => void = () => undefined;
@@ -58,6 +78,10 @@ export async function initSocial(s: Save, changed: () => void) {
   }
   session.ready = true;
   void onAuthChange(refreshAccount);
+  void watchPlayerCount((n) => {
+    playersOnline = n;
+    renderOnlineCount();
+  }).catch(() => undefined);
   if (signedIn()) void afterSignIn();
   onChange();
 }

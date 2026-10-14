@@ -775,3 +775,29 @@ details.card summary {
   image-rendering: pixelated;
   filter: drop-shadow(0 0 18px rgba(210, 58, 70, 0.45));
 }
+
+.online-count {
+  min-height: 1.3em;
+  margin: 6px 0 12px;
+  font-size: 11px;
+  color: var(--heal);
+}
+
+.tagline + .online-count {
+  margin: -12px 0 18px;
+}
+
+.online-count:empty {
+  visibility: hidden;
+}
+
+.live-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 7px;
+  vertical-align: 1px;
+  background: var(--heal);
+  box-shadow: 0 0 8px var(--heal);
+  animation: pulse 1.6s infinite alternate;
+}

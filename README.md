@@ -14,6 +14,7 @@ A daily dark-fantasy roguelite that runs in the browser. Same crypt for everyone
 - **Endless:** random seeds for practice. Your best depth is saved.
 - **The hero changes with every relic:** new weapons (pike, scythe, flaming or frozen blades), armour, shields, crowns, horns, cloak colours, and matching auras. The results screen shows your final form.
 - **Background music:** generated in the browser. A crypt theme, a faster boss theme on every 5th floor, and a Music toggle in the pause menu.
+- **Live player count:** "12 souls in the crypt right now" on the title, pause and results screens, using Supabase Realtime Presence. It only counts visible tabs. The free plan allows 200 players connected at once.
 - **Accounts and leaderboards:** claim a name in one tap (guest account), or sign in with email or X. There's a daily leaderboard per crypt, an all-time endless leaderboard, and a profile page with your stats.
 
 Controls: arrows / WASD / hjkl to move, Space to wait. On mobile, swipe, tap a tile, or use the d-pad.
