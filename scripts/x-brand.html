@@ -1,0 +1,126 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <link href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Silkscreen&display=swap" rel="stylesheet" />
+    <style>
+      html, body { margin: 0; background: #07040b; }
+      canvas { display: block; margin-bottom: 20px; }
+    </style>
+  </head>
+  <body>
+    <canvas id="avatar" width="800" height="800"></canvas>
+    <canvas id="header" width="1500" height="500"></canvas>
+    <script type="module">
+      // X profile picture and header. Regenerate with: node scripts/make-x-brand.mjs
+      import { sprites } from '/src/sprites.ts';
+      import { heroSprite } from '/src/hero.ts';
+      await document.fonts.load('120px "Pirata One"');
+      await document.fonts.load('28px Silkscreen');
+      const s = sprites();
+      const build = { crown: 1, ember: 2, mirror: 1, fang: 1 };
+      const hero = heroSprite('knight', build, ['fang', 'mirror', 'ember', 'crown']).normal;
+
+      function floor(ctx, x0, y0, w, h, t) {
+        for (let x = x0; x < x0 + w; x += t) {
+          for (let y = y0; y < y0 + h; y += t) {
+            ctx.fillStyle = (Math.round(x / t) + Math.round(y / t)) % 2 ? '#1d1824' : '#211b29';
+            ctx.fillRect(x, y, t, t);
+            ctx.fillStyle = 'rgba(0,0,0,0.4)';
+            ctx.fillRect(x, y + t - t / 16, t, t / 16);
+            ctx.fillRect(x + t - t / 16, y, t / 16, t);
+          }
+        }
+      }
+
+      function embers(ctx, w, h, n, seed) {
+        let r = seed;
+        const rand = () => ((r = (r * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+        for (let i = 0; i < n; i++) {
+          const size = rand() < 0.3 ? 6 : 4;
+          ctx.fillStyle = rand() < 0.5 ? 'rgba(255,138,42,0.8)' : 'rgba(242,193,78,0.6)';
+          ctx.fillRect(Math.floor(rand() * w), Math.floor(rand() * h * 0.8), size, size);
+        }
+      }
+
+      // --- Profile picture: the hero framed in a glowing crypt doorway (circle-safe) ---
+      {
+        const ctx = document.getElementById('avatar').getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+        ctx.fillStyle = '#07040b';
+        ctx.fillRect(0, 0, 800, 800);
+        // stone arch
+        const stone = (x, y, w, h) => {
+          ctx.fillStyle = '#2b2433'; ctx.fillRect(x, y, w, h);
+          ctx.fillStyle = '#3a3145'; ctx.fillRect(x, y, w, 8);
+          ctx.fillStyle = '#120d18'; ctx.fillRect(x, y + h - 8, w, 8);
+        };
+        for (let y = 120; y < 720; y += 64) { stone(140, y, 120, 60); stone(540, y, 120, 60); }
+        stone(140, 56, 520, 64);
+        // doorway glow
+        const g = ctx.createRadialGradient(400, 470, 20, 400, 430, 340);
+        g.addColorStop(0, '#7a1f2c');
+        g.addColorStop(0.45, '#3a0f1c');
+        g.addColorStop(1, '#0a050e');
+        ctx.fillStyle = g;
+        ctx.fillRect(260, 120, 280, 600);
+        floor(ctx, 0, 640, 800, 160, 80);
+        embers(ctx, 800, 640, 26, 7);
+        ctx.shadowColor = 'rgba(210,58,70,0.9)';
+        ctx.shadowBlur = 50;
+        ctx.drawImage(hero, 208, 220, 384, 384);
+        ctx.shadowBlur = 0;
+        const v = ctx.createRadialGradient(400, 420, 220, 400, 400, 560);
+        v.addColorStop(0, 'rgba(0,0,0,0)');
+        v.addColorStop(1, 'rgba(0,0,0,0.85)');
+        ctx.fillStyle = v;
+        ctx.fillRect(0, 0, 800, 800);
+      }
+
+      // --- Header: the hero facing down a line of foes, title on the right ---
+      {
+        const ctx = document.getElementById('header').getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+        const bg = ctx.createRadialGradient(900, 200, 40, 900, 250, 900);
+        bg.addColorStop(0, '#2a1328');
+        bg.addColorStop(1, '#07040b');
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, 1500, 500);
+        floor(ctx, 0, 380, 1500, 120, 60);
+        embers(ctx, 1500, 400, 40, 3);
+        const draw = (name, x, y, scale) => ctx.drawImage(s[name].normal, x, y, 12 * scale, 12 * scale);
+        // X places the profile picture over the bottom-left, so the scene sits right of it.
+        ctx.shadowColor = 'rgba(210,58,70,0.8)';
+        ctx.shadowBlur = 30;
+        ctx.drawImage(hero, 380, 230, 156, 156);
+        ctx.shadowBlur = 0;
+        draw('ghoul', 580, 290, 8);
+        draw('bat', 1000, 300, 5);
+        draw('archer', 700, 296, 7);
+        draw('wraith', 1090, 280, 8);
+        draw('brute', 1200, 266, 10);
+        draw('bat', 1320, 150, 5);
+        draw('boss', 1330, 230, 12);
+        const v = ctx.createRadialGradient(900, 260, 200, 900, 260, 900);
+        v.addColorStop(0, 'rgba(0,0,0,0)');
+        v.addColorStop(1, 'rgba(0,0,0,0.7)');
+        ctx.fillStyle = v;
+        ctx.fillRect(0, 0, 1500, 500);
+
+        ctx.textAlign = 'center';
+        ctx.font = '124px "Pirata One"';
+        ctx.shadowColor = 'rgba(210,58,70,0.7)';
+        ctx.shadowBlur = 40;
+        ctx.fillStyle = '#d23a46';
+        ctx.fillText('One More Crypt', 930, 175);
+        ctx.shadowBlur = 0;
+        ctx.font = '26px Silkscreen';
+        ctx.fillStyle = '#e8dcc4';
+        ctx.fillText('A NEW CRYPT EVERY DAY. ONE TRY.', 930, 232);
+        ctx.fillStyle = '#f2c14e';
+        ctx.fillText('ONEMORECRYPT.COM', 930, 274);
+      }
+      window.brandReady = true;
+    </script>
+  </body>
+</html>
