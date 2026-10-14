@@ -4,7 +4,7 @@ import type { RelicId } from './relics';
 
 // ---------- heroes ----------
 
-export type HeroId = 'knight' | 'rogue' | 'necro';
+export type HeroId = 'knight' | 'rogue' | 'necro' | 'paladin' | 'ranger' | 'mage' | 'barbarian';
 
 export interface HeroDef {
   id: HeroId;
@@ -20,6 +20,11 @@ export const HEROES: HeroDef[] = [
   { id: 'knight', name: 'Knight', hp: 10, cost: 0, perk: 'Second Wind', perkDesc: 'Heal 1 HP on every new floor.' },
   { id: 'rogue', name: 'Rogue', hp: 7, cost: 150, perk: 'Shadowstep', perkDesc: 'Every 3rd step is free: foes don\'t act. 15% dodge.' },
   { id: 'necro', name: 'Necromancer', hp: 8, cost: 300, perk: 'Raise Dead', perkDesc: 'Slain foes may rise as thralls that fight for you (up to 3).' },
+  // Added after launch: new heroes go at the end so the daily rotation stays put.
+  { id: 'paladin', name: 'Paladin', hp: 9, cost: 250, perk: 'Smite', perkDesc: '+1 damage against the undead. Slaying a boss heals you fully.' },
+  { id: 'ranger', name: 'Ranger', hp: 7, cost: 350, perk: 'Longbow', perkDesc: 'Move toward a foe 2-3 tiles away in a clear line to shoot it instead.' },
+  { id: 'mage', name: 'Mage', hp: 5, cost: 400, perk: 'Glass Cannon', perkDesc: '+2 attack, but only 5 HP. Every hit counts.' },
+  { id: 'barbarian', name: 'Barbarian', hp: 11, cost: 450, perk: 'Rage', perkDesc: '+1 attack for every 3 HP you are missing.' },
 ];
 
 export const HERO_BY_ID = Object.fromEntries(HEROES.map((h) => [h.id, h])) as Record<HeroId, HeroDef>;
@@ -87,6 +92,16 @@ export const COMBOS: ComboDef[] = [
   { id: 'reaper', name: 'Reaper', emoji: '💀', relics: ['harvest', 'whirl'], desc: 'One swing, a ring of dead.' },
   { id: 'gravelord', name: 'Grave Lord', emoji: '⚰️', relics: ['necro', 'bloom'], desc: 'The dead rise, and the dead explode.' },
   { id: 'tinker', name: 'Trapmaster', emoji: '🪤', relics: ['caltrops', 'mask'], desc: 'Nothing near you is safe.' },
+  { id: 'crusader', name: 'Crusader', emoji: '✝️', relics: ['rosary', 'mirror'], desc: 'Shielded by faith, wrath for the dead.' },
+  { id: 'berserker', name: 'Berserker', emoji: '🪓', relics: ['idol', 'pact'], desc: 'The closer to death, the harder you hit.' },
+  { id: 'timelock', name: 'Frozen Time', emoji: '⏳', relics: ['hourglass', 'frost', 'shatter'], desc: 'Nothing moves. Everything breaks.' },
+  { id: 'sommelier', name: 'Blood Sommelier', emoji: '🍷', relics: ['chalice', 'flask', 'fang'], desc: 'Every drop restores you.' },
+  { id: 'dragonhide', name: 'Dragonhide', emoji: '🐉', relics: ['scale', 'thorns'], desc: 'Hit me. See what happens.' },
+  { id: 'apocalypse', name: 'Apocalypse', emoji: '☄️', relics: ['doom', 'hellfire'], desc: 'The floor burns before you arrive.' },
+  { id: 'eclipse', name: 'Eclipse', emoji: '🌑', relics: ['moon', 'crown'], desc: 'All power, no armour.' },
+  { id: 'wisps', name: 'Will-o-Wisps', emoji: '👻', relics: ['wisp', 'storm'], desc: 'Lights in the dark that bite.' },
+  { id: 'gambler', name: 'Gambler', emoji: '🎲', relics: ['dice', 'coin'], desc: 'More choices, bigger rolls.' },
+  { id: 'skewer', name: 'Skewer', emoji: '🔱', relics: ['pike', 'mark'], desc: 'Mark them, then run them through in a row.' },
 ];
 
 // ---------- achievements ----------
@@ -121,6 +136,26 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'combos-all', name: 'Arcanist', desc: 'Complete every named combo.', souls: 150 },
   { id: 'streak3', name: 'Devotee', desc: 'Play the daily crypt 3 days in a row.', souls: 30 },
   { id: 'streak7', name: 'Faithful', desc: 'Play the daily crypt 7 days in a row.', souls: 100 },
+  // Added after launch.
+  { id: 'floor20', name: 'Hollow Depths', desc: 'Reach floor 20.', souls: 150 },
+  { id: 'floor30', name: 'Into the Abyss', desc: 'Reach floor 30.', souls: 250 },
+  { id: 'floor50', name: 'Bottomless', desc: 'Reach floor 50.', souls: 500 },
+  { id: 'butcher', name: 'Butcher', desc: 'Slay 100 foes in one run.', souls: 60 },
+  { id: 'massacre', name: 'Massacre', desc: 'Slay 5 foes in a single turn.', souls: 60 },
+  { id: 'annihilate', name: 'Annihilate', desc: 'Deal 50 or more damage in one hit.', souls: 60 },
+  { id: 'swift', name: 'Swift Descent', desc: 'Reach floor 5 in 60 turns or fewer.', souls: 40 },
+  { id: 'cheat-death', name: 'Cheat Death', desc: 'Survive a killing blow with the Phylactery.', souls: 30 },
+  { id: 'midas', name: 'Crowned in Gold', desc: 'Wear 3 Cursed Crowns at once.', souls: 40 },
+  { id: 'elite50', name: 'Elite Slayer', desc: 'Slay 50 elites (across all runs).', souls: 80 },
+  { id: 'knight10', name: 'Iron Will', desc: 'Reach floor 10 as the Knight.', souls: 40 },
+  { id: 'necro10', name: 'Lord of Bones', desc: 'Reach floor 10 as the Necromancer.', souls: 50 },
+  { id: 'paladin-lich', name: 'Holy Light', desc: 'Slay the Lich King as the Paladin.', souls: 100 },
+  { id: 'ranger-arrows', name: 'Deadeye', desc: 'Slay 25 foes with arrows in one run.', souls: 60 },
+  { id: 'mage10', name: 'Glass Cannon', desc: 'Reach floor 10 as the Mage.', souls: 80 },
+  { id: 'barbarian-rage', name: 'Unchained', desc: 'Reach floor 10 as the Barbarian.', souls: 60 },
+  { id: 'full-party', name: 'Full Party', desc: 'Unlock every hero.', souls: 150 },
+  { id: 'forbidden', name: 'Forbidden Knowledge', desc: 'Unlock every forbidden relic.', souls: 150 },
+  { id: 'soulbound', name: 'Soulbound', desc: 'Earn 2,000 Souls in total.', souls: 100 },
 ];
 
 export const ACHIEVEMENT_BY_ID = Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, a])) as Record<string, AchievementDef>;

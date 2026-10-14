@@ -3,7 +3,7 @@
 // exactly from its input log.
 
 import { ELITE_MODS, HERO_BY_ID, type EliteMod, type FeatureKind, type HeroId } from './content';
-import { RELICS, RELIC_BY_ID, RARITY_WEIGHT, UNLOCKABLE_RELICS, type RelicDef, type RelicId } from './relics';
+import { LEGACY_RELICS, RELICS, RELIC_BY_ID, RARITY_WEIGHT, UNLOCKABLE_RELICS, type RelicDef, type RelicId } from './relics';
 import { hashSeed, mulberry32, randInt, weightedPick, type Rng } from './rng';
 
 export const W = 7;
@@ -53,6 +53,8 @@ export const ENEMY_INFO: Record<EnemyKind, { name: string; hp: number; dmg: numb
 };
 
 export const BOSS_KINDS: EnemyKind[] = ['boss', 'abbot', 'lich'];
+/** The risen dead: the Paladin and the Saint's Rosary hit them harder. */
+export const UNDEAD: EnemyKind[] = ['ghoul', 'archer', 'brute', 'wraith', 'boss', 'lich'];
 const FLYING: EnemyKind[] = ['bat', 'wraith'];
 
 export function isBoss(e: { kind: EnemyKind }): boolean {
@@ -89,6 +91,8 @@ export type GameEvent =
   | { t: 'potion' }
   | { t: 'floor'; floor: number }
   | { t: 'death' }
+  | { t: 'timestop' }
+  | { t: 'toll' }
   | { t: 'relic'; id: RelicId };
 
 export type Mode = 'daily' | 'endless';
@@ -118,12 +122,13 @@ export interface RunConfig {
 }
 
 /** Daily runs use every relic; Endless only the unlocked ones. */
-export function fullPool(): RelicId[] {
-  return RELICS.map((r) => r.id);
+/** Every relic. `legacy` limits it to the launch set, for older runs and Daily #1. */
+export function fullPool(legacy = false): RelicId[] {
+  return RELICS.filter((r) => !legacy || LEGACY_RELICS.includes(r.id)).map((r) => r.id);
 }
 
-export function basePool(unlocked: RelicId[] = []): RelicId[] {
-  return RELICS.filter((r) => !UNLOCKABLE_RELICS.includes(r.id) || unlocked.includes(r.id)).map((r) => r.id);
+export function basePool(unlocked: RelicId[] = [], legacy = false): RelicId[] {
+  return fullPool(legacy).filter((id) => !UNLOCKABLE_RELICS.includes(id) || unlocked.includes(id));
 }
 
 export interface RunStats {
@@ -135,6 +140,10 @@ export interface RunStats {
   cleanFloors: number;
   maxAllies: number;
   bossAtOneHp: boolean;
+  arrowKills: number;
+  revived: boolean;
+  /** Turns taken to reach floor 5 (0 until then). */
+  turnsTo5: number;
 }
 
 const DIRS: Pos[] = [
@@ -153,7 +162,8 @@ const MAX_THRALLS = 3;
 const MAX_HP_CAP = 99;
 /** Below this floor, every enemy hit also takes a growing share of your max HP. */
 const ABYSS_FLOOR = 30;
-const LOG_VERSION = 2;
+const LOG_VERSION = 3;
+const BOW_RANGE = 3;
 
 export class Game {
   readonly mode: Mode;
@@ -179,7 +189,10 @@ export class Game {
   kills = 0;
   turns = 0;
   killedBy = '';
-  stats: RunStats = { elites: 0, bosses: {}, spikeKills: 0, maxKillsInTurn: 0, maxHit: 0, cleanFloors: 0, maxAllies: 0, bossAtOneHp: false };
+  stats: RunStats = {
+    elites: 0, bosses: {}, spikeKills: 0, maxKillsInTurn: 0, maxHit: 0, cleanFloors: 0, maxAllies: 0, bossAtOneHp: false,
+    arrowKills: 0, revived: false, turnsTo5: 0,
+  };
   /**
    * Every input, in order: U/D/L/R moves, W waits, 0-3 relic picks, r rests,
    * a/x accept or leave a floor event. With `header()` it replays the run exactly.
@@ -219,7 +232,12 @@ export class Game {
   }
 
   get atk(): number {
-    return 1 + this.r('whetstone') + 2 * this.r('crown') + this.harvestBonus;
+    let atk = 1 + this.r('whetstone') + 2 * this.r('crown') + this.harvestBonus;
+    const missing = this.player.maxHp - this.player.hp;
+    if (this.hero === 'barbarian') atk += Math.floor(missing / 3);
+    if (this.hero === 'mage') atk += 2;
+    if (this.r('idol') && this.player.hp * 2 <= this.player.maxHp) atk += this.r('idol');
+    return atk;
   }
 
   get shield(): number {
@@ -274,7 +292,9 @@ export class Game {
   /** Prefix for the input log that records how the run was set up. */
   header(): string {
     const unlocked = UNLOCKABLE_RELICS.filter((id) => this.config.pool.includes(id));
-    return `#${LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|`;
+    // Pools without any post-launch relic are logged as version 2 so they replay with the launch set.
+    const version = this.config.pool.some((id) => !LEGACY_RELICS.includes(id)) ? LOG_VERSION : 2;
+    return `#${version}|${this.config.hero}|${unlocked.join(',')}|`;
   }
 
   // ---------- floor generation ----------
@@ -308,6 +328,7 @@ export class Game {
     this.hurtThisFloor = false;
     this.shieldCharges = this.r('mirror');
     this.events.push({ t: 'floor', floor });
+    if (floor === 5 && !this.stats.turnsTo5) this.stats.turnsTo5 = this.turns;
 
     if (this.hero === 'knight' && floor > 1) this.heal(1);
     const candle = this.r('candle');
@@ -572,6 +593,12 @@ export class Game {
       this.endTurn();
       return true;
     }
+    const mark = this.hero === 'ranger' ? this.bowTarget(dx, dy) : undefined;
+    if (mark) {
+      this.playerAttack(mark, { x: dx, y: dy }, true);
+      this.endTurn();
+      return true;
+    }
     if (this.isWall(tx, ty)) return false;
 
     // Step past a thrall by swapping places with it.
@@ -587,7 +614,7 @@ export class Game {
     if (this.potion && this.potion.x === tx && this.potion.y === ty) {
       this.potion = null;
       this.events.push({ t: 'potion' });
-      this.heal(POTION_HEAL + 2 * this.r('flask'));
+      this.heal(POTION_HEAL + 2 * this.r('flask') + this.r('chalice'));
     }
     if (this.stairsOpen && tx === this.stairs.x && ty === this.stairs.y) {
       this.turns++;
@@ -623,10 +650,25 @@ export class Game {
     if (e.dead) this.stats.spikeKills++;
   }
 
-  private playerAttack(e: Enemy, dir: Pos) {
-    this.events.push({ t: 'pattack', dir });
+  /** Ranger: the first foe 2-3 tiles away in a clear straight line. */
+  bowTarget(dx: number, dy: number): Enemy | undefined {
+    for (let k = 1; k <= BOW_RANGE; k++) {
+      const x = this.player.x + dx * k;
+      const y = this.player.y + dy * k;
+      if (!this.inBounds(x, y) || this.isWall(x, y)) return undefined;
+      const u = this.unitAt(x, y);
+      if (u) return !u.ally && k >= 2 ? u : undefined;
+    }
+    return undefined;
+  }
+
+  private playerAttack(e: Enemy, dir: Pos, ranged = false) {
+    if (ranged) this.events.push({ t: 'shot', from: { x: this.player.x, y: this.player.y }, to: { x: e.x, y: e.y }, hit: false });
+    else this.events.push({ t: 'pattack', dir });
     this.attacks++;
     let dmg = this.atk;
+    if (UNDEAD.includes(e.kind)) dmg += this.r('rosary') + (this.hero === 'paladin' ? 1 : 0);
+    if (this.r('moon')) dmg *= 2;
     if (this.r('mark') && !e.marked) {
       dmg += 2 * this.r('mark');
       e.marked = true;
@@ -639,7 +681,8 @@ export class Game {
       crit = true;
     }
     this.stats.maxHit = Math.max(this.stats.maxHit, dmg);
-    this.damageEnemy(e, dmg, 'melee', crit);
+    this.damageEnemy(e, dmg, ranged ? 'pierce' : 'melee', crit);
+    if (ranged && e.dead) this.stats.arrowKills++;
     const echoEvery = this.r('echo') >= 2 ? 3 : 4;
     if (this.r('echo') && this.attacks % echoEvery === 0 && !e.dead) this.damageEnemy(e, dmg, 'melee');
 
@@ -676,7 +719,11 @@ export class Game {
 
   private makeOffer(): Offer {
     const rng = mulberry32(hashSeed(this.seed, 'relic', this.floor));
-    const pool = RELICS.filter((r) => this.config.pool.includes(r.id) && this.r(r.id) < r.maxStack);
+    let pool = RELICS.filter((r) => this.config.pool.includes(r.id) && this.r(r.id) < r.maxStack);
+    if (this.r('heretic')) {
+      const dark = pool.filter((r) => r.rarity !== 'common');
+      if (dark.length >= 3) pool = dark;
+    }
     const n = 3 + this.r('coin');
     const picks: RelicDef[] = [];
     while (picks.length < n && pool.length) {
@@ -684,7 +731,7 @@ export class Game {
       picks.push(choice);
       pool.splice(pool.indexOf(choice), 1);
     }
-    return { relics: picks, restHeal: REST_HEAL };
+    return { relics: picks, restHeal: REST_HEAL + 2 * this.r('chalice') };
   }
 
   /** Take a relic from the offer (index), or rest when index is -1. */
@@ -795,6 +842,7 @@ export class Game {
     if (isBoss(e)) {
       this.stats.bosses[e.kind] = (this.stats.bosses[e.kind] ?? 0) + 1;
       if (this.player.hp === 1) this.stats.bossAtOneHp = true;
+      if (this.hero === 'paladin') this.heal(this.player.maxHp);
     }
 
     if (this.r('fang')) this.heal(this.r('fang'));
@@ -875,6 +923,7 @@ export class Game {
       this.events.push({ t: 'block' });
       return;
     }
+    amount = Math.max(1, amount - this.r('scale')) + this.r('moon');
     this.player.hp -= amount;
     this.hurtThisFloor = true;
     this.events.push({ t: 'hurt', amount });
@@ -883,6 +932,7 @@ export class Game {
     if (this.player.hp <= 0) {
       if (this.r('phylactery') && !this.phylacteryUsed) {
         this.phylacteryUsed = true;
+        this.stats.revived = true;
         this.player.hp = 1;
         this.events.push({ t: 'revive' });
         return;
@@ -907,6 +957,7 @@ export class Game {
 
   private endTurn() {
     this.turns++;
+    this.turnRelics();
     // Plague Mask: whatever stands next to you at the end of your turn suffers.
     const mask = this.r('mask');
     if (mask) {
@@ -947,6 +998,31 @@ export class Game {
       if (this.isOver()) break;
     }
     this.enemies = this.enemies.filter((e) => !e.dead);
+    this.checkCleared();
+  }
+
+  /** Relics that act on their own every turn. */
+  private turnRelics() {
+    const wisp = this.r('wisp');
+    if (wisp) {
+      const targets = this.alive;
+      if (targets.length) {
+        const t = targets[Math.floor(this.combat() * targets.length)];
+        this.events.push({ t: 'bolt', from: { x: this.player.x, y: this.player.y }, to: { x: t.x, y: t.y } });
+        this.damageEnemy(t, wisp, 'bolt');
+      }
+    }
+    if (this.r('doom') && this.turns % 10 === 0 && this.alive.length) {
+      this.events.push({ t: 'toll' });
+      for (const e of this.alive) {
+        this.events.push({ t: 'burst', x: e.x, y: e.y });
+        this.damageEnemy(e, 4 * this.r('doom'), 'burst');
+      }
+    }
+    if (this.r('hourglass') && this.turns % 8 === 0 && this.alive.length) {
+      this.events.push({ t: 'timestop' });
+      for (const e of this.alive) e.frozen = Math.max(e.frozen, 1);
+    }
     this.checkCleared();
   }
 
@@ -1245,9 +1321,11 @@ export class Game {
   /** Parse a full log (header + inputs) back into its setup. */
   static parseLog(full: string): { config: RunConfig; inputs: string } {
     const m = /^#(\d+)\|([a-z]+)\|([a-z,]*)\|/.exec(full);
-    if (!m) return { config: { hero: 'knight', pool: fullPool() }, inputs: full };
+    if (!m) return { config: { hero: 'knight', pool: fullPool(true) }, inputs: full };
     const unlocked = m[3] ? (m[3].split(',') as RelicId[]) : [];
-    return { config: { hero: m[2] as HeroId, pool: basePool(unlocked) }, inputs: full.slice(m[0].length) };
+    // Runs logged before version 3 were played with the launch relic set.
+    const legacy = Number(m[1]) < 3;
+    return { config: { hero: m[2] as HeroId, pool: basePool(unlocked, legacy) }, inputs: full.slice(m[0].length) };
   }
 
   /** Re-simulate a run from its full input log. Used to verify scores and resume runs. */

@@ -94,6 +94,12 @@ export const sfx = {
     noise(0.6, 0.2, 400);
   },
   bump: () => tone(70, 0.06, 'square', 0.05),
+  toll: () => {
+    tone(98, 1.6, 'sine', 0.16);
+    tone(196, 1.2, 'triangle', 0.06);
+    tone(293, 0.9, 'sine', 0.04);
+  },
+  timestop: () => tone(1400, 0.5, 'sine', 0.06, 180),
 };
 
 // ---------- music ----------

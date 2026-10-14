@@ -23,12 +23,16 @@ export interface Meta {
 }
 
 export const RELIC_COSTS: Partial<Record<RelicId, number>> = {
-  caltrops: 60,
-  key: 60,
-  echo: 100,
-  mask: 120,
-  necro: 140,
-  tome: 180,
+  caltrops: 120,
+  key: 120,
+  echo: 220,
+  mask: 260,
+  necro: 300,
+  wisp: 340,
+  tome: 380,
+  doom: 450,
+  heretic: 500,
+  moon: 600,
 };
 
 const KEY = 'wardenfall:meta';
@@ -109,7 +113,8 @@ export function buyRelic(id: RelicId): boolean {
 
 /** The daily crypt is identical for everyone; Endless uses your hero and unlocks. */
 export function runConfig(mode: Mode, dailyNo: number): RunConfig {
-  if (mode === 'daily') return { hero: dailyHero(dailyNo), pool: fullPool() };
+  // Daily #1 ran with the launch relic set; new relics join from Daily #2.
+  if (mode === 'daily') return { hero: dailyHero(dailyNo), pool: fullPool(dailyNo <= 1) };
   const hero = heroUnlocked(meta.hero) ? meta.hero : 'knight';
   return { hero, pool: basePool(meta.relics.filter((id) => UNLOCKABLE_RELICS.includes(id))) };
 }
@@ -185,6 +190,25 @@ export function checkRun(game: Game): AchievementDef[] {
     ['army', s.maxAllies >= 3],
     ['rogue8', game.hero === 'rogue' && game.floor >= 8],
     ['elite-hunter', meta.elitesSlain + s.elites >= 10],
+    ['floor20', game.floor >= 20],
+    ['floor30', game.floor >= 30],
+    ['floor50', game.floor >= 50],
+    ['butcher', game.kills >= 100],
+    ['massacre', s.maxKillsInTurn >= 5],
+    ['annihilate', s.maxHit >= 50],
+    ['swift', s.turnsTo5 > 0 && s.turnsTo5 <= 60],
+    ['cheat-death', s.revived],
+    ['midas', game.r('crown') >= 3],
+    ['elite50', meta.elitesSlain + s.elites >= 50],
+    ['knight10', game.hero === 'knight' && game.floor >= 10],
+    ['necro10', game.hero === 'necro' && game.floor >= 10],
+    ['paladin-lich', game.hero === 'paladin' && (s.bosses.lich ?? 0) > 0],
+    ['ranger-arrows', s.arrowKills >= 25],
+    ['mage10', game.hero === 'mage' && game.floor >= 10],
+    ['barbarian-rage', game.hero === 'barbarian' && game.floor >= 10],
+    ['full-party', HEROES.every((h) => meta.heroes.includes(h.id))],
+    ['forbidden', UNLOCKABLE_RELICS.every((id) => meta.relics.includes(id))],
+    ['soulbound', meta.earned >= 2000],
   ];
   const out: AchievementDef[] = [];
   for (const [id, ok] of conditions) {

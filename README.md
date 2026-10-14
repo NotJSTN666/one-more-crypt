@@ -7,14 +7,15 @@ A daily dark-fantasy roguelite that runs in the browser. Same crypt for everyone
 ## How it plays
 
 - **Tutorial:** first-time players are offered a one-minute guided run (move, strike, dodge, descend, claim a relic), also playable from How to play. How to play itself shows each rule as a small live scene.
+- New relics, heroes and combos never change a run already played: run logs carry a version, so launch-era runs (and Daily #1) replay with the launch relic set.
 - 7×7 single-screen floors in a turn-based grid. Every move you make, every enemy makes one.
 - Bump into an enemy to attack it. Kill everything on the floor to unseal the stairs.
 - After each floor, take 1 of 3 relics or rest. Relics stack: 2 Vampire Fangs heal for 2.
-- Three heroes: the Knight, the Rogue (every 3rd step is free) and the Necromancer (slain foes rise as thralls).
+- Seven heroes: the Knight, the Rogue (every 3rd step is free), the Necromancer (slain foes rise as thralls), the Paladin (smites the undead), the Ranger (shoots down straight lines), the Mage (glass cannon) and the Barbarian (hits harder as he bleeds).
 - Elite foes with special tricks, spike traps you can lure enemies across, and floor events (Blood Shrine, Iron Chest, Pale Fountain).
 - A boss every 5th floor: the Bone Warden, the Plague Abbot, then the Lich King. Below floor 30, the Abyss makes every hit hurt more.
-- **Souls and the Ossuary:** every run earns Souls to unlock heroes and six forbidden relics for Endless.
-- **Grimoire:** a relic codex, 22 achievements and 8 named relic combos.
+- **Souls and the Ossuary:** every run earns Souls to unlock heroes and ten forbidden relics for Endless.
+- **Grimoire:** a codex of 41 relics, 41 feats and 18 named relic combos.
 - **Runs resume:** closing the tab mid-run loses nothing; the run is rebuilt from its saved inputs.
 - **Daily Descent:** a seed fixed by the UTC date, a hero of the day, one official attempt, and a Wordle-style share card for X. The results screen says what percentage of today's players you beat.
 - **Endless:** random seeds for practice. Your best depth is saved.

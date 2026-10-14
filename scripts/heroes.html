@@ -2,7 +2,7 @@
 <html>
   <head><meta charset="UTF-8" /><style>
     body { margin: 0; background: #07040b; color: #9a8fa8; font: 12px monospace; }
-    .grid { display: grid; grid-template-columns: repeat(6, 150px); gap: 10px; padding: 16px; }
+    .grid { display: grid; grid-template-columns: repeat(7, 150px); gap: 10px; padding: 16px; }
     figure { margin: 0; text-align: center; background: #1d1824; padding: 8px 4px; }
     img { width: 120px; height: 120px; image-rendering: pixelated; }
     figcaption { margin-top: 4px; min-height: 2.4em; }
@@ -19,11 +19,20 @@
         ['mark', 'coin', 'dice', 'flask'], ['phylactery', 'conductor', 'storm'], ['bloom', 'bloom'], ['shatter', 'frost'],
         ['crown', 'hellfire', 'ember', 'mirror', 'heart'], ['pact', 'fang', 'harvest', 'thorns', 'hellfire', 'lantern'],
       ];
+      const heroes = ['knight', 'rogue', 'necro', 'paladin', 'ranger', 'mage', 'barbarian'];
       const g = document.getElementById('g');
+      // Every hero bare, then with two sample builds, then the relic layers on the Knight.
+      for (const extra of [[], ['ember', 'crown', 'mirror'], ['frost', 'frost', 'heart', 'heart', 'thorns']]) {
+        for (const hero of heroes) {
+          const relics = {};
+          extra.forEach((id) => (relics[id] = (relics[id] ?? 0) + 1));
+          g.insertAdjacentHTML('beforeend', `<figure><img src="${heroPortrait(hero, relics, extra, 10)}"><figcaption>${hero} ${extra.join(' ')}</figcaption></figure>`);
+        }
+      }
       for (const log of builds) {
         const relics = {};
         log.forEach((id) => (relics[id] = (relics[id] ?? 0) + 1));
-        g.insertAdjacentHTML('beforeend', `<figure><img src="${heroPortrait(relics, log, 10)}"><figcaption>${log.join(' ') || 'base'}</figcaption></figure>`);
+        g.insertAdjacentHTML('beforeend', `<figure><img src="${heroPortrait('knight', relics, log, 10)}"><figcaption>${log.join(' ') || 'base'}</figcaption></figure>`);
       }
       window.ready = true;
     </script>

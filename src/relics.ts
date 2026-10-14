@@ -28,13 +28,22 @@ export type RelicId =
   | 'phylactery'
   | 'flask'
   | 'harvest'
+  | 'rosary'
+  | 'idol'
+  | 'hourglass'
+  | 'chalice'
+  | 'scale'
   // Unlocked in the Ossuary (always in the daily pool)
   | 'echo'
   | 'necro'
   | 'caltrops'
   | 'key'
   | 'mask'
-  | 'tome';
+  | 'tome'
+  | 'wisp'
+  | 'doom'
+  | 'heretic'
+  | 'moon';
 
 export type Rarity = 'common' | 'rare' | 'cursed';
 
@@ -82,10 +91,28 @@ export const RELICS: RelicDef[] = [
   { id: 'key', name: 'Skeleton Key', emoji: '🗝️', rarity: 'common', maxStack: 1, desc: () => `Iron chests open freely, and each holds a second relic.` },
   { id: 'mask', name: 'Plague Mask', emoji: '🎭', rarity: 'rare', maxStack: 3, desc: (n) => `Foes next to you at the end of your turn take ${n} damage.` },
   { id: 'tome', name: 'Black Tome', emoji: '📕', rarity: 'rare', maxStack: 1, desc: () => `Every 3rd floor you enter grants a random relic.` },
+  // Added after launch. New relics go at the end so older runs replay unchanged.
+  { id: 'rosary', name: "Saint's Rosary", emoji: '📿', rarity: 'common', maxStack: 3, desc: (n) => `+${n} damage against the undead.` },
+  { id: 'idol', name: 'Berserker Idol', emoji: '🗿', rarity: 'common', maxStack: 3, desc: (n) => `+${n} attack while at half health or less.` },
+  { id: 'hourglass', name: 'Stopped Hourglass', emoji: '⏳', rarity: 'rare', maxStack: 1, desc: () => `Every 8th turn, time stops: every foe is frozen for a turn.` },
+  { id: 'chalice', name: 'Blood Chalice', emoji: '🍷', rarity: 'common', maxStack: 3, desc: (n) => `Resting heals ${n * 2} more and potions heal ${n} more.` },
+  { id: 'scale', name: 'Wyrm Scale', emoji: '🐉', rarity: 'common', maxStack: 3, desc: (n) => `Hits on you deal ${n} less damage (never below 1).` },
+  // Forbidden relics added after launch.
+  { id: 'wisp', name: 'Wisp Lantern', emoji: '👻', rarity: 'rare', maxStack: 3, desc: (n) => `A wisp strikes a random foe for ${n} damage every turn.` },
+  { id: 'doom', name: 'Doom Bell', emoji: '🛎️', rarity: 'rare', maxStack: 2, desc: (n) => `Every 10th turn the bell tolls: ${n * 4} damage to every foe.` },
+  { id: 'heretic', name: "Heretic's Codex", emoji: '📜', rarity: 'rare', maxStack: 1, desc: () => `Relic offerings show only rare and cursed relics.` },
+  { id: 'moon', name: 'Blood Moon', emoji: '🌑', rarity: 'cursed', maxStack: 1, desc: () => `Deal double damage, but every hit on you deals 1 more.` },
 ];
 
 /** Relics that start locked in Endless and are bought in the Ossuary. */
-export const UNLOCKABLE_RELICS: RelicId[] = ['echo', 'necro', 'caltrops', 'key', 'mask', 'tome'];
+export const UNLOCKABLE_RELICS: RelicId[] = ['echo', 'necro', 'caltrops', 'key', 'mask', 'tome', 'wisp', 'doom', 'heretic', 'moon'];
+
+/** The relics that existed at launch (run log version 2 and Daily #1). */
+export const LEGACY_RELICS: RelicId[] = [
+  'fang', 'heart', 'whetstone', 'thorns', 'ember', 'frost', 'storm', 'bloom', 'dust', 'mark', 'lantern', 'crown', 'pact',
+  'whirl', 'pike', 'candle', 'hellfire', 'coin', 'dice', 'wildfire', 'shatter', 'conductor', 'mirror', 'phylactery', 'flask',
+  'harvest', 'echo', 'necro', 'caltrops', 'key', 'mask', 'tome',
+];
 
 export const RELIC_BY_ID: Record<RelicId, RelicDef> = Object.fromEntries(
   RELICS.map((r) => [r.id, r]),

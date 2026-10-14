@@ -359,6 +359,8 @@ function playSounds(events: GameEvent[]) {
   else if (has('kill')) sfx.kill();
   else if (has('hit')) sfx.hit();
   if (has('bolt')) sfx.zap();
+  if (has('toll')) sfx.toll();
+  if (has('timestop')) sfx.timestop();
   if (has('shot')) sfx.shot();
   if (has('hurt')) sfx.hurt();
   if (has('block') || has('dodge')) sfx.block();
@@ -535,6 +537,8 @@ function updateTip() {
   else if (elite) tip.innerHTML = `Glowing foes are elites. <b>${ELITES[elite.elite!].name}:</b> ${ELITES[elite.elite!].desc}`;
   else if (feature) tip.innerHTML = `Step onto the <b>${FEATURES[feature.kind].name}</b> to use it.`;
   else if (game.spikes.some(Boolean) && game.turns < 4) tip.innerHTML = '<b>Spikes</b> hurt anything that walks on them. Lure foes across.';
+  else if (game.hero === 'ranger' && game.floor <= 2 && game.turns < 8)
+    tip.innerHTML = '<b>Longbow:</b> move toward a foe 2-3 tiles away in a straight line to shoot it.';
   else if (game.floor === 1 && game.turns < 6)
     tip.innerHTML = 'Move with arrows, WASD, swipe or tap. <b>Bump foes to strike.</b> They move when you do.';
   else if (game.relicLog.length && game.floor === 2 && game.turns < 40)
@@ -617,6 +621,10 @@ function showHelp(back: () => void) {
       <div><b>Knight</b>10 HP. Heals 1 on every new floor.</div>
       <div><b>Rogue</b>7 HP. Every 3rd step is free. 15% dodge.</div>
       <div><b>Necromancer</b>8 HP. Slain foes may rise as thralls.</div>
+      <div><b>Paladin</b>9 HP. +1 damage to the undead. Slaying a boss heals fully.</div>
+      <div><b>Ranger</b>7 HP. Shoots foes 2-3 tiles away in a straight line.</div>
+      <div><b>Mage</b>5 HP. +2 attack. A glass cannon.</div>
+      <div><b>Barbarian</b>11 HP. +1 attack for every 3 HP missing.</div>
       <div><b>Thralls</b>Fight for you. Walk into one to swap places.</div>
     </div>
     <div class="foes card">

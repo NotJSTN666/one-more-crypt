@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { HeroId } from './content';
 import { Game, H, W, basePool, fullPool, isBoss, type Pos } from './game';
+import { HEROES } from './content';
+import { LEGACY_RELICS } from './relics';
 import { descentStrip } from './share';
 
 const DIRS: Pos[] = [
@@ -121,9 +123,42 @@ describe('replay', () => {
 
 describe('new content', () => {
   it('every hero survives hundreds of full runs without errors', () => {
-    for (const hero of ['knight', 'rogue', 'necro'] as HeroId[]) {
+    for (const hero of HEROES.map((h) => h.id)) {
       for (let seed = 0; seed < 150; seed++) playOut(seed + 5000, 3000, hero);
     }
+  });
+
+  it('replays launch-era runs with the launch relic set', () => {
+    for (let seed = 0; seed < 40; seed++) {
+      const legacy = playOut(seed + 9000, 3000, 'knight', fullPool(true));
+      const full = legacy.header() + legacy.log;
+      expect(full.startsWith('#2|')).toBe(true);
+      const again = Game.replay('endless', seed + 9000, 0, full);
+      expect([again.floor, again.kills, again.player.hp]).toEqual([legacy.floor, legacy.kills, legacy.player.hp]);
+      expect(again.relicLog.every((id) => LEGACY_RELICS.includes(id))).toBe(true);
+    }
+    const modern = playOut(4242, 3000, 'knight', fullPool());
+    expect(modern.header().startsWith('#3|')).toBe(true);
+    const again = Game.replay('endless', 4242, 0, modern.header() + modern.log);
+    expect([again.floor, again.kills]).toEqual([modern.floor, modern.kills]);
+  });
+
+  it('lets the Ranger shoot down a clear line, but not through walls', () => {
+    const g = new Game('endless', 1, 0, { hero: 'ranger', pool: fullPool() });
+    g.stage({ player: { x: 0, y: 3 }, enemies: [{ kind: 'ghoul', x: 3, y: 3, hp: 5 }] });
+    g.act(1, 0);
+    expect(g.player.x).toBe(0);
+    expect(g.enemies[0].hp).toBe(4);
+    g.stage({ player: { x: 0, y: 3 }, enemies: [{ kind: 'ghoul', x: 3, y: 3, hp: 5 }], walls: [{ x: 2, y: 3 }] });
+    g.act(1, 0);
+    expect(g.player.x).toBe(1);
+  });
+
+  it('gives the Paladin bonus damage against the undead only', () => {
+    const g = new Game('endless', 1, 0, { hero: 'paladin', pool: fullPool() });
+    g.stage({ player: { x: 3, y: 3 }, enemies: [{ kind: 'ghoul', x: 4, y: 3, hp: 9 }, { kind: 'bat', x: 2, y: 3, hp: 9 }] });
+    g.act(1, 0);
+    expect(g.enemies.find((e) => e.kind === 'ghoul')!.hp).toBe(7);
   });
 
   it('spawns elites, traps and floor events', () => {
@@ -180,7 +215,7 @@ describe('share', () => {
 // Balance report, printed when run with BALANCE=1.
 if (process.env.BALANCE) {
   it('balance report', () => {
-    for (const hero of ['knight', 'rogue', 'necro'] as HeroId[]) {
+    for (const hero of HEROES.map((h) => h.id) as HeroId[]) {
       const floors = Array.from({ length: 400 }, (_, s) => playOut(s + 10_000, 3000, hero).floor).sort((a, b) => a - b);
       const q = (p: number) => floors[Math.floor(p * (floors.length - 1))];
       console.log(`${hero} bot floors: p10=${q(0.1)} p50=${q(0.5)} p90=${q(0.9)} max=${q(1)}`);

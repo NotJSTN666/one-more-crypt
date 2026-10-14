@@ -180,7 +180,14 @@ export class Renderer {
           this.floaters.push(this.floater(g.stairs.x, g.stairs.y, 'DESCEND', '#f2c14e', 1.2));
           break;
         case 'potion':
-          this.burstParticles(g.player.x, g.player.y, '#d23a46', 10);
+          this.burstParticles(g.player.x, g.player.y, '#4fa8ff', 14);
+          break;
+        case 'timestop':
+          this.banner('TIME STOPS', '#9fe8ff');
+          break;
+        case 'toll':
+          this.banner('THE BELL TOLLS', '#f2c14e');
+          if (!this.quiet) this.shake = 5;
           break;
         case 'death':
           this.shake = 8;
@@ -311,8 +318,27 @@ export class Renderer {
     this.drawSpikes(g);
     this.drawFeature(g);
     if (g.potion) {
+      // A pulsing blue glow and rising motes so potions read as magic, not fruit.
+      const cx = g.potion.x * TILE + TILE / 2;
+      const cy = g.potion.y * TILE + TILE / 2;
+      const pulse = 0.45 + 0.22 * Math.sin(this.time * 3.2);
+      const glow = ctx.createRadialGradient(cx, cy, 1, cx, cy, TILE * 0.95);
+      glow.addColorStop(0, `rgba(95, 175, 255, ${pulse})`);
+      glow.addColorStop(1, 'rgba(95, 175, 255, 0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(cx - TILE, cy - TILE, TILE * 2, TILE * 2);
       const bob = Math.round(Math.sin(this.time * 4) * 1);
       ctx.drawImage(sprites().potion.normal, g.potion.x * TILE + PAD, g.potion.y * TILE + PAD + bob);
+      // bubbles inside the vial
+      const b = (this.time * 1.6) % 1;
+      ctx.fillStyle = 'rgba(200, 235, 255, 0.85)';
+      ctx.fillRect(g.potion.x * TILE + PAD + 5, Math.round(g.potion.y * TILE + PAD + 9 - b * 3) + bob, 1, 1);
+      if (Math.random() < dt * 5) {
+        this.particles.push({
+          x: cx - 4 + Math.random() * 8, y: cy - 1, vx: (Math.random() - 0.5) * 4, vy: -10 - Math.random() * 6,
+          color: Math.random() < 0.5 ? '#9fe8ff' : '#4fa8ff', t: 0, life: 0.7, size: 1,
+        });
+      }
     }
     this.drawTelegraphs(g);
     this.updateCorpses(dt);
