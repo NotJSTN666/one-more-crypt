@@ -2,7 +2,7 @@
 
 A daily dark-fantasy roguelite that runs in the browser. Same crypt for everyone, one attempt a day. Players go down floor by floor, stack relics into broken builds, and share how deep they got.
 
-**Play:** https://notjstn666.github.io/Browser-game/
+**Play:** https://notjstn666.github.io/cryptfall/
 
 ## How it plays
 
