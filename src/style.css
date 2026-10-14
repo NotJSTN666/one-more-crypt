@@ -1069,6 +1069,7 @@ body.menu #app {
 #overlay.menu .sub,
 #overlay.menu .fine,
 #overlay.menu .streak,
+#overlay.menu .follow-x,
 #overlay.menu .online-count {
   text-shadow: 0 1px 3px #000, 0 0 10px #000;
 }
@@ -1076,4 +1077,21 @@ body.menu #app {
 #overlay.menu .btn,
 #overlay.menu .card {
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55);
+}
+
+.follow-x {
+  display: inline-block;
+  margin-top: 16px;
+  padding: 6px 10px;
+  color: var(--text);
+  opacity: 0.8;
+  font-size: 13px;
+  text-decoration: none;
+  border-bottom: 1px dashed currentColor;
+}
+
+.follow-x:hover,
+.follow-x:focus-visible {
+  color: var(--gold);
+  opacity: 1;
 }

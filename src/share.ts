@@ -32,8 +32,14 @@ export function shareText(r: RunResult, label: string): string {
   ].join('\n');
 }
 
+export const X_HANDLE = 'OneMoreCrypt';
+
+/** "Follow us on X" link for the title and results screens. */
+export const followXHtml = `<a class="follow-x" href="https://x.com/${X_HANDLE}" target="_blank" rel="noopener">𝕏 Follow @${X_HANDLE}</a>`;
+
 export function xIntentUrl(text: string): string {
-  const params = new URLSearchParams({ text, url: siteUrl() });
+  // "via" makes X append "via @OneMoreCrypt" to every shared run.
+  const params = new URLSearchParams({ text, url: siteUrl(), via: X_HANDLE });
   return `https://x.com/intent/post?${params.toString()}`;
 }
 

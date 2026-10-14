@@ -11,7 +11,7 @@ import { RELIC_BY_ID, type RelicId } from './relics';
 import { Renderer } from './render';
 import { hashSeed } from './rng';
 import { ONLINE } from './online';
-import { copyText, descentStrip, shareText, siteUrl, xIntentUrl } from './share';
+import { copyText, descentStrip, followXHtml, shareText, siteUrl, xIntentUrl } from './share';
 import { initSocial, needsName, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
 import { currentStreak, loadSave, recordDaily, writeSave, type RunResult } from './storage';
 import { $, esc, hideOverlay, on, overlay, screen, showOverlay, toast } from './ui';
@@ -462,6 +462,7 @@ function showTitle() {
     ${ONLINE ? '<button class="btn" id="leaderboard">🏆 Leaderboards</button>' : ''}
     <button class="btn" id="help">How to play</button>
     ${streak > 1 ? `<div class="streak">🕯️ ${streak}-day streak</div>` : ''}
+    ${followXHtml}
   `);
   on('#account', () => showProfile(showTitle));
   on('#leaderboard', () => showLeaderboard(showTitle));
@@ -702,6 +703,7 @@ function showDeath(r: RunResult, best: boolean) {
     </div>
     ${daily ? '<p class="sub">Next crypt opens in <span class="countdown">--:--:--</span></p>' : ''}
     ${onlineCountHtml()}
+    ${followXHtml}
   `);
   const backHere = () => showDeath(r, best);
   on('#leaderboard', () => showLeaderboard(backHere, game.mode === 'daily' ? 'today' : 'endless'));
