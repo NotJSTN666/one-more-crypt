@@ -1022,31 +1022,22 @@ details.card summary {
   color: var(--muted);
 }
 
-/* ---------- ghost runs in the empty space beside the game (wide screens) ---------- */
+/* ---------- ghost runs filling the page background ---------- */
 
-.ghost {
+#ghosts {
   position: fixed;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  opacity: 0.35;
+  inset: 0;
+  overflow: hidden;
+  /* Fainter during a run so ghost monsters never read as real ones. */
+  opacity: 0.25;
+  transition: opacity 0.4s;
   pointer-events: none;
   z-index: 0;
+}
+
+#ghosts canvas {
+  position: absolute;
   image-rendering: pixelated;
-  /* Fade the board's edges into the darkness. */
-  -webkit-mask-image: radial-gradient(closest-side, #000 72%, transparent 100%);
-  mask-image: radial-gradient(closest-side, #000 72%, transparent 100%);
-}
-
-.ghost[hidden] {
-  display: none;
-}
-
-#ghost-left {
-  left: calc((100% - 520px) / 4);
-}
-
-#ghost-right {
-  left: calc(100% - (100% - 520px) / 4);
 }
 
 #app {
@@ -1054,17 +1045,35 @@ details.card summary {
   z-index: 1;
 }
 
-/* Keep the menus dark over the game column but let the ghosts show at the sides. */
-@media (min-width: 976px) {
-  #overlay {
-    backdrop-filter: none;
-    background: linear-gradient(
-      to right,
-      transparent 0,
-      transparent calc(50% - 290px),
-      rgba(5, 2, 9, 0.92) calc(50% - 250px),
-      rgba(5, 2, 9, 0.92) calc(50% + 250px),
-      transparent calc(50% + 290px)
-    );
-  }
+/* Menus: hide the idle game behind them and let the ghost runs show through,
+   with a soft darkening so text stays readable. */
+body.menu #ghosts {
+  opacity: 0.35;
+}
+
+#tip,
+#hud {
+  text-shadow: 0 1px 3px #000, 0 0 8px #000;
+}
+
+body.menu #app {
+  visibility: hidden;
+}
+
+#overlay.menu {
+  backdrop-filter: none;
+  background: radial-gradient(ellipse at 50% 40%, rgba(5, 2, 9, 0.35) 0%, rgba(5, 2, 9, 0.55) 60%, rgba(5, 2, 9, 0.75) 100%);
+}
+
+#overlay.menu .tagline,
+#overlay.menu .sub,
+#overlay.menu .fine,
+#overlay.menu .streak,
+#overlay.menu .online-count {
+  text-shadow: 0 1px 3px #000, 0 0 10px #000;
+}
+
+#overlay.menu .btn,
+#overlay.menu .card {
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55);
 }

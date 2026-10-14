@@ -1,14 +1,13 @@
-// Faded gameplay in the empty space beside the game on wide screens: two ghost
-// heroes play the crypt on their own, purely as decoration. They never touch saves,
-// Souls or achievements.
+// Faded gameplay filling the whole page background: a grid of ghost boards, each with
+// a ghost hero playing the crypt on its own. Purely decoration: they never touch
+// saves, Souls or achievements.
 
 import { HEROES } from './content';
 import { Game, fullPool } from './game';
 import { RELICS } from './relics';
 import { Renderer } from './render';
 
-const COLUMN = 520; // width kept clear for the real game
-const MIN_SIZE = 180;
+const TARGET_BOARD = 640; // rough board size in CSS px; boards are stretched to tile exactly
 const STEP_MS = 340;
 
 interface Ghost {
@@ -19,6 +18,8 @@ interface Ghost {
 }
 
 const ghosts: Ghost[] = [];
+let container: HTMLElement | null = null;
+let frameSkip = false;
 
 function newGhostGame(): Game {
   const hero = HEROES[Math.floor(Math.random() * HEROES.length)].id;
@@ -73,36 +74,47 @@ function step(ghost: Ghost) {
   ghost.renderer.consume(g.events.splice(0));
 }
 
-/** Size and place each ghost board in the space beside the central column. */
+/** Tile the viewport with boards: about 640px each on desktop, full-width stacks on phones. */
 function layout() {
-  const side = (window.innerWidth - COLUMN) / 2;
-  const size = Math.min(side - 48, window.innerHeight - 96);
-  for (const ghost of ghosts) {
-    if (size < MIN_SIZE) {
-      ghost.canvas.hidden = true;
-      continue;
-    }
-    ghost.canvas.hidden = false;
-    ghost.renderer.resize(size);
+  if (!container) return;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const cols = Math.max(1, Math.round(vw / TARGET_BOARD));
+  const size = Math.ceil(vw / cols);
+  const rows = Math.max(1, Math.ceil(vh / size));
+  const needed = cols * rows;
+  while (ghosts.length < needed) {
+    const canvas = document.createElement('canvas');
+    container.appendChild(canvas);
+    const ghost: Ghost = { canvas, renderer: new Renderer(canvas, true), game: newGhostGame(), deadTicks: 0 };
+    reset(ghost);
+    ghosts.push(ghost);
+    // Stagger the ghosts so they don't all move in lockstep.
+    window.setTimeout(() => window.setInterval(() => ghost.canvas.isConnected && step(ghost), STEP_MS), Math.random() * STEP_MS);
   }
+  while (ghosts.length > needed) ghosts.pop()!.canvas.remove();
+  ghosts.forEach((ghost, i) => {
+    ghost.renderer.resize(size);
+    // Stretch to the exact cell so the boards tile edge to edge.
+    Object.assign(ghost.canvas.style, {
+      width: `${size}px`,
+      height: `${size}px`,
+      left: `${(i % cols) * size}px`,
+      top: `${Math.floor(i / cols) * size}px`,
+    });
+  });
 }
 
 export function startGhosts() {
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  for (const id of ['ghost-left', 'ghost-right']) {
-    const canvas = document.getElementById(id) as HTMLCanvasElement | null;
-    if (!canvas) continue;
-    const ghost: Ghost = { canvas, renderer: new Renderer(canvas), game: newGhostGame(), deadTicks: 0 };
-    ghosts.push(ghost);
-    reset(ghost);
-  }
+  container = document.getElementById('ghosts');
+  if (!container || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   layout();
   window.addEventListener('resize', layout);
-  // Offset the two so they don't move in lockstep.
-  ghosts.forEach((ghost, i) => window.setTimeout(() => window.setInterval(() => step(ghost), STEP_MS), i * STEP_MS * 0.5));
 }
 
-/** Draw the ghosts; called from the main animation loop. */
+/** Draw the ghosts at half the frame rate; called from the main animation loop. */
 export function drawGhosts(dt: number) {
-  for (const ghost of ghosts) if (!ghost.canvas.hidden) ghost.renderer.frame(dt);
+  frameSkip = !frameSkip;
+  if (frameSkip) return;
+  for (const ghost of ghosts) ghost.renderer.frame(dt * 2);
 }

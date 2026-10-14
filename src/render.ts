@@ -40,7 +40,8 @@ export class Renderer {
   private healFlash = 0;
   private time = 0;
 
-  constructor(private canvas: HTMLCanvasElement) {
+  /** Quiet renderers (background ghosts) skip text and screen shake. */
+  constructor(private canvas: HTMLCanvasElement, private quiet = false) {
     this.ctx = canvas.getContext('2d')!;
   }
 
@@ -203,7 +204,7 @@ export class Renderer {
 
   private drawBanner(dt: number) {
     const b = this.bannerText;
-    if (!b) return;
+    if (!b || this.quiet) return;
     b.t += dt;
     const life = 1.8;
     if (b.t > life) {
@@ -301,7 +302,7 @@ export class Renderer {
     ctx.fillRect(0, 0, BOARD_W, BOARD_H);
 
     this.shake = Math.max(0, this.shake - dt * 30);
-    if (this.shake > 0) {
+    if (this.shake > 0 && !this.quiet) {
       ctx.translate(Math.round((Math.random() - 0.5) * this.shake), Math.round((Math.random() - 0.5) * this.shake));
     }
 
@@ -627,6 +628,10 @@ export class Renderer {
   }
 
   private drawFloaters(dt: number) {
+    if (this.quiet) {
+      this.floaters = [];
+      return;
+    }
     const ctx = this.ctx;
     this.floaters = this.floaters.filter((f) => (f.t += dt) < f.life);
     ctx.font = '8px Silkscreen, monospace';

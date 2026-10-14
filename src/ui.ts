@@ -7,8 +7,14 @@ export const overlay = $('overlay');
 /** Which overlay is showing, so background updates only redraw the screen they belong to. */
 export let screen = '';
 
+/** Screens shown during a run keep the board visible behind them; the rest are menus. */
+const RUN_SCREENS = ['choose', 'event', 'pause'];
+
 export function showOverlay(name: string, html: string) {
   screen = name;
+  const menu = !RUN_SCREENS.includes(name);
+  document.body.classList.toggle('menu', menu);
+  overlay.classList.toggle('menu', menu);
   overlay.innerHTML = `<div class="panel">${html}</div>`;
   overlay.hidden = false;
   overlay.scrollTop = 0;
@@ -16,6 +22,8 @@ export function showOverlay(name: string, html: string) {
 
 export function hideOverlay() {
   screen = '';
+  document.body.classList.remove('menu');
+  overlay.classList.remove('menu');
   overlay.hidden = true;
   overlay.innerHTML = '';
 }
