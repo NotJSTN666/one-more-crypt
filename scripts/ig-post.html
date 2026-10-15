@@ -1,0 +1,234 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <link href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Silkscreen&display=swap" rel="stylesheet" />
+    <style>
+      html, body { margin: 0; background: #07040b; }
+      canvas { display: block; }
+    </style>
+  </head>
+  <body>
+    <canvas id="slide" width="1080" height="1350"></canvas>
+    <script type="module">
+      // Instagram carousel slides (1080x1350). Render with: node scripts/make-ig-post.mjs
+      import { HEROES } from '/src/content.ts';
+      import { heroSprite } from '/src/hero.ts';
+      import { RELIC_BY_ID } from '/src/relics.ts';
+      import { sprites } from '/src/sprites.ts';
+
+      await document.fonts.load('150px "Pirata One"');
+      await document.fonts.load('30px Silkscreen');
+      const W = 1080, H = 1350;
+      const ctx = document.getElementById('slide').getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      const s = sprites();
+
+      function text(str, x, y, font, color, align = 'center', glow = null) {
+        ctx.font = font;
+        ctx.textAlign = align;
+        ctx.fillStyle = color;
+        if (glow) { ctx.shadowColor = glow; ctx.shadowBlur = 34; }
+        ctx.fillText(str, x, y);
+        ctx.shadowBlur = 0;
+      }
+      function img(i, x, y, size, alpha = 1, glow = null) {
+        ctx.globalAlpha = alpha;
+        if (glow) { ctx.shadowColor = glow; ctx.shadowBlur = 40; }
+        ctx.drawImage(i, x, y, size, size);
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
+      }
+      function backdrop(glow, seed) {
+        const bg = ctx.createRadialGradient(W / 2, 560, 40, W / 2, 680, 1000);
+        bg.addColorStop(0, glow);
+        bg.addColorStop(0.6, '#13091a');
+        bg.addColorStop(1, '#07040b');
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, W, H);
+        let r = seed;
+        const rand = () => ((r = (r * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+        for (let i = 0; i < 60; i++) {
+          ctx.globalAlpha = 0.25 + rand() * 0.5;
+          ctx.fillStyle = rand() < 0.6 ? '#ff8a2a' : '#f2c14e';
+          const sz = rand() < 0.3 ? 7 : 4;
+          ctx.fillRect(Math.floor(rand() * W), Math.floor(rand() * H), sz, sz);
+        }
+        ctx.globalAlpha = 1;
+      }
+      function floor(y0, y1, t = 72) {
+        for (let x = 0; x < W; x += t) {
+          for (let y = y0; y < y1; y += t) {
+            ctx.fillStyle = (x / t + y / t) % 2 ? '#1d1824' : '#211b29';
+            ctx.fillRect(x, y, t, t);
+            ctx.fillStyle = 'rgba(0,0,0,0.4)';
+            ctx.fillRect(x, y + t - 6, t, 6);
+            ctx.fillRect(x + t - 6, y, 6, t);
+          }
+        }
+      }
+      function tile(x, y, t, fill) {
+        ctx.fillStyle = fill;
+        ctx.fillRect(x, y, t, t);
+      }
+      function pager(n) {
+        for (let i = 0; i < 6; i++) {
+          ctx.fillStyle = i === n - 1 ? '#f2c14e' : '#3a2a4a';
+          ctx.fillRect(W / 2 - 75 + i * 26, H - 60, 14, 14);
+        }
+      }
+      function heading(str, sub) {
+        text(str, W / 2, 190, '110px "Pirata One"', '#d23a46', 'center', 'rgba(210,58,70,0.7)');
+        if (sub) text(sub, W / 2, 250, '28px Silkscreen', '#e8dcc4');
+      }
+      const knight = (relics, log) => heroSprite('knight', relics, log).normal;
+
+      const SLIDES = {
+        // 1. The hook
+        1() {
+          backdrop('#3a1530', 7);
+          text('One More', W / 2, 230, '170px "Pirata One"', '#d23a46', 'center', 'rgba(210,58,70,0.75)');
+          text('Crypt', W / 2, 390, '170px "Pirata One"', '#d23a46', 'center', 'rgba(210,58,70,0.75)');
+          floor(940, 1130);
+          const fade = ctx.createLinearGradient(0, 920, 0, 1140);
+          fade.addColorStop(0, 'rgba(7,4,11,0)');
+          fade.addColorStop(1, 'rgba(7,4,11,0.95)');
+          ctx.fillStyle = fade;
+          ctx.fillRect(0, 920, W, 230);
+          img(s.archer.normal, 60, 800, 156);
+          img(s.ghoul.normal, 220, 836, 132);
+          img(s.wraith.normal, 700, 830, 132, 0.85);
+          img(s.brute.normal, 830, 776, 180);
+          img(s.bat.normal, 140, 600, 100);
+          img(s.bat.normal, 850, 640, 90);
+          img(knight({ crown: 1, ember: 2, mirror: 1, fang: 1 }, ['fang', 'mirror', 'ember', 'crown']), W / 2 - 170, 640, 340, 1, 'rgba(210,58,70,0.9)');
+          text('A NEW CRYPT EVERY DAY.', W / 2, 1180, '40px Silkscreen', '#e8dcc4');
+          text('ONE TRY. HOW DEEP CAN YOU GO?', W / 2, 1235, '34px Silkscreen', '#f2c14e');
+          text('SWIPE ›', W - 60, H - 50, '24px Silkscreen', '#9a8fa8', 'right');
+          pager(1);
+        },
+        // 2. How it plays
+        2() {
+          backdrop('#2a1328', 3);
+          heading('How it plays', 'A ROGUELITE YOU PLAY IN SECONDS');
+          const t = 96;
+          const steps = [
+            ['1', 'BUMP TO STRIKE', 'Walk into a foe to hit it. Every move you make, they make one too.', () => {
+              const y = 330;
+              for (let i = 0; i < 4; i++) tile(160 + i * t, y, t - 4, '#211b29');
+              img(knight({}, []), 160 + t + 8, y + 8, 80);
+              img(s.ghoul.white, 160 + 2 * t + 8, y + 8, 80);
+              text('-1', 160 + 2.5 * t, y - 6, '30px Silkscreen', '#ff4d5a');
+            }],
+            ['2', 'CLEAR THE FLOOR', 'Slay every foe and the stairs unseal. Step on them to go deeper.', () => {
+              const y = 640;
+              tile(208, y, t - 4, '#000');
+              ['#5a4a3a', '#43372b', '#2e251d', '#1a140f'].forEach((c, i) => { ctx.fillStyle = c; ctx.fillRect(220 + i * 6, y + 12 + i * 18, t - 28 - i * 12, 18); });
+              ctx.strokeStyle = '#f2c14e'; ctx.lineWidth = 4; ctx.strokeRect(208, y, t - 4, t - 4);
+              text('DESCEND', 256, y - 12, '22px Silkscreen', '#f2c14e');
+            }],
+            ['3', 'CLAIM A RELIC', 'After every floor, pick 1 of 3. They stack, combo and break the game.', () => {
+              const y = 950;
+              ['crown', 'ember', 'storm'].forEach((id, i) => {
+                ctx.fillStyle = i === 1 ? '#2a1d10' : '#150e1d';
+                ctx.fillRect(130 + i * 90, y, 80, 80);
+                ctx.strokeStyle = i === 1 ? '#f2c14e' : '#3a2a4a';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(130 + i * 90, y, 80, 80);
+                ctx.font = '46px "Noto Color Emoji", "Apple Color Emoji", sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(RELIC_BY_ID[id].emoji, 170 + i * 90, y + 58);
+              });
+            }],
+          ];
+          steps.forEach(([n, title, desc, draw], i) => {
+            const y = 320 + i * 310;
+            draw();
+            text(n, 520, y + 70, '64px "Pirata One"', '#d23a46', 'left');
+            text(title, 580, y + 40, '30px Silkscreen', '#f2c14e', 'left');
+            ctx.font = '26px sans-serif';
+            ctx.fillStyle = '#e8dcc4';
+            ctx.textAlign = 'left';
+            const words = desc.split(' ');
+            let line = '', ly = y + 90;
+            for (const w of words) {
+              if (ctx.measureText(line + w).width > 420) { ctx.fillText(line, 580, ly); line = ''; ly += 36; }
+              line += w + ' ';
+            }
+            ctx.fillText(line, 580, ly);
+          });
+          pager(2);
+        },
+        // 3. Relics change the hero
+        3() {
+          backdrop('#3a2a10', 11);
+          heading('Build something broken', 'YOUR HERO CHANGES WITH EVERY RELIC');
+          const stages = [[], ['whetstone'], ['whetstone', 'ember', 'crown'], ['whetstone', 'ember', 'crown', 'mirror', 'storm', 'heart', 'thorns']];
+          stages.forEach((log, i) => {
+            const relics = {};
+            log.forEach((id) => (relics[id] = (relics[id] ?? 0) + 1));
+            const x = 70 + i * 250;
+            img(knight(relics, log), x, 420, 200, 1, i === 3 ? 'rgba(242,193,78,0.8)' : null);
+            const added = i === 0 ? 'START' : log.slice(stages[i - 1].length).map((id) => RELIC_BY_ID[id].emoji).join('');
+            ctx.font = i === 0 ? '24px Silkscreen' : '40px "Noto Color Emoji", "Apple Color Emoji", sans-serif';
+            ctx.fillStyle = '#9a8fa8';
+            ctx.textAlign = 'center';
+            ctx.fillText(added, x + 100, 690);
+            if (i < 3) text('›', x + 225, 540, '60px Silkscreen', '#d23a46');
+          });
+          text('41 RELICS · 18 SECRET COMBOS', W / 2, 860, '36px Silkscreen', '#f2c14e');
+          text('Three Ember Brands set the whole floor on fire.', W / 2, 940, '30px sans-serif', '#e8dcc4');
+          text('Storm Rune + Iron Conductor chains lightning.', W / 2, 990, '30px sans-serif', '#e8dcc4');
+          text('A Cursed Crown hits harder and costs you life.', W / 2, 1040, '30px sans-serif', '#e8dcc4');
+          pager(3);
+        },
+        // 4. Heroes
+        4() {
+          backdrop('#1a2340', 5);
+          heading('Seven heroes', 'UNLOCK THEM WITH SOULS FROM EVERY RUN');
+          HEROES.forEach((h, i) => {
+            const col = i % 2, row = Math.floor(i / 2);
+            const lone = i === HEROES.length - 1 && HEROES.length % 2;
+            const x = lone ? W / 2 - 230 : 70 + col * 500;
+            const y = 320 + row * 230;
+            img(heroSprite(h.id, {}, []).normal, x, y, 150);
+            text(h.name.toUpperCase(), x + 170, y + 50, '28px Silkscreen', '#f2c14e', 'left');
+            text(`${h.hp} HP · ${h.perk}`, x + 170, y + 92, '20px Silkscreen', '#9a8fa8', 'left');
+          });
+          pager(4);
+        },
+        // 5. Bosses
+        5() {
+          backdrop('#40141c', 9);
+          heading('A boss every 5 floors', 'AND BELOW FLOOR 30, THE ABYSS');
+          floor(850, 1000);
+          const bosses = [['boss', 'BONE WARDEN', 'Raises the dead'], ['abbot', 'PLAGUE ABBOT', 'Rains plague'], ['lich', 'LICH KING', 'Blinks and fires bolts']];
+          bosses.forEach(([k, n, d], i) => {
+            const x = 60 + i * 330;
+            img(s[k].normal, x + 15, 470 + (i === 2 ? -40 : 0), 300 - (i === 2 ? -40 : 0), 1, 'rgba(210,58,70,0.6)');
+            text(n, x + 165, 1060, '28px Silkscreen', '#f2c14e');
+            text(d, x + 165, 1105, '20px Silkscreen', '#9a8fa8');
+          });
+          text('Floor 5 · Floor 10 · Floor 15 · and deeper', W / 2, 1200, '28px sans-serif', '#e8dcc4');
+          pager(5);
+        },
+        // 6. Call to action
+        6() {
+          backdrop('#3a1530', 13);
+          text('Your turn.', W / 2, 260, '150px "Pirata One"', '#d23a46', 'center', 'rgba(210,58,70,0.75)');
+          text('ONE CRYPT. ONE TRY A DAY.', W / 2, 340, '34px Silkscreen', '#e8dcc4');
+          floor(780, 920);
+          img(knight({ crown: 1, ember: 2, mirror: 1, fang: 1 }, ['fang', 'mirror', 'ember', 'crown']), W / 2 - 150, 470, 300, 1, 'rgba(210,58,70,0.9)');
+          text('PLAY FREE IN YOUR BROWSER', W / 2, 1010, '34px Silkscreen', '#e8dcc4');
+          text('ONEMORECRYPT.COM', W / 2, 1090, '62px Silkscreen', '#f2c14e', 'center', 'rgba(242,193,78,0.5)');
+          text('LINK IN BIO · NO DOWNLOAD · NO SIGN-UP', W / 2, 1160, '24px Silkscreen', '#9a8fa8');
+          text('Share your depth and tag us', W / 2, 1230, '28px sans-serif', '#e8dcc4');
+          pager(6);
+        },
+      };
+
+      window.draw = (n) => SLIDES[n]();
+      window.ready = true;
+    </script>
+  </body>
+</html>
