@@ -1572,3 +1572,36 @@ body.tutorial #relic-bar {
   border-color: #6b4fa0;
   box-shadow: 0 0 16px rgba(176, 124, 255, 0.25);
 }
+
+.hollow-dpad {
+  display: grid;
+  grid-template-columns: repeat(3, 68px);
+  grid-template-rows: repeat(3, 52px);
+  gap: 6px;
+  justify-content: center;
+  margin-top: 12px;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.hollow-dpad button {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-bottom-width: 3px;
+  font-size: 18px;
+  color: var(--muted);
+  -webkit-touch-callout: none;
+}
+
+.hollow-dpad button:active {
+  background: var(--panel-2);
+  color: var(--gold);
+  border-bottom-width: 1px;
+  transform: translateY(2px);
+}
+
+.hollow-dpad [data-d='0,-1'] { grid-area: 1 / 2; }
+.hollow-dpad [data-d='-1,0'] { grid-area: 2 / 1; }
+.hollow-dpad [data-d='1,0'] { grid-area: 2 / 3; }
+.hollow-dpad [data-d='0,1'] { grid-area: 3 / 2; }

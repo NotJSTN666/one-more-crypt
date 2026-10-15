@@ -106,7 +106,13 @@ export function showHollow(h: HollowHooks) {
       </div>
       <canvas id="hollow-canvas" width="${viewCols * TILE * SCALE}" height="${ROWS * TILE * SCALE}" aria-label="The Hollow, a graveyard to explore"></canvas>
       <div class="hollow-dialog" id="hollow-dialog" hidden></div>
-      <p class="fine hollow-hint">${touch ? 'Tap to walk.' : 'Arrows or WASD to walk, or click a spot.'} Step through a door to enter. Read the old graves.</p>
+      ${touch ? `<div class="hollow-dpad" aria-label="Move">
+        <button type="button" data-d="0,-1" aria-label="Up">▲</button>
+        <button type="button" data-d="-1,0" aria-label="Left">◀</button>
+        <button type="button" data-d="1,0" aria-label="Right">▶</button>
+        <button type="button" data-d="0,1" aria-label="Down">▼</button>
+      </div>` : ''}
+      <p class="fine hollow-hint">${touch ? 'Use the arrows or tap a spot to walk.' : 'Arrows or WASD to walk, or click a spot.'} Step through a door to enter. Read the old graves.</p>
     </div>`);
   overlay.querySelector('#hollow-menu')?.addEventListener('click', () => hooks.menu());
   const canvas = overlay.querySelector<HTMLCanvasElement>('#hollow-canvas')!;
@@ -118,6 +124,22 @@ export function showHollow(h: HollowHooks) {
     walkTo(tx, ty);
   });
   overlay.querySelector('#hollow-dialog')?.addEventListener('click', closeDialog);
+  // On-screen arrows: tap to step, hold to keep walking.
+  overlay.querySelectorAll<HTMLButtonElement>('.hollow-dpad button').forEach((b) => {
+    const [dx, dy] = b.dataset.d!.split(',').map(Number);
+    let timer = 0;
+    const stop = () => window.clearInterval(timer);
+    b.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      if (dialog) return closeDialog();
+      path = [];
+      step(dx, dy);
+      stop();
+      timer = window.setInterval(() => (screen === 'hollow' && !dialog ? step(dx, dy) : stop()), 180);
+    });
+    for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, stop);
+    b.addEventListener('contextmenu', (e) => e.preventDefault());
+  });
   if (Date.now() - ghostsLoaded > 60_000) {
     ghostsLoaded = Date.now();
     void hooks
