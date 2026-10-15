@@ -31,7 +31,8 @@ export function showWardrobe(back: () => void, hero: HeroId = meta.hero, changed
     return `<button class="look-card ${worn ? 'equipped' : ''}" data-part="${part}" data-id="${esc(id)}" ${has ? '' : 'disabled'}>
       <img src="${preview}" alt="" width="48" height="48" class="${has ? '' : 'locked-look'}" />
       <span class="name">${has ? '' : '🔒 '}${esc(name)}</span>
-      <span class="desc">${worn ? 'Wearing' : has ? 'Tap to wear' : esc(how)}</span>
+      ${worn ? '<span class="worn">✓ Wearing</span>' : ''}
+      <span class="desc">${!id ? esc(how) : has ? `Earned: ${esc(how)}` : esc(how)}</span>
     </button>`;
   };
 
@@ -50,12 +51,12 @@ export function showWardrobe(back: () => void, hero: HeroId = meta.hero, changed
     </div>
     <h3 class="shop-head">Cloak <small>${cloaks}/${LOOKS.length}</small></h3>
     <div class="looks">
-      ${piece('look', '', 'Hero colours', '', true)}
+      ${piece('look', '', 'Hero colours', 'Their own colours.', true)}
       ${LOOKS.map((l) => piece('look', l.id, l.name, l.how, lookUnlocked(l))).join('')}
     </div>
     <h3 class="shop-head">Headwear <small>${heads}/${HEADS.length}</small></h3>
     <div class="looks">
-      ${piece('head', '', 'None', '', true)}
+      ${piece('head', '', 'None', 'Just the hood.', true)}
       ${HEADS.map((h) => piece('head', h.id, h.name, h.how, headUnlocked(h))).join('')}
     </div>
     <button class="btn primary" id="back">Back</button>`);
