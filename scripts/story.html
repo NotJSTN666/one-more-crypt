@@ -1,0 +1,113 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <link href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Silkscreen&display=swap" rel="stylesheet" />
+    <style>
+      html, body { margin: 0; background: #07040b; }
+      canvas { display: block; }
+    </style>
+  </head>
+  <body>
+    <canvas id="story" width="1080" height="1920"></canvas>
+    <script type="module">
+      // Instagram story artwork (1080x1920). Render with: node scripts/make-story.mjs
+      // ?frame=1 draws only the top and bottom bands, as the frame around the gameplay video.
+      import { HEROES } from '/src/content.ts';
+      import { heroSprite } from '/src/hero.ts';
+      import { sprites } from '/src/sprites.ts';
+
+      await document.fonts.load('150px "Pirata One"');
+      await document.fonts.load('30px Silkscreen');
+      const frameOnly = new URLSearchParams(location.search).has('frame');
+      const W = 1080, H = 1920;
+      const ctx = document.getElementById('story').getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      const s = sprites();
+
+      function text(str, x, y, font, color, glow = null) {
+        ctx.font = font;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = color;
+        if (glow) { ctx.shadowColor = glow; ctx.shadowBlur = 36; }
+        ctx.fillText(str, x, y);
+        ctx.shadowBlur = 0;
+      }
+
+      // backdrop
+      const bg = ctx.createRadialGradient(W / 2, 760, 40, W / 2, 900, 1300);
+      bg.addColorStop(0, '#3a1530');
+      bg.addColorStop(0.55, '#14091a');
+      bg.addColorStop(1, '#07040b');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, W, H);
+      let r = 7;
+      const rand = () => ((r = (r * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+      for (let i = 0; i < 90; i++) {
+        ctx.globalAlpha = 0.3 + rand() * 0.5;
+        ctx.fillStyle = rand() < 0.6 ? '#ff8a2a' : '#f2c14e';
+        const sz = rand() < 0.3 ? 8 : 5;
+        ctx.fillRect(Math.floor(rand() * W), Math.floor(rand() * H), sz, sz);
+      }
+      ctx.globalAlpha = 1;
+
+      // title, clear of Instagram's name bar at the top
+      text('One More Crypt', W / 2, 330, '150px "Pirata One"', '#d23a46', 'rgba(210,58,70,0.75)');
+      text('ONE CRYPT. ONE TRY A DAY.', W / 2, 400, '34px Silkscreen', '#e8dcc4');
+
+      if (!frameOnly) {
+        // floor under the scene
+        for (let x = 0; x < W; x += 72) {
+          for (let y = 900; y < 1080; y += 72) {
+            ctx.fillStyle = (x / 72 + y / 72) % 2 ? '#1d1824' : '#211b29';
+            ctx.fillRect(x, y, 72, 72);
+            ctx.fillStyle = 'rgba(0,0,0,0.4)';
+            ctx.fillRect(x, y + 66, 72, 6);
+            ctx.fillRect(x + 66, y, 6, 72);
+          }
+        }
+        const fade = ctx.createLinearGradient(0, 880, 0, 1100);
+        fade.addColorStop(0, 'rgba(7,4,11,0)');
+        fade.addColorStop(1, 'rgba(7,4,11,0.95)');
+        ctx.fillStyle = fade;
+        ctx.fillRect(0, 880, W, 220);
+
+        // the Lich King looming behind, foes closing in, the hero in the middle
+        const sprite = (img, x, y, size, alpha = 1, glow = null) => {
+          ctx.globalAlpha = alpha;
+          if (glow) { ctx.shadowColor = glow; ctx.shadowBlur = 40; }
+          ctx.drawImage(img, x, y, size, size);
+          ctx.shadowBlur = 0;
+          ctx.globalAlpha = 1;
+        };
+        sprite(s.lich.normal, W / 2 - 300, 400, 600, 0.12);
+        sprite(s.archer.normal, 70, 760, 168);
+        sprite(s.ghoul.normal, 230, 800, 144);
+        sprite(s.brute.normal, 810, 744, 192);
+        sprite(s.wraith.normal, 700, 790, 144, 0.85);
+        sprite(s.bat.normal, 150, 560, 108);
+        sprite(s.bat.normal, 840, 600, 96);
+        const build = { crown: 1, ember: 2, mirror: 1, fang: 1 };
+        sprite(heroSprite('knight', build, ['fang', 'mirror', 'ember', 'crown']).normal, W / 2 - 180, 600, 360, 1, 'rgba(210,58,70,0.9)');
+
+        text('HOW DEEP CAN YOU GO?', W / 2, 1150, '50px Silkscreen', '#f2c14e', 'rgba(242,193,78,0.4)');
+        text('7 HEROES · 41 RELICS · A BOSS EVERY 5 FLOORS', W / 2, 1215, '27px Silkscreen', '#e8dcc4');
+        text('A NEW CRYPT EVERY MIDNIGHT', W / 2, 1260, '27px Silkscreen', '#9a8fa8');
+
+        // the seven heroes
+        const size = 112, gap = 20, total = HEROES.length * size + (HEROES.length - 1) * gap;
+        HEROES.forEach((h, i) => {
+          const x = (W - total) / 2 + i * (size + gap);
+          ctx.drawImage(heroSprite(h.id, {}, []).normal, x, 1310, size, size);
+          text(h.id === 'necro' ? 'NECRO' : h.name.toUpperCase(), x + size / 2, 1450, '15px Silkscreen', '#9a8fa8');
+        });
+      }
+
+      // call to action, above Instagram's reply bar; the gap below is for a link sticker
+      text('PLAY FREE IN YOUR BROWSER', W / 2, 1560, '32px Silkscreen', '#e8dcc4');
+      text('ONEMORECRYPT.COM', W / 2, 1635, '58px Silkscreen', '#f2c14e', 'rgba(242,193,78,0.5)');
+      text('▼  TAP THE LINK  ▼', W / 2, 1700, '24px Silkscreen', '#d23a46');
+      window.ready = true;
+    </script>
+  </body>
+</html>
