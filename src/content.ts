@@ -168,6 +168,8 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'forge-all', name: 'Master of the Forge', desc: 'Discover every fusion.', souls: 200 },
   { id: 'ascend', name: 'Ascended', desc: 'Forge two fused relics into an ascended relic.', souls: 120 },
   { id: 'ascend-all', name: 'Godforger', desc: 'Discover every ascended relic.', souls: 400 },
+  // The Hollow.
+  { id: 'gravekeeper', name: 'Gravekeeper', desc: 'Read every epitaph in the Hollow.', souls: 50 },
 ];
 
 export const ACHIEVEMENT_BY_ID = Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, a])) as Record<string, AchievementDef>;

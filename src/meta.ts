@@ -37,6 +37,8 @@ export interface Meta {
   look: string;
   /** Deepest floor and Souls earned with each hero. */
   heroStats: Partial<Record<HeroId, HeroStats>>;
+  /** Epitaphs read in the Hollow. */
+  epitaphs: string[];
   /** Set once per-hero records have been rebuilt from the account's past runs. */
   heroBackfill: number;
   /** Looks already announced, and the highest Soul Rank announced. */
@@ -68,7 +70,7 @@ const KEY = 'wardenfall:meta';
 function empty(): Meta {
   return {
     souls: 0, earned: 0, heroes: ['knight'], relics: [], achievements: {}, codex: {}, combos: {}, fusions: {}, elitesSlain: 0, hero: 'knight',
-    bestiary: {}, bestiaryTier: {}, best: {}, title: '', look: '', looksSeen: [], rankSeen: 0, heroStats: {}, heroBackfill: 0,
+    bestiary: {}, bestiaryTier: {}, best: {}, title: '', look: '', looksSeen: [], rankSeen: 0, heroStats: {}, heroBackfill: 0, epitaphs: [],
   };
 }
 
@@ -129,6 +131,7 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   meta.rankSeen = Math.max(meta.rankSeen, other.rankSeen ?? 0);
   for (const [h, st] of Object.entries(other.heroStats ?? {})) mergeHeroStats(h as HeroId, st);
   meta.heroBackfill = Math.max(meta.heroBackfill, other.heroBackfill ?? 0);
+  meta.epitaphs = [...new Set([...meta.epitaphs, ...(other.epitaphs ?? [])])];
   const changed = JSON.stringify(meta) !== before;
   if (changed) saveMeta();
   return changed;
@@ -419,6 +422,15 @@ export function noteFusion(id: FusedId): boolean {
   if (first) meta.fusions[id] = Date.now();
   saveMeta();
   return first;
+}
+
+/** Read an epitaph in the Hollow. Reading them all earns the Gravekeeper achievement. */
+export function readEpitaph(id: string, total: number): AchievementDef | null {
+  if (meta.epitaphs.includes(id)) return null;
+  meta.epitaphs.push(id);
+  const got = meta.epitaphs.length >= total ? grant('gravekeeper') : null;
+  saveMeta();
+  return got;
 }
 
 export function relicDiscovered(id: RelicId): boolean {

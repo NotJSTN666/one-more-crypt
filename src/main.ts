@@ -4,7 +4,7 @@ import { dailyNumber, formatCountdown, msUntilNextDaily } from './daily';
 import { ELITES, FEATURES, HERO_BY_ID, dailyHero, type ComboDef } from './content';
 import { heroPortrait } from './hero';
 import { ENEMY_INFO, Game, fullPool, isBoss, type GameEvent, type Mode } from './game';
-import { checkRun, finishRunMeta, meta, noteFusion, noteRelic, runConfig, type RunReward } from './meta';
+import { checkRun, finishRunMeta, meta, noteFusion, noteRelic, readEpitaph, runConfig, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, RELIC_BY_ID, type RelicId } from './relics';
@@ -12,7 +12,8 @@ import { hallFromLink, showHall, showPublicHall, soulRankHtml, titleName } from 
 import { rankFor } from './progression';
 import { Renderer } from './render';
 import { hashSeed } from './rng';
-import { ONLINE, pingActivity, startActivityPings } from './online';
+import { ONLINE, dailyBoard, pingActivity, startActivityPings } from './online';
+import { EPITAPHS, hollowKey, showHollow, type HollowPlace } from './hollow';
 import { howToHtml, startHowTo } from './howto';
 import { RELIC_COACH, TUTORIAL } from './tutorial';
 import { copyText, descentStrip, followXHtml, shareText, siteUrl, xIntentUrl } from './share';
@@ -395,6 +396,7 @@ let lastRepeat = 0;
 window.addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (!overlay.hidden) {
+    if (screen === 'hollow' && hollowKey(e)) return;
     if ((screen === 'choose' && game?.phase === 'choose' && game.offer) || (screen === 'event' && game?.phase === 'event')) choiceKey(e);
     else menuKey(e);
     return;
@@ -650,6 +652,7 @@ function showTitle() {
     ${onlineCountHtml()}
     ${continueBlock}
     ${dailyBlock}
+    <button class="btn hollow-btn" id="hollow">🌙 Enter the Hollow<small>Walk the graveyard. Every door leads somewhere.</small></button>
     <button class="btn" id="endless">Endless Descent<small>${save.bestEndless ? `Deepest: floor ${save.bestEndless}` : 'Choose your hero, random crypts'}</small></button>
     <div class="row">
       <button class="btn" id="ossuary">🏛️ Ossuary<small>💀 ${meta.souls} Souls</small></button>
@@ -669,6 +672,7 @@ function showTitle() {
   on('#ossuary', () => showOssuary(showTitle));
   on('#grimoire', () => showGrimoire(showTitle));
   on('#hall', () => openHall(showTitle));
+  on('#hollow', () => enterHollow());
   on('#help', () => showHelp(showTitle));
   on('#share-today', () => done && share(done, `Daily #${today}`));
   tickCountdowns();
@@ -679,6 +683,53 @@ function accountChip(): string {
   const name = playerName();
   const title = titleName(meta.title);
   return `<div class="account-row"><button class="account-chip" id="account">👤 ${name ? esc(name) : 'Sign in'}${name && title ? ` <small>${esc(title)}</small>` : ''}</button></div>`;
+}
+
+// ---------- the Hollow ----------
+
+function enterHollow() {
+  setMusicDepth(0);
+  setMusicMood('crypt');
+  showHollow({
+    enter: enterPlace,
+    visit: (name) => showPublicHall(name, enterHollow),
+    epitaph: (id) => {
+      sfx.relic();
+      const got = readEpitaph(id, Object.keys(EPITAPHS).length);
+      if (got) celebrate([got]);
+    },
+    menu: showTitle,
+    ghosts: async () => {
+      if (!ONLINE) return [];
+      const board = await dailyBoard(dailyNumber(), null, 5);
+      return board.rows.map((r) => r.name).filter((n) => n !== playerName());
+    },
+  });
+}
+
+function enterPlace(place: HollowPlace) {
+  sfx.stairs();
+  const today = dailyNumber();
+  const resumable = savedRun();
+  if (place === 'daily') {
+    if (resumable?.mode === 'daily') return resumeRun(resumable);
+    if (save.daily[today]) {
+      toast(`You've faced Daily #${today}. The next crypt opens in ${formatCountdown(msUntilNextDaily())}.`);
+      return enterHollow();
+    }
+    return withTutorialOffer(() => startRun('daily'));
+  }
+  if (place === 'endless') {
+    if (resumable?.mode === 'endless') return resumeRun(resumable);
+    return withTutorialOffer(() => showHeroSelect(() => startRun('endless'), enterHollow));
+  }
+  if (place === 'forge') return showGrimoire(enterHollow, 'fusions');
+  if (place === 'ossuary') return showOssuary(enterHollow);
+  if (place === 'hall') return openHall(enterHollow);
+  if (place === 'grimoire') return showGrimoire(enterHollow);
+  if (ONLINE) return showLeaderboard(enterHollow);
+  toast('The obelisk is silent. Leaderboards need an online connection.');
+  enterHollow();
 }
 
 function openHall(back: () => void) {

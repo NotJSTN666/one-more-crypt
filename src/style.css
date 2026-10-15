@@ -1484,3 +1484,91 @@ body.tutorial #relic-bar {
 @keyframes hint-pulse {
   50% { color: var(--gold); border-color: var(--gold); }
 }
+
+/* ---------- the Hollow ---------- */
+
+.panel:has(> .hollow-wrap) {
+  max-width: 760px;
+}
+
+.hollow-wrap {
+  position: relative;
+}
+
+.hollow-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.hollow-top .btn {
+  width: auto;
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 11px;
+}
+
+.hollow-title {
+  font-family: var(--gothic);
+  font-size: 30px;
+  color: var(--gold);
+}
+
+#hollow-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  image-rendering: pixelated;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+.hollow-dialog {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: 18%;
+  padding: 14px 16px;
+  background: rgba(20, 13, 28, 0.95);
+  border: 1px solid #9fe8ff;
+  box-shadow: 0 0 24px rgba(159, 232, 255, 0.25);
+  font-family: system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.hollow-dialog[hidden] {
+  display: none;
+}
+
+.hollow-dialog b {
+  display: block;
+  margin-bottom: 6px;
+  font-family: var(--pixel);
+  font-weight: normal;
+  font-size: 12px;
+  color: #9fe8ff;
+}
+
+.hollow-dialog small {
+  display: block;
+  margin-top: 8px;
+  font-family: var(--pixel);
+  font-size: 9px;
+  color: var(--muted);
+}
+
+.hollow-hint {
+  margin-top: 8px;
+}
+
+.btn.hollow-btn {
+  border-color: #6b4fa0;
+  box-shadow: 0 0 16px rgba(176, 124, 255, 0.25);
+}
