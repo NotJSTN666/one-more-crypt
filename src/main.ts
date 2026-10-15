@@ -10,7 +10,7 @@ import { celebrate, showGrimoire, showHeroSelect, showOssuary } from './progress
 import { RELIC_BY_ID, type RelicId } from './relics';
 import { Renderer } from './render';
 import { hashSeed } from './rng';
-import { ONLINE } from './online';
+import { ONLINE, pingActivity, startActivityPings } from './online';
 import { howToHtml, startHowTo } from './howto';
 import { RELIC_COACH, TUTORIAL } from './tutorial';
 import { copyText, descentStrip, followXHtml, shareText, siteUrl, xIntentUrl } from './share';
@@ -68,6 +68,7 @@ function showGame(g: Game) {
 
 function startRun(mode: Mode) {
   unlockAudio();
+  void pingActivity(true);
   newGame(mode);
   saveRun();
   setMusicDepth(game.floor);
@@ -901,6 +902,7 @@ updateMuteIcon();
 fitBoard();
 newGame('endless');
 // Starts restoring any session in the background; must run before the first screen draws.
+startActivityPings();
 void initSocial(save, () => {
   if (screen !== 'title') return;
   // First visit, or back from an email link / X sign-in that still needs a name.

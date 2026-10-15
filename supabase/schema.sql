@@ -108,3 +108,70 @@ grant insert on public.runs to authenticated;
 
 -- Tell the API to pick up any new columns straight away.
 notify pgrst, 'reload schema';
+
+-- ---------- player activity (for the stats dashboard) ----------
+-- One row per browser per UTC day. The device id is a random string the game keeps in
+-- local storage: no names, emails or IPs. `played` marks that a run was started that day.
+
+create table if not exists public.activity (
+  device text not null check (length(device) between 8 and 64),
+  day date not null default ((now() at time zone 'utc')::date),
+  first_seen timestamptz not null default now(),
+  last_seen timestamptz not null default now(),
+  played boolean not null default false,
+  primary key (device, day)
+);
+-- No policies: nobody reads or writes the table directly, only through the functions below.
+alter table public.activity enable row level security;
+create index if not exists activity_last_seen on public.activity (last_seen);
+create index if not exists activity_day on public.activity (day);
+
+-- The game calls this when it loads, about once a minute while open, and when a run starts.
+create or replace function public.ping(p_device text, p_played boolean default false)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  insert into public.activity (device, played)
+  values (p_device, coalesce(p_played, false))
+  on conflict (device, day) do update
+    set last_seen = now(), played = public.activity.played or excluded.played;
+$$;
+revoke all on function public.ping(text, boolean) from public;
+grant execute on function public.ping(text, boolean) to anon, authenticated;
+
+-- Everything the dashboard shows, in one call. Only the project owner can run it.
+create or replace function public.crypt_stats()
+returns json
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  with today as (select (now() at time zone 'utc')::date as d)
+  select json_build_object(
+    'online_now', (select count(*) from activity where last_seen > now() - interval '2 minutes'),
+    'visitors_today', (select count(*) from activity, today where day = today.d),
+    'players_today', (select count(*) from activity, today where day = today.d and played),
+    'players_all', (select count(distinct device) from activity where played),
+    'visitors_all', (select count(distinct device) from activity),
+    'runs_today', (select count(*) from runs, today where created_at >= (today.d::timestamp at time zone 'utc')),
+    'runs_all', (select count(*) from runs),
+    'accounts', (select count(*) from profiles),
+    'tracking_since', (select min(first_seen) from activity),
+    'daily', coalesce((
+      select json_agg(json_build_object('day', day, 'players', players, 'visitors', visitors) order by day)
+      from (
+        select day, count(*) filter (where played) as players, count(*) as visitors
+        from activity, today
+        where day > today.d - 14
+        group by day
+      ) s
+    ), '[]'::json),
+    'as_of', now()
+  );
+$$;
+revoke all on function public.crypt_stats() from public, anon, authenticated;
+
+notify pgrst, 'reload schema';

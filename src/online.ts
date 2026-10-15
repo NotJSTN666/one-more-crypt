@@ -273,3 +273,35 @@ export async function watchPlayerCount(onCount: (n: number) => void): Promise<vo
     else void channel.track({ since: Date.now() });
   });
 }
+
+// ---------- anonymous activity, for the stats dashboard ----------
+
+let lastPing = 0;
+
+/**
+ * Check in: one row per device per day, with no personal data. `played` marks that a
+ * run was started today. Errors are ignored; stats are best effort.
+ */
+export async function pingActivity(played = false): Promise<void> {
+  if (!ONLINE) return;
+  if (!played && Date.now() - lastPing < 50_000) return;
+  lastPing = Date.now();
+  try {
+    const sb = await client();
+    await sb.rpc('ping', { p_device: deviceId(), p_played: played });
+  } catch {
+    // Offline or not set up yet: the game doesn't care.
+  }
+}
+
+/** Check in now and then about once a minute while the game is visible. */
+export function startActivityPings() {
+  if (!ONLINE) return;
+  void pingActivity();
+  window.setInterval(() => {
+    if (!document.hidden) void pingActivity();
+  }, 60_000);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) void pingActivity();
+  });
+}
