@@ -16,7 +16,7 @@ import { RELIC_COACH, TUTORIAL } from './tutorial';
 import { copyText, descentStrip, followXHtml, shareText, siteUrl, xIntentUrl } from './share';
 import { initSocial, needsName, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
 import { currentStreak, loadSave, recordDaily, writeSave, type RunResult } from './storage';
-import { $, esc, hideOverlay, on, overlay, screen, showOverlay, toast } from './ui';
+import { $, esc, hideOverlay, on, overlay, overlayShownAt, screen, showOverlay, toast } from './ui';
 
 const canvas = $<HTMLCanvasElement>('board');
 const renderer = new Renderer(canvas);
@@ -386,6 +386,7 @@ window.addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (!overlay.hidden) {
     if ((screen === 'choose' && game?.phase === 'choose' && game.offer) || (screen === 'event' && game?.phase === 'event')) choiceKey(e);
+    else menuKey(e);
     return;
   }
   const dir = KEYS[e.key];
@@ -401,6 +402,64 @@ window.addEventListener('keydown', (e) => {
   }
   act(dir[0], dir[1]);
 });
+
+// ---------- menus from the keyboard ----------
+// Arrows or WASD move between buttons, Enter or Space presses the highlighted one,
+// Escape goes back, and R on the death screen starts a new run straight away.
+
+const MENU_NAV: Record<string, number> = {
+  ArrowUp: -1, ArrowLeft: -1, w: -1, W: -1, a: -1, A: -1,
+  ArrowDown: 1, ArrowRight: 1, s: 1, S: 1, d: 1, D: 1,
+};
+
+function menuButtons(): HTMLElement[] {
+  return [...overlay.querySelectorAll<HTMLElement>('button:not([disabled]), a.follow-x')].filter((el) => el.offsetParent !== null);
+}
+
+/** The button Enter presses before anything is highlighted. */
+function defaultButton(list: HTMLElement[]): HTMLElement | undefined {
+  const pick = screen === 'death' ? '#again' : screen === 'heroes' ? '.hero-card.selected' : screen === 'pause' ? '#resume' : '.btn.primary';
+  return overlay.querySelector<HTMLElement>(pick) ?? list[0];
+}
+
+function menuKey(e: KeyboardEvent) {
+  const target = e.target as HTMLElement | null;
+  if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) return;
+  const nav = MENU_NAV[e.key];
+  const confirm = e.key === 'Enter' || e.key === ' ';
+  if (nav || confirm) e.preventDefault();
+  // Ignore keys still held from the run that just ended.
+  if (e.repeat || performance.now() - overlayShownAt < 350) return;
+  if (screen === 'death' && (e.key === 'r' || e.key === 'R')) return quickRestart();
+  if (e.key === 'Escape') {
+    if (screen === 'pause') hideOverlay();
+    else overlay.querySelector<HTMLElement>('#back')?.click();
+    return;
+  }
+  const list = menuButtons();
+  if (!list.length || !(nav || confirm)) return;
+  const at = list.indexOf(document.activeElement as HTMLElement);
+  if (nav) {
+    const from = at >= 0 ? at : Math.max(0, list.indexOf(defaultButton(list)!)) - nav;
+    const next = list[(from + nav + list.length) % list.length];
+    next.focus();
+    next.scrollIntoView({ block: 'nearest' });
+    sfx.step();
+  } else if (at >= 0) {
+    list[at].click();
+  } else if (screen === 'death') {
+    quickRestart();
+  } else {
+    // Nothing highlighted yet: highlight the default first, so a stray Enter can't, say,
+    // spend today's daily attempt.
+    defaultButton(list)?.focus();
+  }
+}
+
+/** R on the death screen: straight back into Endless with the same hero. */
+function quickRestart() {
+  startRun('endless');
+}
 
 let touchStart: { x: number; y: number } | null = null;
 canvas.addEventListener('pointerdown', (e) => {
@@ -826,7 +885,7 @@ function showDeath(r: RunResult, best: boolean) {
     <button class="btn x" id="share">Share on 𝕏</button>
     <div class="row">
       <button class="btn" id="copy">Copy result</button>
-      <button class="btn" id="again">${daily ? 'Endless run' : 'Descend again'}</button>
+      <button class="btn" id="again">${daily ? 'Endless run' : 'Descend again'}<small class="keys-hint">Enter or R</small></button>
     </div>
     <div class="row">
       ${ONLINE ? '<button class="btn" id="leaderboard">🏆 Leaderboard</button>' : ''}

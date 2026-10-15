@@ -7,11 +7,15 @@ export const overlay = $('overlay');
 /** Which overlay is showing, so background updates only redraw the screen they belong to. */
 export let screen = '';
 
+/** When the current overlay appeared, so a key held from gameplay can't press its buttons. */
+export let overlayShownAt = 0;
+
 /** Screens shown during a run keep the board visible behind them; the rest are menus. */
 const RUN_SCREENS = ['choose', 'event', 'pause'];
 
 export function showOverlay(name: string, html: string) {
   screen = name;
+  overlayShownAt = performance.now();
   const menu = !RUN_SCREENS.includes(name);
   document.body.classList.toggle('menu', menu);
   overlay.classList.toggle('menu', menu);
