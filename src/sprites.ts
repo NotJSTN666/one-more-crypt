@@ -1,6 +1,7 @@
 // Hand-drawn 12x12 pixel sprites, baked once into offscreen canvases.
 
 import type { EnemyKind } from './game';
+import { ENEMY_ART } from './enemy-art';
 
 const PALETTE: Record<string, string> = {
   k: '#0d0812', // outline
@@ -25,6 +26,18 @@ const PALETTE: Record<string, string> = {
   l: '#ff9aa5', // tonic shine
   L: '#d8323f', // tonic
   D: '#7a1220', // tonic depth
+  // richer enemy shading
+  h: '#fff6e0', // bone highlight
+  e: '#ff4d5a', // glowing eyes
+  m: '#a3bf6a', // rotten green highlight
+  q: '#2a3a1e', // rotten green, deepest
+  x: '#4a0f1c', // wing membrane
+  u: '#9a8bab', // hide highlight
+  N: '#4f4560', // hide shade
+  a: '#1f4a63', // spectral depths
+  f: '#8f5cc0', // robe highlight
+  j: '#c9c36a', // plague smoke
+  Y: '#a8781f', // gold shade
 };
 
 type SpriteName = 'player' | EnemyKind | 'potion';
@@ -44,132 +57,7 @@ const ART: Record<SpriteName, string[]> = {
     '...kSk.kSk..',
     '...kk...kk..',
   ],
-  ghoul: [
-    '............',
-    '....kkkk....',
-    '...kggggk...',
-    '..kgrgrggk..',
-    '..kggggggk..',
-    '..kgkkkkgk..',
-    '...kgbbgk...',
-    '.kkgGggGgkk.',
-    'kgk.kGGk.kgk',
-    'kgk.kggk.kgk',
-    '....kgkgk...',
-    '...kk..kk...',
-  ],
-  bat: [
-    '............',
-    '............',
-    'k....kk....k',
-    'kk..kRRk..kk',
-    'kRk.kRRk.kRk',
-    'kRRkRrrRkRRk',
-    'kRRRyrryRRRk',
-    'kRkRRrrRRkRk',
-    'kk..kRRk..kk',
-    'k....kk....k',
-    '............',
-    '............',
-  ],
-  archer: [
-    '...kkkk...k.',
-    '..kbbbbk..kn',
-    '..kkbbkk.k.n',
-    '..kbbbbk.k.n',
-    '...kBkBk.k.n',
-    '..kkbbbkkkbn',
-    '.kb.kbBk.k.n',
-    '..k.kbBk.k.n',
-    '....kbbk..kn',
-    '...kb..bk.k.',
-    '...kb..bk...',
-    '..kk....kk..',
-  ],
-  brute: [
-    '..kkkkkkkk..',
-    '.knnnnnnnnk.',
-    '.knrnnnnrnk.',
-    '.knnnnnnnnk.',
-    '.knkbkbkbnk.',
-    'kkknnnnnnkkk',
-    'knnnnSSnnnnk',
-    'knnknSSnknnk',
-    'knnknnnnknnk',
-    'kkkknnnnkkkk',
-    '...knnknnk..',
-    '...kkk.kkk..',
-  ],
-  wraith: [
-    '....kkkk....',
-    '...kcccck...',
-    '..kckcckck..',
-    '..kcwccwck..',
-    '..kcccccck..',
-    '..kccckccck.',
-    '..kCccccCk..',
-    '.kCcCccCcCk.',
-    '.kCcCCcCCk..',
-    '..kCkCCkCk..',
-    '..k.kCk.kk..',
-    '.....k......',
-  ],
-  boss: [
-    '..y.y..y.y..',
-    '..yyyyyyyy..',
-    '..kbbbbbbk..',
-    '.kbkkbbkkbk.',
-    '.kbkrbbkrbk.',
-    '.kbbbbbbbbk.',
-    '..kbkbkbkk..',
-    '.kRRkbbkRRk.',
-    'kRRRRbbRRRRk',
-    'kRkRRbbRRkRk',
-    'kk.kRRRRk.kk',
-    '...kk..kk...',
-  ],
-  abbot: [
-    '...kkkkk....',
-    '..kGGGGGk...',
-    '.kGGGGGGGk..',
-    '.kGkbbbkGk..',
-    '.kGbrkbbkk..',
-    '..kbbbbbbbk.',
-    '..kGbbbk.kk.',
-    '.kGGGGGGk.n.',
-    'kGGgGGgGGknk',
-    'kGgGGGGgGkyk',
-    '.kGGGGGGk.k.',
-    '..kk..kk....',
-  ],
-  lich: [
-    '.c..c..c..c.',
-    '.cccccccccc.',
-    '..kbbbbbbk..',
-    '.kbkckkckbk.',
-    '.kbbbbbbbbk.',
-    '..kbkbkbkk..',
-    '.kVVkbbkVVk.',
-    'kVVVvbbvVVVk',
-    'kVvVVvvVVvVk',
-    'kVkVVVVVVkVk',
-    '.kVVvVVvVVk.',
-    '..kkVVVVkk..',
-  ],
-  thrall: [
-    '....kkkk....',
-    '...kbbbbk...',
-    '...kgbbgk...',
-    '...kbkkbk...',
-    '....kbbk....',
-    '..kkbbbbkk.s',
-    '.kb.kbBk.kks',
-    '.kb.kbBk..ks',
-    '....kbbk..ky',
-    '...kb..bk...',
-    '...kb..bk...',
-    '..kk....kk..',
-  ],
+  ...(Object.fromEntries(Object.entries(ENEMY_ART).map(([k, a]) => [k, a.idle[0]])) as Record<EnemyKind, string[]>),
   // A corked glass vial of glowing red tonic (it used to read as an apple).
   potion: [
     '.....kk.....',
@@ -210,14 +98,65 @@ function bake(rows: string[], solid?: string): HTMLCanvasElement {
   return c;
 }
 
+/** Shift a #rrggbb colour lighter (amt > 0) or darker (amt < 0). */
+function tint(hex: string, amt: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const ch = (v: number) => Math.max(0, Math.min(255, Math.round(amt > 0 ? v + (255 - v) * amt : v * (1 + amt))));
+  return `rgb(${ch(n >> 16)},${ch((n >> 8) & 255)},${ch(n & 255)})`;
+}
+
+/**
+ * Bake with light from above: each body pixel with the outline (or air) above it gets a
+ * highlight, and one with the outline below it gets a shadow, so forms read as rounded.
+ */
+function bakeLit(rows: string[], solid?: string): HTMLCanvasElement {
+  if (solid) return bake(rows, solid);
+  const c = bake(rows);
+  const ctx = c.getContext('2d')!;
+  const at = (x: number, y: number) => rows[y]?.[x] ?? '.';
+  const edge = (ch: string) => ch === '.' || ch === 'k';
+  rows.forEach((row, y) => {
+    for (let x = 0; x < row.length; x++) {
+      const ch = row[x];
+      if (edge(ch) || !PALETTE[ch] || ch === 'w' || ch === 'e') continue;
+      const lit = edge(at(x, y - 1));
+      const dark = edge(at(x, y + 1)) || edge(at(x + 1, y));
+      if (lit === dark) continue;
+      ctx.fillStyle = tint(PALETTE[ch], lit ? 0.22 : -0.22);
+      ctx.fillRect(x, y, 1, 1);
+    }
+  });
+  return c;
+}
+
 let cache: Record<SpriteName, Sprite> | null = null;
 
 export function sprites(): Record<SpriteName, Sprite> {
   if (!cache) {
     cache = {} as Record<SpriteName, Sprite>;
     for (const name of Object.keys(ART) as SpriteName[]) {
-      cache[name] = { normal: bake(ART[name]), white: bake(ART[name], '#ffffff') };
+      const lit = name in ENEMY_ART;
+      cache[name] = { normal: lit ? bakeLit(ART[name]) : bake(ART[name]), white: bake(ART[name], '#ffffff') };
     }
   }
   return cache;
+}
+
+export interface EnemyFrames {
+  idle: [Sprite, Sprite];
+  attack: Sprite;
+}
+
+let frameCache: Record<EnemyKind, EnemyFrames> | null = null;
+
+/** Every enemy's animation frames: an idle loop and an attack pose. */
+export function enemyFrames(kind: EnemyKind): EnemyFrames {
+  if (!frameCache) {
+    frameCache = {} as Record<EnemyKind, EnemyFrames>;
+    const sprite = (rows: string[]): Sprite => ({ normal: bakeLit(rows), white: bake(rows, '#ffffff') });
+    for (const [k, art] of Object.entries(ENEMY_ART) as [EnemyKind, (typeof ENEMY_ART)[EnemyKind]][]) {
+      frameCache[k] = { idle: [sprite(art.idle[0]), sprite(art.idle[1])], attack: sprite(art.attack) };
+    }
+  }
+  return frameCache[kind];
 }

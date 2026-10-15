@@ -95,3 +95,19 @@ describe('the Wardrobe', () => {
     expect(outfitFor('barbarian').look).toBe('');
   });
 });
+
+describe('enemy art', () => {
+  it('every frame is 12x12 and uses known colours', async () => {
+    const { ENEMY_ART } = await import('./enemy-art');
+    const known = new Set('.kbBrRgGpPsSywcCnvVoLlDhemqxuNafjY'.split(''));
+    for (const [kind, art] of Object.entries(ENEMY_ART)) {
+      for (const frame of [...art.idle, art.attack]) {
+        expect(frame, kind).toHaveLength(12);
+        for (const row of frame) {
+          expect(row, kind).toHaveLength(12);
+          for (const ch of row) expect(known.has(ch), `${kind}: ${ch}`).toBe(true);
+        }
+      }
+    }
+  });
+});

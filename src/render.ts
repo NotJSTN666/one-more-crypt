@@ -7,7 +7,7 @@ import { hashSeed, mulberry32 } from './rng';
 import { heroSprite, relicColor } from './hero';
 import { LOOK_BY_ID } from './progression';
 import { RELIC_BY_ID, type RelicId } from './relics';
-import { SPRITE_SIZE, sprites } from './sprites';
+import { SPRITE_SIZE, enemyFrames, sprites } from './sprites';
 
 export const TILE = 16;
 const BOARD_W = W * TILE;
@@ -54,6 +54,8 @@ export class Renderer {
   private disp = new Map<number, Pos>();
   private flashes = new Map<number, number>();
   private lunges = new Map<number, Lunge>();
+  /** How long each foe holds its attack pose. */
+  private strikes = new Map<number, number>();
   private floaters: Floater[] = [];
   private particles: Particle[] = [];
   private lines: Line[] = [];
@@ -139,6 +141,7 @@ export class Renderer {
           break;
         case 'eattack':
           this.lunges.set(ev.id, { dx: ev.dir.x, dy: ev.dir.y, t: 0 });
+          this.strikes.set(ev.id, 0.3);
           break;
         case 'hit': {
           this.flashes.set(ev.id, 0.12);
@@ -531,7 +534,14 @@ export class Renderer {
     const ctx = this.ctx;
     // Foes turn to face the hero (thralls face whichever way they last walked).
     if (!e.ally && g.player.x !== e.x) this.facing.set(e.id, g.player.x < e.x ? -1 : 1);
-    const spr = sprites()[e.kind];
+    // Animation: an idle loop (bats beat their wings fast), and the attack pose while striking.
+    const frames = enemyFrames(e.kind);
+    const rate = e.kind === 'bat' ? 7 : e.kind === 'wraith' ? 2.2 : isBoss(e) ? 1.6 : 2;
+    const left = (this.strikes.get(e.id) ?? 0) - dt;
+    if (left > 0) this.strikes.set(e.id, left);
+    else this.strikes.delete(e.id);
+    const striking = left > 0;
+    const spr = striking ? frames.attack : frames.idle[Math.floor(this.time * rate + e.id * 0.37) % 2];
     const flying = e.kind === 'bat' || e.kind === 'wraith';
     const bob = flying ? Math.round(Math.sin(this.time * 6 + e.id) * 1.5) : 0;
     const onWall = g.isWall(e.x, e.y);
