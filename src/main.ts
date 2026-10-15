@@ -7,7 +7,7 @@ import { ENEMY_INFO, Game, fullPool, isBoss, type GameEvent, type Mode } from '.
 import { checkRun, finishRunMeta, meta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
-import { ASCEND_FLOOR, RELIC_BY_ID, type RelicId } from './relics';
+import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
 import { hallFromLink, showHall, showPublicHall, soulRankHtml, titleName } from './hall';
 import { rankFor } from './progression';
 import { Renderer } from './render';
@@ -340,7 +340,7 @@ function processEvents() {
     if (ev.t === 'fuse') {
       const def = RELIC_BY_ID[ev.id];
       renderer.banner(`${def.name.toUpperCase()}!`, def.rarity === 'ascended' ? '#fff2c0' : '#7fb4ff');
-      if (noteFusion(ev.id)) celebrateNotes([{ icon: def.emoji, title: `New fusion: ${def.name}`, detail: 'Recorded in your Grimoire' }]);
+      fusedReveal = { id: ev.id, first: noteFusion(ev.id) };
     }
     if (ev.t !== 'relic') continue;
     const { achievements, combos } = noteRelic(game, ev.id);
@@ -919,7 +919,40 @@ function forgePick(i: number) {
   if (game.phase !== 'event') return;
   game.forge(i);
   hideOverlay();
+  fusedReveal = null;
   processEvents();
+  // (Set by processEvents; TypeScript can't see that through the call.)
+  const reveal = fusedReveal as { id: FusedId; first: boolean } | null;
+  if (reveal) showFused(reveal.id, reveal.first);
+}
+
+/** Set while processing a fusion, so the reveal can follow. */
+let fusedReveal: { id: FusedId; first: boolean } | null = null;
+
+/** What the forge just made: its effect, what it was made from and what it counts as. */
+function showFused(id: FusedId, first: boolean) {
+  const def = RELIC_BY_ID[id];
+  const f = FUSION_BY_ID[id];
+  const [a, b] = f.from.map((r) => RELIC_BY_ID[r]);
+  const grants = Object.entries(f.grants)
+    .map(([gid, n]) => `${RELIC_BY_ID[gid as RelicId].emoji} ${esc(RELIC_BY_ID[gid as RelicId].name)}${(n ?? 0) > 1 ? ` ×${n}` : ''}`)
+    .join(' · ');
+  const ascended = def.rarity === 'ascended';
+  showOverlay('fused', `
+    <div class="fused-reveal ${ascended ? 'ascended' : ''}">
+      <div class="fused-emoji">${def.emoji}</div>
+      <p class="fused-kind">${first ? '✨ New discovery · ' : ''}${ascended ? 'Ascended relic' : 'Fused relic'}</p>
+      <h2>${esc(def.name)}</h2>
+      <p class="fused-desc">${esc(def.desc(1))}</p>
+      <p class="fine">Forged from ${a.emoji} ${esc(a.name)} + ${b.emoji} ${esc(b.name)}</p>
+      <p class="fine fused-grants">Counts as: ${grants}</p>
+      <button class="btn primary" id="fused-ok">Continue</button>
+    </div>`);
+  on('#fused-ok', () => {
+    hideOverlay();
+    updateHud();
+  });
+  overlay.querySelector<HTMLElement>('#fused-ok')?.focus();
 }
 
 function showEvent() {

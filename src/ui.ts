@@ -11,7 +11,7 @@ export let screen = '';
 export let overlayShownAt = 0;
 
 /** Screens shown during a run keep the board visible behind them; the rest are menus. */
-const RUN_SCREENS = ['choose', 'event', 'pause'];
+const RUN_SCREENS = ['choose', 'event', 'pause', 'fused'];
 
 export function showOverlay(name: string, html: string) {
   screen = name;
