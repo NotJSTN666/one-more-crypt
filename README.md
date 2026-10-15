@@ -17,7 +17,7 @@ A daily dark-fantasy roguelite that runs in the browser. Same crypt for everyone
 - **Souls and the Ossuary:** every run earns Souls to unlock heroes and ten forbidden relics for Endless.
 - **Grimoire:** a codex of 41 relics, 41 feats and 18 named relic combos.
 - **Runs resume:** closing the tab mid-run loses nothing; the run is rebuilt from its saved inputs.
-- **Daily Descent:** a seed fixed by the UTC date, a hero of the day, one official attempt, and a Wordle-style share card for X. The results screen says what percentage of today's players you beat.
+- **Daily Descent:** a new crypt at midnight Central Time, a seed fixed by that date, a hero of the day, one official attempt, and a Wordle-style share card for X. The results screen says what percentage of today's players you beat.
 - **Endless:** random seeds for practice. Your best depth is saved.
 - **The hero changes with every relic:** new weapons (pike, scythe, flaming or frozen blades), armour, shields, crowns, horns, cloak colours, and matching auras. The results screen shows your final form.
 - **Background music:** a synthwave score generated in the browser that builds as you descend: a hazy pad on the menus, then kick and bass, snare and hats from floor 10, a lead arpeggio from floor 20 and double-time drums in the Abyss (floor 30+). Boss floors play one level hotter, and the death screen gets a slow lament. Music toggle in the pause menu.
@@ -51,7 +51,7 @@ No game engine: TypeScript, Vite and a `<canvas>`. Sprites are 12×12 pixel art 
 | `src/audio.ts` | Synthesized sound effects and the generative background music |
 | `src/main.ts` | UI, input, overlays |
 | `src/share.ts` | Share text for X |
-| `src/daily.ts` | Daily numbering (Daily #1 = 2026-10-14 UTC) |
+| `src/daily.ts` | Daily numbering (Daily #1 = 2026-10-14; a new crypt at midnight Central Time) |
 | `src/online.ts` | Supabase calls: sign-in, run upload, leaderboards |
 | `src/social.ts` | Sign-in, profile and leaderboard screens |
 | `supabase/schema.sql` | Database tables, security rules and leaderboard views |

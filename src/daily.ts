@@ -1,16 +1,34 @@
-// Daily run numbering. Daily #1 is the launch day; everyone worldwide shares the same
-// UTC date, so the same seed.
+// Daily run numbering. Daily #1 is the launch day. A new crypt opens at midnight
+// Central Time (America/Chicago, so CST in winter and CDT in summer), and everyone
+// worldwide shares that day's seed.
 
-const EPOCH_UTC = Date.UTC(2026, 9, 14); // 2026-10-14
+const ZONE = 'America/Chicago';
+const EPOCH = Date.UTC(2026, 9, 14); // Daily #1: 2026-10-14
 const DAY_MS = 86_400_000;
+const HOUR_MS = 3_600_000;
+
+const dateFormat = new Intl.DateTimeFormat('en-CA', { timeZone: ZONE, year: 'numeric', month: '2-digit', day: '2-digit' });
+const timeFormat = new Intl.DateTimeFormat('en-GB', { timeZone: ZONE, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
+
+/** The calendar date in Central Time, as a UTC midnight timestamp. */
+function centralDay(now: number): number {
+  const [y, m, d] = dateFormat.format(now).split('-').map(Number);
+  return Date.UTC(y, m - 1, d);
+}
 
 export function dailyNumber(now = Date.now()): number {
-  return Math.floor((now - EPOCH_UTC) / DAY_MS) + 1;
+  return Math.round((centralDay(now) - EPOCH) / DAY_MS) + 1;
 }
 
 export function msUntilNextDaily(now = Date.now()): number {
-  const elapsed = (now - EPOCH_UTC) % DAY_MS;
-  return DAY_MS - (elapsed < 0 ? elapsed + DAY_MS : elapsed);
+  const [h, m, s] = timeFormat.format(now).split(':').map(Number);
+  const intoDay = ((h * 60 + m) * 60 + s) * 1000 + (now % 1000);
+  let next = now + DAY_MS - intoDay;
+  // Daylight saving days are 23 or 25 hours long.
+  const today = dailyNumber(now);
+  if (dailyNumber(next) === today) next += HOUR_MS;
+  else if (dailyNumber(next - HOUR_MS) > today) next -= HOUR_MS;
+  return next - now;
 }
 
 export function formatCountdown(ms: number): string {

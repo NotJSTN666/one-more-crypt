@@ -38,10 +38,11 @@ create unique index if not exists runs_one_daily_per_user on public.runs (user_i
 create index if not exists runs_daily_rank on public.runs (daily_no, floor desc, kills desc, turns) where mode = 'daily';
 create index if not exists runs_endless_rank on public.runs (user_id, floor desc, kills desc, turns) where mode = 'endless';
 
--- Daily #1 is 2026-10-14 (UTC). Must match src/daily.ts.
+-- Daily #1 is 2026-10-14 (Central Time). Must match src/daily.ts.
+-- A new daily opens at midnight Central Time (America/Chicago: CST in winter, CDT in summer).
 create or replace function public.current_daily_no() returns int
 language sql stable as $$
-  select ((now() at time zone 'utc')::date - date '2026-10-14') + 1
+  select ((now() at time zone 'America/Chicago')::date - date '2026-10-14') + 1
 $$;
 
 -- ---------- row level security ----------
@@ -110,12 +111,12 @@ grant insert on public.runs to authenticated;
 notify pgrst, 'reload schema';
 
 -- ---------- player activity (for the stats dashboard) ----------
--- One row per browser per UTC day. The device id is a random string the game keeps in
+-- One row per browser per day (Central Time, matching the daily crypt). The device id is a random string the game keeps in
 -- local storage: no names, emails or IPs. `played` marks that a run was started that day.
 
 create table if not exists public.activity (
   device text not null check (length(device) between 8 and 64),
-  day date not null default ((now() at time zone 'utc')::date),
+  day date not null default ((now() at time zone 'America/Chicago')::date),
   first_seen timestamptz not null default now(),
   last_seen timestamptz not null default now(),
   played boolean not null default false,
@@ -123,6 +124,7 @@ create table if not exists public.activity (
 );
 -- No policies: nobody reads or writes the table directly, only through the functions below.
 alter table public.activity enable row level security;
+alter table public.activity alter column day set default ((now() at time zone 'America/Chicago')::date);
 create index if not exists activity_last_seen on public.activity (last_seen);
 create index if not exists activity_day on public.activity (day);
 
@@ -149,14 +151,14 @@ stable
 security definer
 set search_path = public
 as $$
-  with today as (select (now() at time zone 'utc')::date as d)
+  with today as (select (now() at time zone 'America/Chicago')::date as d)
   select json_build_object(
     'online_now', (select count(*) from activity where last_seen > now() - interval '2 minutes'),
     'visitors_today', (select count(*) from activity, today where day = today.d),
     'players_today', (select count(*) from activity, today where day = today.d and played),
     'players_all', (select count(distinct device) from activity where played),
     'visitors_all', (select count(distinct device) from activity),
-    'runs_today', (select count(*) from runs, today where created_at >= (today.d::timestamp at time zone 'utc')),
+    'runs_today', (select count(*) from runs, today where created_at >= (today.d::timestamp at time zone 'America/Chicago')),
     'runs_all', (select count(*) from runs),
     'accounts', (select count(*) from profiles),
     'tracking_since', (select min(first_seen) from activity),
