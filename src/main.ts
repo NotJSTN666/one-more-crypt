@@ -4,7 +4,7 @@ import { dailyNumber, formatCountdown, msUntilNextDaily } from './daily';
 import { ELITES, FEATURES, HERO_BY_ID, dailyHero, type ComboDef } from './content';
 import { heroPortrait } from './hero';
 import { ENEMY_INFO, Game, fullPool, isBoss, type GameEvent, type Mode } from './game';
-import { checkRun, finishRunMeta, meta, noteRelic, runConfig, type RunReward } from './meta';
+import { checkRun, finishRunMeta, meta, noteFusion, noteRelic, runConfig, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { RELIC_BY_ID, type RelicId } from './relics';
@@ -331,8 +331,13 @@ function processEvents() {
     setMusicDepth(game.floor);
     setMusicMood(game.isBossFloor() ? 'boss' : 'crypt');
   }
-  // Progress: codex entries, combos and achievements.
+  // Progress: codex entries, combos, fusions and achievements.
   for (const ev of events) {
+    if (ev.t === 'fuse') {
+      const def = RELIC_BY_ID[ev.id];
+      renderer.banner(`${def.name.toUpperCase()}!`, '#7fb4ff');
+      if (noteFusion(ev.id)) celebrateNotes([{ icon: def.emoji, title: `New fusion: ${def.name}`, detail: 'Recorded in your Grimoire' }]);
+    }
     if (ev.t !== 'relic') continue;
     const { achievements, combos } = noteRelic(game, ev.id);
     for (const c of combos) {
@@ -365,6 +370,7 @@ function playSounds(events: GameEvent[]) {
   else if (has('hit')) sfx.hit();
   if (has('bolt')) sfx.zap();
   if (has('toll')) sfx.toll();
+  if (has('fuse')) sfx.relic();
   if (has('timestop')) sfx.timestop();
   if (has('shot')) sfx.shot();
   if (has('hurt')) sfx.hurt();
@@ -513,6 +519,8 @@ function updateMuteIcon() {
 // ---------- HUD ----------
 
 let knownRelics = 0;
+/** The relics the bar was last drawn with, so a fusion (same count, new set) redraws it. */
+let knownSet = '';
 let selectedRelic: RelicId | null = null;
 
 function updateHud(reset = false) {
@@ -534,7 +542,7 @@ function updateHud(reset = false) {
   }
 
   const unique = [...new Set(game.relicLog)];
-  if (reset || unique.length !== knownRelics) {
+  if (reset || unique.join() !== knownSet) {
     const bar = $('relic-bar');
     bar.innerHTML = '';
     unique.forEach((id, i) => {
@@ -558,11 +566,12 @@ function updateHud(reset = false) {
       bar.appendChild(chip);
     });
     knownRelics = unique.length;
+    knownSet = unique.join();
   } else {
     // counts may change without new relic types
     unique.forEach((id, i) => {
       const chip = $('relic-bar').children[i];
-      const n = game.r(id);
+      const n = game.own(id);
       let c = chip?.querySelector('.count');
       if (n > 1 && chip) {
         if (!c) {
@@ -686,6 +695,7 @@ function showHelp(back: () => void) {
     ${howToHtml()}
     <ul class="help">
       <li>Shrines, chests and fountains offer <b>deals</b>. Step on them to choose.</li>
+      <li>After each boss, a <b>Soul Forge</b> waits on the next floor. Fuse two of your relics into a stronger one.</li>
       <li><b>Spikes</b> hurt anything that steps on them, foes included.</li>
       <li>Every run earns <b>Souls</b>. Spend them in the <b>Ossuary</b> on new heroes and relics.</li>
       <li>The <b>Daily Descent</b> is the same crypt and hero for everyone, once a day. Share your depth.</li>
@@ -725,7 +735,7 @@ function showChoice() {
   const offer = game.offer;
   const cards = offer.relics
     .map((r, i) => {
-      const have = game.r(r.id);
+      const have = game.own(r.id);
       return `<button class="${r.rarity}" data-i="${i}">
         <span class="emoji">${r.emoji}</span>
         <span><span class="name">${r.name}</span><span class="tag">${r.rarity.toUpperCase()}${have ? ` · OWNED ×${have}` : ''}</span>
@@ -790,8 +800,45 @@ function choiceKey(e: KeyboardEvent) {
   }
 }
 
+function showForge() {
+  const options = game.forgeOptions();
+  const cards = options
+    .map((f, i) => {
+      const out = RELIC_BY_ID[f.id];
+      const known = Boolean(meta.fusions[f.id]);
+      const [a, b] = f.from.map((id) => RELIC_BY_ID[id]);
+      return `<button class="fused" data-i="${i}">
+        <span class="emoji">${known ? out.emoji : '❔'}</span>
+        <span><span class="name">${known ? out.name : 'Unknown fusion'}</span><span class="tag">${a.emoji} ${esc(a.name)} + ${b.emoji} ${esc(b.name)}</span>
+        <span class="desc">${known ? out.desc(1) : 'Fuse them to discover what they become.'}</span></span>
+      </button>`;
+    })
+    .join('');
+  showOverlay('event', `
+    <h2>Soul Forge</h2>
+    <p class="sub">${FEATURES.forge.text}</p>
+    ${options.length ? '<p class="fine">Fusing uses up one of each relic. You can fuse once here.</p>' : '<p class="fine">None of your relics answer the forge. Fusions need two particular relics held together, like 🔥 Ember Brand and ⚡ Storm Rune.</p>'}
+    <div class="offer event-offer">
+      ${cards}
+      <button class="rare" id="leave"><span class="emoji">🚶</span><span><span class="name">${FEATURES.forge.leave}</span></span></button>
+    </div>`);
+  overlay.querySelectorAll<HTMLButtonElement>('.offer button[data-i]').forEach((b) => b.addEventListener('click', () => forgePick(Number(b.dataset.i))));
+  on('#leave', () => resolveEvent(false));
+  (document.activeElement as HTMLElement | null)?.blur();
+  choiceShownAt = performance.now();
+  selectChoice(0);
+}
+
+function forgePick(i: number) {
+  if (game.phase !== 'event') return;
+  game.forge(i);
+  hideOverlay();
+  processEvents();
+}
+
 function showEvent() {
   if (game.phase !== 'event' || !game.feature) return;
+  if (game.feature.kind === 'forge') return showForge();
   const f = FEATURES[game.feature.kind];
   const can = game.canAcceptEvent();
   const note =
@@ -901,7 +948,7 @@ function showDeath(r: RunResult, best: boolean) {
       <button class="btn" id="copy">Copy result</button>
       <button class="btn" id="again">${daily ? 'Endless run' : 'Descend again'}<small class="keys-hint">Enter or R</small></button>
     </div>
-    <div class="row">
+    <div class="row grid2">
       ${ONLINE ? '<button class="btn" id="leaderboard">🏆 Leaderboard</button>' : ''}
       <button class="btn" id="hall">🏰 Hall</button>
       <button class="btn" id="ossuary">🏛️ Ossuary</button>
@@ -966,6 +1013,7 @@ function loop(now: number) {
   },
   act,
   pickRelic,
+  forgePick,
   resolveEvent,
   enemies: ENEMY_INFO,
   get lastResult() {

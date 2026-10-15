@@ -5,7 +5,7 @@ import { sfx } from './audio';
 import { ACHIEVEMENTS, COMBOS, HEROES, type AchievementDef, type ComboDef, type HeroId } from './content';
 import { heroPortrait } from './hero';
 import { RELIC_COSTS, type UnlockNote, buyHero, buyRelic, heroUnlocked, meta, relicDiscovered, saveMeta } from './meta';
-import { RELICS, RELIC_BY_ID, UNLOCKABLE_RELICS } from './relics';
+import { FUSIONS, RELICS, RELIC_BY_ID, UNLOCKABLE_RELICS } from './relics';
 import { $, esc, on, overlay, showOverlay } from './ui';
 
 const soulsChip = () => `<div class="souls-chip" title="Souls">💀 <b>${meta.souls}</b> Souls</div>`;
@@ -90,7 +90,7 @@ export function showOssuary(back: () => void) {
 
 // ---------- the Grimoire ----------
 
-type GrimoireTab = 'relics' | 'combos' | 'achievements';
+type GrimoireTab = 'relics' | 'combos' | 'fusions' | 'achievements';
 
 export function showGrimoire(back: () => void, tab: GrimoireTab = 'relics') {
   const found = RELICS.filter((r) => relicDiscovered(r.id)).length;
@@ -99,6 +99,7 @@ export function showGrimoire(back: () => void, tab: GrimoireTab = 'relics') {
   const tabs: [GrimoireTab, string][] = [
     ['relics', `Relics ${found}/${RELICS.length}`],
     ['combos', `Combos ${combosFound}/${COMBOS.length}`],
+    ['fusions', `Fusions ${FUSIONS.filter((f) => meta.fusions[f.id]).length}/${FUSIONS.length}`],
     ['achievements', `Achievements ${feats}/${ACHIEVEMENTS.length}`],
   ];
   let body = '';
@@ -109,6 +110,17 @@ export function showGrimoire(back: () => void, tab: GrimoireTab = 'relics') {
         <span class="shop-emoji">${seen ? r.emoji : '❔'}</span>
         <span class="shop-info"><span class="name">${seen ? r.name : '???'}</span>
         <span class="desc">${seen ? `${r.desc(1)} · taken ${meta.codex[r.id]}×` : 'Claim this relic to record it.'}</span></span>
+      </div>`;
+    }).join('')}</div>`;
+  } else if (tab === 'fusions') {
+    body = `<p class="fine">Fuse two relics at the Soul Forge, found on the floor after each boss.</p><div class="codex">${FUSIONS.map((f) => {
+      const seen = !!meta.fusions[f.id];
+      const r = RELIC_BY_ID[f.id];
+      const parts = f.from.map((id) => (seen || relicDiscovered(id) ? RELIC_BY_ID[id].emoji : '❔')).join(' + ');
+      return `<div class="codex-item ${seen ? '' : 'unknown'}">
+        <span class="shop-emoji">${seen ? r.emoji : '❔'}</span>
+        <span class="shop-info"><span class="name">${seen ? r.name : '???'}</span>
+        <span class="desc">${seen ? `${parts} · ${r.desc(1)}` : `${parts} · fuse at the Soul Forge to discover`}</span></span>
       </div>`;
     }).join('')}</div>`;
   } else if (tab === 'combos') {

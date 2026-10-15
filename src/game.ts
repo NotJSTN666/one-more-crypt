@@ -3,7 +3,9 @@
 // exactly from its input log.
 
 import { ELITE_MODS, HERO_BY_ID, type EliteMod, type FeatureKind, type HeroId } from './content';
-import { LEGACY_RELICS, RELICS, RELIC_BY_ID, RARITY_WEIGHT, UNLOCKABLE_RELICS, type RelicDef, type RelicId } from './relics';
+import {
+  FUSIONS, LEGACY_RELICS, RELICS, RELIC_BY_ID, RARITY_WEIGHT, UNLOCKABLE_RELICS, type FusedId, type FusionDef, type RelicDef, type RelicId,
+} from './relics';
 import { hashSeed, mulberry32, randInt, weightedPick, type Rng } from './rng';
 
 export const W = 7;
@@ -93,6 +95,7 @@ export type GameEvent =
   | { t: 'death' }
   | { t: 'timestop' }
   | { t: 'toll' }
+  | { t: 'fuse'; id: FusedId; from: [RelicId, RelicId] }
   | { t: 'relic'; id: RelicId };
 
 export type Mode = 'daily' | 'endless';
@@ -119,6 +122,8 @@ export interface RunConfig {
   hero: HeroId;
   /** Relics that can be offered this run. */
   pool: RelicId[];
+  /** A Soul Forge on the floor after each boss (run log version 4 and later). */
+  forge?: boolean;
 }
 
 /** Daily runs use every relic; Endless only the unlocked ones. */
@@ -146,6 +151,8 @@ export interface RunStats {
   kinds: Partial<Record<EnemyKind, number>>;
   /** Turns taken to reach floor 5 (0 until then). */
   turnsTo5: number;
+  /** Relics fused at the Soul Forge this run. */
+  fusions: number;
 }
 
 const DIRS: Pos[] = [
@@ -165,6 +172,10 @@ const MAX_HP_CAP = 99;
 /** Below this floor, every enemy hit also takes a growing share of your max HP. */
 const ABYSS_FLOOR = 30;
 const LOG_VERSION = 3;
+/** Runs with the Soul Forge. */
+const FORGE_LOG_VERSION = 4;
+/** One input character per Soul Forge option. */
+const FORGE_KEYS = 'bcdefghijklm';
 const BOW_RANGE = 3;
 
 export class Game {
@@ -193,7 +204,7 @@ export class Game {
   killedBy = '';
   stats: RunStats = {
     elites: 0, bosses: {}, spikeKills: 0, maxKillsInTurn: 0, maxHit: 0, cleanFloors: 0, maxAllies: 0, bossAtOneHp: false,
-    arrowKills: 0, revived: false, turnsTo5: 0, kinds: {},
+    arrowKills: 0, revived: false, turnsTo5: 0, kinds: {}, fusions: 0,
   };
   /**
    * Every input, in order: U/D/L/R moves, W waits, 0-3 relic picks, r rests,
@@ -211,6 +222,8 @@ export class Game {
   private killsThisTurn = 0;
   private hurtThisFloor = false;
   private combat: Rng;
+  /** Base relic counts granted by fused relics. */
+  private boost: Partial<Record<RelicId, number>> = {};
 
   constructor(mode: Mode, seed: number, dailyNo = 0, config: RunConfig = { hero: 'knight', pool: fullPool() }) {
     this.mode = mode;
@@ -225,7 +238,13 @@ export class Game {
 
   // ---------- queries ----------
 
+  /** How many of a relic the player effectively holds, counting what fused relics grant. */
   r(id: RelicId): number {
+    return (this.relics[id] ?? 0) + (this.boost[id] ?? 0);
+  }
+
+  /** How many copies of a relic the player actually holds. */
+  own(id: RelicId): number {
     return this.relics[id] ?? 0;
   }
 
@@ -295,7 +314,7 @@ export class Game {
   header(): string {
     const unlocked = UNLOCKABLE_RELICS.filter((id) => this.config.pool.includes(id));
     // Pools without any post-launch relic are logged as version 2 so they replay with the launch set.
-    const version = this.config.pool.some((id) => !LEGACY_RELICS.includes(id)) ? LOG_VERSION : 2;
+    const version = this.config.forge ? FORGE_LOG_VERSION : this.config.pool.some((id) => !LEGACY_RELICS.includes(id)) ? LOG_VERSION : 2;
     return `#${version}|${this.config.hero}|${unlocked.join(',')}|`;
   }
 
@@ -322,6 +341,12 @@ export class Game {
       const spot = this.randomFreeTile(rng, 2);
       if (spot) this.feature = { ...spot, kind, used: false };
     }
+    // The Soul Forge waits on the floor after each boss, in place of any other feature.
+    if (this.config.forge && floor > 5 && floor % 5 === 1) {
+      this.feature = null;
+      const spot = this.randomFreeTile(mulberry32(hashSeed(this.seed, 'forge', floor)), 2);
+      if (spot) this.feature = { ...spot, kind: 'forge', used: false };
+    }
     this.player.x = START.x;
     this.player.y = START.y;
     this.placeThralls(thralls);
@@ -332,6 +357,7 @@ export class Game {
     this.events.push({ t: 'floor', floor });
     if (floor === 5 && !this.stats.turnsTo5) this.stats.turnsTo5 = this.turns;
 
+    if (this.own('vheart') && this.isBossFloor()) this.phylacteryUsed = false;
     if (this.hero === 'knight' && floor > 1) this.heal(1);
     const candle = this.r('candle');
     if (candle) this.heal(candle * 2);
@@ -715,13 +741,13 @@ export class Game {
   }
 
   private randomRelic(rng: Rng, filter: (r: RelicDef) => boolean): RelicDef | null {
-    const pool = RELICS.filter((r) => this.config.pool.includes(r.id) && this.r(r.id) < r.maxStack && filter(r));
+    const pool = RELICS.filter((r) => this.config.pool.includes(r.id) && this.own(r.id) < r.maxStack && filter(r));
     return pool.length ? weightedPick(rng, pool, (r) => RARITY_WEIGHT[r.rarity]) : null;
   }
 
   private makeOffer(): Offer {
     const rng = mulberry32(hashSeed(this.seed, 'relic', this.floor));
-    let pool = RELICS.filter((r) => this.config.pool.includes(r.id) && this.r(r.id) < r.maxStack);
+    let pool = RELICS.filter((r) => this.config.pool.includes(r.id) && this.own(r.id) < r.maxStack);
     if (this.r('heretic')) {
       const dark = pool.filter((r) => r.rarity !== 'common');
       if (dark.length >= 3) pool = dark;
@@ -757,7 +783,43 @@ export class Game {
   canAcceptEvent(): boolean {
     if (this.phase !== 'event' || !this.feature) return false;
     if (this.feature.kind === 'shrine') return this.player.maxHp > 3;
+    if (this.feature.kind === 'forge') return this.forgeOptions().length > 0;
     return true;
+  }
+
+  /** Fusions the player can make at the Soul Forge with the relics they hold. */
+  forgeOptions(): FusionDef[] {
+    return FUSIONS.filter((f) => !this.own(f.id) && f.from.every((id) => this.own(id) > 0)).slice(0, FORGE_KEYS.length);
+  }
+
+  /** Fuse the chosen option at the Soul Forge the player is standing on. */
+  forge(index: number) {
+    if (this.phase !== 'event' || this.feature?.kind !== 'forge') return;
+    const f = this.forgeOptions()[index];
+    if (!f) return;
+    for (const id of f.from) {
+      this.relics[id] = this.own(id) - 1;
+      if (!this.relics[id]) delete this.relics[id];
+      this.relicLog.splice(this.relicLog.lastIndexOf(id), 1);
+    }
+    this.relics[f.id] = 1;
+    this.relicLog.push(f.id);
+    this.boost = {};
+    for (const held of FUSIONS) {
+      if (!this.own(held.id)) continue;
+      for (const [id, n] of Object.entries(held.grants)) this.boost[id as RelicId] = (this.boost[id as RelicId] ?? 0) + (n ?? 0);
+    }
+    if (f.id === 'dragon') {
+      this.changeMaxHp(6);
+      this.heal(this.player.maxHp);
+    }
+    // Mirror charges for this floor follow the new count.
+    this.shieldCharges = Math.max(this.shieldCharges, this.r('mirror'));
+    this.stats.fusions++;
+    this.events.push({ t: 'fuse', id: f.id, from: f.from });
+    this.log += FORGE_KEYS[index];
+    this.feature.used = true;
+    this.phase = 'play';
   }
 
   /** Accept or walk away from the floor event the player is standing on. */
@@ -765,6 +827,7 @@ export class Game {
     if (this.phase !== 'event' || !this.feature) return;
     const f = this.feature;
     const rng = mulberry32(hashSeed(this.seed, 'event', this.floor));
+    if (accept && f.kind === 'forge') return;
     if (accept && this.canAcceptEvent()) {
       if (f.kind === 'shrine') {
         this.changeMaxHp(-3);
@@ -910,6 +973,10 @@ export class Game {
         this.events.push({ t: 'bolt', from, to: { x: t.x, y: t.y } });
         from = { x: t.x, y: t.y };
         this.damageEnemy(t, this.r('storm') + 1, 'bolt');
+        if (this.own('plasma') && !t.dead) {
+          t.burn = 3;
+          t.burnDmg = Math.max(t.burnDmg, this.r('ember'));
+        }
       }
     }
   }
@@ -936,7 +1003,7 @@ export class Game {
       if (this.r('phylactery') && !this.phylacteryUsed) {
         this.phylacteryUsed = true;
         this.stats.revived = true;
-        this.player.hp = 1;
+        this.player.hp = this.own('vheart') ? this.player.maxHp : 1;
         this.events.push({ t: 'revive' });
         return;
       }
@@ -1328,7 +1395,8 @@ export class Game {
     const unlocked = m[3] ? (m[3].split(',') as RelicId[]) : [];
     // Runs logged before version 3 were played with the launch relic set.
     const legacy = Number(m[1]) < 3;
-    return { config: { hero: m[2] as HeroId, pool: basePool(unlocked, legacy) }, inputs: full.slice(m[0].length) };
+    const forge = Number(m[1]) >= FORGE_LOG_VERSION;
+    return { config: { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge }, inputs: full.slice(m[0].length) };
   }
 
   /** Re-simulate a run from its full input log. Used to verify scores and resume runs. */
@@ -1341,6 +1409,7 @@ export class Game {
       if (moves[ch]) g.act(moves[ch][0], moves[ch][1]);
       else if (ch === 'r') g.choose(-1);
       else if (ch === 'a' || ch === 'x') g.resolveEvent(ch === 'a');
+      else if (FORGE_KEYS.includes(ch)) g.forge(FORGE_KEYS.indexOf(ch));
       else g.choose(Number(ch));
     }
     g.events.length = 0;

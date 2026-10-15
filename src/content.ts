@@ -50,7 +50,7 @@ export const ELITE_MODS = Object.keys(ELITES) as EliteMod[];
 
 // ---------- floor events ----------
 
-export type FeatureKind = 'shrine' | 'chest' | 'fountain';
+export type FeatureKind = 'shrine' | 'chest' | 'fountain' | 'forge';
 
 export const FEATURES: Record<FeatureKind, { name: string; text: string; accept: string; leave: string }> = {
   shrine: {
@@ -70,6 +70,12 @@ export const FEATURES: Record<FeatureKind, { name: string; text: string; accept:
     text: 'Still water glows faintly. Drinking it mends every wound.',
     accept: 'Drink (heal fully)',
     leave: 'Leave it',
+  },
+  forge: {
+    name: 'Soul Forge',
+    text: 'An anvil burning with blue soulfire. It can melt two of your relics into something greater.',
+    accept: 'Fuse',
+    leave: 'Walk away',
   },
 };
 
@@ -156,6 +162,10 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'full-party', name: 'Full Party', desc: 'Unlock every hero.', souls: 150 },
   { id: 'forbidden', name: 'Forbidden Knowledge', desc: 'Unlock every forbidden relic.', souls: 150 },
   { id: 'soulbound', name: 'Soulbound', desc: 'Earn 2,000 Souls in total.', souls: 100 },
+  // The Soul Forge.
+  { id: 'forge', name: 'Soul Smith', desc: 'Fuse two relics at the Soul Forge.', souls: 30 },
+  { id: 'forge2', name: 'Twice Forged', desc: 'Hold 2 fused relics in one run.', souls: 60 },
+  { id: 'forge-all', name: 'Master of the Forge', desc: 'Discover every fusion.', souls: 200 },
 ];
 
 export const ACHIEVEMENT_BY_ID = Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, a])) as Record<string, AchievementDef>;

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { HeroId } from './content';
 import { Game, H, W, basePool, fullPool, isBoss, type Pos } from './game';
 import { HEROES } from './content';
-import { LEGACY_RELICS } from './relics';
+import { FUSIONS, LEGACY_RELICS, type RelicId } from './relics';
 import { descentStrip } from './share';
 
 const DIRS: Pos[] = [
@@ -222,3 +222,65 @@ if (process.env.BALANCE) {
     }
   });
 }
+
+describe('the Soul Forge', () => {
+  const INGREDIENTS = new Set(FUSIONS.flatMap((f) => f.from));
+
+  /** Like playOut, but chases fusion ingredients and visits the forge once the floor is clear. */
+  function forgeRun(seed: number, maxTurns = 4000): Game {
+    const g = new Game('endless', seed, 0, { hero: 'knight', pool: fullPool(), forge: true });
+    for (let i = 0; i < maxTurns && g.phase !== 'dead'; i++) {
+      if (g.phase === 'choose') {
+        const k = g.offer!.relics.findIndex((r) => INGREDIENTS.has(r.id));
+        g.choose(k >= 0 ? k : 0);
+      } else if (g.phase === 'event') {
+        if (g.feature?.kind === 'forge' && g.forgeOptions().length) g.forge(0);
+        else g.resolveEvent(false);
+      } else if (g.stairsOpen && g.feature?.kind === 'forge' && !g.feature.used && g.forgeOptions().length) {
+        const dist = g.distanceMap(g.feature, false);
+        const p = g.player;
+        const step = DIRS.filter((d) => g.inBounds(p.x + d.x, p.y + d.y) && dist[(p.y + d.y) * W + p.x + d.x] >= 0)
+          .sort((a, b) => dist[(p.y + a.y) * W + p.x + a.x] - dist[(p.y + b.y) * W + p.x + b.x])[0];
+        if (!step || !g.act(step.x, step.y)) g.act(0, 0);
+      } else botStep(g);
+      g.events.length = 0;
+    }
+    return g;
+  }
+
+  it('waits on the floor after each boss, only in forge runs', () => {
+    const on = new Game('endless', 5, 0, { hero: 'knight', pool: fullPool(), forge: true });
+    const off = new Game('endless', 5, 0, { hero: 'knight', pool: fullPool() });
+    (on as unknown as { enterFloor(f: number): void }).enterFloor(6);
+    (off as unknown as { enterFloor(f: number): void }).enterFloor(6);
+    expect(on.feature?.kind).toBe('forge');
+    expect(off.feature?.kind).not.toBe('forge');
+    expect(on.walls).toEqual(off.walls);
+    expect(on.header()).toMatch(/^#4\|/);
+    expect(Game.parseLog(on.header()).config.forge).toBe(true);
+    expect(Game.parseLog(off.header()).config.forge).toBeFalsy();
+  });
+
+  it('fuses two relics into one that counts as several, and replays exactly', () => {
+    let fused: Game | null = null;
+    for (let seed = 0; seed < 400 && !fused; seed++) {
+      const g = forgeRun(seed);
+      if (g.stats.fusions > 0) fused = g;
+    }
+    expect(fused).not.toBeNull();
+    const g = fused!;
+    const id = FUSIONS.find((f) => g.own(f.id))!;
+    for (const [base, n] of Object.entries(id.grants)) expect(g.r(base as RelicId)).toBeGreaterThanOrEqual(n!);
+    expect(g.relicLog).toContain(id.id);
+    const again = Game.replay('endless', g.seed, 0, g.header() + g.log);
+    expect([again.floor, again.kills, again.turns, again.player.hp]).toEqual([g.floor, g.kills, g.turns, g.player.hp]);
+    expect(again.relics).toEqual(g.relics);
+  });
+
+  it('never offers fused relics', () => {
+    for (let seed = 0; seed < 100; seed++) {
+      const g = playOut(seed, 600);
+      for (const id of Object.keys(g.relics)) expect(FUSIONS.some((f) => f.id === id)).toBe(false);
+    }
+  });
+});

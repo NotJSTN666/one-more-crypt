@@ -2,7 +2,7 @@
 // are collected: weapons swap, armour and trinkets appear, the cloak changes colour.
 
 import type { HeroId } from './content';
-import type { RelicId } from './relics';
+import { withFusions, type RelicId } from './relics';
 import { SPRITE_SIZE, type Sprite } from './sprites';
 import { LOOK_BY_ID } from './progression';
 
@@ -65,7 +65,8 @@ function bladeColor(relics: Relics, log: RelicId[]): string {
 }
 
 function paint(ctx: CanvasRenderingContext2D, hero: HeroId, relics: Relics, log: RelicId[], solid?: string, look = '') {
-  const n = (id: RelicId) => relics[id] ?? 0;
+  const all = withFusions(relics);
+  const n = (id: RelicId) => all[id] ?? 0;
   const dot = (x: number, y: number, color: string) => {
     ctx.fillStyle = solid ?? color;
     ctx.fillRect(x, y, 1, 1);

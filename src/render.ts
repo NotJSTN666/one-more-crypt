@@ -535,7 +535,7 @@ export class Renderer {
     const px = f.x * TILE;
     const py = f.y * TILE;
     const glow = f.used ? 0 : 0.4 + 0.3 * Math.sin(this.time * 3);
-    const color = f.kind === 'shrine' ? '#d23a46' : f.kind === 'chest' ? '#f2c14e' : '#9fe8ff';
+    const color = f.kind === 'shrine' ? '#d23a46' : f.kind === 'chest' ? '#f2c14e' : f.kind === 'forge' ? '#7fb4ff' : '#9fe8ff';
     if (!f.used) {
       ctx.fillStyle = color;
       ctx.globalAlpha = glow * 0.35;
@@ -561,6 +561,20 @@ export class Renderer {
       ctx.fillRect(px + 3, py + 8, 10, 1);
       ctx.fillStyle = '#f2c14e';
       ctx.fillRect(px + 7, py + 8, 2, 2);
+    } else if (f.kind === 'forge') {
+      // an anvil over blue soulfire
+      const flick = f.used ? 0 : Math.round(Math.sin(this.time * 9) * 1);
+      ctx.fillStyle = '#1f4a63';
+      ctx.fillRect(px + 4, py + 12, 8, 2);
+      ctx.fillStyle = '#5fe3ff';
+      ctx.fillRect(px + 5, py + 9 - flick, 2, 3 + flick);
+      ctx.fillRect(px + 9, py + 10 + flick, 2, 2 - flick);
+      ctx.fillStyle = '#5d667a';
+      ctx.fillRect(px + 3, py + 4, 10, 3);
+      ctx.fillRect(px + 6, py + 7, 4, 3);
+      ctx.fillStyle = '#c9d1e0';
+      ctx.fillRect(px + 3, py + 4, 10, 1);
+      ctx.fillRect(px + 1, py + 5, 2, 1);
     } else {
       ctx.fillStyle = '#4b4259';
       ctx.fillRect(px + 2, py + 8, 12, 5);

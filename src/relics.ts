@@ -43,9 +43,15 @@ export type RelicId =
   | 'wisp'
   | 'doom'
   | 'heretic'
-  | 'moon';
+  | 'moon'
+  // Fused at the Soul Forge, never offered
+  | FusedId;
 
-export type Rarity = 'common' | 'rare' | 'cursed';
+export type FusedId =
+  | 'plasma' | 'zero' | 'vheart' | 'aegis' | 'reaper' | 'pyre'
+  | 'eternal' | 'fate' | 'oath' | 'lichbook' | 'dragon' | 'twinblade';
+
+export type Rarity = 'common' | 'rare' | 'cursed' | 'fused';
 
 export interface RelicDef {
   id: RelicId;
@@ -114,8 +120,61 @@ export const LEGACY_RELICS: RelicId[] = [
   'harvest', 'echo', 'necro', 'caltrops', 'key', 'mask', 'tome',
 ];
 
+// ---------- the Soul Forge ----------
+// Two relics fused into one. A fused relic works like several copies of its parts
+// (its `grants`), sometimes with a twist of its own, and is never offered.
+
+export interface FusionDef {
+  id: FusedId;
+  from: [RelicId, RelicId];
+  /** Counts as this many of each base relic. */
+  grants: Partial<Record<RelicId, number>>;
+}
+
+export const FUSIONS: FusionDef[] = [
+  { id: 'plasma', from: ['ember', 'storm'], grants: { ember: 2, storm: 2, conductor: 1 } },
+  { id: 'zero', from: ['frost', 'shatter'], grants: { frost: 2, shatter: 3 } },
+  { id: 'vheart', from: ['fang', 'phylactery'], grants: { fang: 3, phylactery: 1 } },
+  { id: 'aegis', from: ['thorns', 'mirror'], grants: { thorns: 3, mirror: 2 } },
+  { id: 'reaper', from: ['whirl', 'pike'], grants: { whirl: 3, pike: 2 } },
+  { id: 'pyre', from: ['bloom', 'wildfire'], grants: { bloom: 3, wildfire: 1, ember: 1 } },
+  { id: 'eternal', from: ['candle', 'lantern'], grants: { candle: 3, lantern: 2 } },
+  { id: 'fate', from: ['dice', 'mark'], grants: { dice: 3, mark: 3 } },
+  { id: 'oath', from: ['pact', 'idol'], grants: { pact: 2, idol: 3 } },
+  { id: 'lichbook', from: ['necro', 'harvest'], grants: { necro: 3, harvest: 2 } },
+  { id: 'dragon', from: ['heart', 'scale'], grants: { scale: 3 } },
+  { id: 'twinblade', from: ['echo', 'whetstone'], grants: { echo: 2, whetstone: 2 } },
+];
+
+export const FUSED_RELICS: RelicDef[] = [
+  { id: 'plasma', name: 'Plasma Brand', emoji: '🌩️', rarity: 'fused', maxStack: 1, desc: () => 'Burns like 2 Ember Brands, strikes like 2 Storm Runes, and its lightning chains and sets foes ablaze.' },
+  { id: 'zero', name: 'Absolute Zero', emoji: '🧊', rarity: 'fused', maxStack: 1, desc: () => 'Hits freeze foes for 2 turns, and hits on frozen foes deal +9 damage.' },
+  { id: 'vheart', name: "Vampire Lord's Heart", emoji: '🧛', rarity: 'fused', maxStack: 1, desc: () => 'Heal 3 HP on each kill. Survive a killing blow at full HP, once per boss floor.' },
+  { id: 'aegis', name: 'Thorned Aegis', emoji: '🌹', rarity: 'fused', maxStack: 1, desc: () => 'Block the first 2 hits on each floor. Foes that strike you take 3 damage.' },
+  { id: 'reaper', name: "Reaper's Scythe", emoji: '☠️', rarity: 'fused', maxStack: 1, desc: () => 'Attacks hit every other adjacent foe for 3 and pierce 2 tiles behind your target.' },
+  { id: 'pyre', name: 'Funeral Pyre', emoji: '🎆', rarity: 'fused', maxStack: 1, desc: () => 'Your hits burn, slain foes burst for 3, and burning foes spread their flames when they die.' },
+  { id: 'eternal', name: 'Eternal Flame', emoji: '🪔', rarity: 'fused', maxStack: 1, desc: () => 'Heal 6 HP on each new floor. Every 6 kills, gain +2 max HP.' },
+  { id: 'fate', name: "Fate's Edge", emoji: '🃏', rarity: 'fused', maxStack: 1, desc: () => '45% chance for hits to deal triple damage. Your first hit on each foe deals +6.' },
+  { id: 'oath', name: "Berserker's Oath", emoji: '😈', rarity: 'fused', maxStack: 1, desc: () => '+3 attack at half health or less, and triple damage at 4 HP or less.' },
+  { id: 'lichbook', name: 'Book of the Dead', emoji: '📖', rarity: 'fused', maxStack: 1, desc: () => 'Slain foes have a 45% chance to rise as thralls. Each kill grants +2 attack until the floor ends.' },
+  { id: 'dragon', name: 'Dragonheart', emoji: '🐲', rarity: 'fused', maxStack: 1, desc: () => '+6 max HP when forged. Hits on you deal 3 less damage (never below 1).' },
+  { id: 'twinblade', name: 'Twin Blade', emoji: '⚔️', rarity: 'fused', maxStack: 1, desc: () => '+2 attack, and every 3rd attack strikes twice.' },
+];
+
+export const FUSION_BY_ID = Object.fromEntries(FUSIONS.map((f) => [f.id, f])) as Record<FusedId, FusionDef>;
+
 export const RELIC_BY_ID: Record<RelicId, RelicDef> = Object.fromEntries(
-  RELICS.map((r) => [r.id, r]),
+  [...RELICS, ...FUSED_RELICS].map((r) => [r.id, r]),
 ) as Record<RelicId, RelicDef>;
 
-export const RARITY_WEIGHT: Record<Rarity, number> = { common: 10, rare: 4, cursed: 5 };
+/** Base relic counts plus what fused relics grant, e.g. for drawing the hero. */
+export function withFusions(relics: Partial<Record<RelicId, number>>): Partial<Record<RelicId, number>> {
+  const out = { ...relics };
+  for (const f of FUSIONS) {
+    if (!relics[f.id]) continue;
+    for (const [id, n] of Object.entries(f.grants)) out[id as RelicId] = (out[id as RelicId] ?? 0) + (n ?? 0);
+  }
+  return out;
+}
+
+export const RARITY_WEIGHT: Record<Rarity, number> = { common: 10, rare: 4, cursed: 5, fused: 0 };

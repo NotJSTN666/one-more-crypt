@@ -3,7 +3,7 @@
 
 import { ACHIEVEMENT_BY_ID, COMBOS, HEROES, dailyHero, type AchievementDef, type ComboDef, type HeroId } from './content';
 import { basePool, fullPool, type Game, type Mode, type RunConfig } from './game';
-import { RELICS, UNLOCKABLE_RELICS, type RelicId } from './relics';
+import { FUSIONS, RELICS, UNLOCKABLE_RELICS, type FusedId, type RelicId } from './relics';
 import {
   BESTIARY_KINDS, BESTIARY_TITLES, LOOKS, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_TIER, betterRun, bestiaryTiers, rankIndex,
   type BestRuns, type LookDef,
@@ -22,6 +22,8 @@ export interface Meta {
   codex: Partial<Record<RelicId, number>>;
   /** Combo id -> when first completed. */
   combos: Record<string, number>;
+  /** Fused relic id -> when first forged. */
+  fusions: Record<string, number>;
   elitesSlain: number;
   /** Hero last picked for Endless. */
   hero: HeroId;
@@ -55,7 +57,7 @@ const KEY = 'wardenfall:meta';
 
 function empty(): Meta {
   return {
-    souls: 0, earned: 0, heroes: ['knight'], relics: [], achievements: {}, codex: {}, combos: {}, elitesSlain: 0, hero: 'knight',
+    souls: 0, earned: 0, heroes: ['knight'], relics: [], achievements: {}, codex: {}, combos: {}, fusions: {}, elitesSlain: 0, hero: 'knight',
     bestiary: {}, bestiaryTier: {}, best: {}, title: '', look: '', looksSeen: [], rankSeen: 0,
   };
 }
@@ -98,6 +100,7 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   meta.relics = [...new Set([...meta.relics, ...(other.relics ?? [])])];
   meta.achievements = { ...(other.achievements ?? {}), ...meta.achievements };
   meta.combos = { ...(other.combos ?? {}), ...meta.combos };
+  meta.fusions = { ...(other.fusions ?? {}), ...meta.fusions };
   for (const [id, n] of Object.entries(other.codex ?? {})) {
     meta.codex[id as RelicId] = Math.max(meta.codex[id as RelicId] ?? 0, n ?? 0);
   }
@@ -143,12 +146,15 @@ export function buyRelic(id: RelicId): boolean {
   return true;
 }
 
+export const FORGE_DAILY = 2;
+
 /** The daily crypt is identical for everyone; Endless uses your hero and unlocks. */
 export function runConfig(mode: Mode, dailyNo: number): RunConfig {
   // Daily #1 ran with the launch relic set; new relics join from Daily #2.
-  if (mode === 'daily') return { hero: dailyHero(dailyNo), pool: fullPool(dailyNo <= 1) };
+  // The Soul Forge opens with Daily #2, so everyone in a daily crypt plays the same rules.
+  if (mode === 'daily') return { hero: dailyHero(dailyNo), pool: fullPool(dailyNo <= 1), forge: dailyNo >= FORGE_DAILY };
   const hero = heroUnlocked(meta.hero) ? meta.hero : 'knight';
-  return { hero, pool: basePool(meta.relics.filter((id) => UNLOCKABLE_RELICS.includes(id))) };
+  return { hero, pool: basePool(meta.relics.filter((id) => UNLOCKABLE_RELICS.includes(id))), forge: true };
 }
 
 // ---------- achievements ----------
@@ -187,7 +193,7 @@ export function noteRelic(game: Game, id: RelicId): Unlocks {
       }
     }
   }
-  const discovered = Object.keys(meta.codex).length;
+  const discovered = RELICS.filter((r) => meta.codex[r.id]).length;
   const ids = [
     out.combos.length ? 'combo' : '',
     Object.keys(meta.combos).length >= COMBOS.length ? 'combos-all' : '',
@@ -241,6 +247,9 @@ export function checkRun(game: Game): AchievementDef[] {
     ['full-party', HEROES.every((h) => meta.heroes.includes(h.id))],
     ['forbidden', UNLOCKABLE_RELICS.every((id) => meta.relics.includes(id))],
     ['soulbound', meta.earned >= 2000],
+    ['forge', s.fusions > 0],
+    ['forge2', s.fusions >= 2],
+    ['forge-all', FUSIONS.every((f) => meta.fusions[f.id])],
   ];
   const out: AchievementDef[] = [];
   for (const [id, ok] of conditions) {
@@ -372,6 +381,15 @@ function noteBestRun(game: Game) {
     at: Date.now(),
   };
   meta.best[game.hero] = betterRun(meta.best[game.hero], run);
+}
+
+/** Record a fusion made at the Soul Forge. True the first time it's ever made. */
+export function noteFusion(id: FusedId): boolean {
+  meta.codex[id] = (meta.codex[id] ?? 0) + 1;
+  const first = !meta.fusions[id];
+  if (first) meta.fusions[id] = Date.now();
+  saveMeta();
+  return first;
 }
 
 export function relicDiscovered(id: RelicId): boolean {

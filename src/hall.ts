@@ -71,7 +71,7 @@ export function hallData(name: string, m: Partial<Meta> | Record<string, unknown
     earned: num(raw.earned),
     feats: Object.keys(achievements).filter((id) => ACHIEVEMENT_BY_ID[id]).length,
     combos: Object.keys(obj(raw.combos)).filter((id) => COMBOS.some((c) => c.id === id)).length,
-    relics: Object.keys(obj(raw.codex)).filter((id) => RELIC_BY_ID[id as RelicId]).length,
+    relics: Object.keys(obj(raw.codex)).filter((id) => RELICS.some((r) => r.id === id)).length,
     bestiary,
     bossFeats,
     best,
