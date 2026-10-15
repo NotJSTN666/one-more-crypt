@@ -429,8 +429,10 @@ document.addEventListener('visibilitychange', () => {
  * relics are drawn together, a sucked-in silence, a huge impact, then a shimmering chord
  * as the new relic appears. `impactAt` is when the collision lands, in seconds.
  */
-export function fusionSound(ascended: boolean, impactAt = 1.9) {
-  if (!ctx || muted) return;
+export function fusionSound(ascended: boolean, impactAt = 1.9, into?: BaseAudioContext) {
+  // `into` renders it somewhere else (an OfflineAudioContext, e.g. for promo videos).
+  const ctx = into ?? liveCtx();
+  if (!ctx || (!into && muted)) return;
   const t0 = ctx.currentTime + 0.02;
   const out = ctx.createGain();
   out.gain.value = 0.9;
@@ -439,7 +441,7 @@ export function fusionSound(ascended: boolean, impactAt = 1.9) {
   const hit = t0 + impactAt;
 
   const noiseBuf = (dur: number) => {
-    const b = ctx!.createBuffer(1, Math.floor(ctx!.sampleRate * dur), ctx!.sampleRate);
+    const b = ctx.createBuffer(1, Math.floor(ctx.sampleRate * dur), ctx.sampleRate);
     const d = b.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     return b;
@@ -518,8 +520,8 @@ export function fusionSound(ascended: boolean, impactAt = 1.9) {
   const root = ascended ? 293.66 : 261.63;
   [1, 1.25, 1.5, 2, 2.5, 3].forEach((m, i) => {
     for (const det of [-6, 6]) {
-      const o = ctx!.createOscillator();
-      const g = ctx!.createGain();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
       o.type = i < 3 ? 'triangle' : 'sine';
       o.frequency.value = root * m;
       o.detune.value = det;
@@ -532,5 +534,20 @@ export function fusionSound(ascended: boolean, impactAt = 1.9) {
       o.stop(s0 + 1.65);
     }
   });
-  for (let i = 0; i < 6; i++) tone(1568 * (1 + (i % 3) * 0.25), 0.18, 'triangle', 0.035, undefined, impactAt + 0.3 + i * 0.11);
+  for (let i = 0; i < 6; i++) {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    const s0 = hit + 0.3 + i * 0.11;
+    o.type = 'triangle';
+    o.frequency.value = 1568 * (1 + (i % 3) * 0.25);
+    g.gain.setValueAtTime(0.035, s0);
+    g.gain.exponentialRampToValueAtTime(0.0001, s0 + 0.18);
+    o.connect(g).connect(out);
+    o.start(s0);
+    o.stop(s0 + 0.2);
+  }
+}
+
+function liveCtx(): AudioContext | null {
+  return ctx;
 }
