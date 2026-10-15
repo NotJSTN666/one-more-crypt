@@ -23,12 +23,12 @@ export function descentStrip(floor: number, max = 12): string {
 
 export function shareText(r: RunResult, label: string): string {
   return [
-    `🕯️ ${GAME_NAME} · ${label}`,
+    `${GAME_NAME} · ${label} 🕯️`,
     `${descentStrip(r.floor)}`,
     `Fell on floor ${r.floor}${r.hero ? ` as the ${r.hero}` : ''} to ${r.killedBy} · ${r.kills} kills`,
     r.relics ? `Relics: ${r.relics}` : 'No relics. Pure skill.',
     ...(r.combos ? [`Combos: ${r.combos}`] : []),
-    `How deep can you go?`,
+    `How deep can you go? @${X_HANDLE}`,
   ].join('\n');
 }
 
@@ -38,8 +38,9 @@ export const X_HANDLE = 'OneMoreCrypt';
 export const followXHtml = `<a class="follow-x" href="https://x.com/${X_HANDLE}" target="_blank" rel="noopener">𝕏 Follow @${X_HANDLE}</a>`;
 
 export function xIntentUrl(text: string): string {
-  // "via" makes X append "via @OneMoreCrypt" to every shared run.
-  const params = new URLSearchParams({ text, url: siteUrl(), via: X_HANDLE });
+  // Everything goes in `text`, the link included. X's app ignores `via` and handles a
+  // separate `url` field its own way, which left a gap at the top of the post.
+  const params = new URLSearchParams({ text: `${text.trim()}\n${siteUrl()}` });
   return `https://x.com/intent/post?${params.toString()}`;
 }
 
