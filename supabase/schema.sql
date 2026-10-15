@@ -85,14 +85,20 @@ select
   r.turns,
   r.relics,
   r.killed_by,
-  rank() over (partition by r.daily_no order by r.floor desc, r.kills desc, r.turns asc) as rank
+  rank() over (partition by r.daily_no order by r.floor desc, r.kills desc, r.turns asc) as rank,
+  -- The player's equipped title id and lifetime Souls, for their Soul Rank. Players
+  -- write their own meta, so the title is capped and the game only shows known ids.
+  left(p.meta->>'title', 40) as title,
+  case when jsonb_typeof(p.meta->'earned') = 'number' then least(greatest((p.meta->>'earned')::numeric, 0), 1000000000)::bigint else 0 end as earned
 from public.runs r
 join public.profiles p on p.id = r.user_id
 where r.mode = 'daily';
 
 -- Each player's single best endless run.
 create or replace view public.leaderboard_endless with (security_invoker = on) as
-select b.*, rank() over (order by b.floor desc, b.kills desc, b.turns asc) as rank
+select b.*, rank() over (order by b.floor desc, b.kills desc, b.turns asc) as rank,
+  left(p2.meta->>'title', 40) as title,
+  case when jsonb_typeof(p2.meta->'earned') = 'number' then least(greatest((p2.meta->>'earned')::numeric, 0), 1000000000)::bigint else 0 end as earned
 from (
   select distinct on (r.user_id)
     r.user_id, p.name, r.floor, r.kills, r.turns, r.relics, r.killed_by, r.created_at
@@ -100,7 +106,8 @@ from (
   join public.profiles p on p.id = r.user_id
   where r.mode = 'endless'
   order by r.user_id, r.floor desc, r.kills desc, r.turns asc
-) b;
+) b
+join public.profiles p2 on p2.id = b.user_id;
 
 grant select on public.leaderboard_daily, public.leaderboard_endless to anon, authenticated;
 grant select on public.profiles, public.runs to anon, authenticated;

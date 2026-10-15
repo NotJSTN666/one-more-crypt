@@ -142,6 +142,8 @@ export interface RunStats {
   bossAtOneHp: boolean;
   arrowKills: number;
   revived: boolean;
+  /** Foes slain this run, by kind (for the Bestiary). */
+  kinds: Partial<Record<EnemyKind, number>>;
   /** Turns taken to reach floor 5 (0 until then). */
   turnsTo5: number;
 }
@@ -191,7 +193,7 @@ export class Game {
   killedBy = '';
   stats: RunStats = {
     elites: 0, bosses: {}, spikeKills: 0, maxKillsInTurn: 0, maxHit: 0, cleanFloors: 0, maxAllies: 0, bossAtOneHp: false,
-    arrowKills: 0, revived: false, turnsTo5: 0,
+    arrowKills: 0, revived: false, turnsTo5: 0, kinds: {},
   };
   /**
    * Every input, in order: U/D/L/R moves, W waits, 0-3 relic picks, r rests,
@@ -837,6 +839,7 @@ export class Game {
 
     this.kills++;
     this.killsThisTurn++;
+    this.stats.kinds[e.kind] = (this.stats.kinds[e.kind] ?? 0) + 1;
     this.stats.maxKillsInTurn = Math.max(this.stats.maxKillsInTurn, this.killsThisTurn);
     if (e.elite) this.stats.elites++;
     if (isBoss(e)) {

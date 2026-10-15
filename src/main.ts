@@ -6,8 +6,10 @@ import { heroPortrait } from './hero';
 import { ENEMY_INFO, Game, fullPool, isBoss, type GameEvent, type Mode } from './game';
 import { checkRun, finishRunMeta, meta, noteRelic, runConfig, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
-import { celebrate, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
+import { celebrate, celebrateNotes, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { RELIC_BY_ID, type RelicId } from './relics';
+import { hallFromLink, showHall, showPublicHall, soulRankHtml, titleName } from './hall';
+import { rankFor } from './progression';
 import { Renderer } from './render';
 import { hashSeed } from './rng';
 import { ONLINE, pingActivity, startActivityPings } from './online';
@@ -61,6 +63,7 @@ function newGame(mode: Mode) {
 function showGame(g: Game) {
   game = g;
   runCombos = [];
+  renderer.look = meta.look;
   renderer.setGame(game);
   renderer.consume(game.events.splice(0));
   updateHud(true);
@@ -150,7 +153,7 @@ function finishTutorial() {
   const { then, label } = tutorial;
   endTutorial();
   showOverlay('tutorial-done', `
-    <img class="hero-portrait" src="${heroPortrait(game.hero, game.relics, game.relicLog)}" alt="" width="96" height="96" />
+    <img class="hero-portrait" src="${heroPortrait(game.hero, game.relics, game.relicLog, 8, meta.look)}" alt="" width="96" height="96" />
     <h2>You're ready</h2>
     <p class="sub">That's all you need to know. Each floor gets meaner, so build well. Bosses wait on every 5th floor.</p>
     <button class="btn primary" id="go">${label}</button>
@@ -280,6 +283,7 @@ function finishRun(abandoned = false) {
   writeSave(save);
   lastResult = result;
   celebrate(lastReward.achievements);
+  celebrateNotes(lastReward.unlocks);
 
   const mode = game.mode;
   const dailyNo = game.dailyNo;
@@ -642,6 +646,7 @@ function showTitle() {
       <button class="btn" id="ossuary">🏛️ Ossuary<small>💀 ${meta.souls} Souls</small></button>
       <button class="btn" id="grimoire">📖 Grimoire<small>Relics, combos, feats</small></button>
     </div>
+    <button class="btn" id="hall">🏰 The Crypt Hall<small style="color:${rankFor(meta.earned).color}">${esc(rankFor(meta.earned).name)} · trophies, titles, looks</small></button>
     ${ONLINE ? '<button class="btn" id="leaderboard">🏆 Leaderboards</button>' : ''}
     <button class="btn" id="help">How to play</button>
     ${streak > 1 ? `<div class="streak">🕯️ ${streak}-day streak</div>` : ''}
@@ -654,6 +659,7 @@ function showTitle() {
   on('#endless', () => withTutorialOffer(() => showHeroSelect(() => startRun('endless'), showTitle)));
   on('#ossuary', () => showOssuary(showTitle));
   on('#grimoire', () => showGrimoire(showTitle));
+  on('#hall', () => openHall(showTitle));
   on('#help', () => showHelp(showTitle));
   on('#share-today', () => done && share(done, `Daily #${today}`));
   tickCountdowns();
@@ -662,7 +668,14 @@ function showTitle() {
 function accountChip(): string {
   if (ONLINE && !session.ready) return '<div class="account-row"></div>';
   const name = playerName();
-  return `<div class="account-row"><button class="account-chip" id="account">👤 ${name ? esc(name) : 'Sign in'}</button></div>`;
+  const title = titleName(meta.title);
+  return `<div class="account-row"><button class="account-chip" id="account">👤 ${name ? esc(name) : 'Sign in'}${name && title ? ` <small>${esc(title)}</small>` : ''}</button></div>`;
+}
+
+function openHall(back: () => void) {
+  showHall(playerName(), back, 'trophies', () => {
+    renderer.look = meta.look;
+  });
 }
 
 function showHelp(back: () => void) {
@@ -863,7 +876,7 @@ function showDeath(r: RunResult, best: boolean) {
   setMusicDepth(0);
   setMusicMood('fallen');
   showOverlay('death', `
-    <img class="hero-portrait" src="${heroPortrait(game.hero, game.relics, game.relicLog)}" alt="Your hero's final form" width="96" height="96" />
+    <img class="hero-portrait" src="${heroPortrait(game.hero, game.relics, game.relicLog, 8, meta.look)}" alt="Your hero's final form" width="96" height="96" />
     <h2 class="dead">You have fallen</h2>
     <p class="sub">${lastLabel} · slain by ${r.killedBy}</p>
     <div class="strip">${descentStrip(r.floor)}</div>
@@ -880,6 +893,7 @@ function showDeath(r: RunResult, best: boolean) {
         ? `<div class="souls-earned"><b>+${lastReward.souls} Souls</b><span>${lastReward.lines.map(([k, v]) => `${esc(k)} +${v}`).join(' · ')}</span><span>💀 ${meta.souls} to spend in the Ossuary</span></div>`
         : ''
     }
+    ${soulRankHtml()}
     ${ONLINE ? `<p class="rank-line" id="rank">${signedIn() ? 'Carving your name into the crypt…' : ''}</p>` : ''}
     ${ONLINE && !signedIn() ? '<button class="btn" id="join">Claim a name for the leaderboard</button>' : ''}
     <button class="btn x" id="share">Share on 𝕏</button>
@@ -889,6 +903,7 @@ function showDeath(r: RunResult, best: boolean) {
     </div>
     <div class="row">
       ${ONLINE ? '<button class="btn" id="leaderboard">🏆 Leaderboard</button>' : ''}
+      <button class="btn" id="hall">🏰 Hall</button>
       <button class="btn" id="ossuary">🏛️ Ossuary</button>
       <button class="btn" id="title">Title</button>
     </div>
@@ -915,6 +930,7 @@ function showDeath(r: RunResult, best: boolean) {
   on('#copy', async () => toast((await copyText(shareText(r, lastLabel) + '\n' + siteUrl())) ? 'Copied!' : 'Copy failed'));
   on('#again', () => showHeroSelect(() => startRun('endless'), backHere));
   on('#ossuary', () => showOssuary(backHere));
+  on('#hall', () => openHall(backHere));
   on('#title', () => {
     newGame('endless');
     showTitle();
@@ -971,6 +987,8 @@ void initSocial(save, () => {
 });
 showTitle();
 if (!ONLINE && !save.seenLogin) showLogin(showTitle);
+const visiting = hallFromLink();
+if (visiting && ONLINE) showPublicHall(visiting, showTitle);
 startGhosts();
 requestAnimationFrame(loop);
 document.fonts?.load('8px Silkscreen').catch(() => undefined);

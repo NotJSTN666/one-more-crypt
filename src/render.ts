@@ -5,6 +5,7 @@ import { ELITES } from './content';
 import { ENEMY_INFO, Game, H, W, isBoss, type EnemyKind, type GameEvent, type Pos } from './game';
 import { hashSeed, mulberry32 } from './rng';
 import { heroSprite, relicColor } from './hero';
+import { LOOK_BY_ID } from './progression';
 import { RELIC_BY_ID, type RelicId } from './relics';
 import { SPRITE_SIZE, sprites } from './sprites';
 
@@ -39,6 +40,8 @@ export class Renderer {
   private hurtFlash = 0;
   private healFlash = 0;
   private time = 0;
+  /** The player's equipped cosmetic look ('' for none). */
+  look = '';
 
   /** Quiet renderers (background ghosts) skip text and screen shake. */
   constructor(private canvas: HTMLCanvasElement, private quiet = false) {
@@ -256,6 +259,8 @@ export class Renderer {
         this.particles.push({ x: px, y: py, vx: (Math.random() - 0.5) * 6, vy, color, t: 0, life: 0.5, size: 1 });
       }
     };
+    const aura = LOOK_BY_ID[this.look]?.aura;
+    if (aura) emit(0.22, x + Math.random() * 12, y + 4 + Math.random() * 8, -8, aura);
     if (r('ember') || r('wildfire')) emit(0.35, tipX, tipY + Math.random() * 3, -16, Math.random() < 0.5 ? '#ff8a2a' : '#f2c14e');
     if (r('frost')) emit(0.2, x + Math.random() * 12, y + Math.random() * 6, 6, '#9fe8ff');
     if (r('storm') && Math.random() < 0.06) {
@@ -354,7 +359,7 @@ export class Renderer {
     if (g.phase !== 'dead') {
       const pd = this.smooth(PLAYER_ID, g.player, k);
       // The rogue fades when the next step will go unseen.
-      this.drawSprite(PLAYER_ID, heroSprite(g.hero, g.relics, g.relicLog), pd, dt, g.shadowReady ? 0.55 : 1);
+      this.drawSprite(PLAYER_ID, heroSprite(g.hero, g.relics, g.relicLog, this.look), pd, dt, g.shadowReady ? 0.55 : 1);
       this.drawAura(g, pd);
     }
     for (const id of [...this.disp.keys()]) if (!seen.has(id)) this.disp.delete(id);

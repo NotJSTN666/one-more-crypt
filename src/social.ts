@@ -30,6 +30,8 @@ import {
   type BoardRow,
   type RunSubmission,
 } from './online';
+import { showPublicHall, titleName } from './hall';
+import { rankFor } from './progression';
 import { meta, mergeMeta, onMetaChange, type Meta } from './meta';
 import { currentStreak, writeSave, type Save } from './storage';
 import { esc, field, formStatus, on, onSubmit, screen, showOverlay, toast } from './ui';
@@ -521,6 +523,7 @@ export function showLeaderboard(back: () => void, tab: Tab = 'today') {
         .map(([t, label]) => `<button role="tab" data-tab="${t}" aria-selected="${t === tab}">${label}</button>`)
         .join('')}
     </div>
+    <p class="fine">Tap a name to visit their Crypt Hall.</p>
     <div id="board-body" class="board"><p class="sub">Summoning the dead…</p></div>
     ${signedIn() ? '' : '<button class="btn" id="join">Claim a name to join</button>'}
     <button class="btn primary" id="back">Back</button>`);
@@ -537,7 +540,11 @@ export function showLeaderboard(back: () => void, tab: Tab = 'today') {
     .then((b) => {
       if (screen !== 'board') return;
       const body = document.getElementById('board-body');
-      if (body) body.innerHTML = boardHtml(b, uid, tab);
+      if (!body) return;
+      body.innerHTML = boardHtml(b, uid, tab);
+      body.querySelectorAll<HTMLElement>('[data-hall]').forEach((li) =>
+        li.addEventListener('click', () => showPublicHall(li.dataset.hall!, () => showLeaderboard(back, tab))),
+      );
     })
     .catch((e) => {
       const body = document.getElementById('board-body');
@@ -550,9 +557,9 @@ function boardHtml(b: Board, uid: string | null, tab: Tab): string {
     return `<p class="sub">${tab === 'endless' ? 'No endless runs yet.' : 'Nobody has fallen yet today. Be the first.'}</p>`;
   }
   const row = (r: BoardRow) => `
-    <li class="${r.user_id === uid ? 'me' : ''}">
+    <li class="${r.user_id === uid ? 'me' : ''}" data-hall="${esc(r.name)}" tabindex="0" title="Visit ${esc(r.name)}'s Hall">
       <span class="rank">${r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : `#${r.rank}`}</span>
-      <span class="who">${esc(r.name)}<small>${esc(r.relics)}</small></span>
+      <span class="who"><span style="color:${rankFor(Number(r.earned) || 0).color}">${esc(r.name)}</span>${titleName(r.title) ? ` <em class="title-tag">${esc(titleName(r.title))}</em>` : ''}<small>${esc(r.relics)}</small></span>
       <span class="depth">F${r.floor}<small>${r.kills} kills</small></span>
     </li>`;
   const meOutside = b.me && !b.rows.some((r) => r.user_id === b.me!.user_id);

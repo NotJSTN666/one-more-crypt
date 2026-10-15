@@ -4,6 +4,11 @@
 import { ACHIEVEMENT_BY_ID, COMBOS, HEROES, dailyHero, type AchievementDef, type ComboDef, type HeroId } from './content';
 import { basePool, fullPool, type Game, type Mode, type RunConfig } from './game';
 import { RELICS, UNLOCKABLE_RELICS, type RelicId } from './relics';
+import {
+  BESTIARY_KINDS, BESTIARY_TITLES, LOOKS, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_TIER, betterRun, bestiaryTiers, rankIndex,
+  type BestRuns, type LookDef,
+} from './progression';
+import type { EnemyKind } from './game';
 
 export interface Meta {
   souls: number;
@@ -20,6 +25,17 @@ export interface Meta {
   elitesSlain: number;
   /** Hero last picked for Endless. */
   hero: HeroId;
+  /** Lifetime kills by kind, and how many Bestiary milestones each kind has paid out. */
+  bestiary: Partial<Record<EnemyKind, number>>;
+  bestiaryTier: Partial<Record<EnemyKind, number>>;
+  /** Deepest run per hero: the statues in the Crypt Hall. */
+  best: BestRuns;
+  /** Equipped title id ('' for none) and cosmetic look ('' for the hero's own colours). */
+  title: string;
+  look: string;
+  /** Looks already announced, and the highest Soul Rank announced. */
+  looksSeen: string[];
+  rankSeen: number;
 }
 
 export const RELIC_COSTS: Partial<Record<RelicId, number>> = {
@@ -38,7 +54,10 @@ export const RELIC_COSTS: Partial<Record<RelicId, number>> = {
 const KEY = 'wardenfall:meta';
 
 function empty(): Meta {
-  return { souls: 0, earned: 0, heroes: ['knight'], relics: [], achievements: {}, codex: {}, combos: {}, elitesSlain: 0, hero: 'knight' };
+  return {
+    souls: 0, earned: 0, heroes: ['knight'], relics: [], achievements: {}, codex: {}, combos: {}, elitesSlain: 0, hero: 'knight',
+    bestiary: {}, bestiaryTier: {}, best: {}, title: '', look: '', looksSeen: [], rankSeen: 0,
+  };
 }
 
 function load(): Meta {
@@ -82,6 +101,19 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   for (const [id, n] of Object.entries(other.codex ?? {})) {
     meta.codex[id as RelicId] = Math.max(meta.codex[id as RelicId] ?? 0, n ?? 0);
   }
+  for (const [k, n] of Object.entries(other.bestiary ?? {})) {
+    meta.bestiary[k as EnemyKind] = Math.max(meta.bestiary[k as EnemyKind] ?? 0, n ?? 0);
+  }
+  for (const [k, n] of Object.entries(other.bestiaryTier ?? {})) {
+    meta.bestiaryTier[k as EnemyKind] = Math.max(meta.bestiaryTier[k as EnemyKind] ?? 0, n ?? 0);
+  }
+  for (const [h, run] of Object.entries(other.best ?? {})) {
+    meta.best[h as HeroId] = betterRun(meta.best[h as HeroId], run);
+  }
+  meta.title ||= other.title ?? '';
+  meta.look ||= other.look ?? '';
+  meta.looksSeen = [...new Set([...meta.looksSeen, ...(other.looksSeen ?? [])])];
+  meta.rankSeen = Math.max(meta.rankSeen, other.rankSeen ?? 0);
   const changed = JSON.stringify(meta) !== before;
   if (changed) saveMeta();
   return changed;
@@ -223,6 +255,7 @@ export interface RunReward {
   souls: number;
   lines: [string, number][];
   achievements: AchievementDef[];
+  unlocks: UnlockNote[];
 }
 
 /** Pay out Souls at the end of a run. */
@@ -248,8 +281,97 @@ export function finishRunMeta(game: Game, streak: number): RunReward {
     const got = id && grant(id);
     if (got) achievements.push(got);
   }
+  noteBestRun(game);
+  const unlocks = progressUnlocks(game);
   saveMeta();
-  return { souls, lines, achievements };
+  return { souls, lines, achievements, unlocks };
+}
+
+// ---------- titles, looks and the Bestiary ----------
+
+export function lookUnlocked(l: LookDef): boolean {
+  const u = l.unlock;
+  if ('feat' in u) return Boolean(meta.achievements[u.feat]);
+  if ('rank' in u) return rankIndex(meta.earned) >= u.rank;
+  return (meta.bestiaryTier[u.beast] ?? 0) > u.tier;
+}
+
+export function titleUnlocked(id: string): boolean {
+  const [kind, key] = id.split(':');
+  if (kind === 'feat') return Boolean(meta.achievements[key]);
+  if (kind === 'beast') return (meta.bestiaryTier[key as EnemyKind] ?? 0) > TITLE_TIER;
+  if (kind === 'rank') return meta.earned >= (SOUL_RANKS.find((r) => r.name === key)?.souls ?? Infinity);
+  return false;
+}
+
+export function unlockedTitles() {
+  return TITLES.filter((t) => titleUnlocked(t.id));
+}
+
+export function equipTitle(id: string) {
+  meta.title = id && titleUnlocked(id) ? id : '';
+  saveMeta();
+}
+
+export function equipLook(id: string) {
+  const look = LOOKS.find((l) => l.id === id);
+  meta.look = look && lookUnlocked(look) ? id : '';
+  saveMeta();
+}
+
+/** A line for the unlock banner: icon, headline, detail. */
+export interface UnlockNote {
+  icon: string;
+  title: string;
+  detail: string;
+}
+
+/** After a run: Bestiary milestones, new looks and Soul Rank-ups to announce. */
+function progressUnlocks(game: Game): UnlockNote[] {
+  const notes: UnlockNote[] = [];
+  for (const kind of BESTIARY_KINDS) {
+    const add = game.stats.kinds[kind] ?? 0;
+    if (!add) continue;
+    const total = (meta.bestiary[kind] ?? 0) + add;
+    meta.bestiary[kind] = total;
+    const tiers = bestiaryTiers(kind);
+    let paid = meta.bestiaryTier[kind] ?? 0;
+    while (paid < tiers.length && total >= tiers[paid]) {
+      const souls = TIER_SOULS[paid];
+      meta.souls += souls;
+      meta.earned += souls;
+      const title = paid === TITLE_TIER ? ` · title: ${BESTIARY_TITLES[kind]}` : '';
+      notes.push({ icon: '📜', title: `Bestiary: ${tiers[paid]} ${kind === 'boss' ? 'Bone Wardens' : kind === 'abbot' ? 'Plague Abbots' : kind === 'lich' ? 'Lich Kings' : `${kind}s`}`, detail: `+${souls} Souls${title}` });
+      paid++;
+    }
+    meta.bestiaryTier[kind] = paid;
+  }
+  const rank = rankIndex(meta.earned);
+  if (rank > meta.rankSeen) {
+    meta.rankSeen = rank;
+    notes.push({ icon: '👑', title: `Soul Rank: ${SOUL_RANKS[rank].name}`, detail: 'New title unlocked in your Hall' });
+  }
+  for (const look of LOOKS) {
+    if (!meta.looksSeen.includes(look.id) && lookUnlocked(look)) {
+      meta.looksSeen.push(look.id);
+      notes.push({ icon: '🎨', title: `New look: ${look.name}`, detail: 'Wear it from your Hall' });
+    }
+  }
+  return notes;
+}
+
+/** Keep the deepest run for each hero, for their statue in the Hall. */
+function noteBestRun(game: Game) {
+  const run = {
+    floor: game.floor,
+    kills: game.kills,
+    mode: game.mode,
+    relics: { ...game.relics } as Record<string, number>,
+    log: [...game.relicLog],
+    look: meta.look,
+    at: Date.now(),
+  };
+  meta.best[game.hero] = betterRun(meta.best[game.hero], run);
 }
 
 export function relicDiscovered(id: RelicId): boolean {

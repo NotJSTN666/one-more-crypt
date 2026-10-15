@@ -43,6 +43,9 @@ export interface BoardRow {
   relics: string;
   killed_by: string;
   rank: number;
+  /** Equipped title id and lifetime Souls, from the player's saved progress (may be missing). */
+  title?: string | null;
+  earned?: number | null;
 }
 
 export interface Board {
@@ -212,6 +215,14 @@ export async function loadRemoteMeta(userId: string): Promise<Record<string, unk
   const { data, error } = await sb.from('profiles').select('meta').eq('id', userId).maybeSingle();
   if (error || !data) return null;
   return (data.meta as Record<string, unknown>) ?? null;
+}
+
+/** Another player's name and saved progress, for visiting their Crypt Hall. */
+export async function loadHall(name: string): Promise<{ name: string; meta: Record<string, unknown> } | null> {
+  const sb = await client();
+  const { data, error } = await sb.from('profiles').select('name, meta').eq('name', name).maybeSingle();
+  if (error) throw friendly(error, 'Could not open that Hall.');
+  return data ? { name: data.name as string, meta: (data.meta as Record<string, unknown>) ?? {} } : null;
 }
 
 export async function saveRemoteMeta(userId: string, value: unknown): Promise<void> {

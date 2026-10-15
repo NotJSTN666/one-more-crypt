@@ -4,6 +4,7 @@
 import type { HeroId } from './content';
 import type { RelicId } from './relics';
 import { SPRITE_SIZE, type Sprite } from './sprites';
+import { LOOK_BY_ID } from './progression';
 
 const COL = {
   outline: '#0d0812',
@@ -63,7 +64,7 @@ function bladeColor(relics: Relics, log: RelicId[]): string {
   return relics.whetstone ? '#e8eef8' : COL.steel;
 }
 
-function paint(ctx: CanvasRenderingContext2D, hero: HeroId, relics: Relics, log: RelicId[], solid?: string) {
+function paint(ctx: CanvasRenderingContext2D, hero: HeroId, relics: Relics, log: RelicId[], solid?: string, look = '') {
   const n = (id: RelicId) => relics[id] ?? 0;
   const dot = (x: number, y: number, color: string) => {
     ctx.fillStyle = solid ?? color;
@@ -71,7 +72,8 @@ function paint(ctx: CanvasRenderingContext2D, hero: HeroId, relics: Relics, log:
   };
 
   const heroCloak = hero in CLOAKS ? CLOAKS[hero as keyof typeof CLOAKS] : CLOAKS.default;
-  const cloak = n('pact') ? CLOAKS.pact : n('crown') ? CLOAKS.crown : n('dust') ? CLOAKS.dust : heroCloak;
+  // An equipped cosmetic look wins; otherwise some relics recolour the cloak.
+  const cloak = LOOK_BY_ID[look]?.cloak ?? (n('pact') ? CLOAKS.pact : n('crown') ? CLOAKS.crown : n('dust') ? CLOAKS.dust : heroCloak);
   const eyes = n('fang') ? COL.red : n('frost') >= 2 ? COL.ice : hero === 'necro' || hero === 'mage' ? COL.ice : hero === 'barbarian' ? COL.red : COL.gold;
   const palette: Record<string, string> = { k: COL.outline, P: cloak.P, p: cloak.p, S: COL.steelDark, E: eyes };
   BODY.forEach((row, y) => {
@@ -209,35 +211,38 @@ function paint(ctx: CanvasRenderingContext2D, hero: HeroId, relics: Relics, log:
   }
 }
 
-function bake(hero: HeroId, relics: Relics, log: RelicId[], solid?: string): HTMLCanvasElement {
+function bake(hero: HeroId, relics: Relics, log: RelicId[], solid?: string, look = ''): HTMLCanvasElement {
   const c = document.createElement('canvas');
   c.width = SPRITE_SIZE;
   c.height = SPRITE_SIZE;
-  paint(c.getContext('2d')!, hero, relics, log, solid);
+  paint(c.getContext('2d')!, hero, relics, log, solid, look);
   return c;
 }
 
-let cacheKey = '';
-let cached: Sprite | null = null;
+// Recent sprites, rebuilt only when a hero's relics or look change. Several boards
+// (the game, the background ghosts, the Hall) draw heroes at once.
+const cache = new Map<string, Sprite>();
 
-/** Sprite for the current build, rebuilt only when the relics change. */
-export function heroSprite(hero: HeroId, relics: Relics, log: RelicId[]): Sprite {
-  const key = hero + ':' + log.join(',');
-  if (!cached || key !== cacheKey) {
-    cached = { normal: bake(hero, relics, log), white: bake(hero, relics, log, '#ffffff') };
-    cacheKey = key;
+/** Sprite for a hero's build and look. */
+export function heroSprite(hero: HeroId, relics: Relics, log: RelicId[], look = ''): Sprite {
+  const key = `${hero}:${look}:${log.join(',')}`;
+  let sprite = cache.get(key);
+  if (!sprite) {
+    sprite = { normal: bake(hero, relics, log, undefined, look), white: bake(hero, relics, log, '#ffffff', look) };
+    if (cache.size > 40) cache.delete(cache.keys().next().value!);
+    cache.set(key, sprite);
   }
-  return cached;
+  return sprite;
 }
 
 /** A large, crisp portrait of the hero as a data URL, for the results screen. */
-export function heroPortrait(hero: HeroId, relics: Relics, log: RelicId[], scale = 8): string {
+export function heroPortrait(hero: HeroId, relics: Relics, log: RelicId[], scale = 8, look = ''): string {
   const c = document.createElement('canvas');
   c.width = SPRITE_SIZE * scale;
   c.height = SPRITE_SIZE * scale;
   const ctx = c.getContext('2d')!;
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(bake(hero, relics, log), 0, 0, c.width, c.height);
+  ctx.drawImage(bake(hero, relics, log, undefined, look), 0, 0, c.width, c.height);
   return c.toDataURL();
 }
 

@@ -1288,3 +1288,149 @@ body.tutorial #relic-bar {
   outline: 2px solid var(--gold);
   outline-offset: 3px;
 }
+
+/* ---------- the Crypt Hall ---------- */
+
+.hall-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 8px 0;
+  border: 1px solid var(--line);
+  image-rendering: pixelated;
+  background: var(--bg);
+}
+
+.soul-rank {
+  margin: 8px 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  text-align: left;
+}
+
+.soul-rank-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.soul-rank small {
+  display: block;
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.soul-rank small b {
+  font-weight: normal;
+}
+
+.rank-track {
+  display: block;
+  height: 8px;
+  margin-top: 6px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+}
+
+.rank-track > * {
+  display: block;
+  height: 100%;
+  background: var(--gold);
+}
+
+.rank-track.small {
+  height: 5px;
+}
+
+.codex-item.pick {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.codex-item.pick:disabled {
+  cursor: not-allowed;
+}
+
+.codex-item.equipped,
+.look-card.equipped {
+  outline: 2px solid var(--gold);
+  outline-offset: -2px;
+}
+
+.codex-item.beast img {
+  image-rendering: pixelated;
+}
+
+.codex-item .stars {
+  color: var(--gold);
+  font-size: 11px;
+  margin-left: 4px;
+}
+
+.looks {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin: 10px 0;
+}
+
+.look-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.look-card:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.look-card img {
+  image-rendering: pixelated;
+}
+
+.look-card img.locked-look {
+  filter: grayscale(1) brightness(0.5);
+}
+
+.look-card .name {
+  font-size: 10px;
+}
+
+.look-card .desc {
+  font-family: system-ui, sans-serif;
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.25;
+}
+
+.board li[data-hall] {
+  cursor: pointer;
+}
+
+.board li[data-hall]:hover {
+  background: var(--panel-2);
+}
+
+.title-tag {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--gold);
+}
+
+.account-chip small {
+  font-size: 9px;
+  color: var(--gold);
+}

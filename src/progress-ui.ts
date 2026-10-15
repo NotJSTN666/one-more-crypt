@@ -4,7 +4,7 @@
 import { sfx } from './audio';
 import { ACHIEVEMENTS, COMBOS, HEROES, type AchievementDef, type ComboDef, type HeroId } from './content';
 import { heroPortrait } from './hero';
-import { RELIC_COSTS, buyHero, buyRelic, heroUnlocked, meta, relicDiscovered, saveMeta } from './meta';
+import { RELIC_COSTS, type UnlockNote, buyHero, buyRelic, heroUnlocked, meta, relicDiscovered, saveMeta } from './meta';
 import { RELICS, RELIC_BY_ID, UNLOCKABLE_RELICS } from './relics';
 import { $, esc, on, overlay, showOverlay } from './ui';
 
@@ -150,6 +150,12 @@ let showing = false;
 export function celebrate(achievements: AchievementDef[], combos: ComboDef[] = []) {
   for (const c of combos) queue.push(`<b>${c.emoji} ${esc(c.name.toUpperCase())}!</b><span>Combo complete</span>`);
   for (const a of achievements) queue.push(`<b>🏅 ${esc(a.name)}</b><span>${esc(a.desc)} · +${a.souls} Souls</span>`);
+  if (!showing) next();
+}
+
+/** Banners for unlocks between runs: Bestiary milestones, Soul Ranks, new looks. */
+export function celebrateNotes(notes: UnlockNote[]) {
+  for (const n of notes) queue.push(`<b>${n.icon} ${esc(n.title)}</b><span>${esc(n.detail)}</span>`);
   if (!showing) next();
 }
 
