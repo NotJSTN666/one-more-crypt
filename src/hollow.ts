@@ -11,8 +11,8 @@ import { esc, overlay, screen, showOverlay } from './ui';
 
 // ---------- the map ----------
 // # fence  . grass  : path  T dead tree  + grave  W bonfire  1-5 graves with epitaphs
-// Building bodies (solid): D daily  E endless  F forge  O ossuary  H hall  G grimoire  L obelisk
-// Doors (walk in): d n f o h g   s the sealed gate (bump it)
+// Building bodies (solid): D daily  E endless  F forge  O ossuary  H hall  G grimoire  R wardrobe  L obelisk
+// Doors (walk in): d n f o h g r   s the sealed gate (bump it)
 const MAP = [
   '#################',
   '#.EEE.DDDDD.FFF.#',
@@ -22,10 +22,10 @@ const MAP = [
   '#OOO.+..:..1.HHH#',
   '#OOO.+..:..+.HHH#',
   '#.o.:::::::::.h.#',
-  '#T..:.2.W.:.+..T#',
-  '#GGG.:..:..3..L.#',
-  '#GGG.+.::..+..L.#',
-  '#.g..:..:.4..:.5#',
+  '#T..:.2.W.:.3..T#',
+  '#GGG.:..:RRR..L.#',
+  '#GGG.+.::RRR..L.#',
+  '#.g..:..:.r4..:5#',
   '########s########',
 ];
 const COLS = MAP[0].length;
@@ -34,9 +34,9 @@ const TILE = 16;
 const SCALE = 4;
 const SPAWN = { x: 8, y: 9 };
 
-export type HollowPlace = 'daily' | 'endless' | 'forge' | 'ossuary' | 'hall' | 'grimoire' | 'ranks';
+export type HollowPlace = 'daily' | 'endless' | 'forge' | 'ossuary' | 'hall' | 'grimoire' | 'wardrobe' | 'ranks';
 
-const DOORS: Record<string, HollowPlace> = { d: 'daily', n: 'endless', f: 'forge', o: 'ossuary', h: 'hall', g: 'grimoire' };
+const DOORS: Record<string, HollowPlace> = { d: 'daily', n: 'endless', f: 'forge', o: 'ossuary', h: 'hall', g: 'grimoire', r: 'wardrobe' };
 
 export const EPITAPHS: Record<string, string> = {
   '1': 'Here lies Aldric, first Warden of the crypt. He sealed the dead below, and became one of them.',
@@ -46,7 +46,7 @@ export const EPITAPHS: Record<string, string> = {
   '5': 'The ice below remembers. When the seal breaks, the Frozen Catacombs will wake.',
 };
 
-const SOLID = new Set(['#', 'T', '+', 'W', 'D', 'E', 'F', 'O', 'H', 'G', 'L', 's', ...Object.keys(EPITAPHS)]);
+const SOLID = new Set(['#', 'T', '+', 'W', 'D', 'E', 'F', 'O', 'H', 'G', 'R', 'L', 's', ...Object.keys(EPITAPHS)]);
 
 const at = (x: number, y: number) => (x < 0 || y < 0 || x >= COLS || y >= ROWS ? '#' : MAP[y][x]);
 const walkable = (x: number, y: number) => !SOLID.has(at(x, y));
@@ -90,6 +90,7 @@ const PLACE_NAMES: Record<HollowPlace, string> = {
   ossuary: 'The Ossuary',
   hall: 'Your Crypt Hall',
   grimoire: 'The Grimoire',
+  wardrobe: 'The Wardrobe',
   ranks: 'The Obelisk of Ranks',
 };
 let raf = 0;
@@ -525,6 +526,13 @@ function render(ctx: CanvasRenderingContext2D, t: number) {
   building('O', '#4a4038', '#2e2620', '#e8dcc4', 'OSSUARY');
   building('H', '#3a3346', '#7a5a12', '#f2c14e', 'HALL');
   building('G', '#2f2838', '#3a2a10', '#ff8a2a', 'GRIMOIRE');
+  building('R', '#3a2433', '#6b1f4a', '#ff7ac8', 'WARDROBE');
+  // a cloak hanging by the Wardrobe door, in the hero's own colours
+  const rb = box('R');
+  const cloak = LOOK_BY_ID[outfitFor(meta.hero).look]?.cloak ?? { p: '#3b4f7d', P: '#22304f' };
+  px(rb.X + 6, rb.Y + 11, 6, 1, '#a8894a');
+  px(rb.X + 7, rb.Y + 12, 4, 6, cloak.p);
+  px(rb.X + 9, rb.Y + 12, 2, 6, cloak.P);
   // forge smoke, Ossuary skull, Hall crown
   const f = box('F');
   for (let i = 0; i < 3; i++) {

@@ -14,6 +14,7 @@ import { Renderer } from './render';
 import { hashSeed } from './rng';
 import { ONLINE, dailyBoard, pingActivity, startActivityPings } from './online';
 import { EPITAPHS, hollowKey, showHollow, type HollowPlace } from './hollow';
+import { showWardrobe } from './wardrobe';
 import { howToHtml, startHowTo } from './howto';
 import { RELIC_COACH, TUTORIAL } from './tutorial';
 import { copyText, descentStrip, followXHtml, shareText, siteUrl, xIntentUrl } from './share';
@@ -730,6 +731,8 @@ function describePlace(place: HollowPlace): string {
       return 'Your trophies, statues, titles and looks.';
     case 'grimoire':
       return 'Relics, combos, fusions and achievements.';
+    case 'wardrobe':
+      return 'Dress your heroes in cloaks and headwear. Outfits show in runs and on the leaderboards.';
     case 'ranks':
       return 'Names carved in stone: the daily and endless leaderboards.';
   }
@@ -755,6 +758,7 @@ function enterPlace(place: HollowPlace) {
   if (place === 'ossuary') return showOssuary(enterHollow);
   if (place === 'hall') return openHall(enterHollow);
   if (place === 'grimoire') return showGrimoire(enterHollow);
+  if (place === 'wardrobe') return showWardrobe(enterHollow, meta.hero);
   if (ONLINE) return showLeaderboard(enterHollow);
   toast('The obelisk is silent. Leaderboards need an online connection.');
   enterHollow();
