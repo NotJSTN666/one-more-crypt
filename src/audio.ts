@@ -102,6 +102,16 @@ export const sfx = {
     [262, 330, 392, 523].forEach((f, i) => tone(f, 0.3, 'sine', 0.08, undefined, i * 0.05));
   },
   block: () => tone(880, 0.12, 'square', 0.06, 1200),
+  /** Two relics spiralling together, then the boom as they become one. */
+  fuse: () => {
+    tone(196, 1, 'sawtooth', 0.035, 784);
+    tone(294, 1, 'sine', 0.05, 1175);
+    window.setTimeout(() => {
+      noise(0.45, 0.32, 700);
+      tone(110, 0.7, 'sine', 0.14, 38);
+      [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.45, 'triangle', 0.06, undefined, 0.08 + i * 0.06));
+    }, 1000);
+  },
   death: () => {
     tone(220, 1.2, 'sawtooth', 0.1, 40);
     noise(0.6, 0.2, 400);

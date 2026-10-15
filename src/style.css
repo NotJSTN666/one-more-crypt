@@ -1747,3 +1747,142 @@ body.tutorial #relic-bar {
 .fused-grants {
   color: var(--muted);
 }
+
+/* The fusion itself: the two relics spiral together, collide, and the new one bursts out. */
+.fuse-anim {
+  position: relative;
+  height: 96px;
+  margin-bottom: 4px;
+  cursor: pointer;
+  --fx: #7fb4ff;
+}
+
+.fused-reveal.ascended .fuse-anim {
+  --fx: #fff2c0;
+}
+
+.fuse-anim > span {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.fa-a,
+.fa-b {
+  font-size: 40px;
+  line-height: 1;
+  animation: fa-in-a 1s cubic-bezier(0.55, 0, 0.9, 0.5) forwards;
+}
+
+.fa-b {
+  animation-name: fa-in-b;
+}
+
+@keyframes fa-in-a {
+  0% { transform: translate(calc(-50% - 90px), -50%) rotate(0deg) scale(1); }
+  60% { transform: translate(calc(-50% - 30px), calc(-50% - 14px)) rotate(260deg) scale(0.9); }
+  100% { transform: translate(-50%, -50%) rotate(540deg) scale(0.35); opacity: 0; }
+}
+
+@keyframes fa-in-b {
+  0% { transform: translate(calc(-50% + 90px), -50%) rotate(0deg) scale(1); }
+  60% { transform: translate(calc(-50% + 30px), calc(-50% + 14px)) rotate(-260deg) scale(0.9); }
+  100% { transform: translate(-50%, -50%) rotate(-540deg) scale(0.35); opacity: 0; }
+}
+
+.fa-flash {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffffff 0%, var(--fx) 45%, transparent 70%);
+  opacity: 0;
+  animation: fa-flash 0.55s ease-out 0.97s both;
+}
+
+@keyframes fa-flash {
+  0% { transform: translate(-50%, -50%) scale(0.2); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(4); opacity: 0; }
+}
+
+.fa-ring {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid var(--fx);
+  opacity: 0;
+  animation: fa-ring 0.7s ease-out 1s both;
+}
+
+@keyframes fa-ring {
+  0% { transform: translate(-50%, -50%) scale(0.3); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(5); opacity: 0; }
+}
+
+.fa-sparks i {
+  position: absolute;
+  left: -2px;
+  top: -2px;
+  width: 4px;
+  height: 4px;
+  background: var(--fx);
+  opacity: 0;
+  animation: fa-spark 0.6s ease-out 1.01s both;
+}
+
+.fa-sparks i:nth-child(3n) {
+  background: #ffffff;
+}
+
+@keyframes fa-spark {
+  0% { transform: rotate(var(--a)) translateX(4px); opacity: 1; }
+  100% { transform: rotate(var(--a)) translateX(var(--d)); opacity: 0; }
+}
+
+.fa-out {
+  animation: fa-out 0.5s cubic-bezier(0.2, 1.6, 0.4, 1) 1.1s both, fused-float-c 2.4s ease-in-out 1.65s infinite;
+}
+
+@keyframes fa-out {
+  0% { transform: translate(-50%, -50%) scale(0); filter: brightness(3); }
+  100% { transform: translate(-50%, -50%) scale(1); filter: brightness(1); }
+}
+
+@keyframes fused-float-c {
+  50% { transform: translate(-50%, calc(-50% - 4px)); }
+}
+
+.fa-text {
+  animation: fa-text 0.4s ease-out 1.45s both;
+}
+
+@keyframes fa-text {
+  from { opacity: 0; transform: translateY(8px); }
+}
+
+/* Tapping the animation skips to the end. */
+.fused-reveal.skip .fa-a,
+.fused-reveal.skip .fa-b,
+.fused-reveal.skip .fa-flash,
+.fused-reveal.skip .fa-ring,
+.fused-reveal.skip .fa-sparks i {
+  animation: none;
+  opacity: 0;
+}
+
+.fused-reveal.skip .fa-out {
+  animation: fused-float-c 2.4s ease-in-out infinite;
+}
+
+.fused-reveal.skip .fa-text {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fuse-anim > span,
+  .fa-sparks i,
+  .fa-text {
+    animation-duration: 0.01s !important;
+    animation-delay: 0s !important;
+  }
+}

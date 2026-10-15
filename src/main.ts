@@ -374,7 +374,6 @@ function playSounds(events: GameEvent[]) {
   else if (has('hit')) sfx.hit();
   if (has('bolt')) sfx.zap();
   if (has('toll')) sfx.toll();
-  if (has('fuse')) sfx.relic();
   if (has('timestop')) sfx.timestop();
   if (has('shot')) sfx.shot();
   if (has('hurt')) sfx.hurt();
@@ -938,16 +937,29 @@ function showFused(id: FusedId, first: boolean) {
     .map(([gid, n]) => `${RELIC_BY_ID[gid as RelicId].emoji} ${esc(RELIC_BY_ID[gid as RelicId].name)}${(n ?? 0) > 1 ? ` ×${n}` : ''}`)
     .join(' · ');
   const ascended = def.rarity === 'ascended';
+  const sparks = Array.from({ length: 14 }, (_, i) => `<i style="--a:${(i / 14) * 360}deg;--d:${50 + (i % 3) * 18}px"></i>`).join('');
   showOverlay('fused', `
     <div class="fused-reveal ${ascended ? 'ascended' : ''}">
-      <div class="fused-emoji">${def.emoji}</div>
+      <div class="fuse-anim" aria-hidden="true">
+        <span class="fa-a">${a.emoji}</span>
+        <span class="fa-b">${b.emoji}</span>
+        <span class="fa-ring"></span>
+        <span class="fa-flash"></span>
+        <span class="fa-sparks">${sparks}</span>
+        <span class="fused-emoji fa-out">${def.emoji}</span>
+      </div>
+      <div class="fa-text">
       <p class="fused-kind">${first ? '✨ New discovery · ' : ''}${ascended ? 'Ascended relic' : 'Fused relic'}</p>
       <h2>${esc(def.name)}</h2>
       <p class="fused-desc">${esc(def.desc(1))}</p>
       <p class="fine">Forged from ${a.emoji} ${esc(a.name)} + ${b.emoji} ${esc(b.name)}</p>
       <p class="fine fused-grants">Counts as: ${grants}</p>
       <button class="btn primary" id="fused-ok">Continue</button>
+      </div>
     </div>`);
+  sfx.fuse();
+  // Tap the animation to skip straight to the details.
+  overlay.querySelector('.fuse-anim')?.addEventListener('click', () => overlay.querySelector('.fused-reveal')?.classList.add('skip'));
   on('#fused-ok', () => {
     hideOverlay();
     updateHud();
