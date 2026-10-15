@@ -6,7 +6,7 @@ import { HERO_BY_ID, dailyHero, type HeroId } from '../src/content';
 import { dailyNumber } from '../src/daily';
 import { Game, type Mode } from '../src/game';
 import { heroSprite } from '../src/hero';
-import { RELICS, type RelicId } from '../src/relics';
+import { FUSED_RELICS, RELICS, type RelicId } from '../src/relics';
 import { sprites } from '../src/sprites';
 
 export const W = 1200;
@@ -131,18 +131,25 @@ export function today() {
   return { dailyNo: n, hero: { id: hero.id, name: hero.name, perk: hero.perk, perkDesc: hero.perkDesc, hp: hero.hp }, chicagoHour: hour };
 }
 
-/** Crown yesterday's winner. Their hero is rebuilt from the run log, so it wears their real relics. */
-export function drawChampion(canvas: HTMLCanvasElement, { name, mode = 'daily', title, dailyNo = 0, floor, kills, relics, seed, log, others }: ChampionCard) {
-  use(canvas);
-  // Replay the run for the hero's exact final form. Runs logged under older rules may not
-  // replay to the same floor; then rebuild the look from the relic emojis saved with the run.
-  let look: { hero: HeroId; relics: Partial<Record<RelicId, number>>; log: RelicId[] } | undefined;
+interface Look {
+  hero: HeroId;
+  relics: Partial<Record<RelicId, number>>;
+  log: RelicId[];
+}
+
+/**
+ * A leader's hero in their final form. Replays the run for the exact build; runs logged
+ * under older rules may not replay to the same floor, so then the look is rebuilt from
+ * the relic emojis saved with the run.
+ */
+function heroLook({ mode = 'daily', dailyNo = 0, floor, relics, seed, log }: { mode?: Mode; dailyNo?: number; floor: number; relics?: string; seed: number; log: string }): Look {
+  let look: Look | undefined;
   try {
     const g = Game.replay(mode, seed, dailyNo, log);
     if (g.floor === floor) look = { hero: g.hero, relics: g.relics, log: g.relicLog };
   } catch (e) {}
   if (!look) {
-    const byEmoji = new Map(RELICS.map((r) => [r.emoji, r.id]));
+    const byEmoji = new Map([...RELICS, ...FUSED_RELICS].map((r) => [r.emoji, r.id]));
     const ids: RelicId[] = [];
     let rest = relics || '';
     while (rest.length) {
@@ -155,7 +162,13 @@ export function drawChampion(canvas: HTMLCanvasElement, { name, mode = 'daily', 
     const m = /^#\d+\|([a-z]+)\|/.exec(log || '');
     look = { hero: (m ? m[1] : mode === 'daily' ? dailyHero(dailyNo) : 'knight') as HeroId, relics: counts, log: ids };
   }
-  const g = look!;
+  return look!;
+}
+
+/** Crown yesterday's winner. Their hero is rebuilt from the run log, so it wears their real relics. */
+export function drawChampion(canvas: HTMLCanvasElement, { name, mode = 'daily', title, dailyNo = 0, floor, kills, relics, seed, log, others }: ChampionCard) {
+  use(canvas);
+  const g = heroLook({ mode, dailyNo, floor, relics, seed, log });
   const hero = HERO_BY_ID[g.hero];
   const endless = mode === 'endless';
   backdrop(endless ? '#2a1640' : '#3a2a10');
@@ -220,4 +233,103 @@ export function drawDaily(canvas: HTMLCanvasElement, { dailyNo, heroId }: { dail
   text(`TODAY'S HERO: THE ${hero.name.toUpperCase()}`, 600, 330, '28px Silkscreen', '#f2c14e');
   text(`${hero.hp} HP · ${hero.perk}`, 600, 375, '22px Silkscreen', '#9a8fa8');
   footer();
+}
+
+// ---------- Instagram story ----------
+
+export const STORY_W = 1080;
+export const STORY_H = 1920;
+
+export interface StoryLeader {
+  name: string;
+  floor: number;
+  kills: number;
+  relics?: string;
+  seed: number;
+  log: string;
+}
+
+/**
+ * One 1080x1920 story with the day's news: today's crypt and hero, yesterday's champion
+ * and the endless leader. Instagram covers roughly the top 250px with the account bar
+ * and the bottom 250px with the reply bar, so everything important sits between them,
+ * leaving room above the call to action for a link sticker.
+ */
+export function drawStory(
+  canvas: HTMLCanvasElement,
+  { dailyNo, heroId, champion, endless }: { dailyNo: number; heroId: HeroId; champion?: StoryLeader & { dailyNo: number }; endless?: StoryLeader },
+) {
+  canvas.width = STORY_W;
+  canvas.height = STORY_H;
+  ctx = canvas.getContext('2d')!;
+  ctx.imageSmoothingEnabled = false;
+  const SW = STORY_W;
+  const hero = HERO_BY_ID[heroId];
+
+  const bg = ctx.createRadialGradient(SW / 2, 620, 40, SW / 2, 900, 1300);
+  bg.addColorStop(0, '#3a1530');
+  bg.addColorStop(0.55, '#14091a');
+  bg.addColorStop(1, '#07040b');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, SW, STORY_H);
+  let r = 7;
+  const rand = () => ((r = (r * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  for (let i = 0; i < 90; i++) {
+    ctx.globalAlpha = 0.25 + rand() * 0.45;
+    ctx.fillStyle = rand() < 0.6 ? '#ff8a2a' : '#f2c14e';
+    const sz = rand() < 0.3 ? 8 : 5;
+    ctx.fillRect(Math.floor(rand() * SW), Math.floor(rand() * STORY_H), sz, sz);
+  }
+  ctx.globalAlpha = 1;
+
+  // today's crypt
+  text(`DAILY #${dailyNo}`, SW / 2, 380, '150px "Pirata One"', '#d23a46', 'center', 'rgba(210,58,70,0.75)');
+  text('THE CRYPT IS OPEN', SW / 2, 445, '36px Silkscreen', '#e8dcc4', 'center');
+  ctx.shadowColor = 'rgba(210,58,70,0.8)';
+  ctx.shadowBlur = 36;
+  ctx.drawImage(heroSprite(hero.id, {}, []).normal, SW / 2 - 110, 480, 220, 220);
+  ctx.shadowBlur = 0;
+  text(`TODAY'S HERO: THE ${hero.name.toUpperCase()}`, SW / 2, 750, fit(`TODAY'S HERO: THE ${hero.name.toUpperCase()}`, SW - 120, 34, 'Silkscreen'), '#f2c14e', 'center');
+  text(`${hero.hp} HP · ${hero.perk}`, SW / 2, 795, '26px Silkscreen', '#9a8fa8', 'center');
+
+  // the two leaders, side by side
+  const panel = (x: number, label: string, color: string, glow: string, who: StoryLeader | undefined, look: Look | null, crown: boolean) => {
+    const w = 460;
+    const top = 860;
+    const h = 560;
+    ctx.fillStyle = 'rgba(20,13,28,0.85)';
+    ctx.fillRect(x, top, w, h);
+    ctx.fillStyle = color;
+    ctx.fillRect(x, top, w, 6);
+    const cx = x + w / 2;
+    text(label, cx, top + 56, fit(label, w - 40, 26, 'Silkscreen'), color, 'center');
+    if (!who || !look) {
+      text('UNCLAIMED', cx, top + 300, '34px Silkscreen', '#6b6680', 'center');
+      text('Be the first', cx, top + 350, '24px Silkscreen', '#9a8fa8', 'center');
+      return;
+    }
+    const spot = ctx.createRadialGradient(cx, top + 240, 10, cx, top + 240, 180);
+    spot.addColorStop(0, glow);
+    spot.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = spot;
+    ctx.fillRect(x, top + 60, w, 360);
+    const size = 216;
+    ctx.shadowColor = glow;
+    ctx.shadowBlur = 30;
+    ctx.drawImage(heroSprite(look.hero, look.relics, look.log).normal, cx - size / 2, top + 150, size, size);
+    ctx.shadowBlur = 0;
+    if (crown) pixels(CROWN, CROWN_COL, cx - (11 * 9) / 2, top + 92, 9);
+    text(who.name, cx, top + 440, fit(who.name, w - 40, 76, '"Pirata One"'), '#f2c14e', 'center', 'rgba(242,193,78,0.5)');
+    text(`FLOOR ${who.floor} · ${who.kills} KILLS`, cx, top + 490, fit(`FLOOR ${who.floor} · ${who.kills} KILLS`, w - 40, 26, 'Silkscreen'), '#e8dcc4', 'center');
+    text(`as the ${HERO_BY_ID[look.hero].name}`, cx, top + 530, '22px Silkscreen', '#9a8fa8', 'center');
+  };
+  const champLook = champion ? heroLook({ ...champion, mode: 'daily' }) : null;
+  const endlessLook = endless ? heroLook({ ...endless, mode: 'endless' }) : null;
+  panel(60, champion ? `CHAMPION OF DAILY #${champion.dailyNo}` : 'YESTERDAY\'S CHAMPION', '#f2c14e', 'rgba(242,193,78,0.45)', champion, champLook, true);
+  panel(SW - 520, 'ENDLESS LEADER', '#c9a6ff', 'rgba(176,124,255,0.45)', endless, endlessLook, false);
+
+  // call to action, above the reply bar; the gap below the title is for a link sticker
+  text('CAN YOU TAKE THE CROWN?', SW / 2, 1500, '38px Silkscreen', '#e8dcc4', 'center');
+  text('ONEMORECRYPT.COM', SW / 2, 1580, '58px Silkscreen', '#f2c14e', 'center', 'rgba(242,193,78,0.5)');
+  text('PLAY FREE IN YOUR BROWSER', SW / 2, 1630, '24px Silkscreen', '#9a8fa8', 'center');
 }
