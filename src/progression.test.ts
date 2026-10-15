@@ -63,7 +63,7 @@ describe('per-hero records', () => {
     await backfillHeroes([{ mode: 'endless', daily_no: null, seed: 77, floor: g.floor, kills: g.kills, log: g.header() + g.log }]);
     expect(meta.heroStats.rogue?.floor).toBe(g.floor);
     expect(meta.heroStats.rogue?.runs).toBe(1);
-    expect(meta.heroBackfill).toBe(1);
+    expect(meta.heroBackfill).toBe(2);
     expect(meta.best.rogue?.floor).toBe(g.floor);
   });
 });

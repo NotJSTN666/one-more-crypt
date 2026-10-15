@@ -546,6 +546,9 @@ export interface PastRun {
  * past runs, by replaying them. Runs once per account; yields between runs so the
  * page stays smooth.
  */
+/** Bumped when rebuilding gets better, so every account rebuilds once more. */
+export const BACKFILL_VERSION = 2;
+
 export async function backfillHeroes(runs: PastRun[]): Promise<void> {
   const totals: Partial<Record<HeroId, HeroStats>> = {};
   for (const run of runs) {
@@ -560,9 +563,11 @@ export async function backfillHeroes(runs: PastRun[]): Promise<void> {
         continue;
       }
       hero = g.hero;
-      floor = g.floor;
-      souls = runSouls(g).reduce((sum, [, n]) => sum + n, 0);
-      meta.best[hero] = betterRun(meta.best[hero], {
+      // Runs recorded under older rules can replay differently; trust the recorded result then.
+      const exact = g.floor === run.floor && g.kills === run.kills;
+      floor = run.floor;
+      souls = exact ? runSouls(g).reduce((sum, [, n]) => sum + n, 0) : Math.round(run.floor * 4 + run.kills + Math.floor(run.floor / 5) * 20);
+      if (exact) meta.best[hero] = betterRun(meta.best[hero], {
         floor: g.floor, kills: g.kills, mode: g.mode, relics: { ...g.relics } as Record<string, number>, log: [...g.relicLog], look: '', at: 0,
       });
     } else {
@@ -576,6 +581,6 @@ export async function backfillHeroes(runs: PastRun[]): Promise<void> {
     await new Promise((r) => setTimeout(r, 0));
   }
   for (const [h, st] of Object.entries(totals)) mergeHeroStats(h as HeroId, st);
-  meta.heroBackfill = 1;
+  meta.heroBackfill = BACKFILL_VERSION;
   saveMeta();
 }

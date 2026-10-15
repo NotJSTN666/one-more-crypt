@@ -35,7 +35,7 @@ import { showPublicHall, titleName } from './hall';
 import { HEAD_BY_ID, LOOK_BY_ID, rankFor } from './progression';
 import { HERO_BY_ID, dailyHero, type HeroId } from './content';
 import { heroPortrait } from './hero';
-import { backfillHeroes, meta, mergeMeta, onMetaChange, type Meta } from './meta';
+import { BACKFILL_VERSION, backfillHeroes, meta, mergeMeta, onMetaChange, type Meta } from './meta';
 import { currentStreak, writeSave, type Save } from './storage';
 import { esc, field, formStatus, on, onSubmit, screen, showOverlay, toast } from './ui';
 
@@ -115,7 +115,7 @@ async function afterSignIn() {
 /** Once per account: rebuild per-hero records and Hall statues from past runs. */
 async function backfill() {
   const acc = session.account;
-  if (!acc || meta.heroBackfill) return;
+  if (!acc || meta.heroBackfill >= BACKFILL_VERSION) return;
   try {
     await backfillHeroes(await myRunLogs(acc.id));
     onChange();
