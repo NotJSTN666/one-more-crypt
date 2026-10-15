@@ -1,0 +1,52 @@
+name: Daily X post
+
+# Every morning at 7 AM Central: crown yesterday's daily champion and announce today's
+# crypt on @OneMoreCrypt. Setup steps: docs/daily-x-post.md.
+on:
+  schedule:
+    - cron: '0 12 * * *' # 7 AM CDT (summer)
+    - cron: '0 13 * * *' # 7 AM CST (winter); the script skips whichever isn't 7 AM in Chicago
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Test run: make the images and text without posting'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily-x-post
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Emoji font for the relic row
+        run: sudo apt-get install -y fonts-noto-color-emoji
+      - run: node scripts/daily-post.mjs
+        env:
+          SCHEDULED: ${{ github.event_name == 'schedule' }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: post-preview
+          path: out/
+          if-no-files-found: ignore
