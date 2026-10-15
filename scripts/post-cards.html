@@ -118,12 +118,12 @@
       };
 
       /** Crown yesterday's winner. Their hero is rebuilt from the run log, so it wears their real relics. */
-      window.renderChampion = ({ name, dailyNo, floor, kills, relics, seed, log, others }) => {
+      window.renderChampion = ({ name, mode = 'daily', title, dailyNo = 0, floor, kills, relics, seed, log, others }) => {
         // Replay the run for the hero's exact final form. Runs logged under older rules may not
         // replay to the same floor; then rebuild the look from the relic emojis saved with the run.
         let look;
         try {
-          const g = Game.replay('daily', seed, dailyNo, log);
+          const g = Game.replay(mode, seed, dailyNo, log);
           if (g.floor === floor) look = { hero: g.hero, relics: g.relics, log: g.relicLog };
         } catch (e) {}
         if (!look) {
@@ -138,12 +138,13 @@
           const counts = {};
           ids.forEach((id) => (counts[id] = (counts[id] ?? 0) + 1));
           const m = /^#\d+\|([a-z]+)\|/.exec(log || '');
-          look = { hero: m ? m[1] : dailyHero(dailyNo), relics: counts, log: ids };
+          look = { hero: m ? m[1] : mode === 'daily' ? dailyHero(dailyNo) : 'knight', relics: counts, log: ids };
         }
         const g = look;
         const hero = HERO_BY_ID[g.hero];
-        backdrop('#3a2a10');
-        motes('#f2c14e', 70, 11);
+        const endless = mode === 'endless';
+        backdrop(endless ? '#2a1640' : '#3a2a10');
+        motes(endless ? '#b07cff' : '#f2c14e', 70, 11);
         // spotlight
         const spot = ctx.createRadialGradient(310, 330, 20, 310, 330, 300);
         spot.addColorStop(0, 'rgba(242,193,78,0.35)');
@@ -160,14 +161,21 @@
         vignette();
         // words
         const x = 600;
-        text(`CHAMPION OF DAILY #${dailyNo}`, x, 150, '30px Silkscreen', '#f2c14e');
+        text(title || `CHAMPION OF DAILY #${dailyNo}`, x, 150, '30px Silkscreen', endless ? '#c9a6ff' : '#f2c14e');
         text(name, x, 290, fit(name, 560, 140, '"Pirata One"'), '#f2c14e', 'left', 'rgba(242,193,78,0.6)');
         text(`Floor ${floor} · ${kills} kills`, x, 370, '34px Silkscreen', '#e8dcc4');
         text(`as the ${hero.name}`, x, 420, '28px Silkscreen', '#9a8fa8');
         if (relics) {
           ctx.font = '40px "Noto Color Emoji", "Apple Color Emoji", sans-serif';
           ctx.textAlign = 'left';
-          ctx.fillText([...relics].join('').slice(0, 40), x, 490);
+          // Emojis can be several code points; fit as many whole ones as the row allows.
+          const seg = typeof Intl.Segmenter === 'function' ? [...new Intl.Segmenter().segment(relics)].map((p) => p.segment) : [...relics];
+          let line = '';
+          for (const e of seg) {
+            if (ctx.measureText(line + e + '…').width > W - x - 40) { line += '…'; break; }
+            line += e;
+          }
+          ctx.fillText(line, x, 490);
         }
         if (others) text(`Tied with ${others}`, x, 530, '20px Silkscreen', '#9a8fa8');
         footer();

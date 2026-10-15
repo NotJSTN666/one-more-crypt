@@ -1,12 +1,14 @@
 # Automatic daily X posts
 
-Every morning at **7 AM Central** (CDT in summer, CST in winter), GitHub posts two things
-to @OneMoreCrypt:
+Every morning at **7 AM Central** (CDT in summer, CST in winter), GitHub posts to @OneMoreCrypt:
 
-1. **The crowning**: yesterday's daily champion, with a picture of their hero wearing a
+1. **The endless leader**: when someone sets a new #1 endless record in the last day,
+   "New endless record" with their crowned hero. Every Monday, even without a new record,
+   "Reigning endless champion" as a reminder of who to beat.
+2. **The crowning**: yesterday's daily champion, with a picture of their hero wearing a
    crown and their relics, their name, floor and kills. Ties are named together. Skipped
    if nobody played yesterday.
-2. **The new crypt**: "Daily #N is open" with a picture of today's hero.
+3. **The new crypt**: "Daily #N is open" with a picture of today's hero.
 
 The job is `.github/workflows/daily-post.yml`; the script is `scripts/daily-post.mjs` and the
 pictures are drawn by `scripts/post-cards.html`.
