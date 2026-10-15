@@ -97,7 +97,7 @@ export interface LookDef {
   /** Colour of the drifting aura motes, if any. */
   aura: string | null;
   /** What unlocks it: an achievement, a Soul Rank (index) or a Bestiary tier. */
-  unlock: { feat: string } | { rank: number } | { beast: EnemyKind; tier: number };
+  unlock: { feat: string } | { rank: number } | { beast: EnemyKind; tier: number } | { costume: string };
   how: string;
 }
 
@@ -118,71 +118,143 @@ export const LOOKS: LookDef[] = [
 
 export const LOOK_BY_ID = Object.fromEntries(LOOKS.map((l) => [l.id, l])) as Record<string, LookDef>;
 
-// ---------- headwear ----------
-// Costume pieces drawn over the hero's hood, chosen per hero in the Wardrobe.
+// ---------- costumes ----------
+// Headwear is drawn over the hero's hood. A few pieces are shared by every hero; the
+// rest belong to one hero each and are earned by playing to that hero's strengths.
 
 export type Unlock = LookDef['unlock'];
+
+type Px = [number, number, string][];
+
+const row = (y: number, x0: number, x1: number, c: string): Px =>
+  Array.from({ length: x1 - x0 + 1 }, (_, i) => [x0 + i, y, c] as [number, number, string]);
+
+/** What a hero-specific costume asks for: a record with the hero, or a feat in one run. */
+export type HeroNeed =
+  | { floor: number }
+  | { souls: number }
+  | { runs: number }
+  | { run: RunGoal; n: number };
+
+export type RunGoal =
+  | 'bosses' | 'shadowSteps' | 'dodges' | 'raised' | 'allies' | 'undead' | 'arrowKills' | 'maxHit' | 'lowHpKills' | 'cleanFloors';
 
 export interface HeadDef {
   id: string;
   name: string;
   /** Pixels to paint: [x, y, colour] on the 12x12 sprite. */
-  pixels: [number, number, string][];
-  unlock: Unlock;
+  pixels: Px;
+  /** Shared pieces unlock account-wide; hero pieces through `hero` and `need`. */
+  unlock?: Unlock;
+  hero?: HeroId;
+  need?: HeroNeed;
   how: string;
 }
 
-const row = (y: number, x0: number, x1: number, c: string): [number, number, string][] =>
-  Array.from({ length: x1 - x0 + 1 }, (_, i) => [x0 + i, y, c] as [number, number, string]);
+const HERO_NAMES: Record<HeroId, string> = {
+  knight: 'Knight', rogue: 'Rogue', necro: 'Necromancer', paladin: 'Paladin', ranger: 'Ranger', mage: 'Mage', barbarian: 'Barbarian',
+};
+
+/** "Reach floor 10 as the Knight." and so on. */
+export function needText(hero: HeroId, need: HeroNeed): string {
+  const as = `as the ${HERO_NAMES[hero]}`;
+  if ('floor' in need) return `Reach floor ${need.floor} ${as}.`;
+  if ('souls' in need) return `Earn ${need.souls.toLocaleString()} Souls ${as}.`;
+  if ('runs' in need) return `Play ${need.runs} runs ${as}.`;
+  const n = need.n;
+  const goal: Record<RunGoal, string> = {
+    bosses: `Slay ${n} bosses in one run`,
+    shadowSteps: `Take ${n} unseen steps in one run`,
+    dodges: `Dodge ${n} attacks in one run`,
+    raised: `Raise ${n} thralls in one run`,
+    allies: `Command ${n} thralls at once`,
+    undead: `Slay ${n} undead in one run`,
+    arrowKills: `Slay ${n} foes with arrows in one run`,
+    maxHit: `Deal ${n} damage in one hit`,
+    lowHpKills: `Slay ${n} foes at 3 HP or less in one run`,
+    cleanFloors: `Clear ${n} floors without being hit in one run`,
+  };
+  return `${goal[need.run]} ${as}.`;
+}
+
+const hero = (id: string, name: string, h: HeroId, need: HeroNeed, pixels: Px): HeadDef => ({ id, name, hero: h, need, pixels, how: needText(h, need) });
+
+const STEEL = '#c9d1e0';
+const BONE = '#e8dcc4';
+const GOLD = '#f2c14e';
+const RED = '#d23a46';
+const DARK = '#1a1520';
 
 export const HEADS: HeadDef[] = [
-  {
-    id: 'horns', name: 'Demon Horns', unlock: { feat: 'massacre' }, how: 'Slay 5 foes in a single turn.',
-    pixels: [[2, 0, '#d23a46'], [3, 1, '#701826'], [3, 2, '#701826'], [9, 0, '#d23a46'], [8, 1, '#701826'], [8, 2, '#701826']],
-  },
-  {
-    id: 'halo', name: 'Halo', unlock: { feat: 'paladin-lich' }, how: 'Slay the Lich King as the Paladin.',
-    pixels: [...row(0, 3, 8, '#fff2c0'), [2, 0, '#f2c14e'], [9, 0, '#f2c14e']],
-  },
-  {
-    id: 'witch', name: 'Witch Hat', unlock: { feat: 'mage10' }, how: 'Reach floor 10 as the Mage.',
-    pixels: [...row(2, 2, 9, '#2c2148'), ...row(1, 4, 7, '#2c2148'), [5, 1, '#f2c14e'], [6, 1, '#f2c14e'], [6, 0, '#2c2148'], [7, 0, '#2c2148'], [8, 0, '#4b3a78']],
-  },
-  {
-    id: 'skull', name: 'Skull Mask', unlock: { beast: 'archer', tier: 1 }, how: 'Slay 100 skeleton archers.',
-    pixels: [...row(3, 4, 7, '#e8dcc4'), [4, 4, '#e8dcc4'], [6, 4, '#e8dcc4'], [5, 4, '#d23a46'], [7, 4, '#d23a46'], [5, 5, '#e8dcc4'], [6, 5, '#e8dcc4']],
-  },
-  {
-    id: 'circlet', name: 'Gold Circlet', unlock: { rank: 3 }, how: 'Reach the Death Knight Soul Rank.',
-    pixels: [...row(2, 3, 8, '#f2c14e'), [5, 2, '#9fe8ff'], [6, 1, '#f2c14e']],
-  },
-  {
-    id: 'antlers', name: 'Antlers', unlock: { feat: 'ranger-arrows' }, how: 'Slay 25 foes with arrows in one run.',
-    pixels: [[1, 0, '#a8894a'], [2, 1, '#a8894a'], [3, 1, '#a8894a'], [2, 0, '#a8894a'], [10, 0, '#a8894a'], [9, 1, '#a8894a'], [8, 1, '#a8894a'], [9, 0, '#a8894a']],
-  },
-  {
-    id: 'plague', name: 'Plague Doctor', unlock: { beast: 'abbot', tier: 1 }, how: 'Slay 5 Plague Abbots.',
-    pixels: [...row(1, 2, 9, '#1a1520'), ...row(0, 4, 7, '#1a1520'), [5, 4, '#9fe8ff'], [7, 4, '#9fe8ff'], [8, 5, '#c9c3b2'], [9, 5, '#c9c3b2'], [7, 5, '#c9c3b2']],
-  },
-  {
-    id: 'flame', name: 'Burning Crown', unlock: { feat: 'annihilate' }, how: 'Deal 50 or more damage in one hit.',
-    pixels: [...row(1, 3, 8, '#ff8a2a'), [3, 0, '#ff8a2a'], [5, 0, '#f2c14e'], [6, 0, '#ff8a2a'], [8, 0, '#f2c14e'], [2, 1, '#d23a46'], [9, 1, '#d23a46']],
-  },
-  {
-    id: 'icecrown', name: 'Ice Crown', unlock: { beast: 'wraith', tier: 2 }, how: 'Slay 500 wraiths.',
-    pixels: [...row(1, 3, 8, '#9fe8ff'), [3, 0, '#ffffff'], [5, 0, '#9fe8ff'], [6, 0, '#9fe8ff'], [8, 0, '#ffffff']],
-  },
-  {
-    id: 'tophat', name: "Gravedigger's Hat", unlock: { feat: 'gravekeeper' }, how: 'Read every epitaph in the Hollow.',
-    pixels: [...row(0, 4, 7, '#1a1520'), ...row(1, 4, 7, '#d23a46'), ...row(2, 2, 9, '#1a1520')],
-  },
-  {
-    id: 'forgehelm', name: 'Forged Helm', unlock: { feat: 'forge' }, how: 'Fuse two relics at the Soul Forge.',
-    pixels: [...row(1, 3, 8, '#5d667a'), ...row(2, 3, 8, '#5d667a'), [3, 3, '#5d667a'], [8, 3, '#5d667a'], ...row(0, 5, 6, '#5fe3ff')],
-  },
+  // Shared by every hero.
+  { id: 'tophat', name: "Gravedigger's Hat", unlock: { feat: 'gravekeeper' }, how: 'Read every epitaph in the Hollow.', pixels: [...row(0, 4, 7, DARK), ...row(1, 4, 7, RED), ...row(2, 2, 9, DARK)] },
+  { id: 'forgehelm', name: 'Forged Helm', unlock: { feat: 'forge' }, how: 'Fuse two relics at the Soul Forge.', pixels: [...row(1, 3, 8, '#5d667a'), ...row(2, 3, 8, '#5d667a'), [3, 3, '#5d667a'], [8, 3, '#5d667a'], ...row(0, 5, 6, '#5fe3ff')] },
+
+  // Knight: steadfast, a boss-slayer who keeps coming back.
+  hero('greathelm', 'Great Helm', 'knight', { floor: 10 }, [...row(0, 4, 7, STEEL), ...row(1, 3, 8, STEEL), ...row(2, 2, 9, '#9aa3b5'), ...row(3, 3, 8, '#9aa3b5'), [3, 4, '#9aa3b5'], [4, 4, DARK], [6, 4, DARK], [8, 4, '#9aa3b5']]),
+  hero('plume', 'Red Plume', 'knight', { run: 'bosses', n: 3 }, [[4, 1, GOLD], [5, 0, RED], [6, 0, RED], [7, 0, '#ff6b6b'], [8, 1, RED], [9, 2, '#701826']]),
+  hero('circlet', 'Gold Circlet', 'knight', { souls: 1500 }, [...row(2, 3, 8, GOLD), [5, 2, '#9fe8ff'], [6, 1, GOLD]]),
+
+  // Rogue: unseen and untouchable.
+  hero('cowl', 'Shadow Cowl', 'rogue', { run: 'shadowSteps', n: 30 }, [...row(1, 3, 8, '#141119'), ...row(2, 2, 9, '#141119'), ...row(3, 3, 8, '#0b0710')]),
+  hero('bandana', 'Bandit Mask', 'rogue', { run: 'dodges', n: 10 }, [...row(5, 4, 7, RED), [9, 5, RED], [10, 6, RED], [9, 6, '#701826']]),
+  hero('tricorn', 'Tricorn', 'rogue', { floor: 15 }, [...row(0, 3, 8, DARK), ...row(1, 2, 9, DARK), [2, 1, GOLD], [9, 1, GOLD], [5, 0, GOLD]]),
+
+  // Necromancer: an army of the dead.
+  hero('bonecrown', 'Bone Crown', 'necro', { run: 'raised', n: 10 }, [...row(1, 3, 8, BONE), [3, 0, BONE], [5, 0, BONE], [6, 0, BONE], [8, 0, BONE], [5, 1, '#7ee081']]),
+  hero('plague', 'Plague Doctor', 'necro', { floor: 10 }, [...row(1, 2, 9, DARK), ...row(0, 4, 7, DARK), [5, 4, '#9fe8ff'], [7, 4, '#9fe8ff'], [8, 5, '#c9c3b2'], [9, 5, '#c9c3b2'], [7, 5, '#c9c3b2']]),
+  hero('skull', 'Skull Mask', 'necro', { run: 'allies', n: 3 }, [...row(3, 4, 7, BONE), [4, 4, BONE], [6, 4, BONE], [5, 4, RED], [7, 4, RED], [5, 5, BONE], [6, 5, BONE]]),
+
+  // Paladin: the bane of the undead.
+  hero('halo', 'Halo', 'paladin', { run: 'undead', n: 50 }, [...row(0, 3, 8, '#fff2c0'), [2, 0, GOLD], [9, 0, GOLD]]),
+  hero('winged', 'Winged Helm', 'paladin', { floor: 10 }, [...row(1, 4, 7, GOLD), ...row(0, 5, 6, GOLD), [1, 0, '#ffffff'], [2, 0, '#ffffff'], [2, 1, '#ffffff'], [3, 1, '#ffffff'], [10, 0, '#ffffff'], [9, 0, '#ffffff'], [9, 1, '#ffffff'], [8, 1, '#ffffff']]),
+  hero('suncrest', 'Sun Crest', 'paladin', { souls: 1500 }, [...row(1, 4, 7, GOLD), [5, 0, '#fff2c0'], [6, 0, '#fff2c0'], [3, 0, GOLD], [8, 0, GOLD], [2, 1, '#ff8a2a'], [9, 1, '#ff8a2a']]),
+
+  // Ranger: the deadeye of the wilds.
+  hero('antlers', 'Antlers', 'ranger', { run: 'arrowKills', n: 25 }, [[1, 0, '#a8894a'], [2, 1, '#a8894a'], [3, 1, '#a8894a'], [2, 0, '#a8894a'], [10, 0, '#a8894a'], [9, 1, '#a8894a'], [8, 1, '#a8894a'], [9, 0, '#a8894a']]),
+  hero('feather', 'Feathered Cap', 'ranger', { floor: 10 }, [...row(1, 3, 8, '#55693a'), ...row(2, 2, 9, '#33421f'), [9, 0, RED], [10, 0, RED], [9, 1, GOLD]]),
+  hero('wolf', 'Wolf Pelt', 'ranger', { souls: 1500 }, [...row(0, 3, 8, '#8a8a96'), ...row(1, 2, 9, '#8a8a96'), [2, 0, '#6b6680'], [9, 0, '#6b6680'], [4, 2, '#e8dcc4'], [7, 2, '#e8dcc4']]),
+
+  // Mage: a glass cannon that hits like a storm.
+  hero('witch', 'Witch Hat', 'mage', { floor: 10 }, [...row(2, 2, 9, '#2c2148'), ...row(1, 4, 7, '#2c2148'), [5, 1, GOLD], [6, 1, GOLD], [6, 0, '#2c2148'], [7, 0, '#2c2148'], [8, 0, '#4b3a78']]),
+  hero('flame', 'Burning Crown', 'mage', { run: 'maxHit', n: 30 }, [...row(1, 3, 8, '#ff8a2a'), [3, 0, '#ff8a2a'], [5, 0, GOLD], [6, 0, '#ff8a2a'], [8, 0, GOLD], [2, 1, RED], [9, 1, RED]]),
+  hero('icecrown', 'Ice Crown', 'mage', { run: 'cleanFloors', n: 3 }, [...row(1, 3, 8, '#9fe8ff'), [3, 0, '#ffffff'], [5, 0, '#9fe8ff'], [6, 0, '#9fe8ff'], [8, 0, '#ffffff']]),
+
+  // Barbarian: strongest with their back to the wall.
+  hero('horns', 'Demon Horns', 'barbarian', { run: 'lowHpKills', n: 10 }, [[2, 0, RED], [3, 1, '#701826'], [3, 2, '#701826'], [9, 0, RED], [8, 1, '#701826'], [8, 2, '#701826']]),
+  hero('bearskull', 'Bear Skull', 'barbarian', { floor: 10 }, [...row(1, 3, 8, BONE), ...row(2, 3, 8, '#c9b99a'), [4, 3, BONE], [7, 3, BONE], [3, 0, '#c9b99a'], [8, 0, '#c9b99a']]),
+  hero('warpaint', 'War Paint', 'barbarian', { souls: 1500 }, [[3, 4, RED], [4, 4, RED], [8, 4, RED], [4, 5, RED], [6, 5, RED], [7, 5, RED]]),
 ];
 
 export const HEAD_BY_ID = Object.fromEntries(HEADS.map((h) => [h.id, h])) as Record<string, HeadDef>;
+
+/** Each hero's own cloak, earned by mastering them. Worn like any look. */
+export interface HeroCloak extends LookDef {
+  hero: HeroId;
+  need: HeroNeed;
+}
+
+const cloak = (id: string, name: string, h: HeroId, need: HeroNeed, p: string, P: string, aura: string | null): HeroCloak => ({
+  id, name, hero: h, need, cloak: { p, P }, aura, unlock: { costume: id }, how: needText(h, need),
+});
+
+export const HERO_CLOAKS: HeroCloak[] = [
+  cloak('banner', 'Banner Red', 'knight', { runs: 20 }, '#9a2b2b', '#561414', '#f2c14e'),
+  cloak('nightshade', 'Nightshade', 'rogue', { floor: 20 }, '#1d3a3a', '#0e1f1f', '#5fe3c0'),
+  cloak('gravemoss', 'Grave Moss', 'necro', { run: 'raised', n: 25 }, '#3d4a2a', '#212a14', '#b5e07a'),
+  cloak('sacred', 'Sacred Gold', 'paladin', { run: 'undead', n: 100 }, '#e8d9a0', '#a8894a', '#fff2c0'),
+  cloak('autumn', 'Autumn', 'ranger', { run: 'arrowKills', n: 50 }, '#a8622a', '#5c3414', '#ff8a2a'),
+  cloak('arcane', 'Arcane Violet', 'mage', { floor: 15 }, '#6a3fd0', '#3a1f80', '#d3b0ff'),
+  cloak('bloodrage', 'Blood Rage', 'barbarian', { run: 'lowHpKills', n: 25 }, '#701826', '#3a0a12', '#ff4d5a'),
+];
+
+for (const c of HERO_CLOAKS) LOOK_BY_ID[c.id] = c;
+
+/** Every hero-specific piece (headwear and cloaks), for unlock checks. */
+export const HERO_COSTUMES: { id: string; name: string; hero: HeroId; need: HeroNeed; part: 'head' | 'look' }[] = [
+  ...HEADS.filter((h) => h.hero && h.need).map((h) => ({ id: h.id, name: h.name, hero: h.hero!, need: h.need!, part: 'head' as const })),
+  ...HERO_CLOAKS.map((c) => ({ id: c.id, name: c.name, hero: c.hero, need: c.need, part: 'look' as const })),
+];
 
 /** A hero's costume: cloak colour and aura (a look) and headwear. */
 export interface Outfit {

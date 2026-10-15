@@ -69,17 +69,29 @@ describe('per-hero records', () => {
 });
 
 describe('the Wardrobe', () => {
-  it('dresses each hero separately and ignores locked pieces', async () => {
-    const { equipOutfit, outfitFor } = await import('./meta');
-    meta.achievements = { ...meta.achievements, massacre: 1 };
+  it('gives each hero their own costumes, earned their own way', async () => {
+    const { equipOutfit, outfitFor, finishRunMeta, costumeUnlocked } = await import('./meta');
     meta.outfits = {};
+    meta.heroUnlocks = {};
+    meta.heroStats = { knight: { floor: 12, souls: 0, runs: 3 } };
+    // Knight: the Great Helm comes from reaching floor 10 as the Knight.
+    expect(costumeUnlocked('greathelm')).toBe(true);
+    equipOutfit('knight', 'head', 'greathelm');
+    expect(outfitFor('knight').head).toBe('greathelm');
+    // Another hero's piece can't be worn, even once earned.
     equipOutfit('knight', 'head', 'horns');
-    equipOutfit('knight', 'head', 'halo'); // locked: needs Holy Light
-    equipOutfit('knight', 'look', 'lich'); // locked: needs Lichbane
-    expect(outfitFor('knight')).toEqual({ look: '', head: 'horns' });
-    expect(outfitFor('rogue').head).toBe('');
-    // A piece that becomes locked again (e.g. synced data) isn't worn.
-    meta.outfits.rogue = { look: 'gold', head: 'halo' };
-    expect(outfitFor('rogue')).toEqual({ look: '', head: '' });
+    expect(outfitFor('knight').head).toBe('greathelm');
+    // Barbarian: Demon Horns need 10 kills at 3 HP or less in one run.
+    expect(costumeUnlocked('horns')).toBe(false);
+    const g = new Game('endless', 3, 0, { hero: 'barbarian', pool: fullPool() });
+    g.stats.lowHpKills = 10;
+    const reward = finishRunMeta(g, 0);
+    expect(costumeUnlocked('horns')).toBe(true);
+    expect(reward.unlocks.some((u) => u.title.includes('Demon Horns'))).toBe(true);
+    equipOutfit('barbarian', 'head', 'horns');
+    expect(outfitFor('barbarian').head).toBe('horns');
+    // Locked pieces stay off.
+    equipOutfit('barbarian', 'look', 'bloodrage');
+    expect(outfitFor('barbarian').look).toBe('');
   });
 });

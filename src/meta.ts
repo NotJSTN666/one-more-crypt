@@ -1,12 +1,12 @@
 // Progress that carries between runs: Souls, unlocks, achievements, the relic codex
 // and discovered combos. Saved locally and, when signed in, to the player's account.
 
-import { ACHIEVEMENT_BY_ID, COMBOS, HEROES, dailyHero, type AchievementDef, type ComboDef, type HeroId } from './content';
-import { Game, basePool, fullPool, type Mode, type RunConfig } from './game';
+import { ACHIEVEMENT_BY_ID, COMBOS, HEROES, HERO_BY_ID, dailyHero, type AchievementDef, type ComboDef, type HeroId } from './content';
+import { Game, UNDEAD, basePool, fullPool, type Mode, type RunConfig } from './game';
 import { FUSIONS, RELICS, UNLOCKABLE_RELICS, type FusedId, type RelicId } from './relics';
 import {
-  BESTIARY_KINDS, BESTIARY_TITLES, HEADS, HEAD_BY_ID, LOOKS, LOOK_BY_ID, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_TIER, betterRun, bestiaryTiers, rankIndex,
-  type BestRuns, type HeadDef, type LookDef, type Outfit, type Unlock,
+  BESTIARY_KINDS, BESTIARY_TITLES, HEADS, HEAD_BY_ID, HERO_CLOAKS, HERO_COSTUMES, LOOKS, LOOK_BY_ID, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_TIER, betterRun, bestiaryTiers, rankIndex,
+  type BestRuns, type HeadDef, type LookDef, type Outfit, type RunGoal, type Unlock,
 } from './progression';
 import type { EnemyKind } from './game';
 
@@ -47,6 +47,8 @@ export interface Meta {
   outfits: Partial<Record<HeroId, Outfit>>;
   /** Headwear already announced. */
   headsSeen: string[];
+  /** Hero costumes earned by a feat within one run (records like floors are checked live). */
+  heroUnlocks: Partial<Record<HeroId, string[]>>;
   rankSeen: number;
 }
 
@@ -74,7 +76,7 @@ const KEY = 'wardenfall:meta';
 function empty(): Meta {
   return {
     souls: 0, earned: 0, heroes: ['knight'], relics: [], achievements: {}, codex: {}, combos: {}, fusions: {}, elitesSlain: 0, hero: 'knight',
-    bestiary: {}, bestiaryTier: {}, best: {}, title: '', look: '', looksSeen: [], rankSeen: 0, heroStats: {}, heroBackfill: 0, epitaphs: [], outfits: {}, headsSeen: [],
+    bestiary: {}, bestiaryTier: {}, best: {}, title: '', look: '', looksSeen: [], rankSeen: 0, heroStats: {}, heroBackfill: 0, epitaphs: [], outfits: {}, headsSeen: [], heroUnlocks: {},
   };
 }
 
@@ -133,6 +135,9 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   meta.look ||= other.look ?? '';
   meta.looksSeen = [...new Set([...meta.looksSeen, ...(other.looksSeen ?? [])])];
   meta.headsSeen = [...new Set([...meta.headsSeen, ...(other.headsSeen ?? [])])];
+  for (const [h, ids] of Object.entries(other.heroUnlocks ?? {})) {
+    if (Array.isArray(ids)) meta.heroUnlocks[h as HeroId] = [...new Set([...(meta.heroUnlocks[h as HeroId] ?? []), ...ids.map(String)])];
+  }
   for (const [h, o] of Object.entries(other.outfits ?? {})) {
     if (!meta.outfits[h as HeroId] && o && typeof o === 'object') meta.outfits[h as HeroId] = { look: String(o.look ?? ''), head: String(o.head ?? '') };
   }
@@ -331,6 +336,7 @@ export function finishRunMeta(game: Game, streak: number): RunReward {
     if (got) achievements.push(got);
   }
   noteBestRun(game);
+  noteHeroCostumes(game);
   const unlocks = progressUnlocks(game);
   saveMeta();
   return { souls, lines, achievements, unlocks };
@@ -343,13 +349,54 @@ export function lookUnlocked(l: LookDef): boolean {
 }
 
 export function headUnlocked(h: HeadDef): boolean {
-  return unlockMet(h.unlock);
+  return h.unlock ? unlockMet(h.unlock) : costumeUnlocked(h.id);
 }
 
 function unlockMet(u: Unlock): boolean {
   if ('feat' in u) return Boolean(meta.achievements[u.feat]);
   if ('rank' in u) return rankIndex(meta.earned) >= u.rank;
+  if ('costume' in u) return costumeUnlocked(u.costume);
   return (meta.bestiaryTier[u.beast] ?? 0) > u.tier;
+}
+
+/** A hero's own costume piece: earned in a run, or reached through that hero's records. */
+export function costumeUnlocked(id: string): boolean {
+  const c = HERO_COSTUMES.find((x) => x.id === id);
+  if (!c) return false;
+  if (meta.heroUnlocks[c.hero]?.includes(id)) return true;
+  const st = meta.heroStats[c.hero];
+  const need = c.need;
+  if ('floor' in need) return Math.max(st?.floor ?? 0, meta.best[c.hero]?.floor ?? 0) >= need.floor;
+  if ('souls' in need) return (st?.souls ?? 0) >= need.souls;
+  if ('runs' in need) return (st?.runs ?? 0) >= need.runs;
+  return false;
+}
+
+/** Whether a piece can be worn by this hero: shared pieces by anyone, the rest by their own hero. */
+export function fitsHero(hero: HeroId, part: keyof Outfit, id: string): boolean {
+  const owner = part === 'head' ? HEAD_BY_ID[id]?.hero : HERO_CLOAKS.find((c) => c.id === id)?.hero;
+  return !owner || owner === hero;
+}
+
+/** How far one run went toward a costume goal. */
+function runGoal(game: Game, goal: RunGoal): number {
+  const s = game.stats;
+  switch (goal) {
+    case 'bosses': return Object.values(s.bosses).reduce((a, b) => a + (b ?? 0), 0);
+    case 'undead': return UNDEAD.reduce((a, k) => a + (s.kinds[k] ?? 0), 0);
+    case 'allies': return s.maxAllies;
+    default: return s[goal];
+  }
+}
+
+/** Record costumes the hero just earned with a feat in this run. */
+function noteHeroCostumes(game: Game) {
+  for (const c of HERO_COSTUMES) {
+    if (c.hero !== game.hero || !('run' in c.need)) continue;
+    if (runGoal(game, c.need.run) < c.need.n) continue;
+    const got = meta.heroUnlocks[c.hero] ?? [];
+    if (!got.includes(c.id)) meta.heroUnlocks[c.hero] = [...got, c.id];
+  }
 }
 
 export function titleUnlocked(id: string): boolean {
@@ -381,15 +428,15 @@ export function outfitFor(hero: HeroId): Outfit {
   const look = o ? o.look : meta.look;
   const head = o?.head ?? '';
   return {
-    look: LOOK_BY_ID[look] && lookUnlocked(LOOK_BY_ID[look]) ? look : '',
-    head: HEAD_BY_ID[head] && headUnlocked(HEAD_BY_ID[head]) ? head : '',
+    look: LOOK_BY_ID[look] && fitsHero(hero, 'look', look) && lookUnlocked(LOOK_BY_ID[look]) ? look : '',
+    head: HEAD_BY_ID[head] && fitsHero(hero, 'head', head) && headUnlocked(HEAD_BY_ID[head]) ? head : '',
   };
 }
 
 /** Dress a hero in the Wardrobe; locked pieces are ignored. */
 export function equipOutfit(hero: HeroId, part: keyof Outfit, id: string) {
   const cur = outfitFor(hero);
-  const ok = part === 'look' ? !id || (LOOK_BY_ID[id] && lookUnlocked(LOOK_BY_ID[id])) : !id || (HEAD_BY_ID[id] && headUnlocked(HEAD_BY_ID[id]));
+  const ok = !id || (fitsHero(hero, part, id) && (part === 'look' ? LOOK_BY_ID[id] && lookUnlocked(LOOK_BY_ID[id]) : HEAD_BY_ID[id] && headUnlocked(HEAD_BY_ID[id])));
   if (!ok) return;
   meta.outfits[hero] = { ...cur, [part]: id };
   saveMeta();
@@ -436,7 +483,13 @@ function progressUnlocks(game: Game): UnlockNote[] {
   for (const head of HEADS) {
     if (!meta.headsSeen.includes(head.id) && headUnlocked(head)) {
       meta.headsSeen.push(head.id);
-      notes.push({ icon: '🎩', title: `New costume: ${head.name}`, detail: 'Dress your heroes in the Wardrobe' });
+      notes.push({ icon: '🎩', title: `New costume: ${head.name}`, detail: head.hero ? `For the ${HERO_BY_ID[head.hero].name}, in the Wardrobe` : 'For any hero, in the Wardrobe' });
+    }
+  }
+  for (const c of HERO_CLOAKS) {
+    if (!meta.looksSeen.includes(c.id) && lookUnlocked(c)) {
+      meta.looksSeen.push(c.id);
+      notes.push({ icon: '🎨', title: `New cloak: ${c.name}`, detail: `For the ${HERO_BY_ID[c.hero].name}, in the Wardrobe` });
     }
   }
   return notes;

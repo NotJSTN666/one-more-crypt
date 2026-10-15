@@ -6,15 +6,20 @@ import { sfx } from './audio';
 import { HEROES, HERO_BY_ID, type HeroId } from './content';
 import { heroPortrait } from './hero';
 import { equipOutfit, headUnlocked, heroUnlocked, lookUnlocked, meta, outfitFor } from './meta';
-import { HEADS, LOOKS, LOOK_BY_ID, HEAD_BY_ID } from './progression';
+import { HEADS, HERO_CLOAKS, LOOKS, LOOK_BY_ID, HEAD_BY_ID } from './progression';
 import { esc, on, overlay, showOverlay } from './ui';
 
 export function showWardrobe(back: () => void, hero: HeroId = meta.hero, changed?: () => void) {
   const owned = HEROES.filter((h) => heroUnlocked(h.id));
   if (!heroUnlocked(hero)) hero = owned[0].id;
   const fit = outfitFor(hero);
-  const cloaks = LOOKS.filter((l) => lookUnlocked(l)).length;
-  const heads = HEADS.filter((h) => headUnlocked(h)).length;
+  // This hero's own pieces first, then the ones every hero can wear.
+  const ownCloaks = HERO_CLOAKS.filter((c) => c.hero === hero);
+  const allCloaks = [...ownCloaks, ...LOOKS];
+  const allHeads = [...HEADS.filter((h) => h.hero === hero), ...HEADS.filter((h) => !h.hero)];
+  const cloaks = allCloaks.filter((l) => lookUnlocked(l)).length;
+  const heads = allHeads.filter((h) => headUnlocked(h)).length;
+  const heroName = HERO_BY_ID[hero].name;
 
   const heroTabs = owned
     .map((h) => {
@@ -25,12 +30,13 @@ export function showWardrobe(back: () => void, hero: HeroId = meta.hero, changed
     })
     .join('');
 
-  const piece = (part: 'look' | 'head', id: string, name: string, how: string, has: boolean) => {
+  const piece = (part: 'look' | 'head', id: string, name: string, how: string, has: boolean, own = false) => {
     const worn = fit[part] === id;
     const preview = part === 'look' ? heroPortrait(hero, {}, [], 4, has ? id : '', fit.head) : heroPortrait(hero, {}, [], 4, fit.look, has ? id : '');
     return `<button class="look-card ${worn ? 'equipped' : ''}" data-part="${part}" data-id="${esc(id)}" ${has ? '' : 'disabled'}>
       <img src="${preview}" alt="" width="48" height="48" class="${has ? '' : 'locked-look'}" />
       <span class="name">${has ? '' : '🔒 '}${esc(name)}</span>
+      ${own ? `<span class="own">${esc(heroName)} only</span>` : ''}
       ${worn ? '<span class="worn">✓ Wearing</span>' : ''}
       <span class="desc">${!id ? esc(how) : has ? `Earned: ${esc(how)}` : esc(how)}</span>
     </button>`;
@@ -49,15 +55,16 @@ export function showWardrobe(back: () => void, hero: HeroId = meta.hero, changed
         <span>${look ? esc(look.name) : 'Hero colours'} · ${head ? esc(head.name) : 'No headwear'}</span>
       </div>
     </div>
-    <h3 class="shop-head">Cloak <small>${cloaks}/${LOOKS.length}</small></h3>
-    <div class="looks">
-      ${piece('look', '', 'Hero colours', 'Their own colours.', true)}
-      ${LOOKS.map((l) => piece('look', l.id, l.name, l.how, lookUnlocked(l))).join('')}
-    </div>
-    <h3 class="shop-head">Headwear <small>${heads}/${HEADS.length}</small></h3>
+    <h3 class="shop-head">Headwear <small>${heads}/${allHeads.length}</small></h3>
+    <p class="fine">The ${esc(heroName)}'s own headwear is earned by playing to their strengths.</p>
     <div class="looks">
       ${piece('head', '', 'None', 'Just the hood.', true)}
-      ${HEADS.map((h) => piece('head', h.id, h.name, h.how, headUnlocked(h))).join('')}
+      ${allHeads.map((h) => piece('head', h.id, h.name, h.how, headUnlocked(h), Boolean(h.hero))).join('')}
+    </div>
+    <h3 class="shop-head">Cloak <small>${cloaks}/${allCloaks.length}</small></h3>
+    <div class="looks">
+      ${piece('look', '', 'Hero colours', 'Their own colours.', true)}
+      ${allCloaks.map((l) => piece('look', l.id, l.name, l.how, lookUnlocked(l), 'hero' in l)).join('')}
     </div>
     <button class="btn primary" id="back">Back</button>`);
 

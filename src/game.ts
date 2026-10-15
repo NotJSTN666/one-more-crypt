@@ -153,6 +153,11 @@ export interface RunStats {
   turnsTo5: number;
   /** Relics fused at the Soul Forge this run. */
   fusions: number;
+  /** For hero costumes: unseen Rogue steps, attacks dodged, thralls raised, kills at 3 HP or less. */
+  shadowSteps: number;
+  dodges: number;
+  raised: number;
+  lowHpKills: number;
 }
 
 const DIRS: Pos[] = [
@@ -204,7 +209,7 @@ export class Game {
   killedBy = '';
   stats: RunStats = {
     elites: 0, bosses: {}, spikeKills: 0, maxKillsInTurn: 0, maxHit: 0, cleanFloors: 0, maxAllies: 0, bossAtOneHp: false,
-    arrowKills: 0, revived: false, turnsTo5: 0, kinds: {}, fusions: 0,
+    arrowKills: 0, revived: false, turnsTo5: 0, kinds: {}, fusions: 0, shadowSteps: 0, dodges: 0, raised: 0, lowHpKills: 0,
   };
   /**
    * Every input, in order: U/D/L/R moves, W waits, 0-3 relic picks, r rests,
@@ -536,6 +541,7 @@ export class Game {
     t.dmg = 1 + Math.floor(this.floor / 6);
     this.events.push({ t: 'raise', x, y });
     this.stats.maxAllies = Math.max(this.stats.maxAllies, this.allies.length);
+    this.stats.raised++;
   }
 
   private isFree(x: number, y: number): boolean {
@@ -654,6 +660,7 @@ export class Game {
     if (this.hero === 'rogue' && this.steps % 3 === 0) {
       this.turns++;
       this.events.push({ t: 'shadow' });
+      this.stats.shadowSteps++;
     } else {
       this.endTurn();
     }
@@ -906,6 +913,7 @@ export class Game {
 
     this.kills++;
     this.killsThisTurn++;
+    if (this.player.hp <= 3) this.stats.lowHpKills++;
     this.stats.kinds[e.kind] = (this.stats.kinds[e.kind] ?? 0) + 1;
     this.stats.maxKillsInTurn = Math.max(this.stats.maxKillsInTurn, this.killsThisTurn);
     if (e.elite) this.stats.elites++;
@@ -990,6 +998,7 @@ export class Game {
     const dodge = Math.min(0.5, this.r('dust') * 0.2 + (this.hero === 'rogue' ? 0.15 : 0));
     if (dodge && this.combat() < dodge) {
       this.events.push({ t: 'dodge' });
+      this.stats.dodges++;
       return;
     }
     if (this.shieldCharges > 0) {
