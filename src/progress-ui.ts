@@ -42,7 +42,7 @@ export function showHeroSelect(onPick: (hero: HeroId) => void, back: () => void)
     <p class="sub">Endless Descent · relics you've unlocked join the pool</p>
     <div class="hero-list">${cards}</div>
     <button class="btn" id="ossuary">🏛️ The Ossuary ${soulsChip()}</button>
-    <button class="link-btn" id="back">Back</button>`);
+    <button class="btn primary" id="back">Back</button>`);
   overlay.querySelectorAll<HTMLButtonElement>('.hero-card:not(.locked)').forEach((b) =>
     b.addEventListener('click', () => {
       meta.hero = b.dataset.hero as HeroId;

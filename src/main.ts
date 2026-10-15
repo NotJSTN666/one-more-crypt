@@ -1,5 +1,5 @@
 import './style.css';
-import { isMusicEnabled, isMuted, setMusicDepth, setMusicEnabled, setMusicMood, setMuted, sfx, unlockAudio } from './audio';
+import { audioRunning, isMusicEnabled, isMuted, onAudioState, setMusicDepth, setMusicEnabled, setMusicMood, setMuted, sfx, unlockAudio } from './audio';
 import { dailyNumber, formatCountdown, msUntilNextDaily } from './daily';
 import { ELITES, FEATURES, HERO_BY_ID, dailyHero, type ComboDef } from './content';
 import { heroPortrait } from './hero';
@@ -1048,4 +1048,15 @@ requestAnimationFrame(loop);
 // (Cheap to repeat, so it simply listens for good.)
 unlockAudio();
 for (const ev of ['pointerdown', 'touchend', 'keydown']) window.addEventListener(ev, unlockAudio, true);
+
+// Until then, a small hint that the music is waiting on a tap.
+const soundHint = document.createElement('div');
+soundHint.id = 'sound-hint';
+soundHint.textContent = matchMedia('(pointer: coarse)').matches ? '🔊 Tap anywhere for music' : '🔊 Click anywhere or press a key for music';
+document.body.appendChild(soundHint);
+function updateSoundHint() {
+  soundHint.hidden = audioRunning() || isMuted() || !isMusicEnabled();
+}
+onAudioState(updateSoundHint);
+updateSoundHint();
 document.fonts?.load('8px Silkscreen').catch(() => undefined);

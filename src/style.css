@@ -1460,3 +1460,27 @@ body.tutorial #relic-bar {
   font-weight: normal;
   color: var(--gold);
 }
+
+/* Browsers hold sound until the first interaction; this says so. */
+#sound-hint {
+  position: fixed;
+  left: 50%;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  padding: 8px 14px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  font-size: 10px;
+  color: var(--muted);
+  z-index: 25;
+  pointer-events: none;
+  animation: hint-pulse 2.4s ease-in-out infinite;
+}
+
+#sound-hint[hidden] {
+  display: none;
+}
+
+@keyframes hint-pulse {
+  50% { color: var(--gold); border-color: var(--gold); }
+}

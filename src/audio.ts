@@ -13,11 +13,24 @@ export function isMuted() {
 }
 
 /** Must be called from a user gesture before sounds can play on mobile. */
+/** Whether sound is actually playing (browsers hold it until the player interacts). */
+export function audioRunning(): boolean {
+  return ctx?.state === 'running';
+}
+
+const stateListeners: (() => void)[] = [];
+
+/** Called whenever the browser starts or pauses the game's sound. */
+export function onAudioState(cb: () => void) {
+  stateListeners.push(cb);
+}
+
 export function unlockAudio() {
   if (!ctx) {
     const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (!AC) return;
     ctx = new AC();
+    ctx.addEventListener('statechange', () => stateListeners.forEach((cb) => cb()));
   }
   if (ctx.state === 'suspended') void ctx.resume();
   startMusic();
