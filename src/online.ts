@@ -46,6 +46,12 @@ export interface BoardRow {
   /** Equipped title id and lifetime Souls, from the player's saved progress (may be missing). */
   title?: string | null;
   earned?: number | null;
+  /** Daily boards only. */
+  daily_no?: number;
+  /** The hero played and the outfit the player dresses them in (may be missing). */
+  hero?: string | null;
+  outfit_look?: string | null;
+  outfit_head?: string | null;
 }
 
 export interface Board {

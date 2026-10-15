@@ -5,8 +5,8 @@ import { ACHIEVEMENT_BY_ID, COMBOS, HEROES, dailyHero, type AchievementDef, type
 import { Game, basePool, fullPool, type Mode, type RunConfig } from './game';
 import { FUSIONS, RELICS, UNLOCKABLE_RELICS, type FusedId, type RelicId } from './relics';
 import {
-  BESTIARY_KINDS, BESTIARY_TITLES, LOOKS, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_TIER, betterRun, bestiaryTiers, rankIndex,
-  type BestRuns, type LookDef,
+  BESTIARY_KINDS, BESTIARY_TITLES, HEADS, HEAD_BY_ID, LOOKS, LOOK_BY_ID, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_TIER, betterRun, bestiaryTiers, rankIndex,
+  type BestRuns, type HeadDef, type LookDef, type Outfit, type Unlock,
 } from './progression';
 import type { EnemyKind } from './game';
 
@@ -43,6 +43,10 @@ export interface Meta {
   heroBackfill: number;
   /** Looks already announced, and the highest Soul Rank announced. */
   looksSeen: string[];
+  /** Each hero's costume, set in the Wardrobe. Heroes without one wear `look`. */
+  outfits: Partial<Record<HeroId, Outfit>>;
+  /** Headwear already announced. */
+  headsSeen: string[];
   rankSeen: number;
 }
 
@@ -70,7 +74,7 @@ const KEY = 'wardenfall:meta';
 function empty(): Meta {
   return {
     souls: 0, earned: 0, heroes: ['knight'], relics: [], achievements: {}, codex: {}, combos: {}, fusions: {}, elitesSlain: 0, hero: 'knight',
-    bestiary: {}, bestiaryTier: {}, best: {}, title: '', look: '', looksSeen: [], rankSeen: 0, heroStats: {}, heroBackfill: 0, epitaphs: [],
+    bestiary: {}, bestiaryTier: {}, best: {}, title: '', look: '', looksSeen: [], rankSeen: 0, heroStats: {}, heroBackfill: 0, epitaphs: [], outfits: {}, headsSeen: [],
   };
 }
 
@@ -128,6 +132,10 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   meta.title ||= other.title ?? '';
   meta.look ||= other.look ?? '';
   meta.looksSeen = [...new Set([...meta.looksSeen, ...(other.looksSeen ?? [])])];
+  meta.headsSeen = [...new Set([...meta.headsSeen, ...(other.headsSeen ?? [])])];
+  for (const [h, o] of Object.entries(other.outfits ?? {})) {
+    if (!meta.outfits[h as HeroId] && o && typeof o === 'object') meta.outfits[h as HeroId] = { look: String(o.look ?? ''), head: String(o.head ?? '') };
+  }
   meta.rankSeen = Math.max(meta.rankSeen, other.rankSeen ?? 0);
   for (const [h, st] of Object.entries(other.heroStats ?? {})) mergeHeroStats(h as HeroId, st);
   meta.heroBackfill = Math.max(meta.heroBackfill, other.heroBackfill ?? 0);
@@ -331,7 +339,14 @@ export function finishRunMeta(game: Game, streak: number): RunReward {
 // ---------- titles, looks and the Bestiary ----------
 
 export function lookUnlocked(l: LookDef): boolean {
-  const u = l.unlock;
+  return unlockMet(l.unlock);
+}
+
+export function headUnlocked(h: HeadDef): boolean {
+  return unlockMet(h.unlock);
+}
+
+function unlockMet(u: Unlock): boolean {
   if ('feat' in u) return Boolean(meta.achievements[u.feat]);
   if ('rank' in u) return rankIndex(meta.earned) >= u.rank;
   return (meta.bestiaryTier[u.beast] ?? 0) > u.tier;
@@ -357,6 +372,26 @@ export function equipTitle(id: string) {
 export function equipLook(id: string) {
   const look = LOOKS.find((l) => l.id === id);
   meta.look = look && lookUnlocked(look) ? id : '';
+  saveMeta();
+}
+
+/** What a hero wears: their Wardrobe outfit, or the default look and no headwear. */
+export function outfitFor(hero: HeroId): Outfit {
+  const o = meta.outfits[hero];
+  const look = o ? o.look : meta.look;
+  const head = o?.head ?? '';
+  return {
+    look: LOOK_BY_ID[look] && lookUnlocked(LOOK_BY_ID[look]) ? look : '',
+    head: HEAD_BY_ID[head] && headUnlocked(HEAD_BY_ID[head]) ? head : '',
+  };
+}
+
+/** Dress a hero in the Wardrobe; locked pieces are ignored. */
+export function equipOutfit(hero: HeroId, part: keyof Outfit, id: string) {
+  const cur = outfitFor(hero);
+  const ok = part === 'look' ? !id || (LOOK_BY_ID[id] && lookUnlocked(LOOK_BY_ID[id])) : !id || (HEAD_BY_ID[id] && headUnlocked(HEAD_BY_ID[id]));
+  if (!ok) return;
+  meta.outfits[hero] = { ...cur, [part]: id };
   saveMeta();
 }
 
@@ -395,7 +430,13 @@ function progressUnlocks(game: Game): UnlockNote[] {
   for (const look of LOOKS) {
     if (!meta.looksSeen.includes(look.id) && lookUnlocked(look)) {
       meta.looksSeen.push(look.id);
-      notes.push({ icon: '🎨', title: `New look: ${look.name}`, detail: 'Wear it from your Hall' });
+      notes.push({ icon: '🎨', title: `New cloak: ${look.name}`, detail: 'Dress your heroes in the Wardrobe' });
+    }
+  }
+  for (const head of HEADS) {
+    if (!meta.headsSeen.includes(head.id) && headUnlocked(head)) {
+      meta.headsSeen.push(head.id);
+      notes.push({ icon: '🎩', title: `New costume: ${head.name}`, detail: 'Dress your heroes in the Wardrobe' });
     }
   }
   return notes;
@@ -409,7 +450,7 @@ function noteBestRun(game: Game) {
     mode: game.mode,
     relics: { ...game.relics } as Record<string, number>,
     log: [...game.relicLog],
-    look: meta.look,
+    ...outfitFor(game.hero),
     at: Date.now(),
   };
   meta.best[game.hero] = betterRun(meta.best[game.hero], run);

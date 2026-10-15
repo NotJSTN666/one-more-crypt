@@ -1,0 +1,80 @@
+// The Wardrobe: dress each hero in an unlocked cloak (colour and aura) and headwear.
+// The outfit is worn in every run, on Hall statues and next to your name on the
+// leaderboards.
+
+import { sfx } from './audio';
+import { HEROES, HERO_BY_ID, type HeroId } from './content';
+import { heroPortrait } from './hero';
+import { equipOutfit, headUnlocked, heroUnlocked, lookUnlocked, meta, outfitFor } from './meta';
+import { HEADS, LOOKS, LOOK_BY_ID, HEAD_BY_ID } from './progression';
+import { esc, on, overlay, showOverlay } from './ui';
+
+export function showWardrobe(back: () => void, hero: HeroId = meta.hero, changed?: () => void) {
+  const owned = HEROES.filter((h) => heroUnlocked(h.id));
+  if (!heroUnlocked(hero)) hero = owned[0].id;
+  const fit = outfitFor(hero);
+  const cloaks = LOOKS.filter((l) => lookUnlocked(l)).length;
+  const heads = HEADS.filter((h) => headUnlocked(h)).length;
+
+  const heroTabs = owned
+    .map((h) => {
+      const o = outfitFor(h.id);
+      return `<button class="ward-hero ${h.id === hero ? 'selected' : ''}" data-hero="${h.id}" aria-pressed="${h.id === hero}" title="${esc(h.name)}">
+        <img src="${heroPortrait(h.id, {}, [], 3, o.look, o.head)}" alt="${esc(h.name)}" width="36" height="36" />
+      </button>`;
+    })
+    .join('');
+
+  const piece = (part: 'look' | 'head', id: string, name: string, how: string, has: boolean) => {
+    const worn = fit[part] === id;
+    const preview = part === 'look' ? heroPortrait(hero, {}, [], 4, has ? id : '', fit.head) : heroPortrait(hero, {}, [], 4, fit.look, has ? id : '');
+    return `<button class="look-card ${worn ? 'equipped' : ''}" data-part="${part}" data-id="${esc(id)}" ${has ? '' : 'disabled'}>
+      <img src="${preview}" alt="" width="48" height="48" class="${has ? '' : 'locked-look'}" />
+      <span class="name">${has ? '' : '🔒 '}${esc(name)}</span>
+      <span class="desc">${worn ? 'Wearing' : has ? 'Tap to wear' : esc(how)}</span>
+    </button>`;
+  };
+
+  const look = LOOK_BY_ID[fit.look];
+  const head = HEAD_BY_ID[fit.head];
+  showOverlay('wardrobe', `
+    <h2>Wardrobe</h2>
+    <p class="sub">Dress each hero. Their outfit shows in every run, on your Hall statues and on the leaderboards.</p>
+    <div class="ward-heroes">${heroTabs}</div>
+    <div class="ward-preview">
+      <img src="${heroPortrait(hero, {}, [], 10, fit.look, fit.head)}" alt="${esc(HERO_BY_ID[hero].name)} in their outfit" width="120" height="120" />
+      <div>
+        <b>${esc(HERO_BY_ID[hero].name)}</b>
+        <span>${look ? esc(look.name) : 'Hero colours'} · ${head ? esc(head.name) : 'No headwear'}</span>
+      </div>
+    </div>
+    <h3 class="shop-head">Cloak <small>${cloaks}/${LOOKS.length}</small></h3>
+    <div class="looks">
+      ${piece('look', '', 'Hero colours', '', true)}
+      ${LOOKS.map((l) => piece('look', l.id, l.name, l.how, lookUnlocked(l))).join('')}
+    </div>
+    <h3 class="shop-head">Headwear <small>${heads}/${HEADS.length}</small></h3>
+    <div class="looks">
+      ${piece('head', '', 'None', '', true)}
+      ${HEADS.map((h) => piece('head', h.id, h.name, h.how, headUnlocked(h))).join('')}
+    </div>
+    <button class="btn primary" id="back">Back</button>`);
+
+  overlay.querySelectorAll<HTMLButtonElement>('.ward-hero').forEach((b) =>
+    b.addEventListener('click', () => {
+      sfx.step();
+      showWardrobe(back, b.dataset.hero as HeroId, changed);
+    }),
+  );
+  overlay.querySelectorAll<HTMLButtonElement>('.look-card[data-part]').forEach((b) =>
+    b.addEventListener('click', () => {
+      equipOutfit(hero, b.dataset.part as 'look' | 'head', b.dataset.id ?? '');
+      sfx.relic();
+      changed?.();
+      const top = overlay.scrollTop;
+      showWardrobe(back, hero, changed);
+      overlay.scrollTop = top;
+    }),
+  );
+  on('#back', back);
+}

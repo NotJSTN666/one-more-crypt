@@ -40,8 +40,8 @@ export class Renderer {
   private hurtFlash = 0;
   private healFlash = 0;
   private time = 0;
-  /** The player's equipped cosmetic look ('' for none). */
-  look = '';
+  /** The player's costume for this run: cloak look and headwear ('' for none). */
+  outfit = { look: '', head: '' };
 
   /** Quiet renderers (background ghosts) skip text and screen shake. */
   constructor(private canvas: HTMLCanvasElement, private quiet = false) {
@@ -259,7 +259,7 @@ export class Renderer {
         this.particles.push({ x: px, y: py, vx: (Math.random() - 0.5) * 6, vy, color, t: 0, life: 0.5, size: 1 });
       }
     };
-    const aura = LOOK_BY_ID[this.look]?.aura;
+    const aura = LOOK_BY_ID[this.outfit.look]?.aura;
     if (aura) emit(0.22, x + Math.random() * 12, y + 4 + Math.random() * 8, -8, aura);
     if (r('ember') || r('wildfire')) emit(0.35, tipX, tipY + Math.random() * 3, -16, Math.random() < 0.5 ? '#ff8a2a' : '#f2c14e');
     if (r('frost')) emit(0.2, x + Math.random() * 12, y + Math.random() * 6, 6, '#9fe8ff');
@@ -359,7 +359,7 @@ export class Renderer {
     if (g.phase !== 'dead') {
       const pd = this.smooth(PLAYER_ID, g.player, k);
       // The rogue fades when the next step will go unseen.
-      this.drawSprite(PLAYER_ID, heroSprite(g.hero, g.relics, g.relicLog, this.look), pd, dt, g.shadowReady ? 0.55 : 1);
+      this.drawSprite(PLAYER_ID, heroSprite(g.hero, g.relics, g.relicLog, this.outfit.look, this.outfit.head), pd, dt, g.shadowReady ? 0.55 : 1);
       this.drawAura(g, pd);
     }
     for (const id of [...this.disp.keys()]) if (!seen.has(id)) this.disp.delete(id);

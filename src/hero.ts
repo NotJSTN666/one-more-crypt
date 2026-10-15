@@ -4,7 +4,7 @@
 import type { HeroId } from './content';
 import { withFusions, type RelicId } from './relics';
 import { SPRITE_SIZE, type Sprite } from './sprites';
-import { LOOK_BY_ID } from './progression';
+import { HEAD_BY_ID, LOOK_BY_ID } from './progression';
 
 const COL = {
   outline: '#0d0812',
@@ -64,7 +64,7 @@ function bladeColor(relics: Relics, log: RelicId[]): string {
   return relics.whetstone ? '#e8eef8' : COL.steel;
 }
 
-function paint(ctx: CanvasRenderingContext2D, hero: HeroId, relics: Relics, log: RelicId[], solid?: string, look = '') {
+function paint(ctx: CanvasRenderingContext2D, hero: HeroId, relics: Relics, log: RelicId[], solid?: string, look = '', head = '') {
   const all = withFusions(relics);
   const n = (id: RelicId) => all[id] ?? 0;
   const dot = (x: number, y: number, color: string) => {
@@ -140,6 +140,8 @@ function paint(ctx: CanvasRenderingContext2D, hero: HeroId, relics: Relics, log:
     dot(2, 4, COL.bone);
     dot(2, 3, COL.gold);
   }
+  // Costume headwear sits over everything else on the head.
+  for (const [x, y, c] of HEAD_BY_ID[head]?.pixels ?? []) dot(x, y, c);
 
   // --- off hand ---
   const blade = bladeColor(relics, log);
@@ -212,11 +214,11 @@ function paint(ctx: CanvasRenderingContext2D, hero: HeroId, relics: Relics, log:
   }
 }
 
-function bake(hero: HeroId, relics: Relics, log: RelicId[], solid?: string, look = ''): HTMLCanvasElement {
+function bake(hero: HeroId, relics: Relics, log: RelicId[], solid?: string, look = '', head = ''): HTMLCanvasElement {
   const c = document.createElement('canvas');
   c.width = SPRITE_SIZE;
   c.height = SPRITE_SIZE;
-  paint(c.getContext('2d')!, hero, relics, log, solid, look);
+  paint(c.getContext('2d')!, hero, relics, log, solid, look, head);
   return c;
 }
 
@@ -225,11 +227,11 @@ function bake(hero: HeroId, relics: Relics, log: RelicId[], solid?: string, look
 const cache = new Map<string, Sprite>();
 
 /** Sprite for a hero's build and look. */
-export function heroSprite(hero: HeroId, relics: Relics, log: RelicId[], look = ''): Sprite {
-  const key = `${hero}:${look}:${log.join(',')}`;
+export function heroSprite(hero: HeroId, relics: Relics, log: RelicId[], look = '', head = ''): Sprite {
+  const key = `${hero}:${look}:${head}:${log.join(',')}`;
   let sprite = cache.get(key);
   if (!sprite) {
-    sprite = { normal: bake(hero, relics, log, undefined, look), white: bake(hero, relics, log, '#ffffff', look) };
+    sprite = { normal: bake(hero, relics, log, undefined, look, head), white: bake(hero, relics, log, '#ffffff', look, head) };
     if (cache.size > 40) cache.delete(cache.keys().next().value!);
     cache.set(key, sprite);
   }
@@ -237,13 +239,13 @@ export function heroSprite(hero: HeroId, relics: Relics, log: RelicId[], look = 
 }
 
 /** A large, crisp portrait of the hero as a data URL, for the results screen. */
-export function heroPortrait(hero: HeroId, relics: Relics, log: RelicId[], scale = 8, look = ''): string {
+export function heroPortrait(hero: HeroId, relics: Relics, log: RelicId[], scale = 8, look = '', head = ''): string {
   const c = document.createElement('canvas');
   c.width = SPRITE_SIZE * scale;
   c.height = SPRITE_SIZE * scale;
   const ctx = c.getContext('2d')!;
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(bake(hero, relics, log, undefined, look), 0, 0, c.width, c.height);
+  ctx.drawImage(bake(hero, relics, log, undefined, look, head), 0, 0, c.width, c.height);
   return c.toDataURL();
 }
 

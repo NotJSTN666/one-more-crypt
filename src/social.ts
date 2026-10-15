@@ -32,7 +32,9 @@ import {
   type RunSubmission,
 } from './online';
 import { showPublicHall, titleName } from './hall';
-import { rankFor } from './progression';
+import { HEAD_BY_ID, LOOK_BY_ID, rankFor } from './progression';
+import { HERO_BY_ID, dailyHero, type HeroId } from './content';
+import { heroPortrait } from './hero';
 import { backfillHeroes, meta, mergeMeta, onMetaChange, type Meta } from './meta';
 import { currentStreak, writeSave, type Save } from './storage';
 import { esc, field, formStatus, on, onSubmit, screen, showOverlay, toast } from './ui';
@@ -566,6 +568,22 @@ export function showLeaderboard(back: () => void, tab: Tab = 'today') {
     });
 }
 
+const portraits = new Map<string, string>();
+
+/** A small portrait of the hero a player ran with, in their outfit. Unknown ids are dropped. */
+function boardPortrait(r: BoardRow): string {
+  const hero = (r.hero && HERO_BY_ID[r.hero as HeroId] ? r.hero : r.daily_no ? dailyHero(r.daily_no) : 'knight') as HeroId;
+  const look = r.outfit_look && LOOK_BY_ID[r.outfit_look] ? r.outfit_look : '';
+  const head = r.outfit_head && HEAD_BY_ID[r.outfit_head] ? r.outfit_head : '';
+  const key = `${hero}:${look}:${head}`;
+  let url = portraits.get(key);
+  if (!url) {
+    url = heroPortrait(hero, {}, [], 2, look, head);
+    portraits.set(key, url);
+  }
+  return url;
+}
+
 function boardHtml(b: Board, uid: string | null, tab: Tab): string {
   if (!b.rows.length) {
     return `<p class="sub">${tab === 'endless' ? 'No endless runs yet.' : 'Nobody has fallen yet today. Be the first.'}</p>`;
@@ -573,6 +591,7 @@ function boardHtml(b: Board, uid: string | null, tab: Tab): string {
   const row = (r: BoardRow) => `
     <li class="${r.user_id === uid ? 'me' : ''}" data-hall="${esc(r.name)}" tabindex="0" title="Visit ${esc(r.name)}'s Hall">
       <span class="rank">${r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : `#${r.rank}`}</span>
+      <img class="board-hero" src="${boardPortrait(r)}" alt="" width="24" height="24" />
       <span class="who"><span style="color:${rankFor(Number(r.earned) || 0).color}">${esc(r.name)}</span>${titleName(r.title) ? ` <em class="title-tag">${esc(titleName(r.title))}</em>` : ''}<small>${esc(r.relics)}</small></span>
       <span class="depth">F${r.floor}<small>${r.kills} kills</small></span>
     </li>`;

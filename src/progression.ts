@@ -118,6 +118,78 @@ export const LOOKS: LookDef[] = [
 
 export const LOOK_BY_ID = Object.fromEntries(LOOKS.map((l) => [l.id, l])) as Record<string, LookDef>;
 
+// ---------- headwear ----------
+// Costume pieces drawn over the hero's hood, chosen per hero in the Wardrobe.
+
+export type Unlock = LookDef['unlock'];
+
+export interface HeadDef {
+  id: string;
+  name: string;
+  /** Pixels to paint: [x, y, colour] on the 12x12 sprite. */
+  pixels: [number, number, string][];
+  unlock: Unlock;
+  how: string;
+}
+
+const row = (y: number, x0: number, x1: number, c: string): [number, number, string][] =>
+  Array.from({ length: x1 - x0 + 1 }, (_, i) => [x0 + i, y, c] as [number, number, string]);
+
+export const HEADS: HeadDef[] = [
+  {
+    id: 'horns', name: 'Demon Horns', unlock: { feat: 'massacre' }, how: 'Slay 5 foes in a single turn.',
+    pixels: [[2, 0, '#d23a46'], [3, 1, '#701826'], [3, 2, '#701826'], [9, 0, '#d23a46'], [8, 1, '#701826'], [8, 2, '#701826']],
+  },
+  {
+    id: 'halo', name: 'Halo', unlock: { feat: 'paladin-lich' }, how: 'Slay the Lich King as the Paladin.',
+    pixels: [...row(0, 3, 8, '#fff2c0'), [2, 0, '#f2c14e'], [9, 0, '#f2c14e']],
+  },
+  {
+    id: 'witch', name: 'Witch Hat', unlock: { feat: 'mage10' }, how: 'Reach floor 10 as the Mage.',
+    pixels: [...row(2, 2, 9, '#2c2148'), ...row(1, 4, 7, '#2c2148'), [5, 1, '#f2c14e'], [6, 1, '#f2c14e'], [6, 0, '#2c2148'], [7, 0, '#2c2148'], [8, 0, '#4b3a78']],
+  },
+  {
+    id: 'skull', name: 'Skull Mask', unlock: { beast: 'archer', tier: 1 }, how: 'Slay 100 skeleton archers.',
+    pixels: [...row(3, 4, 7, '#e8dcc4'), [4, 4, '#e8dcc4'], [6, 4, '#e8dcc4'], [5, 4, '#d23a46'], [7, 4, '#d23a46'], [5, 5, '#e8dcc4'], [6, 5, '#e8dcc4']],
+  },
+  {
+    id: 'circlet', name: 'Gold Circlet', unlock: { rank: 3 }, how: 'Reach the Death Knight Soul Rank.',
+    pixels: [...row(2, 3, 8, '#f2c14e'), [5, 2, '#9fe8ff'], [6, 1, '#f2c14e']],
+  },
+  {
+    id: 'antlers', name: 'Antlers', unlock: { feat: 'ranger-arrows' }, how: 'Slay 25 foes with arrows in one run.',
+    pixels: [[1, 0, '#a8894a'], [2, 1, '#a8894a'], [3, 1, '#a8894a'], [2, 0, '#a8894a'], [10, 0, '#a8894a'], [9, 1, '#a8894a'], [8, 1, '#a8894a'], [9, 0, '#a8894a']],
+  },
+  {
+    id: 'plague', name: 'Plague Doctor', unlock: { beast: 'abbot', tier: 1 }, how: 'Slay 5 Plague Abbots.',
+    pixels: [...row(1, 2, 9, '#1a1520'), ...row(0, 4, 7, '#1a1520'), [5, 4, '#9fe8ff'], [7, 4, '#9fe8ff'], [8, 5, '#c9c3b2'], [9, 5, '#c9c3b2'], [7, 5, '#c9c3b2']],
+  },
+  {
+    id: 'flame', name: 'Burning Crown', unlock: { feat: 'annihilate' }, how: 'Deal 50 or more damage in one hit.',
+    pixels: [...row(1, 3, 8, '#ff8a2a'), [3, 0, '#ff8a2a'], [5, 0, '#f2c14e'], [6, 0, '#ff8a2a'], [8, 0, '#f2c14e'], [2, 1, '#d23a46'], [9, 1, '#d23a46']],
+  },
+  {
+    id: 'icecrown', name: 'Ice Crown', unlock: { beast: 'wraith', tier: 2 }, how: 'Slay 500 wraiths.',
+    pixels: [...row(1, 3, 8, '#9fe8ff'), [3, 0, '#ffffff'], [5, 0, '#9fe8ff'], [6, 0, '#9fe8ff'], [8, 0, '#ffffff']],
+  },
+  {
+    id: 'tophat', name: "Gravedigger's Hat", unlock: { feat: 'gravekeeper' }, how: 'Read every epitaph in the Hollow.',
+    pixels: [...row(0, 4, 7, '#1a1520'), ...row(1, 4, 7, '#d23a46'), ...row(2, 2, 9, '#1a1520')],
+  },
+  {
+    id: 'forgehelm', name: 'Forged Helm', unlock: { feat: 'forge' }, how: 'Fuse two relics at the Soul Forge.',
+    pixels: [...row(1, 3, 8, '#5d667a'), ...row(2, 3, 8, '#5d667a'), [3, 3, '#5d667a'], [8, 3, '#5d667a'], ...row(0, 5, 6, '#5fe3ff')],
+  },
+];
+
+export const HEAD_BY_ID = Object.fromEntries(HEADS.map((h) => [h.id, h])) as Record<string, HeadDef>;
+
+/** A hero's costume: cloak colour and aura (a look) and headwear. */
+export interface Outfit {
+  look: string;
+  head: string;
+}
+
 // ---------- best runs (the Hall's statues) ----------
 
 export interface BestRun {
@@ -128,6 +200,8 @@ export interface BestRun {
   relics: Record<string, number>;
   log: string[];
   look: string;
+  /** Headwear worn on that run ('' for none; missing on older records). */
+  head?: string;
   at: number;
 }
 

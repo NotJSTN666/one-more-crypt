@@ -89,16 +89,24 @@ select
   -- The player's equipped title id and lifetime Souls, for their Soul Rank. Players
   -- write their own meta, so the title is capped and the game only shows known ids.
   left(p.meta->>'title', 40) as title,
-  case when jsonb_typeof(p.meta->'earned') = 'number' then least(greatest((p.meta->>'earned')::numeric, 0), 1000000000)::bigint else 0 end as earned
+  case when jsonb_typeof(p.meta->'earned') = 'number' then least(greatest((p.meta->>'earned')::numeric, 0), 1000000000)::bigint else 0 end as earned,
+  -- The hero played (from the run log's header) and the outfit the player dresses them in.
+  h.hero,
+  left(coalesce(p.meta->'outfits'->h.hero->>'look', p.meta->>'look'), 24) as outfit_look,
+  left(p.meta->'outfits'->h.hero->>'head', 24) as outfit_head
 from public.runs r
 join public.profiles p on p.id = r.user_id
+cross join lateral (select substring(r.log from '^#[0-9]+\|([a-z]+)\|') as hero) h
 where r.mode = 'daily';
 
 -- Each player's single best endless run.
 create or replace view public.leaderboard_endless with (security_invoker = on) as
 select b.*, rank() over (order by b.floor desc, b.kills desc, b.turns asc) as rank,
   left(p2.meta->>'title', 40) as title,
-  case when jsonb_typeof(p2.meta->'earned') = 'number' then least(greatest((p2.meta->>'earned')::numeric, 0), 1000000000)::bigint else 0 end as earned
+  case when jsonb_typeof(p2.meta->'earned') = 'number' then least(greatest((p2.meta->>'earned')::numeric, 0), 1000000000)::bigint else 0 end as earned,
+  h.hero,
+  left(coalesce(p2.meta->'outfits'->h.hero->>'look', p2.meta->>'look'), 24) as outfit_look,
+  left(p2.meta->'outfits'->h.hero->>'head', 24) as outfit_head
 from (
   select distinct on (r.user_id)
     r.user_id, p.name, r.floor, r.kills, r.turns, r.relics, r.killed_by, r.created_at
@@ -107,7 +115,13 @@ from (
   where r.mode = 'endless'
   order by r.user_id, r.floor desc, r.kills desc, r.turns asc
 ) b
-join public.profiles p2 on p2.id = b.user_id;
+join public.profiles p2 on p2.id = b.user_id
+cross join lateral (
+  select substring(r2.log from '^#[0-9]+\|([a-z]+)\|') as hero
+  from public.runs r2
+  where r2.user_id = b.user_id and r2.mode = 'endless' and r2.floor = b.floor and r2.kills = b.kills and r2.turns = b.turns
+  limit 1
+) h;
 
 grant select on public.leaderboard_daily, public.leaderboard_endless to anon, authenticated;
 grant select on public.profiles, public.runs to anon, authenticated;

@@ -5,7 +5,7 @@
 import { dailyHero } from './content';
 import { dailyNumber } from './daily';
 import { heroSprite } from './hero';
-import { meta } from './meta';
+import { meta, outfitFor } from './meta';
 import { LOOK_BY_ID } from './progression';
 import { esc, overlay, screen, showOverlay } from './ui';
 
@@ -563,7 +563,8 @@ function render(ctx: CanvasRenderingContext2D, t: number) {
   }
 
   // the player
-  const hero = heroSprite(meta.hero, {}, [], meta.look).normal;
+  const fit = outfitFor(meta.hero);
+  const hero = heroSprite(meta.hero, {}, [], fit.look, fit.head).normal;
   const hx = draw.x * TILE + 2;
   const hy = draw.y * TILE + 1;
   px(hx + 2, hy + 12, 8, 2, 'rgba(0,0,0,0.4)');
@@ -574,7 +575,7 @@ function render(ctx: CanvasRenderingContext2D, t: number) {
     ctx.drawImage(hero, 0, 0, 12, 12);
   } else ctx.drawImage(hero, hx, hy, 12, 12);
   ctx.restore();
-  const aura = LOOK_BY_ID[meta.look]?.aura;
+  const aura = LOOK_BY_ID[fit.look]?.aura;
   if (aura) {
     for (let i = 0; i < 3; i++) {
       const p = (t * 0.5 + i / 3) % 1;

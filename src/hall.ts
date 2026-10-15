@@ -6,11 +6,12 @@
 import { sfx } from './audio';
 import { ACHIEVEMENTS, ACHIEVEMENT_BY_ID, COMBOS, HEROES, HERO_BY_ID, type HeroId } from './content';
 import { ENEMY_INFO, type EnemyKind } from './game';
-import { heroPortrait, heroSprite } from './hero';
-import { equipLook, equipTitle, lookUnlocked, meta, titleUnlocked, type Meta } from './meta';
+import { heroSprite } from './hero';
+import { equipTitle, meta, titleUnlocked, type Meta } from './meta';
+import { showWardrobe } from './wardrobe';
 import { ONLINE, loadHall } from './online';
 import {
-  BESTIARY_KINDS, BESTIARY_TITLES, LOOKS, LOOK_BY_ID, TITLES, TITLE_BY_ID, TITLE_TIER, bestiaryTiers, rankFor, rankProgress,
+  BESTIARY_KINDS, BESTIARY_TITLES, HEAD_BY_ID, LOOK_BY_ID, TITLES, TITLE_BY_ID, TITLE_TIER, bestiaryTiers, rankFor, rankProgress,
   type BestRun, type BestRuns,
 } from './progression';
 import { RELICS, RELIC_BY_ID, type RelicId } from './relics';
@@ -62,6 +63,7 @@ export function hallData(name: string, m: Partial<Meta> | Record<string, unknown
       relics,
       log,
       look: typeof run.look === 'string' && LOOK_BY_ID[run.look] ? run.look : '',
+      head: typeof run.head === 'string' && HEAD_BY_ID[run.head] ? run.head : '',
       at: num(run.at, 1e13),
     };
   }
@@ -204,7 +206,7 @@ function statue(ctx: CanvasRenderingContext2D, x: number, hero: HeroId, run: Bes
   ctx.fillRect(x - 46, base + 10, 92, 36);
   ctx.fillStyle = '#4a4058';
   ctx.fillRect(x - 52, base + 46, 104, 8);
-  const sprite = run ? heroSprite(hero, run.relics, run.log as RelicId[], run.look) : heroSprite(hero, {}, []);
+  const sprite = run ? heroSprite(hero, run.relics, run.log as RelicId[], run.look, run.head ?? '') : heroSprite(hero, {}, []);
   ctx.drawImage(run ? sprite.normal : silhouette(sprite.white, '#1a1424'), x - 48, base - 96, 96, 96);
   // drifting motes from the statue's look
   const aura = run && LOOK_BY_ID[run.look]?.aura;
@@ -290,7 +292,7 @@ export function drawHall(ctx: CanvasRenderingContext2D, d: HallData, t = 0) {
 
 // ---------- the screen ----------
 
-type HallTab = 'trophies' | 'titles' | 'looks' | 'bestiary';
+type HallTab = 'trophies' | 'titles' | 'bestiary';
 
 let anim = 0;
 
@@ -358,21 +360,6 @@ function titlesBody(): string {
     </div>`;
 }
 
-function looksBody(): string {
-  const hero = meta.hero;
-  const item = (id: string, name: string, how: string, has: boolean) => `
-    <button class="look-card ${meta.look === id ? 'equipped' : ''}" data-look="${esc(id)}" ${has ? '' : 'disabled'}>
-      <img src="${heroPortrait(hero, {}, [], 5, has ? id : '')}" alt="" width="60" height="60" class="${has ? '' : 'locked-look'}" />
-      <span class="name">${has ? '' : '🔒 '}${esc(name)}</span>
-      <span class="desc">${meta.look === id ? 'Wearing' : has ? 'Tap to wear' : esc(how)}</span>
-    </button>`;
-  const owned = LOOKS.filter((l) => lookUnlocked(l)).length;
-  return `<p class="fine">Looks recolour your hero's cloak and add an aura, in every run. ${owned}/${LOOKS.length} unlocked.</p>
-    <div class="looks">
-      ${item('', 'Hero colours', 'The classic look', true)}
-      ${LOOKS.map((l) => item(l.id, l.name, l.how, lookUnlocked(l))).join('')}
-    </div>`;
-}
 
 function bestiaryBody(d: HallData): string {
   return `<p class="fine">Every foe you slay is counted. Milestones pay Souls, and the third earns a title.</p>
@@ -446,14 +433,14 @@ export function showHall(name: string, back: () => void, tab: HallTab = 'trophie
   const tabs: [HallTab, string][] = [
     ['trophies', 'Trophies'],
     ['titles', 'Titles'],
-    ['looks', 'Looks'],
     ['bestiary', 'Bestiary'],
   ];
-  const body = tab === 'titles' ? titlesBody() : tab === 'looks' ? looksBody() : tab === 'bestiary' ? bestiaryBody(d) : trophiesBody(d);
+  const body = tab === 'titles' ? titlesBody() : tab === 'bestiary' ? bestiaryBody(d) : trophiesBody(d);
   showOverlay('hall', `
     <h2>The Crypt Hall</h2>
     <canvas id="hall-canvas" class="hall-canvas" width="${W}" height="${H}" aria-label="Your trophy room"></canvas>
     ${rankBar(d.earned)}
+    <button class="btn" id="wardrobe">🎨 Wardrobe<small>Dress your heroes in cloaks and headwear</small></button>
     <div class="tabs" role="tablist">${tabs.map(([t, label]) => `<button role="tab" data-tab="${t}" aria-selected="${t === tab}">${label}</button>`).join('')}</div>
     ${body}
     <div class="row">
@@ -476,14 +463,7 @@ export function showHall(name: string, back: () => void, tab: HallTab = 'trophie
       again('titles');
     }),
   );
-  overlay.querySelectorAll<HTMLButtonElement>('[data-look]').forEach((b) =>
-    b.addEventListener('click', () => {
-      equipLook(b.dataset.look ?? '');
-      sfx.relic();
-      changed?.();
-      again('looks');
-    }),
-  );
+  on('#wardrobe', () => showWardrobe(() => showHall(name, back, tab, changed), meta.hero, changed));
   on('#hall-image', () => void saveImage(d));
   on('#hall-link', async () => toast((await copyText(hallLink(name))) ? 'Link copied! Show off your Hall.' : 'Copy failed'));
   on('#back', back);

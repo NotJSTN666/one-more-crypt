@@ -716,7 +716,7 @@ details.card summary {
 
 .board li {
   display: grid;
-  grid-template-columns: 44px 1fr auto;
+  grid-template-columns: 34px 26px 1fr auto;
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
@@ -1617,4 +1617,67 @@ body.tutorial #relic-bar {
   margin: 0;
   font-family: var(--pixel);
   font-size: 12px;
+}
+
+.board-hero {
+  image-rendering: pixelated;
+  display: block;
+}
+
+/* ---------- Wardrobe ---------- */
+
+.ward-heroes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin: 10px 0;
+}
+
+.ward-hero {
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+
+.ward-hero.selected {
+  border-color: var(--gold);
+  background: var(--panel-2);
+}
+
+.ward-hero img,
+.ward-preview img {
+  display: block;
+  image-rendering: pixelated;
+}
+
+.ward-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin: 8px 0 4px;
+  padding: 10px;
+  background: radial-gradient(circle at 30% 50%, rgba(242, 193, 78, 0.12), transparent 60%), var(--panel);
+  border: 1px solid var(--line);
+  text-align: left;
+}
+
+.ward-preview b {
+  display: block;
+  font-family: var(--gothic);
+  font-weight: normal;
+  font-size: 28px;
+  color: var(--gold);
+}
+
+.ward-preview span {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.shop-head small {
+  font-family: var(--pixel);
+  font-size: 11px;
+  color: var(--muted);
 }

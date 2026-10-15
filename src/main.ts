@@ -4,7 +4,7 @@ import { dailyNumber, formatCountdown, msUntilNextDaily } from './daily';
 import { ELITES, FEATURES, HERO_BY_ID, dailyHero, type ComboDef } from './content';
 import { heroPortrait } from './hero';
 import { ENEMY_INFO, Game, fullPool, isBoss, type GameEvent, type Mode } from './game';
-import { checkRun, finishRunMeta, meta, noteFusion, noteRelic, readEpitaph, runConfig, type RunReward } from './meta';
+import { checkRun, finishRunMeta, meta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, RELIC_BY_ID, type RelicId } from './relics';
@@ -64,7 +64,7 @@ function newGame(mode: Mode) {
 function showGame(g: Game) {
   game = g;
   runCombos = [];
-  renderer.look = meta.look;
+  renderer.outfit = outfitFor(game.hero);
   renderer.setGame(game);
   renderer.consume(game.events.splice(0));
   updateHud(true);
@@ -154,7 +154,7 @@ function finishTutorial() {
   const { then, label } = tutorial;
   endTutorial();
   showOverlay('tutorial-done', `
-    <img class="hero-portrait" src="${heroPortrait(game.hero, game.relics, game.relicLog, 8, meta.look)}" alt="" width="96" height="96" />
+    <img class="hero-portrait" src="${heroPortrait(game.hero, game.relics, game.relicLog, 8, outfitFor(game.hero).look, outfitFor(game.hero).head)}" alt="" width="96" height="96" />
     <h2>You're ready</h2>
     <p class="sub">That's all you need to know. Each floor gets meaner, so build well. Bosses wait on every 5th floor.</p>
     <button class="btn primary" id="go">${label}</button>
@@ -660,7 +660,7 @@ function showTitle() {
       <button class="btn" id="ossuary">🏛️ Ossuary<small>💀 ${meta.souls} Souls</small></button>
       <button class="btn" id="grimoire">📖 Grimoire<small>Relics, combos, achievements</small></button>
     </div>
-    <button class="btn" id="hall">🏰 The Crypt Hall<small style="color:${rankFor(meta.earned).color}">${esc(rankFor(meta.earned).name)} · trophies, titles, looks</small></button>
+    <button class="btn" id="hall">🏰 The Crypt Hall<small style="color:${rankFor(meta.earned).color}">${esc(rankFor(meta.earned).name)} · trophies, titles, wardrobe</small></button>
     ${ONLINE ? '<button class="btn" id="leaderboard">🏆 Leaderboards</button>' : ''}
     <button class="btn" id="help">How to play</button>
     ${streak > 1 ? `<div class="streak">🕯️ ${streak}-day streak</div>` : ''}
@@ -762,7 +762,7 @@ function enterPlace(place: HollowPlace) {
 
 function openHall(back: () => void) {
   showHall(playerName(), back, 'trophies', () => {
-    renderer.look = meta.look;
+    if (game) renderer.outfit = outfitFor(game.hero);
   });
 }
 
@@ -1005,7 +1005,7 @@ function showDeath(r: RunResult, best: boolean) {
   setMusicDepth(0);
   setMusicMood('fallen');
   showOverlay('death', `
-    <img class="hero-portrait" src="${heroPortrait(game.hero, game.relics, game.relicLog, 8, meta.look)}" alt="Your hero's final form" width="96" height="96" />
+    <img class="hero-portrait" src="${heroPortrait(game.hero, game.relics, game.relicLog, 8, outfitFor(game.hero).look, outfitFor(game.hero).head)}" alt="Your hero's final form" width="96" height="96" />
     <h2 class="dead">You have fallen</h2>
     <p class="sub">${lastLabel} · slain by ${r.killedBy}</p>
     <div class="strip">${descentStrip(r.floor)}</div>

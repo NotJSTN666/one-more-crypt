@@ -67,3 +67,19 @@ describe('per-hero records', () => {
     expect(meta.best.rogue?.floor).toBe(g.floor);
   });
 });
+
+describe('the Wardrobe', () => {
+  it('dresses each hero separately and ignores locked pieces', async () => {
+    const { equipOutfit, outfitFor } = await import('./meta');
+    meta.achievements = { ...meta.achievements, massacre: 1 };
+    meta.outfits = {};
+    equipOutfit('knight', 'head', 'horns');
+    equipOutfit('knight', 'head', 'halo'); // locked: needs Holy Light
+    equipOutfit('knight', 'look', 'lich'); // locked: needs Lichbane
+    expect(outfitFor('knight')).toEqual({ look: '', head: 'horns' });
+    expect(outfitFor('rogue').head).toBe('');
+    // A piece that becomes locked again (e.g. synced data) isn't worn.
+    meta.outfits.rogue = { look: 'gold', head: 'halo' };
+    expect(outfitFor('rogue')).toEqual({ look: '', head: '' });
+  });
+});

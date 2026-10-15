@@ -4,14 +4,16 @@
 import { sfx } from './audio';
 import { ACHIEVEMENTS, COMBOS, HEROES, type AchievementDef, type ComboDef, type HeroId } from './content';
 import { heroPortrait } from './hero';
-import { RELIC_COSTS, type UnlockNote, buyHero, buyRelic, heroUnlocked, meta, relicDiscovered, saveMeta } from './meta';
+import { RELIC_COSTS, type UnlockNote, buyHero, outfitFor, buyRelic, heroUnlocked, meta, relicDiscovered, saveMeta } from './meta';
 import { ASCEND_FLOOR, FUSIONS, RELICS, RELIC_BY_ID, UNLOCKABLE_RELICS } from './relics';
 import { $, esc, on, overlay, showOverlay } from './ui';
+import { showWardrobe } from './wardrobe';
 
 const soulsChip = () => `<div class="souls-chip" title="Souls">💀 <b>${meta.souls}</b> Souls</div>`;
 
 function portrait(hero: HeroId): string {
-  return heroPortrait(hero, {}, [], 5);
+  const o = outfitFor(hero);
+  return heroPortrait(hero, {}, [], 5, o.look, o.head);
 }
 
 // ---------- hero select ----------
@@ -41,7 +43,10 @@ export function showHeroSelect(onPick: (hero: HeroId) => void, back: () => void)
     <h2>Choose your hero</h2>
     <p class="sub">Endless Descent · relics you've unlocked join the pool</p>
     <div class="hero-list">${cards}</div>
-    <button class="btn" id="ossuary">🏛️ The Ossuary ${soulsChip()}</button>
+    <div class="row">
+      <button class="btn" id="wardrobe">🎨 Wardrobe</button>
+      <button class="btn" id="ossuary">🏛️ Ossuary ${soulsChip()}</button>
+    </div>
     <button class="btn primary" id="back">Back</button>`);
   overlay.querySelectorAll<HTMLButtonElement>('.hero-card:not(.locked)').forEach((b) =>
     b.addEventListener('click', () => {
@@ -51,6 +56,7 @@ export function showHeroSelect(onPick: (hero: HeroId) => void, back: () => void)
     }),
   );
   on('#ossuary', () => showOssuary(() => showHeroSelect(onPick, back)));
+  on('#wardrobe', () => showWardrobe(() => showHeroSelect(onPick, back), meta.hero));
   on('#back', back);
 }
 
