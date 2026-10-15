@@ -4,7 +4,7 @@
 
 import { ELITE_MODS, HERO_BY_ID, type EliteMod, type FeatureKind, type HeroId } from './content';
 import {
-  FUSIONS, LEGACY_RELICS, RELICS, RELIC_BY_ID, RARITY_WEIGHT, UNLOCKABLE_RELICS, type FusedId, type FusionDef, type RelicDef, type RelicId,
+  ASCEND_FLOOR, FUSIONS, LEGACY_RELICS, RELICS, RELIC_BY_ID, RARITY_WEIGHT, UNLOCKABLE_RELICS, type FusedId, type FusionDef, type RelicDef, type RelicId, withFusions,
 } from './relics';
 import { hashSeed, mulberry32, randInt, weightedPick, type Rng } from './rng';
 
@@ -357,7 +357,7 @@ export class Game {
     this.events.push({ t: 'floor', floor });
     if (floor === 5 && !this.stats.turnsTo5) this.stats.turnsTo5 = this.turns;
 
-    if (this.own('vheart') && this.isBossFloor()) this.phylacteryUsed = false;
+    if (this.r('vheart') && this.isBossFloor()) this.phylacteryUsed = false;
     if (this.hero === 'knight' && floor > 1) this.heal(1);
     const candle = this.r('candle');
     if (candle) this.heal(candle * 2);
@@ -789,7 +789,9 @@ export class Game {
 
   /** Fusions the player can make at the Soul Forge with the relics they hold. */
   forgeOptions(): FusionDef[] {
-    return FUSIONS.filter((f) => !this.own(f.id) && f.from.every((id) => this.own(id) > 0)).slice(0, FORGE_KEYS.length);
+    return FUSIONS.filter(
+      (f) => (f.tier !== 2 || this.floor >= ASCEND_FLOOR) && !this.own(f.id) && f.from.every((id) => this.own(id) > 0),
+    ).slice(0, FORGE_KEYS.length);
   }
 
   /** Fuse the chosen option at the Soul Forge the player is standing on. */
@@ -804,13 +806,15 @@ export class Game {
     }
     this.relics[f.id] = 1;
     this.relicLog.push(f.id);
+    const all = withFusions(this.relics);
     this.boost = {};
-    for (const held of FUSIONS) {
-      if (!this.own(held.id)) continue;
-      for (const [id, n] of Object.entries(held.grants)) this.boost[id as RelicId] = (this.boost[id as RelicId] ?? 0) + (n ?? 0);
+    for (const [id, n] of Object.entries(all)) {
+      const extra = (n ?? 0) - this.own(id as RelicId);
+      if (extra) this.boost[id as RelicId] = extra;
     }
-    if (f.id === 'dragon') {
-      this.changeMaxHp(6);
+    const grow = f.id === 'dragon' ? 6 : f.id === 'dracolich' ? 10 : 0;
+    if (grow) {
+      this.changeMaxHp(grow);
       this.heal(this.player.maxHp);
     }
     // Mirror charges for this floor follow the new count.
@@ -973,7 +977,7 @@ export class Game {
         this.events.push({ t: 'bolt', from, to: { x: t.x, y: t.y } });
         from = { x: t.x, y: t.y };
         this.damageEnemy(t, this.r('storm') + 1, 'bolt');
-        if (this.own('plasma') && !t.dead) {
+        if (this.r('plasma') && !t.dead) {
           t.burn = 3;
           t.burnDmg = Math.max(t.burnDmg, this.r('ember'));
         }
@@ -1003,7 +1007,7 @@ export class Game {
       if (this.r('phylactery') && !this.phylacteryUsed) {
         this.phylacteryUsed = true;
         this.stats.revived = true;
-        this.player.hp = this.own('vheart') ? this.player.maxHp : 1;
+        this.player.hp = this.r('vheart') ? this.player.maxHp : 1;
         this.events.push({ t: 'revive' });
         return;
       }

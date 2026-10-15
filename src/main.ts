@@ -7,7 +7,7 @@ import { ENEMY_INFO, Game, fullPool, isBoss, type GameEvent, type Mode } from '.
 import { checkRun, finishRunMeta, meta, noteFusion, noteRelic, runConfig, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
-import { RELIC_BY_ID, type RelicId } from './relics';
+import { ASCEND_FLOOR, RELIC_BY_ID, type RelicId } from './relics';
 import { hallFromLink, showHall, showPublicHall, soulRankHtml, titleName } from './hall';
 import { rankFor } from './progression';
 import { Renderer } from './render';
@@ -335,7 +335,7 @@ function processEvents() {
   for (const ev of events) {
     if (ev.t === 'fuse') {
       const def = RELIC_BY_ID[ev.id];
-      renderer.banner(`${def.name.toUpperCase()}!`, '#7fb4ff');
+      renderer.banner(`${def.name.toUpperCase()}!`, def.rarity === 'ascended' ? '#fff2c0' : '#7fb4ff');
       if (noteFusion(ev.id)) celebrateNotes([{ icon: def.emoji, title: `New fusion: ${def.name}`, detail: 'Recorded in your Grimoire' }]);
     }
     if (ev.t !== 'relic') continue;
@@ -802,14 +802,16 @@ function choiceKey(e: KeyboardEvent) {
 
 function showForge() {
   const options = game.forgeOptions();
+  const deep = game.floor >= ASCEND_FLOOR;
   const cards = options
     .map((f, i) => {
       const out = RELIC_BY_ID[f.id];
       const known = Boolean(meta.fusions[f.id]);
       const [a, b] = f.from.map((id) => RELIC_BY_ID[id]);
-      return `<button class="fused" data-i="${i}">
-        <span class="emoji">${known ? out.emoji : '❔'}</span>
-        <span><span class="name">${known ? out.name : 'Unknown fusion'}</span><span class="tag">${a.emoji} ${esc(a.name)} + ${b.emoji} ${esc(b.name)}</span>
+      const ascend = f.tier === 2;
+      return `<button class="${ascend ? 'ascended' : 'fused'}" data-i="${i}">
+        <span class="emoji">${known ? out.emoji : ascend ? '✨' : '❔'}</span>
+        <span><span class="name">${known ? out.name : ascend ? 'Unknown ascension' : 'Unknown fusion'}</span><span class="tag">${a.emoji} ${esc(a.name)} + ${b.emoji} ${esc(b.name)}</span>
         <span class="desc">${known ? out.desc(1) : 'Fuse them to discover what they become.'}</span></span>
       </button>`;
     })
@@ -817,6 +819,7 @@ function showForge() {
   showOverlay('event', `
     <h2>Soul Forge</h2>
     <p class="sub">${FEATURES.forge.text}</p>
+    ${deep ? '<p class="fine ascend-note">✨ This deep, the forge burns white-hot: two fused relics can <b>ascend</b> into one.</p>' : ''}
     ${options.length ? '<p class="fine">Fusing uses up one of each relic. You can fuse once here.</p>' : '<p class="fine">None of your relics answer the forge. Fusions need two particular relics held together, like 🔥 Ember Brand and ⚡ Storm Rune.</p>'}
     <div class="offer event-offer">
       ${cards}

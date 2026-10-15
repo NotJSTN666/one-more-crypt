@@ -5,7 +5,7 @@ import { sfx } from './audio';
 import { ACHIEVEMENTS, COMBOS, HEROES, type AchievementDef, type ComboDef, type HeroId } from './content';
 import { heroPortrait } from './hero';
 import { RELIC_COSTS, type UnlockNote, buyHero, buyRelic, heroUnlocked, meta, relicDiscovered, saveMeta } from './meta';
-import { FUSIONS, RELICS, RELIC_BY_ID, UNLOCKABLE_RELICS } from './relics';
+import { ASCEND_FLOOR, FUSIONS, RELICS, RELIC_BY_ID, UNLOCKABLE_RELICS } from './relics';
 import { $, esc, on, overlay, showOverlay } from './ui';
 
 const soulsChip = () => `<div class="souls-chip" title="Souls">💀 <b>${meta.souls}</b> Souls</div>`;
@@ -113,7 +113,7 @@ export function showGrimoire(back: () => void, tab: GrimoireTab = 'relics') {
       </div>`;
     }).join('')}</div>`;
   } else if (tab === 'fusions') {
-    body = `<p class="fine">Fuse two relics at the Soul Forge, found on the floor after each boss.</p><div class="codex">${FUSIONS.map((f) => {
+    const row = (f: (typeof FUSIONS)[number]) => {
       const seen = !!meta.fusions[f.id];
       const r = RELIC_BY_ID[f.id];
       const parts = f.from.map((id) => (seen || relicDiscovered(id) ? RELIC_BY_ID[id].emoji : '❔')).join(' + ');
@@ -122,7 +122,12 @@ export function showGrimoire(back: () => void, tab: GrimoireTab = 'relics') {
         <span class="shop-info"><span class="name">${seen ? r.name : '???'}</span>
         <span class="desc">${seen ? `${parts} · ${r.desc(1)}` : `${parts} · fuse at the Soul Forge to discover`}</span></span>
       </div>`;
-    }).join('')}</div>`;
+    };
+    body = `<p class="fine">Fuse two relics at the Soul Forge, found on the floor after each boss.</p>
+      <div class="codex">${FUSIONS.filter((f) => f.tier !== 2).map(row).join('')}</div>
+      <h3 class="shop-head">Ascended</h3>
+      <p class="fine">From floor ${ASCEND_FLOOR}, the forge can fuse two fused relics into one.</p>
+      <div class="codex">${FUSIONS.filter((f) => f.tier === 2).map(row).join('')}</div>`;
   } else if (tab === 'combos') {
     body = `<div class="codex">${COMBOS.map((c) => {
       const seen = !!meta.combos[c.id];

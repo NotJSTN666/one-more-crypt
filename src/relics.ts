@@ -49,9 +49,11 @@ export type RelicId =
 
 export type FusedId =
   | 'plasma' | 'zero' | 'vheart' | 'aegis' | 'reaper' | 'pyre'
-  | 'eternal' | 'fate' | 'oath' | 'lichbook' | 'dragon' | 'twinblade';
+  | 'eternal' | 'fate' | 'oath' | 'lichbook' | 'dragon' | 'twinblade'
+  // Ascended: two fused relics forged again, deep in the crypt
+  | 'suneater' | 'bastion' | 'immortal' | 'wager' | 'thousand' | 'dracolich';
 
-export type Rarity = 'common' | 'rare' | 'cursed' | 'fused';
+export type Rarity = 'common' | 'rare' | 'cursed' | 'fused' | 'ascended';
 
 export interface RelicDef {
   id: RelicId;
@@ -127,9 +129,14 @@ export const LEGACY_RELICS: RelicId[] = [
 export interface FusionDef {
   id: FusedId;
   from: [RelicId, RelicId];
-  /** Counts as this many of each base relic. */
+  /** Counts as this many of each relic. Ascended relics grant both fused relics they came from, and more. */
   grants: Partial<Record<RelicId, number>>;
+  /** 2 for ascended relics, which only the deep forges can make. */
+  tier?: 2;
 }
+
+/** Forges this deep (after the fourth boss) can also ascend two fused relics. */
+export const ASCEND_FLOOR = 21;
 
 export const FUSIONS: FusionDef[] = [
   { id: 'plasma', from: ['ember', 'storm'], grants: { ember: 2, storm: 2, conductor: 1 } },
@@ -144,6 +151,13 @@ export const FUSIONS: FusionDef[] = [
   { id: 'lichbook', from: ['necro', 'harvest'], grants: { necro: 3, harvest: 2 } },
   { id: 'dragon', from: ['heart', 'scale'], grants: { scale: 3 } },
   { id: 'twinblade', from: ['echo', 'whetstone'], grants: { echo: 2, whetstone: 2 } },
+  // Ascended. Listed after every fusion so forge choices made before they existed keep their order.
+  { id: 'suneater', from: ['plasma', 'pyre'], grants: { plasma: 1, pyre: 1, ember: 2, storm: 2, conductor: 1 }, tier: 2 },
+  { id: 'bastion', from: ['zero', 'aegis'], grants: { zero: 1, aegis: 1, frost: 1, shatter: 2, thorns: 2, mirror: 1 }, tier: 2 },
+  { id: 'immortal', from: ['vheart', 'eternal'], grants: { vheart: 1, eternal: 1, fang: 2, candle: 2, lantern: 1 }, tier: 2 },
+  { id: 'wager', from: ['fate', 'oath'], grants: { fate: 1, oath: 1, dice: 1, mark: 2, pact: 1, idol: 2 }, tier: 2 },
+  { id: 'thousand', from: ['reaper', 'twinblade'], grants: { reaper: 1, twinblade: 1, whirl: 2, pike: 1, whetstone: 3 }, tier: 2 },
+  { id: 'dracolich', from: ['lichbook', 'dragon'], grants: { lichbook: 1, dragon: 1, necro: 1, harvest: 2, scale: 2 }, tier: 2 },
 ];
 
 export const FUSED_RELICS: RelicDef[] = [
@@ -159,6 +173,12 @@ export const FUSED_RELICS: RelicDef[] = [
   { id: 'lichbook', name: 'Book of the Dead', emoji: '📖', rarity: 'fused', maxStack: 1, desc: () => 'Slain foes have a 45% chance to rise as thralls. Each kill grants +2 attack until the floor ends.' },
   { id: 'dragon', name: 'Dragonheart', emoji: '🐲', rarity: 'fused', maxStack: 1, desc: () => '+6 max HP when forged. Hits on you deal 3 less damage (never below 1).' },
   { id: 'twinblade', name: 'Twin Blade', emoji: '⚔️', rarity: 'fused', maxStack: 1, desc: () => '+2 attack, and every 3rd attack strikes twice.' },
+  { id: 'suneater', name: 'Sun Eater', emoji: '☀️', rarity: 'ascended', maxStack: 1, desc: () => 'Plasma Brand and Funeral Pyre in one, plus 2 more Ember Brands, 2 more Storm Runes and a longer lightning chain.' },
+  { id: 'bastion', name: 'Glacier Bastion', emoji: '🏔️', rarity: 'ascended', maxStack: 1, desc: () => 'Absolute Zero and Thorned Aegis in one: block 3 hits a floor, freeze for 3 turns, +15 damage to frozen foes, 5 thorns.' },
+  { id: 'immortal', name: 'Immortal Heart', emoji: '💖', rarity: 'ascended', maxStack: 1, desc: () => "Vampire Lord's Heart and Eternal Flame in one: heal 5 per kill, 10 per floor, and rise again at full HP every boss floor." },
+  { id: 'wager', name: "Death's Wager", emoji: '⚰️', rarity: 'ascended', maxStack: 1, desc: () => "Fate's Edge and Berserker's Oath in one: 60% triple hits, +10 on first strikes, and fury when wounded." },
+  { id: 'thousand', name: 'Thousand Cuts', emoji: '🌪️', rarity: 'ascended', maxStack: 1, desc: () => "Reaper's Scythe and Twin Blade in one: +5 attack, every 3rd attack strikes twice, 5 damage sweeps around you and attacks pierce 3 tiles." },
+  { id: 'dracolich', name: 'Dracolich', emoji: '👁️', rarity: 'ascended', maxStack: 1, desc: () => '+10 max HP when forged. Book of the Dead and Dragonheart in one: 60% of the slain rise, +4 attack per kill, 5 less damage taken.' },
 ];
 
 export const FUSION_BY_ID = Object.fromEntries(FUSIONS.map((f) => [f.id, f])) as Record<FusedId, FusionDef>;
@@ -167,14 +187,19 @@ export const RELIC_BY_ID: Record<RelicId, RelicDef> = Object.fromEntries(
   [...RELICS, ...FUSED_RELICS].map((r) => [r.id, r]),
 ) as Record<RelicId, RelicDef>;
 
-/** Base relic counts plus what fused relics grant, e.g. for drawing the hero. */
+/** Relic counts plus everything fused and ascended relics grant, e.g. for drawing the hero. */
 export function withFusions(relics: Partial<Record<RelicId, number>>): Partial<Record<RelicId, number>> {
   const out = { ...relics };
-  for (const f of FUSIONS) {
-    if (!relics[f.id]) continue;
-    for (const [id, n] of Object.entries(f.grants)) out[id as RelicId] = (out[id as RelicId] ?? 0) + (n ?? 0);
+  // An ascended relic grants fused relics, which grant base relics in turn.
+  const open = FUSIONS.filter((f) => relics[f.id]).map((f) => f.id);
+  while (open.length) {
+    const f = FUSION_BY_ID[open.pop()!];
+    for (const [id, n] of Object.entries(f.grants)) {
+      out[id as RelicId] = (out[id as RelicId] ?? 0) + (n ?? 0);
+      if (FUSION_BY_ID[id as FusedId]) open.push(id as FusedId);
+    }
   }
   return out;
 }
 
-export const RARITY_WEIGHT: Record<Rarity, number> = { common: 10, rare: 4, cursed: 5, fused: 0 };
+export const RARITY_WEIGHT: Record<Rarity, number> = { common: 10, rare: 4, cursed: 5, fused: 0, ascended: 0 };

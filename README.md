@@ -15,8 +15,8 @@ A daily dark-fantasy roguelite that runs in the browser. Same crypt for everyone
 - Elite foes with special tricks, spike traps you can lure enemies across, and floor events (Blood Shrine, Iron Chest, Pale Fountain).
 - A boss every 5th floor: the Bone Warden, the Plague Abbot, then the Lich King. Below floor 30, the Abyss makes every hit hurt more.
 - **Souls and the Ossuary:** every run earns Souls to unlock heroes and ten forbidden relics for Endless.
-- **Grimoire:** a codex of 41 relics, 12 fusions, 44 achievements and 18 named relic combos.
-- **Soul Forge:** on the floor after each boss, fuse two relics into a stronger one.
+- **Grimoire:** a codex of 41 relics, 12 fusions, 6 ascended relics, 46 achievements and 18 named relic combos.
+- **Soul Forge:** on the floor after each boss, fuse two relics into a stronger one. From floor 21, fuse two fused relics into an ascended relic.
 - **Crypt Hall:** a shareable trophy room with Soul Ranks, titles, hero looks and the Bestiary.
 - **Runs resume:** closing the tab mid-run loses nothing; the run is rebuilt from its saved inputs.
 - **Daily Descent:** a new crypt at midnight Central Time, a seed fixed by that date, a hero of the day, one official attempt, and a Wordle-style share card for X. The results screen says what percentage of today's players you beat.

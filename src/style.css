@@ -460,6 +460,7 @@ h2.dead {
 .offer .cursed { border-left-color: var(--blood); }
 .offer .common { border-left-color: var(--gold); }
 .offer .fused { border-left-color: #7fb4ff; }
+.offer .ascended { border-left-color: #fff2c0; background: linear-gradient(90deg, rgba(242, 193, 78, 0.14), transparent 70%), var(--panel); }
 
 .offer .emoji {
   font-size: 30px;
@@ -480,6 +481,7 @@ h2.dead {
 .offer .rare .tag { color: var(--spectral); }
 .offer .cursed .tag { color: var(--blood); }
 .offer .fused .tag { color: #7fb4ff; }
+.offer .ascended .tag { color: #fff2c0; }
 
 .offer .desc {
   display: block;
@@ -1441,4 +1443,8 @@ body.tutorial #relic-bar {
 .row.grid2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
+}
+
+.ascend-note {
+  color: #fff2c0;
 }

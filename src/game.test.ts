@@ -284,3 +284,42 @@ describe('the Soul Forge', () => {
     }
   });
 });
+
+describe('ascension', () => {
+  function deepForge(floor: number, held: Partial<Record<RelicId, number>>): Game {
+    const g = new Game('endless', 11, 0, { hero: 'knight', pool: fullPool(), forge: true });
+    (g as unknown as { enterFloor(f: number): void }).enterFloor(floor);
+    g.relics = { ...held };
+    g.relicLog = Object.keys(held) as RelicId[];
+    g.phase = 'event';
+    g.player.x = g.feature!.x;
+    g.player.y = g.feature!.y;
+    return g;
+  }
+
+  it('is only offered by forges from the ascension floor down', () => {
+    expect(deepForge(16, { plasma: 1, pyre: 1 }).forgeOptions()).toHaveLength(0);
+    expect(deepForge(21, { plasma: 1, pyre: 1 }).forgeOptions().map((f) => f.id)).toEqual(['suneater']);
+  });
+
+  it('keeps everything both fused relics did, and more', () => {
+    const g = deepForge(21, { plasma: 1, pyre: 1, ember: 1 });
+    g.forge(0);
+    expect(g.own('suneater')).toBe(1);
+    expect(g.own('plasma')).toBe(0);
+    expect(g.r('plasma')).toBe(1);
+    expect(g.r('pyre')).toBe(1);
+    // 1 held + 2 from Plasma + 1 from Pyre + 2 from the Sun Eater itself
+    expect(g.r('ember')).toBe(6);
+    expect(g.r('wildfire')).toBe(1);
+    expect(g.relicLog).toEqual(['ember', 'suneater']);
+  });
+
+  it('Dracolich grows max HP when forged', () => {
+    const g = deepForge(21, { lichbook: 1, dragon: 1 });
+    const before = g.player.maxHp;
+    g.forge(0);
+    expect(g.player.maxHp).toBe(before + 10);
+    expect(g.r('scale')).toBe(5);
+  });
+});

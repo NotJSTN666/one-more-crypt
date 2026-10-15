@@ -249,7 +249,9 @@ export function checkRun(game: Game): AchievementDef[] {
     ['soulbound', meta.earned >= 2000],
     ['forge', s.fusions > 0],
     ['forge2', s.fusions >= 2],
-    ['forge-all', FUSIONS.every((f) => meta.fusions[f.id])],
+    ['forge-all', FUSIONS.filter((f) => f.tier !== 2).every((f) => meta.fusions[f.id])],
+    ['ascend', FUSIONS.some((f) => f.tier === 2 && game.own(f.id) > 0)],
+    ['ascend-all', FUSIONS.filter((f) => f.tier === 2).every((f) => meta.fusions[f.id])],
   ];
   const out: AchievementDef[] = [];
   for (const [id, ok] of conditions) {
