@@ -4,15 +4,19 @@
 //   2. crowns yesterday's daily champion, with a picture of their hero in its final form;
 //   3. announces that today's crypt is open, with today's hero.
 //
-// DRY_RUN=true writes the images and text to out/ without posting. Locally:
-//   SUPABASE_URL=... SUPABASE_ANON_KEY=... DRY_RUN=true node scripts/daily-post.mjs
+// MODE decides what happens with them:
+//   email   - email a "post kit" (images, text and an Open-in-X link per post) to POST_EMAIL_TO
+//             through Resend, for posting by hand. The default.
+//   post    - post them to @OneMoreCrypt through the X API (needs X API credits).
+//   preview - only write the images and text to out/.
+// Locally: SUPABASE_URL=... SUPABASE_ANON_KEY=... MODE=preview node scripts/daily-post.mjs
 import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { TwitterApi } from 'twitter-api-v2';
 
 const env = process.env;
-const DRY_RUN = env.DRY_RUN === 'true';
+const MODE = ['email', 'post', 'preview'].includes(env.MODE) ? env.MODE : 'email';
 const SCHEDULED = env.SCHEDULED === 'true';
 const SITE = 'https://onemorecrypt.com';
 const HANDLE = '@OneMoreCrypt';
@@ -52,6 +56,52 @@ async function endlessLeader(isMonday) {
   if (!fresh && !isMonday) return null;
   const [run] = await rest(`runs?mode=eq.endless&user_id=eq.${top.user_id}&floor=eq.${top.floor}&kills=eq.${top.kills}&turns=eq.${top.turns}&select=seed,log&limit=1`);
   return { ...top, fresh, seed: Number(run?.seed ?? 0), log: run?.log ?? '' };
+}
+
+const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+/** Email the day's posts, ready to copy, save and post by hand. */
+async function emailKit(dailyNo, posts) {
+  for (const k of ['RESEND_API_KEY', 'POST_EMAIL_TO']) {
+    if (!env[k]) throw new Error(`Missing the ${k} secret. See docs/daily-x-post.md.`);
+  }
+  const date = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'long', month: 'long', day: 'numeric' }).format(new Date());
+  const blocks = posts
+    .map((p, i) => {
+      const intent = `https://x.com/intent/post?${new URLSearchParams({ text: p.text })}`;
+      return `
+      <tr><td style="padding:26px 0 8px;font-family:Arial,Helvetica,sans-serif;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#f2c14e;">Post ${i + 1} of ${posts.length} · ${escapeHtml(p.label)}</td></tr>
+      <tr><td><img src="cid:${p.name}" width="560" alt="${escapeHtml(p.label)}" style="display:block;width:100%;max-width:560px;height:auto;border:1px solid #2d2139;border-radius:6px;"></td></tr>
+      <tr><td style="padding:12px 0 0;"><div style="padding:14px 16px;background:#150e1d;border:1px solid #2d2139;border-radius:6px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#e8dcc4;white-space:pre-wrap;">${escapeHtml(p.text)}</div></td></tr>
+      <tr><td style="padding:12px 0 0;">
+        <a href="${escapeHtml(intent)}" style="display:inline-block;padding:11px 18px;background:#d23a46;border-radius:4px;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;letter-spacing:1px;color:#ffffff;text-decoration:none;">OPEN IN X WITH THIS TEXT</a>
+        <span style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#9a8fa8;">&nbsp; then attach <b>${p.name}.png</b></span>
+      </td></tr>`;
+    })
+    .join('');
+  const html = `<!doctype html><html><body style="margin:0;background:#07040b;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#07040b"><tr><td align="center" style="padding:24px 14px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+      <tr><td style="font-family:Georgia,'Times New Roman',serif;font-size:30px;color:#d23a46;">Today's posts</td></tr>
+      <tr><td style="padding:6px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#9a8fa8;">${escapeHtml(date)} · Daily #${dailyNo}. Post them in this order, so the newest post on @OneMoreCrypt is today's crypt. The images are attached to this email too.</td></tr>
+      ${blocks}
+      <tr><td style="padding:28px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#6f6580;">Sent by the Daily X post job in the one-more-crypt repo.</td></tr>
+    </table>
+  </td></tr></table></body></html>`;
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      from: 'One More Crypt <crypt@onemorecrypt.com>',
+      to: env.POST_EMAIL_TO.split(',').map((a) => a.trim()).filter(Boolean),
+      subject: `Your X posts for Daily #${dailyNo}`,
+      html,
+      text: posts.map((p, i) => `POST ${i + 1}: ${p.label}\n\n${p.text}\n\n(attach ${p.name}.png)`).join('\n\n----\n\n'),
+      attachments: posts.map((p) => ({ filename: `${p.name}.png`, content: p.image.toString('base64'), content_id: p.name })),
+    }),
+  });
+  if (!res.ok) throw new Error(`Resend ${res.status}: ${await res.text()}`);
+  console.log(`\nEmailed the post kit: ${(await res.json()).id}`);
 }
 
 function startVite() {
@@ -106,6 +156,7 @@ try {
     const image = await page.locator('#card').screenshot({ path: `${OUT}/endless.png` });
     posts.push({
       name: 'endless',
+      label: leader.fresh ? 'New endless record' : 'Reigning endless champion',
       image,
       text: (leader.fresh
         ? [`🏆 New endless record: ${leader.name} reached floor ${leader.floor} as the ${hero}, with ${leader.kills} kills.`, 'The deepest anyone has ever gone. For now.']
@@ -128,6 +179,7 @@ try {
     const crowned = champ.others ? `👑 Champions of Daily #${champ.dailyNo}: ${champ.name}, ${champ.others}` : `👑 Champion of Daily #${champ.dailyNo}: ${champ.name}`;
     posts.push({
       name: 'champion',
+      label: `Champion of Daily #${champ.dailyNo}`,
       image,
       text: [
         crowned,
@@ -144,6 +196,7 @@ try {
   const dailyImage = await page.locator('#card').screenshot({ path: `${OUT}/daily.png` });
   posts.push({
     name: 'daily',
+    label: `Daily #${today.dailyNo} is open`,
     image: dailyImage,
     text: [
       `🕯️ Daily #${today.dailyNo} is open.`,
@@ -156,8 +209,10 @@ try {
   for (const p of posts) writeFileSync(`${OUT}/${p.name}.txt`, p.text);
   for (const p of posts) console.log(`\n--- ${p.name} (${[...p.text].length} chars) ---\n${p.text}`);
 
-  if (DRY_RUN) {
-    console.log('\nDry run: nothing posted. The images and text are in the run\'s "post-preview" download.');
+  if (MODE === 'preview') {
+    console.log('\nPreview only: nothing posted or sent. The images and text are in the run\'s "post-preview" download.');
+  } else if (MODE === 'email') {
+    await emailKit(today.dailyNo, posts);
   } else {
     for (const k of ['X_API_KEY', 'X_API_SECRET', 'X_ACCESS_TOKEN', 'X_ACCESS_SECRET']) {
       if (!env[k]) throw new Error(`Missing the ${k} secret. See docs/daily-x-post.md.`);

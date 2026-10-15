@@ -1,17 +1,20 @@
 name: Daily X post
 
-# Every morning at 7 AM Central: crown yesterday's daily champion and announce today's
-# crypt on @OneMoreCrypt. Setup steps: docs/daily-x-post.md.
+# Every morning at 7 AM Central: make the day's posts for @OneMoreCrypt (endless leader,
+# yesterday's champion, today's crypt) and email them for posting by hand. Set the repo
+# variable AUTO_POST to true to post them through the X API instead (needs X credits).
+# Setup steps: docs/daily-x-post.md.
 on:
   schedule:
     - cron: '0 12 * * *' # 7 AM CDT (summer)
     - cron: '0 13 * * *' # 7 AM CST (winter); the script skips whichever isn't 7 AM in Chicago
   workflow_dispatch:
     inputs:
-      dry_run:
-        description: 'Test run: make the images and text without posting'
-        type: boolean
-        default: true
+      mode:
+        description: 'What to do with the posts'
+        type: choice
+        options: [email, preview, post]
+        default: email
 
 permissions:
   contents: read
@@ -37,7 +40,9 @@ jobs:
       - run: node scripts/daily-post.mjs
         env:
           SCHEDULED: ${{ github.event_name == 'schedule' }}
-          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+          MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || (vars.AUTO_POST == 'true' && 'post' || 'email') }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          POST_EMAIL_TO: ${{ secrets.POST_EMAIL_TO }}
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
           X_API_KEY: ${{ secrets.X_API_KEY }}

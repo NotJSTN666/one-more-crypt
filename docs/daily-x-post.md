@@ -1,68 +1,51 @@
-# Automatic daily X posts
+# Daily X posts
 
-Every morning at **7 AM Central** (CDT in summer, CST in winter), GitHub posts to @OneMoreCrypt:
+Every morning at **7 AM Central** (CDT in summer, CST in winter), GitHub makes the day's
+posts for @OneMoreCrypt, each with its own picture:
 
-1. **The endless leader**: when someone sets a new #1 endless record in the last day,
+1. **The endless leader**: when someone set a new #1 endless record in the last day,
    "New endless record" with their crowned hero. Every Monday, even without a new record,
-   "Reigning endless champion" as a reminder of who to beat.
-2. **The crowning**: yesterday's daily champion, with a picture of their hero wearing a
-   crown and their relics, their name, floor and kills. Ties are named together. Skipped
-   if nobody played yesterday.
-3. **The new crypt**: "Daily #N is open" with a picture of today's hero.
+   "Reigning endless champion".
+2. **Yesterday's daily champion**: their hero wearing a crown and their relics, with their
+   name, floor and kills. Ties are named together. Skipped if nobody played.
+3. **Today's crypt**: "Daily #N is open" with today's hero.
 
-The job is `.github/workflows/daily-post.yml`; the script is `scripts/daily-post.mjs` and the
+By default it **emails them to you** to post by hand: each post's picture, its text, and an
+"Open in X with this text" button. Post them in the order given.
+
+The job is `.github/workflows/daily-post.yml`; the script is `scripts/daily-post.mjs`; the
 pictures are drawn by `scripts/post-cards.html`.
 
-## One-time setup
+## Setup: the daily email
 
-### 1. Get X API keys (signed in as @OneMoreCrypt)
+1. **Resend key.** resend.com → **API Keys → Create API Key**. Name `daily-posts`,
+   permission **Sending access**, domain `onemorecrypt.com`. Copy the `re_…` key.
+2. **GitHub secrets.** Repo → **Settings → Secrets and variables → Actions → Secrets** →
+   **New repository secret**:
 
-1. Go to https://developer.x.com and sign in as **@OneMoreCrypt**.
-2. Sign up for the **Free** plan (or whatever the cheapest plan that allows posting is
-   called when you sign up). Describe the use: "Posts a daily game announcement and
-   the previous day's leaderboard winner for my browser game One More Crypt."
-3. In the **Developer Portal**, open your **Project → App**.
-4. **User authentication settings → Set up**:
-   - App permissions: **Read and write**
-   - Type of App: **Web App, Automated App or Bot**
-   - Callback URI: `https://onemorecrypt.com/`
-   - Website URL: `https://onemorecrypt.com/`
-   - Save.
-5. **Keys and tokens** tab:
-   - **API Key and Secret → Regenerate** (or Generate). Copy both.
-   - **Access Token and Secret → Generate**. Copy both. Do this *after* step 4, so the
-     token can post. It should say "Created with Read and Write permissions".
+   | Name | Value |
+   | --- | --- |
+   | `RESEND_API_KEY` | the `re_…` key |
+   | `POST_EMAIL_TO` | the address to send them to (several: separate with commas) |
 
-### 2. Add them to GitHub as secrets
+3. **Test.** Repo → **Actions → Daily X post → Run workflow**, mode **email** → **Run**.
+   The email arrives from One More Crypt <crypt@onemorecrypt.com> within a minute or two.
+   Check spam the first time and mark it "not spam".
 
-Repo → **Settings → Secrets and variables → Actions → Secrets** tab → **New repository
-secret**, four times:
+Run modes for manual runs: **email** sends the kit now, **preview** only saves the pictures
+and text in the run's **post-preview** download, **post** posts to X.
 
-| Name | Value |
-| --- | --- |
-| `X_API_KEY` | API Key |
-| `X_API_SECRET` | API Key Secret |
-| `X_ACCESS_TOKEN` | Access Token |
-| `X_ACCESS_SECRET` | Access Token Secret |
+## Later: posting automatically
 
-(`SUPABASE_URL` and `SUPABASE_ANON_KEY` are already set up as variables for the game.)
-
-### 3. Test without posting
-
-Repo → **Actions → Daily X post → Run workflow**, leave **Test run** ticked, **Run**.
-When it finishes, open the run and download **post-preview** at the bottom: it has the two
-pictures and the exact post text.
-
-### 4. Make one real post (optional)
-
-Run it again with **Test run** unticked. It posts both immediately. After that it runs by
-itself every morning at 7 AM Central.
+Posting through the X API needs prepaid X credits (Developer Console → **Billing →
+Credits**). With credits and the four X secrets in place (`X_API_KEY`, `X_API_SECRET`,
+`X_ACCESS_TOKEN`, `X_ACCESS_SECRET`, from the app's **Keys and tokens**, with
+**Read and write** permission), add a repository **variable** (Variables tab, not Secrets)
+`AUTO_POST` = `true`. The 7 AM job then posts to X instead of emailing.
 
 ## Good to know
 
-- GitHub's scheduler can start a few minutes late, so posts land between about 7:00 and
-  7:20 AM.
-- Champion names are whatever players picked (letters, numbers and underscores). If an
-  offensive name ever wins, turn the workflow off for a day: **Actions → Daily X post →
-  ⋯ → Disable workflow**.
-- To stop the posts entirely, disable the workflow the same way, or delete the secrets.
+- GitHub's scheduler can start a few minutes late, so the email lands between about 7:00
+  and 7:20 AM.
+- Champion names are whatever players picked. Glance at them before posting.
+- To stop the job: **Actions → Daily X post → ⋯ → Disable workflow**.
