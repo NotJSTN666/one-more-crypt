@@ -15,12 +15,35 @@ const BOARD_H = H * TILE;
 const PAD = (TILE - SPRITE_SIZE) / 2;
 
 interface Floater { x: number; y: number; text: string; color: string; t: number; life: number }
-interface Particle { x: number; y: number; vx: number; vy: number; color: string; t: number; life: number; size: number }
+interface Particle { x: number; y: number; vx: number; vy: number; color: string; t: number; life: number; size: number; grav?: number }
+interface Candle { x: number; y: number; phase: number }
+interface Mote { x: number; y: number; vx: number; vy: number; t: number; life: number }
 interface Line { from: Pos; to: Pos; t: number; life: number; color: string }
 interface Corpse { kind: EnemyKind; x: number; y: number; t: number }
 interface Lunge { dx: number; dy: number; t: number }
 
 const PLAYER_ID = 0;
+
+const pixelCache = new Map<string, { x: number; y: number; c: string }[]>();
+
+/** The coloured pixels of a foe's sprite, for shattering it on death. */
+function spritePixels(kind: EnemyKind | HTMLCanvasElement): { x: number; y: number; c: string }[] {
+  const key = typeof kind === 'string' ? kind : '';
+  let px = key ? pixelCache.get(key) : undefined;
+  if (px) return px;
+  px = [];
+  const img = typeof kind === 'string' ? sprites()[kind].normal : kind;
+  const data = img.getContext('2d')!.getImageData(0, 0, img.width, img.height).data;
+  for (let y = 0; y < img.height; y++) {
+    for (let x = 0; x < img.width; x++) {
+      const i = (y * img.width + x) * 4;
+      if (data[i + 3] < 128) continue;
+      px.push({ x, y, c: `rgb(${data[i]},${data[i + 1]},${data[i + 2]})` });
+    }
+  }
+  if (key) pixelCache.set(key, px);
+  return px;
+}
 
 export class Renderer {
   private ctx: CanvasRenderingContext2D;
@@ -40,6 +63,16 @@ export class Renderer {
   private hurtFlash = 0;
   private healFlash = 0;
   private time = 0;
+  /** Which way each unit faces (-1 left, 1 right), how far it still has to travel, and landing squash. */
+  private facing = new Map<number, number>();
+  private remain = new Map<number, number>();
+  private landing = new Map<number, number>();
+  /** Brief freeze on big hits, so they land with weight. */
+  private hitStop = 0;
+  /** 0..1 while the darkness opens onto a new floor. */
+  private enter = 1;
+  private candles: Candle[] = [];
+  private motes: Mote[] = [];
   /** The player's costume for this run: cloak look and headwear ('' for none). */
   outfit = { look: '', head: '' };
 
@@ -61,6 +94,10 @@ export class Renderer {
   setGame(game: Game) {
     this.game = game;
     this.disp.clear();
+    this.facing.clear();
+    this.remain.clear();
+    this.landing.clear();
+    this.enter = 0;
     this.floaters = [];
     this.particles = [];
     this.lines = [];
@@ -85,7 +122,9 @@ export class Renderer {
     for (const ev of events) {
       switch (ev.t) {
         case 'floor':
+          this.enter = 0;
           this.disp.clear();
+          this.remain.clear();
           this.corpses = [];
           this.lines = [];
           this.floaters = [];
@@ -111,14 +150,19 @@ export class Renderer {
           const f = this.floater(ev.x, ev.y, `${ev.amount}${ev.crit ? '!' : ''}`, ev.crit ? '#f2c14e' : colors[ev.kind], 0.8);
           f.y -= (stack++ % 3) * 4;
           this.floaters.push(f);
-          if (ev.crit) this.shake = Math.max(this.shake, 3);
+          if (ev.crit) {
+            this.shake = Math.max(this.shake, 3);
+            this.hitStop = Math.max(this.hitStop, 0.07);
+          }
           this.burstParticles(ev.x, ev.y, ev.kind === 'burn' ? '#ff8a2a' : '#d23a46', 4);
           break;
         }
         case 'kill': {
           const d = this.disp.get(ev.id) ?? { x: ev.x, y: ev.y };
           this.corpses.push({ kind: ev.kind, x: d.x, y: d.y, t: 0 });
-          this.burstParticles(ev.x, ev.y, ev.ally ? '#7ee081' : ev.kind === 'wraith' ? '#9fe8ff' : '#e8dcc4', 10);
+          this.shatter(ev.kind, d, this.facing.get(ev.id) ?? 1, isBoss(ev) ? 1.6 : 1);
+          this.burstParticles(ev.x, ev.y, ev.ally ? '#7ee081' : ev.kind === 'wraith' ? '#9fe8ff' : '#e8dcc4', 6);
+          if (isBoss(ev)) this.hitStop = Math.max(this.hitStop, 0.18);
           if (ev.elite) this.burstParticles(ev.x, ev.y, ELITES[ev.elite].color, 14, 1.5);
           this.shake = Math.max(this.shake, isBoss(ev) ? 6 : 1.5);
           break;
@@ -192,10 +236,14 @@ export class Renderer {
           this.banner('THE BELL TOLLS', '#f2c14e');
           if (!this.quiet) this.shake = 5;
           break;
-        case 'death':
+        case 'death': {
           this.shake = 8;
+          this.hitStop = 0.25;
+          const d = this.disp.get(PLAYER_ID) ?? g.player;
+          this.shatter(heroSprite(g.hero, g.relics, g.relicLog, this.outfit.look, this.outfit.head).normal, d, this.facing.get(PLAYER_ID) ?? 1, 1.3);
           this.burstParticles(g.player.x, g.player.y, '#d23a46', 30, 2);
           break;
+        }
         case 'relic':
           claimed.push(ev.id);
           break;
@@ -252,7 +300,7 @@ export class Renderer {
     const r = (id: RelicId) => g.r(id);
     const x = d.x * TILE + PAD;
     const y = d.y * TILE + PAD;
-    const tipX = x + 11;
+    const tipX = (this.facing.get(PLAYER_ID) ?? 1) < 0 ? x : x + 11;
     const tipY = y + 3 - Math.min(2, r('whetstone'));
     const emit = (chance: number, px: number, py: number, vy: number, color: string) => {
       if (Math.random() < chance) {
@@ -279,6 +327,23 @@ export class Renderer {
     }
   }
 
+  /** Break a slain foe into its own pixels, which scatter and fall. */
+  private shatter(kind: EnemyKind | HTMLCanvasElement, d: Pos, face: number, power: number) {
+    const px = spritePixels(kind);
+    const x0 = d.x * TILE + PAD;
+    const y0 = d.y * TILE + PAD;
+    const cx = x0 + SPRITE_SIZE / 2;
+    const cy = y0 + SPRITE_SIZE / 2;
+    for (const p of px) {
+      const x = x0 + (face < 0 ? SPRITE_SIZE - 1 - p.x : p.x);
+      const y = y0 + p.y;
+      const dx = x - cx + (Math.random() - 0.5) * 2;
+      const dy = y - cy - 2 + (Math.random() - 0.5) * 2;
+      const v = (5 + Math.random() * 7) * power;
+      this.particles.push({ x, y, vx: dx * v, vy: dy * v - 25 * power, color: p.c, t: 0, life: 0.5 + Math.random() * 0.45, size: 1, grav: 2.2 });
+    }
+  }
+
   private floater(x: number, y: number, text: string, color: string, life: number): Floater {
     return { x: x * TILE + TILE / 2, y: Math.max(14, y * TILE + 2), text, color, t: 0, life };
   }
@@ -298,9 +363,14 @@ export class Renderer {
 
   // ---------- frame ----------
 
-  frame(dt: number) {
+  frame(realDt: number) {
     const g = this.game;
     if (!g) return;
+    // The first frame can report a slightly negative time; never run the clock backwards.
+    realDt = Math.max(0, realDt);
+    // Hit-stop: the world holds still for a beat on big hits.
+    const dt = this.hitStop > 0 ? 0 : realDt;
+    this.hitStop = Math.max(0, this.hitStop - realDt);
     this.time += dt;
     if (this.bgFloor !== g.floor) {
       this.bg = this.buildBackground(g);
@@ -319,6 +389,7 @@ export class Renderer {
     }
 
     if (this.bg) ctx.drawImage(this.bg, 0, 0);
+    this.drawCandles();
     this.drawStairs(g);
     this.drawSpikes(g);
     this.drawFeature(g);
@@ -366,9 +437,11 @@ export class Renderer {
 
     this.drawLines(dt);
     this.drawParticles(dt);
+    this.drawMotes(dt);
     this.drawLighting(g);
     this.drawFloaters(dt);
     this.drawBanner(dt);
+    this.drawEnter(g, realDt);
 
     this.hurtFlash = Math.max(0, this.hurtFlash - dt * 3);
     this.healFlash = Math.max(0, this.healFlash - dt * 2);
@@ -388,10 +461,15 @@ export class Renderer {
       d = { x: target.x, y: target.y };
       this.disp.set(id, d);
     }
+    if (target.x !== d.x && Math.abs(target.x - d.x) > 0.05) this.facing.set(id, target.x > d.x ? 1 : -1);
     d.x += (target.x - d.x) * k;
     d.y += (target.y - d.y) * k;
     if (Math.abs(target.x - d.x) < 0.01) d.x = target.x;
     if (Math.abs(target.y - d.y) < 0.01) d.y = target.y;
+    const left = Math.max(Math.abs(target.x - d.x), Math.abs(target.y - d.y));
+    const before = this.remain.get(id) ?? 0;
+    if (before > 0.02 && left <= 0.02) this.landing.set(id, 0.12);
+    this.remain.set(id, left);
     return d;
   }
 
@@ -410,20 +488,49 @@ export class Renderer {
         oy = lunge.dy * amt;
       }
     }
+    // A little hop while stepping between tiles, a squash on landing, and slow breathing at rest.
+    const left = Math.min(1, this.remain.get(id) ?? 0);
+    const hop = left > 0.02 ? Math.sin(left * Math.PI) * 3 : 0;
+    let land = this.landing.get(id) ?? 0;
+    if (land > 0) {
+      land -= dt;
+      if (land <= 0) this.landing.delete(id);
+      else this.landing.set(id, land);
+    }
+    const squash = land > 0 ? 1 : !hop && !bob && Math.sin(this.time * 2.6 + id * 1.7) > 0.55 ? 1 : 0;
+    // Recoil: a hit shudders the sprite for a moment.
+    if (this.flashes.has(id) && id !== PLAYER_ID) ox += Math.round((Math.random() - 0.5) * 2);
     const x = Math.round(d.x * TILE + PAD + ox);
-    const y = Math.round(d.y * TILE + PAD + oy + bob);
-    // shadow
-    ctx.globalAlpha = 0.35 * alpha;
+    const y = Math.round(d.y * TILE + PAD + oy + bob - hop);
+    // soft shadow, smaller while airborne
+    const sw = SPRITE_SIZE - 3 - Math.round(hop) - (bob ? 2 : 0);
+    ctx.globalAlpha = 0.4 * alpha;
     ctx.fillStyle = '#000';
-    ctx.fillRect(x + 2, y + SPRITE_SIZE - 1, SPRITE_SIZE - 4, 2);
+    ctx.beginPath();
+    ctx.ellipse(Math.round(d.x * TILE + PAD + ox) + SPRITE_SIZE / 2, Math.round(d.y * TILE + PAD + oy) + SPRITE_SIZE - 0.5, sw / 2, 1.5, 0, 0, Math.PI * 2);
+    ctx.fill();
     ctx.globalAlpha = alpha;
-    ctx.drawImage(this.flashes.has(id) ? sprite.white : sprite.normal, x, y);
+    const img = this.flashes.has(id) ? sprite.white : sprite.normal;
+    const face = this.facing.get(id) ?? 1;
+    const w = SPRITE_SIZE + (land > 0 ? 2 : 0);
+    const h = SPRITE_SIZE - squash;
+    const dx = x - (w - SPRITE_SIZE) / 2;
+    const dy = y + squash;
+    if (face < 0) {
+      ctx.save();
+      ctx.translate(dx + w, dy);
+      ctx.scale(-1, 1);
+      ctx.drawImage(img, 0, 0, w, h);
+      ctx.restore();
+    } else ctx.drawImage(img, dx, dy, w, h);
     ctx.globalAlpha = 1;
     return { x, y };
   }
 
   private drawEnemy(g: Game, e: Game['enemies'][number], d: Pos, dt: number) {
     const ctx = this.ctx;
+    // Foes turn to face the hero (thralls face whichever way they last walked).
+    if (!e.ally && g.player.x !== e.x) this.facing.set(e.id, g.player.x < e.x ? -1 : 1);
     const spr = sprites()[e.kind];
     const flying = e.kind === 'bat' || e.kind === 'wraith';
     const bob = flying ? Math.round(Math.sin(this.time * 6 + e.id) * 1.5) : 0;
@@ -602,6 +709,16 @@ export class Renderer {
       ctx.strokeStyle = `rgba(242, 193, 78, ${glow})`;
       ctx.lineWidth = 1;
       ctx.strokeRect(x + 0.5, y + 0.5, TILE - 1, TILE - 1);
+      ctx.globalCompositeOperation = 'lighter';
+      const halo = ctx.createRadialGradient(x + TILE / 2, y + TILE / 2, 2, x + TILE / 2, y + TILE / 2, TILE * 1.3);
+      halo.addColorStop(0, `rgba(242, 193, 78, ${0.25 * glow})`);
+      halo.addColorStop(1, 'rgba(242, 193, 78, 0)');
+      ctx.fillStyle = halo;
+      ctx.fillRect(x - TILE, y - TILE, TILE * 3, TILE * 3);
+      ctx.globalCompositeOperation = 'source-over';
+      if (Math.random() < 0.15) {
+        this.particles.push({ x: x + 2 + Math.random() * (TILE - 4), y: y + TILE - 3, vx: 0, vy: -14 - Math.random() * 8, color: Math.random() < 0.5 ? '#f2c14e' : '#fff2c0', t: 0, life: 0.7, size: 1, grav: -0.05 });
+      }
     } else {
       ctx.fillStyle = '#1b1422';
       ctx.fillRect(x + 1, y + 1, TILE - 2, TILE - 2);
@@ -618,14 +735,14 @@ export class Renderer {
 
   private updateCorpses(dt: number) {
     const ctx = this.ctx;
-    this.corpses = this.corpses.filter((c) => (c.t += dt) < 0.35);
+    this.corpses = this.corpses.filter((c) => (c.t += dt) < 0.09);
     for (const c of this.corpses) {
-      const p = c.t / 0.35;
+      const p = c.t / 0.09;
       ctx.globalAlpha = 1 - p;
       const spr = sprites()[c.kind];
       const x = Math.round(c.x * TILE + PAD);
       const y = Math.round(c.y * TILE + PAD + p * 4);
-      ctx.drawImage(p < 0.3 ? spr.white : spr.normal, x, y);
+      ctx.drawImage(spr.white, x, y);
       ctx.globalAlpha = 1;
     }
   }
@@ -663,7 +780,7 @@ export class Renderer {
     for (const p of this.particles) {
       p.x += p.vx * dt;
       p.y += p.vy * dt;
-      p.vy += 90 * dt;
+      p.vy += 90 * (p.grav ?? 1) * dt;
       p.vx *= 0.96;
       ctx.globalAlpha = 1 - p.t / p.life;
       ctx.fillStyle = p.color;
@@ -696,6 +813,71 @@ export class Renderer {
     ctx.textAlign = 'left';
   }
 
+  /** Wall candles: flickering flames that throw a warm glow on the floor around them. */
+  private drawCandles() {
+    const ctx = this.ctx;
+    for (const c of this.candles) {
+      const f = Math.sin(this.time * 11 + c.phase) * 0.5 + Math.sin(this.time * 23 + c.phase * 2) * 0.3;
+      const r = 26 + f * 4;
+      ctx.globalCompositeOperation = 'lighter';
+      const glow = ctx.createRadialGradient(c.x + 1, c.y, 1, c.x + 1, c.y + 6, r);
+      glow.addColorStop(0, 'rgba(255, 160, 70, 0.32)');
+      glow.addColorStop(1, 'rgba(255, 120, 40, 0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(c.x - r, c.y - r, r * 2, r * 2 + 6);
+      ctx.globalCompositeOperation = 'source-over';
+      const tall = f > 0.2 ? 1 : 0;
+      ctx.fillStyle = '#ff8a2a';
+      ctx.fillRect(c.x, c.y - 1 - tall, 2, 2 + tall);
+      ctx.fillStyle = '#fff2c0';
+      ctx.fillRect(c.x + (f > 0 ? 1 : 0), c.y, 1, 1);
+      if (Math.random() < 0.02) {
+        this.particles.push({ x: c.x + 1, y: c.y - 2, vx: (Math.random() - 0.5) * 3, vy: -8, color: '#f2c14e', t: 0, life: 0.6, size: 1, grav: -0.1 });
+      }
+    }
+  }
+
+  /** Dust drifting through the light. */
+  private drawMotes(dt: number) {
+    if (this.quiet) return;
+    const ctx = this.ctx;
+    if (this.motes.length < 14 && Math.random() < dt * 4) {
+      this.motes.push({ x: Math.random() * BOARD_W, y: Math.random() * BOARD_H, vx: (Math.random() - 0.5) * 3, vy: -1 - Math.random() * 2, t: 0, life: 4 + Math.random() * 4 });
+    }
+    this.motes = this.motes.filter((m) => (m.t += dt) < m.life);
+    ctx.fillStyle = '#e8dcc4';
+    for (const m of this.motes) {
+      m.x += (m.vx + Math.sin(this.time + m.life) * 1.5) * dt;
+      m.y += m.vy * dt;
+      ctx.globalAlpha = Math.sin((m.t / m.life) * Math.PI) * 0.35;
+      ctx.fillRect(Math.round(m.x), Math.round(m.y), 1, 1);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /** A new floor opens out of the dark, from the hero outward. */
+  private drawEnter(g: Game, dt: number) {
+    if (this.enter >= 1) return;
+    this.enter = Math.min(1, this.enter + dt / 0.55);
+    const ctx = this.ctx;
+    const p = 1 - Math.pow(1 - this.enter, 3);
+    const cx = g.player.x * TILE + TILE / 2;
+    const cy = g.player.y * TILE + TILE / 2;
+    const r = Math.max(1, 6 + p * Math.hypot(BOARD_W, BOARD_H));
+    ctx.save();
+    ctx.fillStyle = '#07040b';
+    ctx.beginPath();
+    ctx.rect(-10, -10, BOARD_W + 20, BOARD_H + 20);
+    ctx.arc(cx, cy, r, 0, Math.PI * 2, true);
+    ctx.fill('evenodd');
+    ctx.strokeStyle = `rgba(242, 193, 78, ${0.5 * (1 - p)})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   private drawLighting(g: Game) {
     const ctx = this.ctx;
     const d = this.disp.get(PLAYER_ID) ?? g.player;
@@ -724,6 +906,7 @@ export class Renderer {
     c.height = BOARD_H;
     const ctx = c.getContext('2d')!;
     const rng = mulberry32(hashSeed(g.seed, 'decor', g.floor));
+    this.candles = [];
     const boss = g.isBossFloor();
     const floorTones = boss ? ['#2a1418', '#2f171c', '#261216'] : ['#1d1824', '#211b29', '#1a1520'];
 
@@ -774,12 +957,27 @@ export class Renderer {
         if (!g.isWall(x, y)) continue;
         const px = x * TILE;
         const py = y * TILE;
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(px, py + TILE, TILE, 3);
+        const open = y + 1 < H && !g.isWall(x, y + 1);
+        // drop shadow onto the floor below, fading out
+        if (open) {
+          ctx.fillStyle = 'rgba(0,0,0,0.55)';
+          ctx.fillRect(px, py + TILE, TILE, 2);
+          ctx.fillStyle = 'rgba(0,0,0,0.25)';
+          ctx.fillRect(px, py + TILE + 2, TILE, 2);
+        }
         ctx.fillStyle = '#3a3346';
         ctx.fillRect(px, py, TILE, TILE);
+        // lit top edge, and a darker front face where the wall meets open floor
+        ctx.fillStyle = '#5a5070';
+        ctx.fillRect(px, py, TILE, 1);
         ctx.fillStyle = '#4b4259';
-        ctx.fillRect(px, py, TILE, 3);
+        ctx.fillRect(px, py + 1, TILE, 2);
+        if (open) {
+          ctx.fillStyle = '#2a2433';
+          ctx.fillRect(px, py + TILE - 4, TILE, 4);
+          ctx.fillStyle = '#1d1824';
+          ctx.fillRect(px, py + TILE - 1, TILE, 1);
+        }
         // bricks
         ctx.fillStyle = '#28222f';
         for (let row = 0; row < 3; row++) {
@@ -793,12 +991,13 @@ export class Renderer {
           ctx.fillRect(px + 2 + Math.floor(rng() * 10), py + 3, 3, 2);
         }
         if (rng() < 0.15) {
-          // wall candle
+          // wall candle; its flame and glow are drawn live
           const cx = px + 6 + Math.floor(rng() * 4);
           ctx.fillStyle = '#e8dcc4';
           ctx.fillRect(cx, py + 6, 2, 4);
-          ctx.fillStyle = '#f2c14e';
-          ctx.fillRect(cx, py + 4, 2, 2);
+          ctx.fillStyle = '#c9b99a';
+          ctx.fillRect(cx, py + 9, 2, 1);
+          this.candles.push({ x: cx, y: py + 5, phase: rng() * 10 });
         }
       }
     }
