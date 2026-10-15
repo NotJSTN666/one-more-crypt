@@ -62,8 +62,11 @@ const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt
 
 /** Email the day's posts, ready to copy, save and post by hand. */
 async function emailKit(dailyNo, posts) {
-  for (const k of ['RESEND_API_KEY', 'POST_EMAIL_TO']) {
-    if (!env[k]) throw new Error(`Missing the ${k} secret. See docs/daily-x-post.md.`);
+  const missing = ['RESEND_API_KEY', 'POST_EMAIL_TO'].filter((k) => !env[k]);
+  if (missing.length) {
+    // Not set up yet: keep the pictures and text in the run's download instead of failing.
+    console.log(`\nEmail not set up (missing ${missing.join(' and ')}); the posts are in the run's "post-preview" download.`);
+    return;
   }
   const date = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'long', month: 'long', day: 'numeric' }).format(new Date());
   const blocks = posts
