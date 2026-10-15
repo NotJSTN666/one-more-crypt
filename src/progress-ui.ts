@@ -90,7 +90,7 @@ export function showOssuary(back: () => void) {
 
 // ---------- the Grimoire ----------
 
-type GrimoireTab = 'relics' | 'combos' | 'feats';
+type GrimoireTab = 'relics' | 'combos' | 'achievements';
 
 export function showGrimoire(back: () => void, tab: GrimoireTab = 'relics') {
   const found = RELICS.filter((r) => relicDiscovered(r.id)).length;
@@ -99,7 +99,7 @@ export function showGrimoire(back: () => void, tab: GrimoireTab = 'relics') {
   const tabs: [GrimoireTab, string][] = [
     ['relics', `Relics ${found}/${RELICS.length}`],
     ['combos', `Combos ${combosFound}/${COMBOS.length}`],
-    ['feats', `Feats ${feats}/${ACHIEVEMENTS.length}`],
+    ['achievements', `Achievements ${feats}/${ACHIEVEMENTS.length}`],
   ];
   let body = '';
   if (tab === 'relics') {

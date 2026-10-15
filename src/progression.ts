@@ -96,7 +96,7 @@ export interface LookDef {
   cloak: { p: string; P: string };
   /** Colour of the drifting aura motes, if any. */
   aura: string | null;
-  /** What unlocks it: a feat, a Soul Rank (index) or a Bestiary tier. */
+  /** What unlocks it: an achievement, a Soul Rank (index) or a Bestiary tier. */
   unlock: { feat: string } | { rank: number } | { beast: EnemyKind; tier: number };
   how: string;
 }

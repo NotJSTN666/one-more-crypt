@@ -1,5 +1,5 @@
 // The Crypt Hall: a trophy room for everything a player has done. Boss trophies on
-// the wall, a statue of each hero's deepest run, banners for feats and combos, and
+// the wall, a statue of each hero's deepest run, banners for achievements and combos, and
 // tabs to wear titles and looks and to read the Bestiary. Anyone can visit another
 // player's Hall from the leaderboard or a shared link.
 
@@ -145,7 +145,7 @@ function torch(ctx: CanvasRenderingContext2D, x: number, y: number, t: number) {
 
 function banner(ctx: CanvasRenderingContext2D, x: number, n: number, of: number, label: string, cloth: string, trim: string) {
   const top = 168;
-  const w = 84;
+  const w = 104;
   const h = 200;
   ctx.fillStyle = '#5a4630';
   ctx.fillRect(x - w / 2 - 8, top - 8, w + 16, 8);
@@ -163,7 +163,7 @@ function banner(ctx: CanvasRenderingContext2D, x: number, n: number, of: number,
   ctx.fillRect(x + w / 2 - 6, top, 6, h - 4);
   text(ctx, String(n), x, top + 82, `46px ${FONT_PIXEL}`, '#f2c14e');
   text(ctx, `/${of}`, x, top + 108, `16px ${FONT_PIXEL}`, 'rgba(232,220,196,0.7)');
-  text(ctx, label, x, top + 140, `17px ${FONT_PIXEL}`, '#e8dcc4');
+  fitText(ctx, label, x, top + 140, 17, FONT_PIXEL, '#e8dcc4', w - 14);
 }
 
 function trophy(ctx: CanvasRenderingContext2D, x: number, kind: EnemyKind, kills: number, slain: boolean) {
@@ -269,8 +269,8 @@ export function drawHall(ctx: CanvasRenderingContext2D, d: HallData, t = 0) {
   text(ctx, `${rank.name.toUpperCase()} · ${d.earned.toLocaleString()} SOULS`, W / 2, title ? 138 : 120, `17px ${FONT_PIXEL}`, rank.color);
 
   // trophies, torches and banners
-  banner(ctx, 62, d.feats, ACHIEVEMENTS.length, 'FEATS', '#5a1622', '#c99a2e');
-  banner(ctx, W - 62, d.combos, COMBOS.length, 'COMBOS', '#311854', '#c99a2e');
+  banner(ctx, 66, d.feats, ACHIEVEMENTS.length, 'ACHIEVEMENTS', '#5a1622', '#c99a2e');
+  banner(ctx, W - 66, d.combos, COMBOS.length, 'COMBOS', '#311854', '#c99a2e');
   torch(ctx, 360, 236, t);
   torch(ctx, 600, 236, t);
   BOSSES.forEach((k, i) => {
@@ -333,7 +333,7 @@ function trophiesBody(d: HallData): string {
   const statues = Object.keys(d.best).length;
   return `<div class="stat-grid">
       ${cell(d.earned.toLocaleString(), 'SOULS EARNED')}
-      ${cell(`${d.feats}/${ACHIEVEMENTS.length}`, 'FEATS')}
+      ${cell(`${d.feats}/${ACHIEVEMENTS.length}`, 'ACHIEVEMENTS')}
       ${cell(`${d.combos}/${COMBOS.length}`, 'COMBOS')}
       ${cell(`${d.relics}/${RELICS.length}`, 'RELICS')}
       ${cell(bosses, 'BOSSES SLAIN')}

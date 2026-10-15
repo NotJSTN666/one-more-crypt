@@ -644,7 +644,7 @@ function showTitle() {
     <button class="btn" id="endless">Endless Descent<small>${save.bestEndless ? `Deepest: floor ${save.bestEndless}` : 'Choose your hero, random crypts'}</small></button>
     <div class="row">
       <button class="btn" id="ossuary">🏛️ Ossuary<small>💀 ${meta.souls} Souls</small></button>
-      <button class="btn" id="grimoire">📖 Grimoire<small>Relics, combos, feats</small></button>
+      <button class="btn" id="grimoire">📖 Grimoire<small>Relics, combos, achievements</small></button>
     </div>
     <button class="btn" id="hall">🏰 The Crypt Hall<small style="color:${rankFor(meta.earned).color}">${esc(rankFor(meta.earned).name)} · trophies, titles, looks</small></button>
     ${ONLINE ? '<button class="btn" id="leaderboard">🏆 Leaderboards</button>' : ''}
