@@ -1448,3 +1448,15 @@ body.tutorial #relic-bar {
 .ascend-note {
   color: #fff2c0;
 }
+
+.hero-info .record {
+  display: block;
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.hero-info .record b {
+  font-weight: normal;
+  color: var(--gold);
+}

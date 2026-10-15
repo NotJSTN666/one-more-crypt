@@ -49,3 +49,21 @@ describe('the Bestiary', () => {
     expect(meta.earned).toBeGreaterThan(before);
   });
 });
+
+describe('per-hero records', () => {
+  it('are rebuilt from past runs by replaying them', async () => {
+    const { backfillHeroes } = await import('./meta');
+    const g = new Game('endless', 77, 0, { hero: 'rogue', pool: fullPool() });
+    for (let i = 0; i < 400 && g.phase !== 'dead'; i++) {
+      if (g.phase === 'choose') g.choose(0);
+      else if (g.phase === 'event') g.resolveEvent(false);
+      else g.act(0, i % 2 ? -1 : 1);
+    }
+    meta.heroBackfill = 0;
+    await backfillHeroes([{ mode: 'endless', daily_no: null, seed: 77, floor: g.floor, kills: g.kills, log: g.header() + g.log }]);
+    expect(meta.heroStats.rogue?.floor).toBe(g.floor);
+    expect(meta.heroStats.rogue?.runs).toBe(1);
+    expect(meta.heroBackfill).toBe(1);
+    expect(meta.best.rogue?.floor).toBe(g.floor);
+  });
+});

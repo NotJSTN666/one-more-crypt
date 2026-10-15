@@ -1042,4 +1042,10 @@ const visiting = hallFromLink();
 if (visiting && ONLINE) showPublicHall(visiting, showTitle);
 startGhosts();
 requestAnimationFrame(loop);
+
+// Music from the first moment the browser allows it: straight away where autoplay is
+// permitted, otherwise on the first click, tap or key press anywhere on the page.
+// (Cheap to repeat, so it simply listens for good.)
+unlockAudio();
+for (const ev of ['pointerdown', 'touchend', 'keydown']) window.addEventListener(ev, unlockAudio, true);
 document.fonts?.load('8px Silkscreen').catch(() => undefined);

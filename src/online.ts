@@ -242,6 +242,23 @@ export async function myRuns(userId: string): Promise<MyRun[]> {
   return (data ?? []) as MyRun[];
 }
 
+export interface RunLog {
+  mode: Mode;
+  daily_no: number | null;
+  seed: number;
+  floor: number;
+  kills: number;
+  log: string;
+}
+
+/** Every run this player has uploaded, with its input log, for rebuilding per-hero records. */
+export async function myRunLogs(userId: string): Promise<RunLog[]> {
+  const sb = await client();
+  const { data, error } = await sb.from('runs').select('mode, daily_no, seed, floor, kills, log').eq('user_id', userId).limit(2000);
+  if (error) throw friendly(error, 'Could not load your runs.');
+  return (data ?? []) as RunLog[];
+}
+
 const ADJ = ['Grim', 'Pale', 'Hollow', 'Ashen', 'Cursed', 'Silent', 'Rotten', 'Bleak', 'Bone', 'Dread', 'Gloom', 'Wretched'];
 const NOUN = ['Wraith', 'Ghoul', 'Knight', 'Monk', 'Reaper', 'Warden', 'Crow', 'Lich', 'Shade', 'Hound', 'Delver', 'Thief'];
 

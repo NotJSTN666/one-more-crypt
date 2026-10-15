@@ -16,6 +16,14 @@ function portrait(hero: HeroId): string {
 
 // ---------- hero select ----------
 
+/** Deepest floor and Souls earned with a hero. */
+function heroRecord(hero: HeroId): string {
+  const st = meta.heroStats[hero];
+  const floor = Math.max(st?.floor ?? 0, meta.best[hero]?.floor ?? 0);
+  if (!st?.runs && !floor) return '<span class="record">No descents yet</span>';
+  return `<span class="record"><b>⛧ Floor ${floor}</b> deepest${st?.runs ? ` · <b>💀 ${st.souls.toLocaleString()}</b> Souls · ${st.runs} run${st.runs === 1 ? '' : 's'}` : ''}</span>`;
+}
+
 export function showHeroSelect(onPick: (hero: HeroId) => void, back: () => void) {
   const cards = HEROES.map((h) => {
     const owned = heroUnlocked(h.id);
@@ -25,6 +33,7 @@ export function showHeroSelect(onPick: (hero: HeroId) => void, back: () => void)
         <span class="name">${h.name}</span>
         <span class="tag">${h.hp} HP · ${h.perk}</span>
         <span class="desc">${owned ? h.perkDesc : `🔒 Unlock in the Ossuary for ${h.cost} Souls`}</span>
+        ${owned ? heroRecord(h.id) : ''}
       </span>
     </button>`;
   }).join('');

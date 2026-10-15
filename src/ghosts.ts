@@ -79,6 +79,8 @@ function layout() {
   if (!container) return;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
+  // A tab opened or restored in the background can report no size yet; lay out once it's shown.
+  if (!vw || !vh) return;
   const cols = Math.max(1, Math.round(vw / TARGET_BOARD));
   const size = Math.ceil(vw / cols);
   const rows = Math.max(1, Math.ceil(vh / size));
@@ -90,7 +92,7 @@ function layout() {
     reset(ghost);
     ghosts.push(ghost);
     // Stagger the ghosts so they don't all move in lockstep.
-    window.setTimeout(() => window.setInterval(() => ghost.canvas.isConnected && step(ghost), STEP_MS), Math.random() * STEP_MS);
+    window.setTimeout(() => window.setInterval(() => ghost.canvas.isConnected && step(ghost), stepMs), Math.random() * stepMs);
   }
   while (ghosts.length > needed) ghosts.pop()!.canvas.remove();
   ghosts.forEach((ghost, i) => {
@@ -105,11 +107,17 @@ function layout() {
   });
 }
 
+/** Slower ghosts for players who ask their system for less motion. */
+let stepMs = STEP_MS;
+
 export function startGhosts() {
   container = document.getElementById('ghosts');
-  if (!container || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (!container) return;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) stepMs = STEP_MS * 4;
   layout();
   window.addEventListener('resize', layout);
+  window.addEventListener('pageshow', layout);
+  document.addEventListener('visibilitychange', () => !document.hidden && layout());
 }
 
 /** Draw the ghosts at half the frame rate; called from the main animation loop. */

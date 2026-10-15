@@ -12,6 +12,7 @@ import {
   endlessBoard,
   linkEmail,
   myRuns,
+  myRunLogs,
   onAuthChange,
   playAsGuest,
   randomName,
@@ -32,7 +33,7 @@ import {
 } from './online';
 import { showPublicHall, titleName } from './hall';
 import { rankFor } from './progression';
-import { meta, mergeMeta, onMetaChange, type Meta } from './meta';
+import { backfillHeroes, meta, mergeMeta, onMetaChange, type Meta } from './meta';
 import { currentStreak, writeSave, type Save } from './storage';
 import { esc, field, formStatus, on, onSubmit, screen, showOverlay, toast } from './ui';
 
@@ -106,6 +107,19 @@ async function afterSignIn() {
   await flushPending();
   await syncFromServer();
   await syncMeta();
+  await backfill();
+}
+
+/** Once per account: rebuild per-hero records and Hall statues from past runs. */
+async function backfill() {
+  const acc = session.account;
+  if (!acc || meta.heroBackfill) return;
+  try {
+    await backfillHeroes(await myRunLogs(acc.id));
+    onChange();
+  } catch {
+    // Try again next visit.
+  }
 }
 
 /** Merge progress saved on the account with this device's, then save the result back. */

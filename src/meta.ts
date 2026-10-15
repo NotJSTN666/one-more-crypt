@@ -2,7 +2,7 @@
 // and discovered combos. Saved locally and, when signed in, to the player's account.
 
 import { ACHIEVEMENT_BY_ID, COMBOS, HEROES, dailyHero, type AchievementDef, type ComboDef, type HeroId } from './content';
-import { basePool, fullPool, type Game, type Mode, type RunConfig } from './game';
+import { Game, basePool, fullPool, type Mode, type RunConfig } from './game';
 import { FUSIONS, RELICS, UNLOCKABLE_RELICS, type FusedId, type RelicId } from './relics';
 import {
   BESTIARY_KINDS, BESTIARY_TITLES, LOOKS, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_TIER, betterRun, bestiaryTiers, rankIndex,
@@ -35,9 +35,19 @@ export interface Meta {
   /** Equipped title id ('' for none) and cosmetic look ('' for the hero's own colours). */
   title: string;
   look: string;
+  /** Deepest floor and Souls earned with each hero. */
+  heroStats: Partial<Record<HeroId, HeroStats>>;
+  /** Set once per-hero records have been rebuilt from the account's past runs. */
+  heroBackfill: number;
   /** Looks already announced, and the highest Soul Rank announced. */
   looksSeen: string[];
   rankSeen: number;
+}
+
+export interface HeroStats {
+  floor: number;
+  souls: number;
+  runs: number;
 }
 
 export const RELIC_COSTS: Partial<Record<RelicId, number>> = {
@@ -58,7 +68,7 @@ const KEY = 'wardenfall:meta';
 function empty(): Meta {
   return {
     souls: 0, earned: 0, heroes: ['knight'], relics: [], achievements: {}, codex: {}, combos: {}, fusions: {}, elitesSlain: 0, hero: 'knight',
-    bestiary: {}, bestiaryTier: {}, best: {}, title: '', look: '', looksSeen: [], rankSeen: 0,
+    bestiary: {}, bestiaryTier: {}, best: {}, title: '', look: '', looksSeen: [], rankSeen: 0, heroStats: {}, heroBackfill: 0,
   };
 }
 
@@ -117,6 +127,8 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   meta.look ||= other.look ?? '';
   meta.looksSeen = [...new Set([...meta.looksSeen, ...(other.looksSeen ?? [])])];
   meta.rankSeen = Math.max(meta.rankSeen, other.rankSeen ?? 0);
+  for (const [h, st] of Object.entries(other.heroStats ?? {})) mergeHeroStats(h as HeroId, st);
+  meta.heroBackfill = Math.max(meta.heroBackfill, other.heroBackfill ?? 0);
   const changed = JSON.stringify(meta) !== before;
   if (changed) saveMeta();
   return changed;
@@ -269,8 +281,19 @@ export interface RunReward {
   unlocks: UnlockNote[];
 }
 
-/** Pay out Souls at the end of a run. */
-export function finishRunMeta(game: Game, streak: number): RunReward {
+/** Keep the best of two records for a hero (from another device, or rebuilt from past runs). */
+export function mergeHeroStats(hero: HeroId, st: Partial<HeroStats> | undefined) {
+  if (!st || !HEROES.some((h) => h.id === hero)) return;
+  const cur = meta.heroStats[hero] ?? { floor: 0, souls: 0, runs: 0 };
+  meta.heroStats[hero] = {
+    floor: Math.max(cur.floor, Number(st.floor) || 0),
+    souls: Math.max(cur.souls, Number(st.souls) || 0),
+    runs: Math.max(cur.runs, Number(st.runs) || 0),
+  };
+}
+
+/** The Souls a finished run pays, line by line (achievements aside). */
+export function runSouls(game: Game): [string, number][] {
   const bosses = Object.values(game.stats.bosses).reduce((a, b) => a + (b ?? 0), 0);
   const lines: [string, number][] = [
     [`Floor ${game.floor}`, game.floor * 4],
@@ -278,12 +301,16 @@ export function finishRunMeta(game: Game, streak: number): RunReward {
   ];
   if (game.stats.elites) lines.push([`${game.stats.elites} elites`, game.stats.elites * 3]);
   if (bosses) lines.push([`${bosses} boss${bosses > 1 ? 'es' : ''}`, bosses * 20]);
-  let souls = lines.reduce((sum, [, n]) => sum + n, 0);
-  if (game.mode === 'daily') {
-    const bonus = Math.round(souls * 0.5);
-    lines.push(['Daily bonus', bonus]);
-    souls += bonus;
-  }
+  if (game.mode === 'daily') lines.push(['Daily bonus', Math.round(lines.reduce((sum, [, n]) => sum + n, 0) * 0.5)]);
+  return lines;
+}
+
+/** Pay out Souls at the end of a run. */
+export function finishRunMeta(game: Game, streak: number): RunReward {
+  const lines = runSouls(game);
+  const souls = lines.reduce((sum, [, n]) => sum + n, 0);
+  const st = meta.heroStats[game.hero] ?? { floor: 0, souls: 0, runs: 0 };
+  meta.heroStats[game.hero] = { floor: Math.max(st.floor, game.floor), souls: st.souls + souls, runs: st.runs + 1 };
   meta.souls += souls;
   meta.earned += souls;
   meta.elitesSlain += game.stats.elites;
@@ -396,4 +423,53 @@ export function noteFusion(id: FusedId): boolean {
 
 export function relicDiscovered(id: RelicId): boolean {
   return (meta.codex[id] ?? 0) > 0;
+}
+
+/** A past run as stored on the account: enough to replay it. */
+export interface PastRun {
+  mode: Mode;
+  daily_no: number | null;
+  seed: number;
+  floor: number;
+  kills: number;
+  log: string;
+}
+
+/**
+ * Rebuild each hero's deepest floor, Souls earned and Hall statue from the account's
+ * past runs, by replaying them. Runs once per account; yields between runs so the
+ * page stays smooth.
+ */
+export async function backfillHeroes(runs: PastRun[]): Promise<void> {
+  const totals: Partial<Record<HeroId, HeroStats>> = {};
+  for (const run of runs) {
+    let hero: HeroId;
+    let floor = run.floor;
+    let souls: number;
+    if (run.log.startsWith('#')) {
+      let g: Game;
+      try {
+        g = Game.replay(run.mode, Number(run.seed), run.daily_no ?? 0, run.log);
+      } catch {
+        continue;
+      }
+      hero = g.hero;
+      floor = g.floor;
+      souls = runSouls(g).reduce((sum, [, n]) => sum + n, 0);
+      meta.best[hero] = betterRun(meta.best[hero], {
+        floor: g.floor, kills: g.kills, mode: g.mode, relics: { ...g.relics } as Record<string, number>, log: [...g.relicLog], look: '', at: 0,
+      });
+    } else {
+      // The earliest daily runs were logged without a header: estimate from the result.
+      if (run.mode !== 'daily') continue;
+      hero = dailyHero(run.daily_no ?? 1);
+      souls = Math.round((run.floor * 4 + run.kills + Math.floor(run.floor / 5) * 20) * 1.5);
+    }
+    const t = totals[hero] ?? { floor: 0, souls: 0, runs: 0 };
+    totals[hero] = { floor: Math.max(t.floor, floor), souls: t.souls + souls, runs: t.runs + 1 };
+    await new Promise((r) => setTimeout(r, 0));
+  }
+  for (const [h, st] of Object.entries(totals)) mergeHeroStats(h as HeroId, st);
+  meta.heroBackfill = 1;
+  saveMeta();
 }
