@@ -1605,3 +1605,16 @@ body.tutorial #relic-bar {
 .hollow-dpad [data-d='-1,0'] { grid-area: 2 / 1; }
 .hollow-dpad [data-d='1,0'] { grid-area: 2 / 3; }
 .hollow-dpad [data-d='0,1'] { grid-area: 3 / 2; }
+
+.hollow-choices {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.hollow-choices .btn {
+  flex: 1;
+  margin: 0;
+  font-family: var(--pixel);
+  font-size: 12px;
+}

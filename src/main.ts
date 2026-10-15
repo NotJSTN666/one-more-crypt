@@ -172,13 +172,15 @@ function skipTutorial() {
 $('coach-skip').addEventListener('click', skipTutorial);
 
 /** First run ever: offer the tutorial before the real thing. */
-function withTutorialOffer(go: () => void) {
+function withTutorialOffer(go: () => void, back?: () => void) {
   if (save.tutorialDone || save.totals.runs > 0) return go();
   showOverlay('tutorial-offer', `
     <h2>First time in the crypt?</h2>
     <p class="sub">Learn the basics in a minute: move, strike, dodge, descend.</p>
     <button class="btn primary" id="learn">Play the tutorial<small>About a minute</small></button>
-    <button class="btn" id="skip">Skip, I know how to play</button>`);
+    <button class="btn" id="skip">Skip, I know how to play</button>
+    ${back ? '<button class="btn" id="back">Back</button>' : ''}`);
+  if (back) on('#back', back);
   on('#learn', () => startTutorial(go));
   on('#skip', () => {
     save.tutorialDone = true;
@@ -692,6 +694,7 @@ function enterHollow() {
   setMusicMood('crypt');
   showHollow({
     enter: enterPlace,
+    describe: describePlace,
     visit: (name) => showPublicHall(name, enterHollow),
     epitaph: (id) => {
       sfx.relic();
@@ -707,6 +710,31 @@ function enterHollow() {
   });
 }
 
+function describePlace(place: HollowPlace): string {
+  const today = dailyNumber();
+  const resumable = savedRun();
+  switch (place) {
+    case 'daily':
+      if (resumable?.mode === 'daily') return `Your Daily #${today} run waits on floor ${resumable.floor}. Continue it?`;
+      if (save.daily[today]) return `You've faced Daily #${today}: floor ${save.daily[today].floor}. The next crypt opens in ${formatCountdown(msUntilNextDaily())}.`;
+      return `Daily #${today}. Today's hero: the ${HERO_BY_ID[dailyHero(today)].name}. One attempt, the same crypt for everyone.`;
+    case 'endless':
+      return resumable?.mode === 'endless'
+        ? `Your Endless run waits on floor ${resumable.floor}. Continue it?`
+        : 'Choose a hero and descend as deep as you can.';
+    case 'forge':
+      return 'Read the fusions you have discovered, and the ones still hidden.';
+    case 'ossuary':
+      return `Trade Souls for heroes and forbidden relics. You have ${meta.souls}.`;
+    case 'hall':
+      return 'Your trophies, statues, titles and looks.';
+    case 'grimoire':
+      return 'Relics, combos, fusions and achievements.';
+    case 'ranks':
+      return 'Names carved in stone: the daily and endless leaderboards.';
+  }
+}
+
 function enterPlace(place: HollowPlace) {
   sfx.stairs();
   const today = dailyNumber();
@@ -717,11 +745,11 @@ function enterPlace(place: HollowPlace) {
       toast(`You've faced Daily #${today}. The next crypt opens in ${formatCountdown(msUntilNextDaily())}.`);
       return enterHollow();
     }
-    return withTutorialOffer(() => startRun('daily'));
+    return withTutorialOffer(() => startRun('daily'), enterHollow);
   }
   if (place === 'endless') {
     if (resumable?.mode === 'endless') return resumeRun(resumable);
-    return withTutorialOffer(() => showHeroSelect(() => startRun('endless'), enterHollow));
+    return withTutorialOffer(() => showHeroSelect(() => startRun('endless'), enterHollow), enterHollow);
   }
   if (place === 'forge') return showGrimoire(enterHollow, 'fusions');
   if (place === 'ossuary') return showOssuary(enterHollow);

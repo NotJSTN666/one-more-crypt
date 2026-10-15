@@ -62,6 +62,8 @@ interface Ghost {
 
 export interface HollowHooks {
   enter: (place: HollowPlace) => void;
+  /** A line about a place, for the "enter or back out" prompt at its door. */
+  describe: (place: HollowPlace) => string;
   visit: (name: string) => void;
   epitaph: (id: string) => void;
   menu: () => void;
@@ -78,6 +80,18 @@ let ghosts: Ghost[] = [];
 let ghostsLoaded = 0;
 let hooks: HollowHooks;
 let dialog: string | null = null;
+/** Waiting for the player to confirm going through a door (or visiting a ghost's Hall). */
+let pending: { place: HollowPlace } | { ghost: string } | null = null;
+
+const PLACE_NAMES: Record<HollowPlace, string> = {
+  daily: 'The Daily Crypt',
+  endless: 'The Endless Stair',
+  forge: 'The Soul Forge',
+  ossuary: 'The Ossuary',
+  hall: 'Your Crypt Hall',
+  grimoire: 'The Grimoire',
+  ranks: 'The Obelisk of Ranks',
+};
 let raf = 0;
 let facing = 1;
 /** Narrow screens see part of the map, following the hero; `camX` is in map pixels. */
@@ -87,13 +101,12 @@ let camX = 0;
 export function showHollow(h: HollowHooks) {
   hooks = h;
   // Coming back out of a door: step out in front of it.
-  if (DOORS[at(pos.x, pos.y)]) {
-    pos.y += 1;
-    draw.x = pos.x;
-    draw.y = pos.y;
-  }
+  stepOut();
+  draw.x = pos.x;
+  draw.y = pos.y;
   path = [];
   dialog = null;
+  pending = null;
   const touch = matchMedia('(pointer: coarse)').matches;
   viewCols = window.innerWidth < 600 ? 11 : COLS;
   camX = cameraTarget();
@@ -118,12 +131,21 @@ export function showHollow(h: HollowHooks) {
   const canvas = overlay.querySelector<HTMLCanvasElement>('#hollow-canvas')!;
   canvas.addEventListener('pointerdown', (e) => {
     const r = canvas.getBoundingClientRect();
+    if (pending) return;
     const tx = Math.floor(((e.clientX - r.left) / r.width) * viewCols + camX / TILE);
     const ty = Math.floor(((e.clientY - r.top) / r.height) * ROWS);
     if (dialog) return closeDialog();
     walkTo(tx, ty);
   });
-  overlay.querySelector('#hollow-dialog')?.addEventListener('click', closeDialog);
+  overlay.querySelector('#hollow-dialog')?.addEventListener('click', (e) => {
+    const choice = (e.target as HTMLElement).closest<HTMLElement>('[data-choice]')?.dataset.choice;
+    if (pending) {
+      if (choice === 'go') confirmGo();
+      else if (choice === 'back') backOut();
+      return;
+    }
+    closeDialog();
+  });
   // On-screen arrows: tap to step, hold to keep walking.
   overlay.querySelectorAll<HTMLButtonElement>('.hollow-dpad button').forEach((b) => {
     const [dx, dy] = b.dataset.d!.split(',').map(Number);
@@ -131,6 +153,7 @@ export function showHollow(h: HollowHooks) {
     const stop = () => window.clearInterval(timer);
     b.addEventListener('pointerdown', (e) => {
       e.preventDefault();
+      if (pending) return backOut();
       if (dialog) return closeDialog();
       path = [];
       step(dx, dy);
@@ -191,6 +214,16 @@ export function hollowKey(e: KeyboardEvent): boolean {
     ArrowLeft: [-1, 0], a: [-1, 0], A: [-1, 0],
     ArrowRight: [1, 0], d: [1, 0], D: [1, 0],
   };
+  if (pending) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if (!e.repeat) confirmGo();
+    } else if (e.key === 'Escape' || dirs[e.key]) {
+      e.preventDefault();
+      backOut();
+    }
+    return true;
+  }
   if (dialog && (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape' || dirs[e.key])) {
     e.preventDefault();
     closeDialog();
@@ -218,14 +251,17 @@ function step(dx: number, dy: number) {
   const ghost = ghosts.find((g) => g.x === x && g.y === y);
   if (ghost) {
     path = [];
-    return hooks.visit(ghost.name);
+    return ask({ ghost: ghost.name }, `<b>${esc(ghost.name)}</b>A ghost of one of today's best. Visit their Crypt Hall?`, 'Visit their Hall');
   }
   if (EPITAPHS[tile]) {
     path = [];
     openDialog(tile);
     return;
   }
-  if (tile === 'L') return hooks.enter('ranks');
+  if (tile === 'L') {
+    path = [];
+    return askPlace('ranks');
+  }
   if (tile === 's') {
     path = [];
     dialog = 'sealed';
@@ -238,9 +274,54 @@ function step(dx: number, dy: number) {
   const door = DOORS[tile];
   if (door) {
     path = [];
-    // Let the walk-in finish before the screen changes.
-    window.setTimeout(() => screen === 'hollow' && hooks.enter(door), 160);
+    // Let the walk-in finish, then ask: a stray step shouldn't, say, start today's daily.
+    window.setTimeout(() => screen === 'hollow' && pos.x === x && pos.y === y && askPlace(door), 160);
   }
+}
+
+/** Off a door tile onto the nearest open ground (doors face down, the Grimoire's sits by the fence). */
+function stepOut() {
+  if (!DOORS[at(pos.x, pos.y)]) return;
+  for (const [dx, dy] of [[0, 1], [1, 0], [-1, 0], [0, -1]]) {
+    const x = pos.x + dx;
+    const y = pos.y + dy;
+    if (walkable(x, y) && !DOORS[at(x, y)]) {
+      pos.x = x;
+      pos.y = y;
+      return;
+    }
+  }
+}
+
+function askPlace(place: HollowPlace) {
+  ask({ place }, `<b>${PLACE_NAMES[place]}</b>${esc(hooks.describe(place))}`, place === 'ranks' ? 'Read the obelisk' : 'Enter');
+}
+
+function ask(what: NonNullable<typeof pending>, html: string, go: string) {
+  pending = what;
+  dialog = 'confirm';
+  const el = document.getElementById('hollow-dialog');
+  if (!el) return;
+  el.innerHTML = `${html}<div class="hollow-choices">
+      <button type="button" class="btn primary" data-choice="go">${esc(go)}</button>
+      <button type="button" class="btn" data-choice="back">Back out</button>
+    </div><small>Enter to go in · Esc or any arrow to back out</small>`;
+  el.hidden = false;
+}
+
+function confirmGo() {
+  const what = pending;
+  if (!what) return;
+  pending = null;
+  closeDialog();
+  if ('ghost' in what) hooks.visit(what.ghost);
+  else hooks.enter(what.place);
+}
+
+function backOut() {
+  pending = null;
+  closeDialog();
+  stepOut();
 }
 
 /** Shortest path to a tapped tile (or next to it, when it's a building, grave or ghost). */
