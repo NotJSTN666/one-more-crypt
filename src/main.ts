@@ -1,5 +1,5 @@
 import './style.css';
-import { audioRunning, isMusicEnabled, isMuted, onAudioState, setMusicDepth, setMusicEnabled, setMusicMood, setMuted, sfx, unlockAudio } from './audio';
+import { audioRunning, fusionSound, isMusicEnabled, isMuted, onAudioState, setMusicDepth, setMusicEnabled, setMusicMood, setMuted, sfx, unlockAudio } from './audio';
 import { dailyNumber, formatCountdown, msUntilNextDaily } from './daily';
 import { ELITES, FEATURES, HERO_BY_ID, dailyHero, type ComboDef } from './content';
 import { heroPortrait } from './hero';
@@ -15,6 +15,7 @@ import { hashSeed } from './rng';
 import { ONLINE, dailyBoard, pingActivity, startActivityPings } from './online';
 import { EPITAPHS, hollowKey, showHollow, type HollowPlace } from './hollow';
 import { showWardrobe } from './wardrobe';
+import { IMPACT, playFusion } from './fusefx';
 import { howToHtml, startHowTo } from './howto';
 import { RELIC_COACH, TUTORIAL } from './tutorial';
 import { copyText, descentStrip, followXHtml, shareText, siteUrl, xIntentUrl } from './share';
@@ -321,7 +322,7 @@ function setRank(text: string) {
 
 function act(dx: number, dy: number) {
   unlockAudio();
-  if (!game || game.phase !== 'play' || !overlay.hidden || tutorial?.busy) return;
+  if (!game || game.phase !== 'play' || !overlay.hidden || tutorial?.busy || fusionPlaying) return;
   if (game.act(dx, dy)) processEvents();
   else sfx.bump();
 }
@@ -925,6 +926,9 @@ function forgePick(i: number) {
   if (reveal) showFused(reveal.id, reveal.first);
 }
 
+/** True while the full-screen fusion plays; the hero can't move under it. */
+let fusionPlaying = false;
+
 /** Set while processing a fusion, so the reveal can follow. */
 let fusedReveal: { id: FusedId; first: boolean } | null = null;
 
@@ -937,29 +941,33 @@ function showFused(id: FusedId, first: boolean) {
     .map(([gid, n]) => `${RELIC_BY_ID[gid as RelicId].emoji} ${esc(RELIC_BY_ID[gid as RelicId].name)}${(n ?? 0) > 1 ? ` ×${n}` : ''}`)
     .join(' · ');
   const ascended = def.rarity === 'ascended';
-  const sparks = Array.from({ length: 14 }, (_, i) => `<i style="--a:${(i / 14) * 360}deg;--d:${50 + (i % 3) * 18}px"></i>`).join('');
+  // Hide the forge screen while the fusion plays over the whole page, then reveal the details.
+  hideOverlay();
+  fusionSound(ascended, IMPACT);
+  fusionPlaying = true;
+  playFusion({
+    a: a.emoji, b: b.emoji, out: def.emoji, name: def.name, ascended,
+    onDone: () => {
+      fusionPlaying = false;
+      fusedCard(id, first, grants);
+    },
+  });
+}
+
+function fusedCard(id: FusedId, first: boolean, grants: string) {
+  const def = RELIC_BY_ID[id];
+  const [a, b] = FUSION_BY_ID[id].from.map((r) => RELIC_BY_ID[r]);
+  const ascended = def.rarity === 'ascended';
   showOverlay('fused', `
     <div class="fused-reveal ${ascended ? 'ascended' : ''}">
-      <div class="fuse-anim" aria-hidden="true">
-        <span class="fa-a">${a.emoji}</span>
-        <span class="fa-b">${b.emoji}</span>
-        <span class="fa-ring"></span>
-        <span class="fa-flash"></span>
-        <span class="fa-sparks">${sparks}</span>
-        <span class="fused-emoji fa-out">${def.emoji}</span>
-      </div>
-      <div class="fa-text">
+      <div class="fused-emoji">${def.emoji}</div>
       <p class="fused-kind">${first ? '✨ New discovery · ' : ''}${ascended ? 'Ascended relic' : 'Fused relic'}</p>
       <h2>${esc(def.name)}</h2>
       <p class="fused-desc">${esc(def.desc(1))}</p>
       <p class="fine">Forged from ${a.emoji} ${esc(a.name)} + ${b.emoji} ${esc(b.name)}</p>
       <p class="fine fused-grants">Counts as: ${grants}</p>
       <button class="btn primary" id="fused-ok">Continue</button>
-      </div>
     </div>`);
-  sfx.fuse();
-  // Tap the animation to skip straight to the details.
-  overlay.querySelector('.fuse-anim')?.addEventListener('click', () => overlay.querySelector('.fused-reveal')?.classList.add('skip'));
   on('#fused-ok', () => {
     hideOverlay();
     updateHud();
@@ -1010,7 +1018,7 @@ function pickRelic(i: number) {
 }
 
 function showPause() {
-  if (!game || game.phase !== 'play' || !overlay.hidden || tutorial) return;
+  if (!game || game.phase !== 'play' || !overlay.hidden || tutorial || fusionPlaying) return;
   const daily = game.mode === 'daily';
   showOverlay('pause', `
     <h2>Paused</h2>

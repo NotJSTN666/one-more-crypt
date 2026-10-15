@@ -102,16 +102,8 @@ export const sfx = {
     [262, 330, 392, 523].forEach((f, i) => tone(f, 0.3, 'sine', 0.08, undefined, i * 0.05));
   },
   block: () => tone(880, 0.12, 'square', 0.06, 1200),
-  /** Two relics spiralling together, then the boom as they become one. */
-  fuse: () => {
-    tone(196, 1, 'sawtooth', 0.035, 784);
-    tone(294, 1, 'sine', 0.05, 1175);
-    window.setTimeout(() => {
-      noise(0.45, 0.32, 700);
-      tone(110, 0.7, 'sine', 0.14, 38);
-      [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.45, 'triangle', 0.06, undefined, 0.08 + i * 0.06));
-    }, 1000);
-  },
+  /** The Soul Forge at work (see fusionSound for the full three-second piece). */
+  fuse: () => fusionSound(false),
   death: () => {
     tone(220, 1.2, 'sawtooth', 0.1, 40);
     noise(0.6, 0.2, 400);
@@ -431,3 +423,114 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) void ctx.suspend();
   else void ctx.resume();
 });
+
+/**
+ * The sound of a fusion, about three seconds: a rising, accelerating charge as the two
+ * relics are drawn together, a sucked-in silence, a huge impact, then a shimmering chord
+ * as the new relic appears. `impactAt` is when the collision lands, in seconds.
+ */
+export function fusionSound(ascended: boolean, impactAt = 1.9) {
+  if (!ctx || muted) return;
+  const t0 = ctx.currentTime + 0.02;
+  const out = ctx.createGain();
+  out.gain.value = 0.9;
+  const comp = ctx.createDynamicsCompressor();
+  out.connect(comp).connect(ctx.destination);
+  const hit = t0 + impactAt;
+
+  const noiseBuf = (dur: number) => {
+    const b = ctx!.createBuffer(1, Math.floor(ctx!.sampleRate * dur), ctx!.sampleRate);
+    const d = b.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    return b;
+  };
+
+  // 1. The charge: a noise sweep and two detuned saws rising together.
+  const sweep = ctx.createBufferSource();
+  sweep.buffer = noiseBuf(impactAt);
+  const bp = ctx.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.Q.value = 2.5;
+  bp.frequency.setValueAtTime(250, t0);
+  bp.frequency.exponentialRampToValueAtTime(7000, hit - 0.05);
+  const sg = ctx.createGain();
+  sg.gain.setValueAtTime(0.02, t0);
+  sg.gain.exponentialRampToValueAtTime(0.5, hit - 0.08);
+  sg.gain.linearRampToValueAtTime(0, hit - 0.04);
+  sweep.connect(bp).connect(sg).connect(out);
+  sweep.start(t0);
+  for (const detune of [-14, 9]) {
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    o.detune.value = detune;
+    o.frequency.setValueAtTime(82, t0);
+    o.frequency.exponentialRampToValueAtTime(ascended ? 990 : 660, hit - 0.05);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(300, t0);
+    lp.frequency.exponentialRampToValueAtTime(5000, hit - 0.05);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.001, t0);
+    g.gain.exponentialRampToValueAtTime(0.09, hit - 0.1);
+    g.gain.linearRampToValueAtTime(0, hit - 0.04);
+    o.connect(lp).connect(g).connect(out);
+    o.start(t0);
+    o.stop(hit);
+  }
+  // Heartbeat thumps that speed up toward the collision.
+  let at = 0;
+  for (let gap = 0.42; at < impactAt - 0.12; gap *= 0.8) {
+    const k = ctx.createOscillator();
+    const kg = ctx.createGain();
+    k.frequency.setValueAtTime(140, t0 + at);
+    k.frequency.exponentialRampToValueAtTime(45, t0 + at + 0.12);
+    kg.gain.setValueAtTime(0.45, t0 + at);
+    kg.gain.exponentialRampToValueAtTime(0.001, t0 + at + 0.16);
+    k.connect(kg).connect(out);
+    k.start(t0 + at);
+    k.stop(t0 + at + 0.18);
+    at += Math.max(0.06, gap);
+  }
+
+  // 2. The impact: a deep drop, a burst and a long crash.
+  const boom = ctx.createOscillator();
+  const bg = ctx.createGain();
+  boom.frequency.setValueAtTime(95, hit);
+  boom.frequency.exponentialRampToValueAtTime(28, hit + 1.3);
+  bg.gain.setValueAtTime(0.9, hit);
+  bg.gain.exponentialRampToValueAtTime(0.001, hit + 1.4);
+  boom.connect(bg).connect(out);
+  boom.start(hit);
+  boom.stop(hit + 1.45);
+  const burst = ctx.createBufferSource();
+  burst.buffer = noiseBuf(1.6);
+  const blp = ctx.createBiquadFilter();
+  blp.type = 'lowpass';
+  blp.frequency.setValueAtTime(5000, hit);
+  blp.frequency.exponentialRampToValueAtTime(300, hit + 1.5);
+  const burstG = ctx.createGain();
+  burstG.gain.setValueAtTime(0.8, hit);
+  burstG.gain.exponentialRampToValueAtTime(0.001, hit + 1.5);
+  burst.connect(blp).connect(burstG).connect(out);
+  burst.start(hit);
+
+  // 3. The reveal: a bright chord blooming and a few sparkles.
+  const root = ascended ? 293.66 : 261.63;
+  [1, 1.25, 1.5, 2, 2.5, 3].forEach((m, i) => {
+    for (const det of [-6, 6]) {
+      const o = ctx!.createOscillator();
+      const g = ctx!.createGain();
+      o.type = i < 3 ? 'triangle' : 'sine';
+      o.frequency.value = root * m;
+      o.detune.value = det;
+      const s0 = hit + 0.12 + i * 0.05;
+      g.gain.setValueAtTime(0.001, s0);
+      g.gain.exponentialRampToValueAtTime(0.05, s0 + 0.08);
+      g.gain.exponentialRampToValueAtTime(0.001, s0 + 1.6);
+      o.connect(g).connect(out);
+      o.start(s0);
+      o.stop(s0 + 1.65);
+    }
+  });
+  for (let i = 0; i < 6; i++) tone(1568 * (1 + (i % 3) * 0.25), 0.18, 'triangle', 0.035, undefined, impactAt + 0.3 + i * 0.11);
+}
