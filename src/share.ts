@@ -10,6 +10,15 @@ export function siteUrl(): string {
   return import.meta.env.VITE_PUBLIC_URL || location.origin + location.pathname;
 }
 
+/** Play time as "4:05" or "1:02:03". */
+export function playTime(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return h ? `${h}:${pad(m)}:${pad(s % 60)}` : `${m}:${pad(s % 60)}`;
+}
+
 /** Wordle-style strip: one square per floor, a skull per boss slain, blood where you fell. */
 export function descentStrip(floor: number, max = 12): string {
   const cells: string[] = [];

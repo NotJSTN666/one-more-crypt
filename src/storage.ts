@@ -13,6 +13,8 @@ export interface RunResult {
   hero?: string;
   /** Combos completed this run, e.g. "🔥 Inferno". */
   combos?: string;
+  /** Seconds of active play. */
+  seconds?: number;
 }
 
 export interface Save {

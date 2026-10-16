@@ -73,6 +73,13 @@ create policy "submit own runs" on public.runs for insert to authenticated
     and (mode = 'endless' or daily_no between public.current_daily_no() - 1 and public.current_daily_no() + 1)
   );
 
+-- How long the run took, in seconds of active play (idle gaps are capped by the game).
+-- Older runs have none.
+alter table public.runs add column if not exists seconds int;
+do $$ begin
+  alter table public.runs add constraint runs_seconds_range check (seconds is null or seconds between 0 and 2000000);
+exception when duplicate_object then null; end $$;
+
 -- ---------- leaderboards ----------
 
 create or replace view public.leaderboard_daily with (security_invoker = on) as
@@ -93,7 +100,8 @@ select
   -- The hero played (from the run log's header) and the outfit the player dresses them in.
   h.hero,
   left(coalesce(p.meta->'outfits'->h.hero->>'look', p.meta->>'look'), 24) as outfit_look,
-  left(p.meta->'outfits'->h.hero->>'head', 24) as outfit_head
+  left(p.meta->'outfits'->h.hero->>'head', 24) as outfit_head,
+  r.seconds
 from public.runs r
 join public.profiles p on p.id = r.user_id
 cross join lateral (select substring(r.log from '^#[0-9]+\|([a-z]+)\|') as hero) h
@@ -106,7 +114,8 @@ select b.*, rank() over (order by b.floor desc, b.kills desc, b.turns asc) as ra
   case when jsonb_typeof(p2.meta->'earned') = 'number' then least(greatest((p2.meta->>'earned')::numeric, 0), 1000000000)::bigint else 0 end as earned,
   h.hero,
   left(coalesce(p2.meta->'outfits'->h.hero->>'look', p2.meta->>'look'), 24) as outfit_look,
-  left(p2.meta->'outfits'->h.hero->>'head', 24) as outfit_head
+  left(p2.meta->'outfits'->h.hero->>'head', 24) as outfit_head,
+  h.seconds
 from (
   select distinct on (r.user_id)
     r.user_id, p.name, r.floor, r.kills, r.turns, r.relics, r.killed_by, r.created_at
@@ -117,7 +126,7 @@ from (
 ) b
 join public.profiles p2 on p2.id = b.user_id
 cross join lateral (
-  select substring(r2.log from '^#[0-9]+\|([a-z]+)\|') as hero
+  select substring(r2.log from '^#[0-9]+\|([a-z]+)\|') as hero, r2.seconds
   from public.runs r2
   where r2.user_id = b.user_id and r2.mode = 'endless' and r2.floor = b.floor and r2.kills = b.kills and r2.turns = b.turns
   limit 1

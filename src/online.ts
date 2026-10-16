@@ -32,6 +32,8 @@ export interface RunSubmission {
   relics: string;
   killed_by: string;
   log: string;
+  /** Seconds of active play. */
+  seconds?: number;
 }
 
 export interface BoardRow {
@@ -52,6 +54,8 @@ export interface BoardRow {
   hero?: string | null;
   outfit_look?: string | null;
   outfit_head?: string | null;
+  /** Seconds of active play (missing for older runs). */
+  seconds?: number | null;
 }
 
 export interface Board {

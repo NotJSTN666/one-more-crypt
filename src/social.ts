@@ -1,6 +1,7 @@
 // Sign-in, profile and leaderboard screens, plus keeping local progress in sync
 // with the server.
 
+import { playTime } from './share';
 import { dailyNumber } from './daily';
 import {
   ONLINE,
@@ -593,7 +594,7 @@ function boardHtml(b: Board, uid: string | null, tab: Tab): string {
       <span class="rank">${r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : `#${r.rank}`}</span>
       <img class="board-hero" src="${boardPortrait(r)}" alt="" width="24" height="24" />
       <span class="who"><span style="color:${rankFor(Number(r.earned) || 0).color}">${esc(r.name)}</span>${titleName(r.title) ? ` <em class="title-tag">${esc(titleName(r.title))}</em>` : ''}<small>${esc(r.relics)}</small></span>
-      <span class="depth">F${r.floor}<small>${r.kills} kills</small></span>
+      <span class="depth">F${r.floor}<small>${r.kills} kills${r.seconds ? ` · ⏱ ${playTime(r.seconds)}` : ''}</small></span>
     </li>`;
   const meOutside = b.me && !b.rows.some((r) => r.user_id === b.me!.user_id);
   return `

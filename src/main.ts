@@ -18,7 +18,7 @@ import { showWardrobe } from './wardrobe';
 import { IMPACT, playFusion } from './fusefx';
 import { howToHtml, startHowTo } from './howto';
 import { RELIC_COACH, TUTORIAL } from './tutorial';
-import { copyText, descentStrip, followXHtml, shareText, siteUrl, xIntentUrl } from './share';
+import { copyText, descentStrip, followXHtml, playTime, shareText, siteUrl, xIntentUrl } from './share';
 import { initSocial, needsName, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
 import { currentStreak, loadSave, recordDaily, writeSave, type RunResult } from './storage';
 import { $, esc, hideOverlay, on, overlay, overlayShownAt, screen, showOverlay, toast } from './ui';
@@ -76,6 +76,7 @@ function startRun(mode: Mode) {
   unlockAudio();
   void pingActivity(true);
   newGame(mode);
+  startClock();
   saveRun();
   setMusicDepth(game.floor);
   setMusicMood(game.isBossFloor() ? 'boss' : 'crypt');
@@ -202,12 +203,40 @@ interface SavedRun {
   seed: number;
   dailyNo: number;
   log: string;
+  seconds?: number;
+}
+
+// Time played this run. Each input adds the time since the last one, capped, so a
+// run left open in a background tab doesn't count as play.
+const IDLE_CAP_MS = 30_000;
+let runSeconds = 0;
+let lastInputAt = 0;
+
+function startClock(seconds = 0) {
+  runSeconds = seconds;
+  lastInputAt = performance.now();
+}
+
+function clockInput() {
+  if (!game || tutorial) return;
+  const now = performance.now();
+  if (lastInputAt) runSeconds += Math.min(now - lastInputAt, IDLE_CAP_MS) / 1000;
+  lastInputAt = now;
+}
+
+function savedSeconds(): number {
+  try {
+    const run = JSON.parse(localStorage.getItem(RUN_KEY) ?? 'null') as SavedRun | null;
+    return Math.max(0, Number(run?.seconds) || 0);
+  } catch {
+    return 0;
+  }
 }
 
 function saveRun() {
   if (!game || game.phase === 'dead') return;
   try {
-    const run: SavedRun = { mode: game.mode, seed: game.seed, dailyNo: game.dailyNo, log: game.header() + game.log };
+    const run: SavedRun = { mode: game.mode, seed: game.seed, dailyNo: game.dailyNo, log: game.header() + game.log, seconds: Math.round(runSeconds) };
     localStorage.setItem(RUN_KEY, JSON.stringify(run));
   } catch {
     // Storage blocked: the run just can't be resumed.
@@ -246,6 +275,7 @@ function savedRun(): Game | null {
 
 function resumeRun(g: Game) {
   unlockAudio();
+  startClock(savedSeconds());
   showGame(g);
   setMusicDepth(g.floor);
   setMusicMood(g.isBossFloor() ? 'boss' : 'crypt');
@@ -268,6 +298,7 @@ function finishRun(abandoned = false) {
     killedBy: abandoned ? 'their own cowardice' : killedByPhrase(game.killedBy),
     hero: HERO_BY_ID[game.hero].name,
     combos: runCombos.map((c) => `${c.emoji} ${c.name}`).join(', ') || undefined,
+    seconds: Math.round(runSeconds),
   };
   clearRun();
   lastReward = finishRunMeta(game, currentStreak(save, dailyNumber()));
@@ -302,6 +333,7 @@ function finishRun(abandoned = false) {
     relics: result.relics,
     killed_by: result.killedBy,
     log: game.header() + game.log,
+    seconds: result.seconds,
   });
   window.clearTimeout(overlayTimer);
   overlayTimer = window.setTimeout(() => {
@@ -323,6 +355,7 @@ function setRank(text: string) {
 function act(dx: number, dy: number) {
   unlockAudio();
   if (!game || game.phase !== 'play' || !overlay.hidden || tutorial?.busy || fusionPlaying) return;
+  clockInput();
   if (game.act(dx, dy)) processEvents();
   else {
     sfx.bump();
@@ -943,6 +976,7 @@ function showForge() {
 
 function forgePick(i: number) {
   if (game.phase !== 'event') return;
+  clockInput();
   game.forge(i);
   hideOverlay();
   fusedReveal = null;
@@ -1029,6 +1063,7 @@ function showEvent() {
 
 function resolveEvent(accept: boolean) {
   if (game.phase !== 'event') return;
+  clockInput();
   game.resolveEvent(accept);
   hideOverlay();
   processEvents();
@@ -1036,6 +1071,7 @@ function resolveEvent(accept: boolean) {
 
 function pickRelic(i: number) {
   if (game.phase !== 'choose') return;
+  clockInput();
   game.choose(i);
   hideOverlay();
   sfx.stairs();
@@ -1096,6 +1132,7 @@ function showDeath(r: RunResult, best: boolean) {
       <div><b>${r.floor}</b>FLOOR</div>
       <div><b>${r.kills}</b>KILLS</div>
       <div><b>${r.turns}</b>TURNS</div>
+      ${r.seconds ? `<div><b>${playTime(r.seconds)}</b>TIME</div>` : ''}
     </div>
     ${r.relics ? `<div class="strip" style="font-size:18px">${r.relics}</div>` : ''}
     ${r.combos ? `<p class="combo-line">${esc(r.combos)}</p>` : ''}
