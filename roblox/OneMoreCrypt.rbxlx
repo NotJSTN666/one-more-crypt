@@ -2187,13 +2187,109 @@ return Sprites
 ]]></string>
         </Properties>
       </Item>
+      <Item class="ModuleScript" referent="10">
+        <Properties>
+          <string name="Name">Store</string>
+          <string name="Source"><![CDATA[--!strict
+-- Everything for sale. Create each item in the Creator Dashboard (see roblox/README.md),
+-- then paste its ID number over the 0 here. Items with ID 0 show as "not on sale yet".
+--
+-- Nothing here touches the Daily Descent's fairness: passes are cosmetic or speed up
+-- Ossuary unlocks, and Souls only buy heroes and relics for Endless.
+
+local Store = {}
+
+export type Pass = { key: string, id: number, name: string, emoji: string, price: number, desc: string }
+export type Product = { key: string, id: number, name: string, emoji: string, price: number, souls: number }
+
+-- Game Passes: bought once, kept forever. `price` is only the suggested Robux price;
+-- the real price is whatever you set in the Creator Dashboard.
+Store.PASSES = {
+	{
+		key = "doubleSouls", id = 0, name = "Grave Robber", emoji = "⚱️", price = 199,
+		desc = "Earn 2× Souls from every run, forever. Unlock heroes and forbidden relics twice as fast.",
+	},
+	{
+		key = "cloaks", id = 0, name = "Cloak Collection", emoji = "🧥", price = 99,
+		desc = "Six new cloak colours for every hero: Crimson, Ash, Royal, Frost, Gilded and Void.",
+	},
+	{
+		key = "aura", id = 0, name = "Soulfire Aura", emoji = "✨", price = 149,
+		desc = "Your hero burns with blue soulfire and sheds embers as you descend.",
+	},
+	{
+		key = "founder", id = 0, name = "Crypt Founder", emoji = "👑", price = 299,
+		desc = "A golden crown for your hero and the Founder title. Thank you for keeping the crypt open!",
+	},
+} :: { Pass }
+
+-- Developer Products: bought as often as you like.
+Store.PRODUCTS = {
+	{ key = "souls250", id = 0, name = "Pouch of Souls", emoji = "👝", price = 49, souls = 250 },
+	{ key = "souls800", id = 0, name = "Urn of Souls", emoji = "🏺", price = 129, souls = 800 },
+	{ key = "souls2500", id = 0, name = "Ossuary Hoard", emoji = "💀", price = 349, souls = 2500 },
+} :: { Product }
+
+-- Roblox Premium members earn this much extra Souls (Premium playtime also pays you).
+Store.PREMIUM_BONUS = 0.2
+
+-- Cloak Collection colours (p light, P dark), in menu order.
+Store.CLOAKS = {
+	{ key = "crimson", name = "Crimson", p = Color3.fromHex("#8a2232"), P = Color3.fromHex("#4f0f1b") },
+	{ key = "ash", name = "Ash", p = Color3.fromHex("#6d6880"), P = Color3.fromHex("#433f52") },
+	{ key = "royal", name = "Royal", p = Color3.fromHex("#4b3a78"), P = Color3.fromHex("#2c2148") },
+	{ key = "frost", name = "Frost", p = Color3.fromHex("#5fa8c9"), P = Color3.fromHex("#2f5f78") },
+	{ key = "gilded", name = "Gilded", p = Color3.fromHex("#c9982f"), P = Color3.fromHex("#7a5a14") },
+	{ key = "void", name = "Void", p = Color3.fromHex("#1c1626"), P = Color3.fromHex("#0b0810") },
+}
+
+function Store.passByKey(key: string): Pass?
+	for _, p in Store.PASSES do
+		if p.key == key then
+			return p
+		end
+	end
+	return nil
+end
+
+function Store.passById(id: number): Pass?
+	for _, p in Store.PASSES do
+		if p.id ~= 0 and p.id == id then
+			return p
+		end
+	end
+	return nil
+end
+
+function Store.productById(id: number): Product?
+	for _, p in Store.PRODUCTS do
+		if p.id ~= 0 and p.id == id then
+			return p
+		end
+	end
+	return nil
+end
+
+function Store.cloakByKey(key: string?): any
+	for _, c in Store.CLOAKS do
+		if c.key == key then
+			return c
+		end
+	end
+	return nil
+end
+
+return Store
+]]></string>
+        </Properties>
+      </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="10">
+  <Item class="ServerScriptService" referent="11">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Script" referent="11">
+    <Item class="Script" referent="12">
       <Properties>
         <string name="Name">CryptServer</string>
         <token name="RunContext">0</token>
@@ -2201,12 +2297,14 @@ return Sprites
 -- One More Crypt server. Each player's run lives here, so the client only sends
 -- inputs and draws what comes back: nobody can edit their HP or skip floors.
 -- Saves Souls, unlocks and best depths to DataStores, keeps one official daily
--- attempt per player, and runs the daily and Endless leaderboards.
+-- attempt per player, runs the daily and Endless leaderboards, and sells the
+-- Game Passes and Soul packs listed in Store.luau.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local DataStoreService = game:GetService("DataStoreService")
 local RunService = game:GetService("RunService")
+local MarketplaceService = game:GetService("MarketplaceService")
 
 local Shared = ReplicatedStorage:WaitForChild("OneMoreCrypt")
 local Game = require(Shared.Game)
@@ -2214,6 +2312,7 @@ local Relics = require(Shared.Relics)
 local Content = require(Shared.Content)
 local Daily = require(Shared.Daily)
 local Rng = require(Shared.Rng)
+local Store = require(Shared.Store)
 
 -- The board is the whole game: no avatar to walk around.
 Players.CharacterAutoLoads = false
@@ -2221,6 +2320,11 @@ Players.CharacterAutoLoads = false
 local remote = Instance.new("RemoteFunction")
 remote.Name = "Crypt"
 remote.Parent = Shared
+
+-- Server-to-client nudges, e.g. "your purchase went through".
+local push = Instance.new("RemoteEvent")
+push.Name = "CryptPush"
+push.Parent = Shared
 
 local presence = Instance.new("IntValue")
 presence.Name = "SoulsInCrypt"
@@ -2282,6 +2386,10 @@ local function newProfile()
 		daily = {},
 		-- The run in progress, so leaving mid-run loses nothing: rebuilt from its inputs.
 		active = nil,
+		-- Cloak Collection colour ("" = the hero's own).
+		cloak = "",
+		-- Recent Developer Product purchase IDs, so a receipt is never paid out twice.
+		receipts = {},
 	}
 end
 
@@ -2289,6 +2397,7 @@ local profiles = {} -- [Player] = profile
 local runs = {} -- [Player] = Game
 local runMeta = {} -- [Player] = { mode, dailyNo }
 local lastInput = {} -- [Player] = os.clock()
+local passes = {} -- [Player] = { [pass key] = true }
 
 local function loadProfile(player: Player)
 	local profile = newProfile()
@@ -2330,14 +2439,15 @@ local function captureActive(player: Player)
 	end
 end
 
-local function saveProfile(player: Player)
+--- Returns true once the profile is safely stored (or there's no store to save to).
+local function saveProfile(player: Player): boolean
 	local profile = profiles[player]
 	if not profile then
-		return
+		return false
 	end
 	captureActive(player)
 	if not profileStore then
-		return
+		return true
 	end
 	local ok, err = pcall(function()
 		profileStore:SetAsync("u" .. player.UserId, profile)
@@ -2345,7 +2455,61 @@ local function saveProfile(player: Player)
 	if not ok then
 		warn("[One More Crypt] Could not save profile:", err)
 	end
+	return ok
 end
+
+-- ---------- the store ----------
+
+local function owns(player: Player, key: string): boolean
+	return passes[player] ~= nil and passes[player][key] == true
+end
+
+local function loadPasses(player: Player)
+	local owned = {}
+	for _, pass in Store.PASSES do
+		if pass.id ~= 0 then
+			local ok, has = pcall(MarketplaceService.UserOwnsGamePassAsync, MarketplaceService, player.UserId, pass.id)
+			if ok and has then
+				owned[pass.key] = true
+			end
+		end
+	end
+	passes[player] = owned
+end
+
+local function isPremium(player: Player): boolean
+	return player.MembershipType == Enum.MembershipType.Premium
+end
+
+--- Soul packs. Roblox retries until this returns PurchaseGranted, so only say so once
+--- the Souls are saved, and remember each receipt so it can't pay out twice.
+MarketplaceService.ProcessReceipt = function(receipt)
+	local player = Players:GetPlayerByUserId(receipt.PlayerId)
+	local product = Store.productById(receipt.ProductId)
+	if not player or not product then
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+	local profile = profiles[player]
+	if not profile then
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+	if table.find(profile.receipts, receipt.PurchaseId) then
+		return Enum.ProductPurchaseDecision.PurchaseGranted
+	end
+	profile.souls += product.souls
+	table.insert(profile.receipts, receipt.PurchaseId)
+	while #profile.receipts > 50 do
+		table.remove(profile.receipts, 1)
+	end
+	if not saveProfile(player) then
+		profile.souls -= product.souls
+		table.remove(profile.receipts, table.find(profile.receipts, receipt.PurchaseId))
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+	push:FireClient(player, { kind = "souls", amount = product.souls, name = product.name })
+	return Enum.ProductPurchaseDecision.PurchaseGranted
+end
+
 
 local function submitScore(store, player: Player, score: number)
 	if not store then
@@ -2517,6 +2681,20 @@ local function snapshot(g)
 	}
 end
 
+local function storeView(player: Player)
+	local out = { passes = {}, products = {}, cloaks = {}, premium = isPremium(player), premiumBonus = Store.PREMIUM_BONUS }
+	for _, p in Store.PASSES do
+		table.insert(out.passes, { key = p.key, id = p.id, name = p.name, emoji = p.emoji, price = p.price, desc = p.desc, owned = owns(player, p.key) })
+	end
+	for _, p in Store.PRODUCTS do
+		table.insert(out.products, { key = p.key, id = p.id, name = p.name, emoji = p.emoji, price = p.price, souls = p.souls })
+	end
+	for _, c in Store.CLOAKS do
+		table.insert(out.cloaks, { key = c.key, name = c.name })
+	end
+	return out
+end
+
 local function profileView(player: Player)
 	local profile = profiles[player]
 	local today = Daily.number()
@@ -2553,6 +2731,12 @@ local function profileView(player: Player)
 		},
 		endlessResumable = active ~= nil and active.mode == "endless",
 		online = profileStore ~= nil,
+		store = storeView(player),
+		cosmetics = {
+			cloak = if owns(player, "cloaks") then profile.cloak else "",
+			aura = owns(player, "aura"),
+			crown = owns(player, "founder"),
+		},
 	}
 end
 
@@ -2563,6 +2747,16 @@ local function finishRun(player: Player, g)
 	local total = 0
 	for _, l in lines do
 		total += l[2]
+	end
+	local base = total
+	if owns(player, "doubleSouls") then
+		table.insert(lines, { "Grave Robber 2×", base })
+		total += base
+	end
+	if isPremium(player) then
+		local bonus = math.floor(base * Store.PREMIUM_BONUS + 0.5)
+		table.insert(lines, { "Premium bonus", bonus })
+		total += bonus
 	end
 	profile.souls += total
 	profile.earned += total
@@ -2588,7 +2782,10 @@ local function finishRun(player: Player, g)
 	for _, l in lines do
 		table.insert(outLines, { label = l[1], souls = l[2] })
 	end
-	return { souls = total, lines = outLines, newBest = newBest, bestEndless = profile.bestEndless, emojis = g:relicEmojis(20) }
+	return {
+		souls = total, lines = outLines, newBest = newBest, bestEndless = profile.bestEndless, emojis = g:relicEmojis(20),
+		upsell = not owns(player, "doubleSouls") and (Store.passByKey("doubleSouls") :: any).id ~= 0,
+	}
 end
 
 local function startRun(player: Player, mode: string, heroId: string?)
@@ -2738,6 +2935,14 @@ function handlers.pickHero(player: Player, req)
 	return { profile = profileView(player) }
 end
 
+function handlers.pickCloak(player: Player, req)
+	local profile = profiles[player]
+	if owns(player, "cloaks") and (req.key == "" or Store.cloakByKey(req.key)) then
+		profile.cloak = req.key
+	end
+	return { profile = profileView(player) }
+end
+
 function handlers.board(player: Player, req)
 	if req.board == "daily" then
 		local n = Daily.number()
@@ -2765,7 +2970,17 @@ remote.OnServerInvoke = function(player: Player, req)
 	return res
 end
 
+-- A Game Pass bought in-game counts straight away.
+MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, purchased)
+	local pass = Store.passById(passId)
+	if purchased and pass and passes[player] then
+		passes[player][pass.key] = true
+		push:FireClient(player, { kind = "pass", name = pass.name })
+	end
+end)
+
 Players.PlayerAdded:Connect(function(player)
+	task.spawn(loadPasses, player)
 	profiles[player] = loadProfile(player)
 	presence.Value = #Players:GetPlayers()
 end)
@@ -2776,11 +2991,13 @@ Players.PlayerRemoving:Connect(function(player)
 	runs[player] = nil
 	runMeta[player] = nil
 	lastInput[player] = nil
+	passes[player] = nil
 	presence.Value = #Players:GetPlayers() - 1
 end)
 
 for _, player in Players:GetPlayers() do
 	task.spawn(function()
+		loadPasses(player)
 		profiles[player] = loadProfile(player)
 	end)
 end
@@ -2797,15 +3014,15 @@ end)
       </Properties>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="12">
+  <Item class="StarterPlayer" referent="13">
     <Properties>
       <string name="Name">StarterPlayer</string>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="13">
+    <Item class="StarterPlayerScripts" referent="14">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="14">
+      <Item class="LocalScript" referent="15">
         <Properties>
           <string name="Name">CryptClient</string>
           <string name="Source"><![CDATA[--!nonstrict
@@ -2829,7 +3046,10 @@ local Sprites = require(Shared:WaitForChild("Sprites"))
 local Relics = require(Shared:WaitForChild("Relics"))
 local Content = require(Shared:WaitForChild("Content"))
 local Daily = require(Shared:WaitForChild("Daily"))
+local Store = require(Shared:WaitForChild("Store"))
 local remote: RemoteFunction = Shared:WaitForChild("Crypt")
+local pushEvent: RemoteEvent = Shared:WaitForChild("CryptPush")
+local MarketplaceService = game:GetService("MarketplaceService")
 local presence: IntValue = Shared:WaitForChild("SoulsInCrypt")
 
 local player = Players.LocalPlayer
@@ -2851,7 +3071,9 @@ end)
 
 local W, H = 7, 7
 local TILE = 4
-local PIX = TILE * 0.8 / 12
+local PIX = TILE * 0.9 / 12
+-- Figures lean back toward the camera so they don't look squashed from above.
+local LEAN = math.rad(36)
 local ORIGIN = Vector3.new(0, 200, 0)
 
 local C = {
@@ -2865,10 +3087,10 @@ local C = {
 	red = Color3.fromRGB(210, 58, 70),
 	green = Color3.fromRGB(126, 224, 129),
 	ice = Color3.fromRGB(159, 232, 255),
-	floorA = Color3.fromRGB(42, 34, 52),
-	floorB = Color3.fromRGB(36, 29, 46),
-	wall = Color3.fromRGB(62, 54, 76),
-	wallTop = Color3.fromRGB(88, 78, 104),
+	floorA = Color3.fromRGB(58, 48, 72),
+	floorB = Color3.fromRGB(50, 41, 62),
+	wall = Color3.fromRGB(78, 68, 95),
+	wallTop = Color3.fromRGB(108, 96, 128),
 }
 
 local HEADING = Enum.Font.Arcade
@@ -2881,7 +3103,7 @@ end
 
 -- ---------- atmosphere ----------
 
-Lighting.Ambient = Color3.fromRGB(70, 58, 92)
+Lighting.Ambient = Color3.fromRGB(95, 82, 120)
 Lighting.OutdoorAmbient = Color3.fromRGB(40, 32, 56)
 Lighting.Brightness = 0.4
 Lighting.ClockTime = 0
@@ -3128,7 +3350,7 @@ local function baseCameraCFrame(): CFrame
 	local needW = W * TILE + 6
 	local needH = H * TILE + 14
 	local dist = math.max((needW / 2) / math.tan(hfov / 2), (needH / 2) / math.tan(vfov / 2))
-	local pitch = math.rad(58)
+	local pitch = math.rad(52)
 	local target = ORIGIN + Vector3.new(0, 1, 1.2)
 	local eye = target + Vector3.new(0, math.sin(pitch), math.cos(pitch)) * dist
 	return CFrame.lookAt(eye, target)
@@ -3347,7 +3569,7 @@ local function buildBoard(state)
 	board.potion = nil
 	if state.potion then
 		local model, root = buildVoxel(Sprites.POTION, {})
-		root.CFrame = CFrame.new(tilePos(state.potion.x, state.potion.y))
+		root.CFrame = CFrame.new(tilePos(state.potion.x, state.potion.y)) * CFrame.Angles(-LEAN, 0, 0)
 		model.Parent = boardFolder
 		board.potion = model
 	end
@@ -3426,12 +3648,68 @@ local function heroCloak(hero: string)
 	return Sprites.CLOAKS[hero] or Sprites.CLOAKS.default
 end
 
+-- Store cosmetics the player owns: { cloak = key or "", aura = bool, crown = bool }.
+local cosmetics = { cloak = "", aura = false, crown = false }
+
+--- Founder's crown: a little gold voxel crown on the hero's head.
+local function addCrown(model: Model, root: BasePart)
+	local gold = Color3.fromRGB(242, 193, 78)
+	local y = 12.5 * PIX
+	local pieces = {
+		{ Vector3.new(PIX * 6, PIX, PIX * 2.2), Vector3.new(0, y, 0) },
+		{ Vector3.new(PIX, PIX, PIX * 2.2), Vector3.new(-PIX * 2.5, y + PIX, 0) },
+		{ Vector3.new(PIX, PIX * 1.6, PIX * 2.2), Vector3.new(0, y + PIX * 1.3, 0) },
+		{ Vector3.new(PIX, PIX, PIX * 2.2), Vector3.new(PIX * 2.5, y + PIX, 0) },
+	}
+	for _, piece in pieces do
+		local p = part({ Size = piece[1], Color = gold, Material = Enum.Material.Neon, Anchored = false })
+		p.CFrame = root.CFrame * CFrame.new(piece[2] + Vector3.new(-0.5 * PIX, 0, 0))
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = root
+		weld.Part1 = p
+		weld.Parent = p
+		p.Parent = model
+	end
+	local gem = part({ Size = Vector3.new(PIX * 0.8, PIX * 0.8, PIX * 2.4), Color = Color3.fromRGB(210, 58, 70), Material = Enum.Material.Neon, Anchored = false })
+	gem.CFrame = root.CFrame * CFrame.new(-0.5 * PIX, y, 0)
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = root
+	weld.Part1 = gem
+	weld.Parent = gem
+	gem.Parent = model
+end
+
+--- Soulfire aura: blue flames and embers rising off the hero.
+local function addAura(root: BasePart)
+	local att = Instance.new("Attachment")
+	att.Position = Vector3.new(0, 6 * PIX, 0)
+	att.Parent = root
+	local pe = Instance.new("ParticleEmitter")
+	pe.Color = ColorSequence.new(Color3.fromRGB(127, 200, 255), Color3.fromRGB(60, 90, 255))
+	pe.LightEmission = 1
+	pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.3), NumberSequenceKeypoint.new(1, 0) })
+	pe.Transparency = NumberSequence.new(0.2, 1)
+	pe.Lifetime = NumberRange.new(0.6, 1.1)
+	pe.Rate = 26
+	pe.Speed = NumberRange.new(1, 2.5)
+	pe.SpreadAngle = Vector2.new(25, 25)
+	pe.Acceleration = Vector3.new(0, 3, 0)
+	pe.Shape = Enum.ParticleEmitterShape.Box
+	pe.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	pe.Parent = att
+	local glow = Instance.new("PointLight")
+	glow.Color = Color3.fromRGB(110, 160, 255)
+	glow.Range = 8
+	glow.Brightness = 1.5
+	glow.Parent = att
+end
+
 local function newUnit(id, kind: string, ally: boolean, heroId: string?)
 	local rows, colors, lit = nil, {}, true
 	if kind == "hero" then
 		rows = Sprites.PLAYER
 		lit = false
-		local cloak = heroCloak(heroId or "knight")
+		local cloak = Store.cloakByKey(cosmetics.cloak) or heroCloak(heroId or "knight")
 		colors = { p = cloak.p, P = cloak.P }
 	else
 		rows = Sprites.ENEMIES[kind].idle[1]
@@ -3456,7 +3734,7 @@ local function newUnit(id, kind: string, ally: boolean, heroId: string?)
 	model.Parent = unitFolder
 	local u = { id = id, kind = kind, model = model, root = root, highlight = highlight, facing = 1, x = nil, y = nil, scale = scale }
 	if kind ~= "hero" then
-		u.gui, u.fill, u.tag = unitGui(root, 12 * PIX * scale + 0.6)
+		u.gui, u.fill, u.tag = unitGui(root, 12 * PIX * scale * math.cos(LEAN) + 0.6)
 	else
 		local light = Instance.new("PointLight")
 		light.Color = Color3.fromRGB(255, 200, 150)
@@ -3464,13 +3742,19 @@ local function newUnit(id, kind: string, ally: boolean, heroId: string?)
 		light.Brightness = 1.4
 		light.Shadows = true
 		light.Parent = root
+		if cosmetics.crown then
+			addCrown(model, root)
+		end
+		if cosmetics.aura then
+			addAura(root)
+		end
 	end
 	units[id] = u
 	return u
 end
 
 local function placeUnit(u, x: number, y: number, facing: number, instant: boolean)
-	local target = CFrame.new(tilePos(x, y)) * CFrame.Angles(0, if facing < 0 then math.pi else 0, 0)
+	local target = CFrame.new(tilePos(x, y)) * CFrame.Angles(-LEAN, 0, 0) * CFrame.Angles(0, if facing < 0 then math.pi else 0, 0)
 	if instant or not u.x then
 		u.root.CFrame = target
 	else
@@ -3489,7 +3773,7 @@ local function lunge(u, dir)
 	if not u.x then
 		return
 	end
-	local base = CFrame.new(tilePos(u.x, u.y)) * CFrame.Angles(0, if u.facing < 0 then math.pi else 0, 0)
+	local base = CFrame.new(tilePos(u.x, u.y)) * CFrame.Angles(-LEAN, 0, 0) * CFrame.Angles(0, if u.facing < 0 then math.pi else 0, 0)
 	local out = base + Vector3.new(dir.x, 0, dir.y) * TILE * 0.3
 	local t = TweenService:Create(u.root, TweenInfo.new(0.07, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { CFrame = out })
 	t.Completed:Connect(function()
@@ -4122,7 +4406,8 @@ do
 	local row = new("Frame", { Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, LayoutOrder = 1, Parent = top }, {
 		new("UISizeConstraint", { MaxSize = Vector2.new(640, 40) }),
 	})
-	local floorLabel = text({ Size = UDim2.new(0.34, 0, 1, 0), AutomaticSize = Enum.AutomaticSize.None, Font = HEADING, TextSize = 22, TextXAlignment = Enum.TextXAlignment.Left, Text = "", Parent = row })
+	local floorLabel = text({ Size = UDim2.new(0.32, 0, 0, 24), AutomaticSize = Enum.AutomaticSize.None, Font = HEADING, TextSize = 20, TextXAlignment = Enum.TextXAlignment.Left, Text = "", Parent = row })
+	local modeLabel = text({ Position = UDim2.fromOffset(0, 24), Size = UDim2.new(0.32, 0, 0, 14), AutomaticSize = Enum.AutomaticSize.None, TextSize = 12, TextColor3 = C.dim, TextXAlignment = Enum.TextXAlignment.Left, Text = "", Parent = row })
 	local hpBack = new("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.new(0.34, 0, 0, 22), BackgroundColor3 = Color3.fromRGB(42, 24, 32), Parent = row }, { corner(6), stroke(C.line) })
 	local hpFill = new("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = C.red, Parent = hpBack }, { corner(6) })
 	local hpText = text({ Size = UDim2.fromScale(1, 1), AutomaticSize = Enum.AutomaticSize.None, Font = BOLD, TextSize = 14, Text = "", ZIndex = 2, Parent = hpBack })
@@ -4201,7 +4486,8 @@ do
 
 	function hud.update(s)
 		local f = s.floor
-		floorLabel.Text = (if s.mode == "daily" then `DAILY #{s.dailyNo} · ` else "") .. `FLOOR {f}`
+		floorLabel.Text = `FLOOR {f}`
+		modeLabel.Text = if s.mode == "daily" then `Daily #{s.dailyNo}` else "Endless"
 		floorLabel.TextColor3 = if s.boss then C.red elseif f > 30 then Color3.fromRGB(255, 120, 120) else C.gold
 		hpFill.Size = UDim2.fromScale(math.clamp(s.hp / math.max(1, s.maxHp), 0, 1), 1)
 		hpText.Text = `❤ {s.hp}/{s.maxHp}`
@@ -4354,6 +4640,12 @@ renderOverlays = function(s, result)
 			if r.newBest then
 				text({ Text = "New best Endless depth!", Font = BOLD, TextColor3 = C.gold, Parent = deathCard })
 			end
+			if r.upsell then
+				local pass = Store.passByKey("doubleSouls")
+				button(`⚱️ Double every run's Souls with Grave Robber`, function()
+					MarketplaceService:PromptGamePassPurchase(player, pass.id)
+				end, { Parent = deathCard, TextSize = 15, TextColor3 = C.gold })
+			end
 			if r.board then
 				text({ Text = if s.mode == "daily" then `DAILY #{s.dailyNo} LEADERBOARD` else "ENDLESS LEADERBOARD", Font = HEADING, TextSize = 18, TextColor3 = C.gold, Parent = deathCard })
 				boardList(deathCard, r.board, 50)
@@ -4398,6 +4690,8 @@ screens.menu = menuScreen
 screens.ossuary = ossuaryScreen
 screens.boards = boardsScreen
 screens.howto = howScreen
+local shopScreen, shopCard = overlay("Shop", 560)
+screens.shop = shopScreen
 menuScreen.BackgroundTransparency = 0.45
 
 local function startRun(mode: string, hero: string?)
@@ -4455,9 +4749,10 @@ showMenu = function()
 	clearUnits()
 	clear(menuCard)
 	local p = profile
+	cosmetics = p.cosmetics
 	text({ Text = "ONE MORE CRYPT", Font = HEADING, TextSize = 40, TextColor3 = C.gold, Parent = menuCard })
 	text({ Text = "Same crypt for everyone. One attempt a day.", TextColor3 = C.dim, Parent = menuCard })
-	text({ Text = `⚱ {p.souls} Souls`, Font = BOLD, TextColor3 = C.gold, Parent = menuCard })
+	text({ Text = `⚱ {p.souls} Souls` .. (if p.cosmetics.crown then "  ·  👑 Crypt Founder" else ""), Font = BOLD, TextColor3 = C.gold, Parent = menuCard })
 
 	-- Daily card.
 	local d = p.daily
@@ -4504,6 +4799,36 @@ showMenu = function()
 	if selected then
 		text({ Text = `{selected.name} · {selected.hp} HP · {selected.perk}: {selected.perkDesc}`, TextSize = 14, TextColor3 = C.dim, Parent = endless })
 	end
+	local cloakPass = nil
+	for _, pass in p.store.passes do
+		if pass.key == "cloaks" then
+			cloakPass = pass
+		end
+	end
+	if cloakPass and cloakPass.owned then
+		local cloakRow = new("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, Parent = endless }, {
+			new("UIGridLayout", { CellSize = UDim2.new(1 / 7, -5, 0, 34), CellPadding = UDim2.fromOffset(5, 5), SortOrder = Enum.SortOrder.LayoutOrder }),
+		})
+		local options = { { key = "", name = "Own" } }
+		for _, c in p.store.cloaks do
+			table.insert(options, c)
+		end
+		for i, c in options do
+			local b = button(c.name, function()
+				local res = call({ op = "pickCloak", key = c.key })
+				profile = res.profile or profile
+				showMenu()
+			end, { LayoutOrder = i, TextSize = 11, Parent = cloakRow })
+			local col = Store.cloakByKey(c.key)
+			if col then
+				b.BackgroundColor3 = col.p
+			end
+			if c.key == p.cosmetics.cloak then
+				b:FindFirstChildOfClass("UIStroke").Color = C.gold
+				b:FindFirstChildOfClass("UIStroke").Thickness = 3
+			end
+		end
+	end
 	if p.endlessResumable then
 		button("Resume Endless run", function()
 			startRun("endless", "resume")
@@ -4514,8 +4839,13 @@ showMenu = function()
 	end, { Parent = endless })
 
 	local row = new("Frame", { Size = UDim2.new(1, 0, 0, 44), BackgroundTransparency = 1, Parent = menuCard }, {
-		new("UIGridLayout", { CellSize = UDim2.new(1 / 3, -6, 0, 44), CellPadding = UDim2.fromOffset(6, 0) }),
+		new("UIGridLayout", { CellSize = UDim2.new(1 / 2, -3, 0, 44), CellPadding = UDim2.fromOffset(6, 6) }),
 	})
+	row.Size = UDim2.new(1, 0, 0, 94)
+	button("🛒 Shop", function()
+		show("shop")
+		menus.renderShop()
+	end, { Parent = row, TextColor3 = C.gold })
 	button("Ossuary", function()
 		show("ossuary")
 		menus.renderOssuary()
@@ -4598,6 +4928,93 @@ menus.renderBoards = function(which: string)
 	end)
 end
 
+local priceCache = {}
+--- The real Robux price set in the Creator Dashboard, falling back to the suggested one.
+local function priceOf(id: number, infoType, fallback: number, label: TextLabel)
+	label.Text = `R$ {fallback}`
+	if id == 0 then
+		return
+	end
+	if priceCache[id] then
+		label.Text = `R$ {priceCache[id]}`
+		return
+	end
+	task.spawn(function()
+		local ok, info = pcall(MarketplaceService.GetProductInfo, MarketplaceService, id, infoType)
+		if ok and info and info.PriceInRobux then
+			priceCache[id] = info.PriceInRobux
+			if label.Parent then
+				label.Text = `R$ {info.PriceInRobux}`
+			end
+		end
+	end)
+end
+
+local function shopItem(emoji: string, name: string, desc: string, id: number, infoType, fallback: number, owned: boolean, onBuy: () -> ())
+	local box = new("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundColor3 = C.panel2, Parent = shopCard }, {
+		corner(10), stroke(if owned then C.green else C.line), pad(12), list(6, false, Enum.HorizontalAlignment.Left),
+	})
+	text({ Text = `{emoji}  {name}`, Font = BOLD, TextSize = 18, TextColor3 = C.gold, TextXAlignment = Enum.TextXAlignment.Left, Parent = box })
+	text({ Text = desc, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, Parent = box })
+	if owned then
+		text({ Text = "✓ Owned", Font = BOLD, TextColor3 = C.green, TextXAlignment = Enum.TextXAlignment.Left, Parent = box })
+	elseif id == 0 then
+		text({ Text = "Not on sale yet", TextColor3 = C.dim, TextXAlignment = Enum.TextXAlignment.Left, Parent = box })
+	else
+		local b = button("", onBuy, { Size = UDim2.new(0, 140, 0, 38), TextColor3 = C.gold, Parent = box })
+		local label = text({ Size = UDim2.fromScale(1, 1), AutomaticSize = Enum.AutomaticSize.None, Font = BOLD, TextColor3 = C.gold, Parent = b })
+		priceOf(id, infoType, fallback, label)
+	end
+end
+
+menus.renderShop = function()
+	clear(shopCard)
+	local st = profile.store
+	text({ Text = "THE CRYPT SHOP", Font = HEADING, TextSize = 30, TextColor3 = C.gold, Parent = shopCard })
+	text({ Text = "Cosmetics and Souls. Nothing here changes the Daily Descent: everyone braves the same crypt.", TextColor3 = C.dim, Parent = shopCard })
+	text({ Text = "GAME PASSES", Font = HEADING, TextSize = 18, Parent = shopCard })
+	for _, pass in st.passes do
+		shopItem(pass.emoji, pass.name, pass.desc, pass.id, Enum.InfoType.GamePass, pass.price, pass.owned, function()
+			MarketplaceService:PromptGamePassPurchase(player, pass.id)
+		end)
+	end
+	text({ Text = "SOULS", Font = HEADING, TextSize = 18, Parent = shopCard })
+	text({ Text = `You have ⚱ {profile.souls}. Spend Souls in the Ossuary on heroes and forbidden relics for Endless.`, TextColor3 = C.dim, Parent = shopCard })
+	for _, prod in st.products do
+		shopItem(prod.emoji, prod.name, `{prod.souls} Souls`, prod.id, Enum.InfoType.Product, prod.price, false, function()
+			MarketplaceService:PromptProductPurchase(player, prod.id)
+		end)
+	end
+	if st.premium then
+		text({ Text = `⭐ Premium member: +{math.floor(st.premiumBonus * 100)}% Souls on every run.`, TextColor3 = C.gold, Parent = shopCard })
+	else
+		text({ Text = `⭐ Roblox Premium members earn +{math.floor(st.premiumBonus * 100)}% Souls on every run.`, TextColor3 = C.dim, Parent = shopCard })
+	end
+	button("Back", function()
+		showMenu()
+	end, { Parent = shopCard })
+end
+
+-- Purchases land on the server; it tells us here so the menus can catch up.
+pushEvent.OnClientEvent:Connect(function(msg)
+	if msg.kind == "souls" then
+		showToast(`{msg.name}: +{msg.amount} Souls`, C.gold)
+	elseif msg.kind == "pass" then
+		showToast(`{msg.name} unlocked. Thank you!`, C.gold)
+	end
+	sound(SFX.pick, 0.5)
+	local res = call({ op = "profile" })
+	if res.profile then
+		profile = res.profile
+		cosmetics = profile.cosmetics
+		if screens.shop.Visible then
+			menus.renderShop()
+		elseif screens.menu.Visible then
+			showMenu()
+		end
+	end
+end)
+
 do
 	text({ Text = "HOW TO PLAY", Font = HEADING, TextSize = 30, TextColor3 = C.gold, Parent = howCard })
 	local rules = {
@@ -4635,7 +5052,7 @@ end)
 RunService.RenderStepped:Connect(function()
 	if board.potion and board.potion.PrimaryPart and state and state.potion then
 		local t = os.clock()
-		board.potion.PrimaryPart.CFrame = CFrame.new(tilePos(state.potion.x, state.potion.y) + Vector3.new(0, 0.3 + math.sin(t * 3) * 0.2, 0)) * CFrame.Angles(0, math.sin(t) * 0.4, 0)
+		board.potion.PrimaryPart.CFrame = CFrame.new(tilePos(state.potion.x, state.potion.y) + Vector3.new(0, 0.3 + math.sin(t * 3) * 0.2, 0)) * CFrame.Angles(-LEAN, 0, 0) * CFrame.Angles(0, math.sin(t) * 0.4, 0)
 	end
 end)
 
@@ -4651,6 +5068,7 @@ do
 	end
 	loading:Destroy()
 	profile = res.profile
+	cosmetics = profile.cosmetics
 	showMenu()
 end
 ]]></string>

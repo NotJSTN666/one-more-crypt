@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 const LUAU = process.argv[2] ?? 'luau';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const read = (p: string) => readFileSync(join(root, p), 'utf8').replace(/^export type /gm, 'type ');
-const modules = ['Rng', 'Relics', 'Content', 'Game', 'Daily', 'Sprites'];
+const modules = ['Rng', 'Relics', 'Content', 'Game', 'Daily', 'Sprites', 'Store'];
 
 const luau = `
 local function signal()
@@ -52,6 +52,17 @@ local function store(name, ordered)
     end,
   }
 end
+Enum = {
+  ProductPurchaseDecision = { PurchaseGranted = "granted", NotProcessedYet = "notyet" },
+  MembershipType = { Premium = "premium", None = "none" },
+}
+local ownedPasses = {}
+local passFinished = signal()
+local MarketplaceService = {
+  PromptGamePassPurchaseFinished = passFinished,
+  UserOwnsGamePassAsync = function(_, userId, passId) return ownedPasses[passId] == true end,
+}
+local pushed = {}
 local playerAdded, playerRemoving = signal(), signal()
 local playerList = {}
 local Players = {
@@ -59,6 +70,7 @@ local Players = {
   PlayerAdded = playerAdded, PlayerRemoving = playerRemoving,
   GetPlayers = function() return playerList end,
   GetNameFromUserIdAsync = function(_, id) return "Player" .. id end,
+  GetPlayerByUserId = function(_, id) for _, p in playerList do if p.UserId == id then return p end end return nil end,
 }
 local shared = folder()
 local remote
@@ -70,17 +82,25 @@ local services = {
     GetOrderedDataStore = function(_, n) return store(n, true) end,
   },
   RunService = { IsStudio = function() return false end },
+  MarketplaceService = MarketplaceService,
 }
 game = { GetService = function(_, n) return services[n] end, BindToClose = function() end }
 Instance = { new = function(class)
   local inst = { ClassName = class }
   if class == "RemoteFunction" then remote = inst end
+  if class == "RemoteEvent" then inst.FireClient = function(_, _, msg) table.insert(pushed, msg) end end
   return inst
 end }
 
 -- Each call moves the clock a second on, so the input rate limit never trips.
 local fakeClock = 0
 local os = setmetatable({ clock = function() fakeClock += 1; return fakeClock end }, { __index = os })
+
+-- Pretend the creator has set up the store.
+local Store = load("Store")
+for i, p in Store.PASSES do p.id = 1000 + i end
+for i, p in Store.PRODUCTS do p.id = 2000 + i end
+ownedPasses[1003] = true -- already owns the Soulfire Aura
 
 local function serverMain()
 ${read('src/server/CryptServer.server.luau').replace(/^--!nonstrict/, '')}
@@ -94,7 +114,7 @@ local fails = 0
 local function check(cond, msg)
   if not cond then fails += 1; print("FAIL: " .. msg) else print("ok   " .. msg) end
 end
-local alice = { UserId = 1, Name = "alice", Parent = true }
+local alice = { UserId = 1, Name = "alice", Parent = true, MembershipType = "premium" }
 table.insert(playerList, alice)
 playerAdded:Fire(alice)
 local function invoke(req) return remote.OnServerInvoke(alice, req) end
@@ -164,6 +184,39 @@ res = invoke({ op = "start", mode = "endless", hero = "resume" })
 check(res.state.turns == 6, "Endless runs resume too")
 local saved = rich.data["u1"]
 check(saved and saved.souls == invoke({ op = "profile" }).profile.souls, "profile is saved to the DataStore")
+-- ---------- the store ----------
+p = invoke({ op = "profile" }).profile
+check(p.cosmetics.aura and not p.cosmetics.crown, "owned passes are found on join")
+local soulsBefore = p.souls
+local receipt = { PlayerId = 1, ProductId = 2002, PurchaseId = "r-1" }
+check(MarketplaceService.ProcessReceipt(receipt) == "granted", "a Soul pack purchase is granted")
+check(MarketplaceService.ProcessReceipt(receipt) == "granted", "a retried receipt is acknowledged")
+p = invoke({ op = "profile" }).profile
+check(p.souls == soulsBefore + 800, "a receipt pays out exactly once")
+check(pushed[#pushed].kind == "souls" and pushed[#pushed].amount == 800, "the client is told about the Souls")
+check(stores["OneMoreCrypt_Profiles_v1"].data["u1"].souls == p.souls, "Souls from a purchase are saved before granting")
+check(MarketplaceService.ProcessReceipt({ PlayerId = 99, ProductId = 2001, PurchaseId = "r-2" }) == "notyet", "a receipt for someone not here waits")
+check(invoke({ op = "pickCloak", key = "void" }).profile.cosmetics.cloak == "", "cloaks need the Cloak Collection")
+passFinished:Fire(alice, 1002, true)
+check(invoke({ op = "pickCloak", key = "void" }).profile.cosmetics.cloak == "void", "buying the Cloak Collection unlocks cloaks at once")
+passFinished:Fire(alice, 1001, true)
+-- A quick Endless death to see the Souls lines.
+res = invoke({ op = "start", mode = "endless" })
+guard = 0
+while res.state.phase ~= "dead" and guard < 20000 do
+  guard += 1
+  local s = res.state
+  if s.phase == "choose" then res = step("0")
+  elseif s.phase == "event" then res = step("x")
+  else
+    lcg = (lcg * 75 + 74) % 65537
+    res = step(({ "U", "D", "L", "R" })[lcg % 4 + 1])
+  end
+end
+local labels = {}
+for _, l in res.result.lines do labels[l.label] = l.souls end
+check(labels["Grave Robber 2×"] ~= nil and labels["Premium bonus"] ~= nil, "Grave Robber doubles Souls and Premium adds a bonus")
+check(res.result.upsell == false, "no Grave Robber upsell once it's owned")
 print(if fails == 0 then "server sim: all checks passed" else ("server sim: " .. fails .. " failed"))
 `;
 const dir = mkdtempSync(join(tmpdir(), 'omc-'));

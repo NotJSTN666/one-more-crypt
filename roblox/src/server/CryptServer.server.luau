@@ -2,12 +2,14 @@
 -- One More Crypt server. Each player's run lives here, so the client only sends
 -- inputs and draws what comes back: nobody can edit their HP or skip floors.
 -- Saves Souls, unlocks and best depths to DataStores, keeps one official daily
--- attempt per player, and runs the daily and Endless leaderboards.
+-- attempt per player, runs the daily and Endless leaderboards, and sells the
+-- Game Passes and Soul packs listed in Store.luau.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local DataStoreService = game:GetService("DataStoreService")
 local RunService = game:GetService("RunService")
+local MarketplaceService = game:GetService("MarketplaceService")
 
 local Shared = ReplicatedStorage:WaitForChild("OneMoreCrypt")
 local Game = require(Shared.Game)
@@ -15,6 +17,7 @@ local Relics = require(Shared.Relics)
 local Content = require(Shared.Content)
 local Daily = require(Shared.Daily)
 local Rng = require(Shared.Rng)
+local Store = require(Shared.Store)
 
 -- The board is the whole game: no avatar to walk around.
 Players.CharacterAutoLoads = false
@@ -22,6 +25,11 @@ Players.CharacterAutoLoads = false
 local remote = Instance.new("RemoteFunction")
 remote.Name = "Crypt"
 remote.Parent = Shared
+
+-- Server-to-client nudges, e.g. "your purchase went through".
+local push = Instance.new("RemoteEvent")
+push.Name = "CryptPush"
+push.Parent = Shared
 
 local presence = Instance.new("IntValue")
 presence.Name = "SoulsInCrypt"
@@ -83,6 +91,10 @@ local function newProfile()
 		daily = {},
 		-- The run in progress, so leaving mid-run loses nothing: rebuilt from its inputs.
 		active = nil,
+		-- Cloak Collection colour ("" = the hero's own).
+		cloak = "",
+		-- Recent Developer Product purchase IDs, so a receipt is never paid out twice.
+		receipts = {},
 	}
 end
 
@@ -90,6 +102,7 @@ local profiles = {} -- [Player] = profile
 local runs = {} -- [Player] = Game
 local runMeta = {} -- [Player] = { mode, dailyNo }
 local lastInput = {} -- [Player] = os.clock()
+local passes = {} -- [Player] = { [pass key] = true }
 
 local function loadProfile(player: Player)
 	local profile = newProfile()
@@ -131,14 +144,15 @@ local function captureActive(player: Player)
 	end
 end
 
-local function saveProfile(player: Player)
+--- Returns true once the profile is safely stored (or there's no store to save to).
+local function saveProfile(player: Player): boolean
 	local profile = profiles[player]
 	if not profile then
-		return
+		return false
 	end
 	captureActive(player)
 	if not profileStore then
-		return
+		return true
 	end
 	local ok, err = pcall(function()
 		profileStore:SetAsync("u" .. player.UserId, profile)
@@ -146,7 +160,61 @@ local function saveProfile(player: Player)
 	if not ok then
 		warn("[One More Crypt] Could not save profile:", err)
 	end
+	return ok
 end
+
+-- ---------- the store ----------
+
+local function owns(player: Player, key: string): boolean
+	return passes[player] ~= nil and passes[player][key] == true
+end
+
+local function loadPasses(player: Player)
+	local owned = {}
+	for _, pass in Store.PASSES do
+		if pass.id ~= 0 then
+			local ok, has = pcall(MarketplaceService.UserOwnsGamePassAsync, MarketplaceService, player.UserId, pass.id)
+			if ok and has then
+				owned[pass.key] = true
+			end
+		end
+	end
+	passes[player] = owned
+end
+
+local function isPremium(player: Player): boolean
+	return player.MembershipType == Enum.MembershipType.Premium
+end
+
+--- Soul packs. Roblox retries until this returns PurchaseGranted, so only say so once
+--- the Souls are saved, and remember each receipt so it can't pay out twice.
+MarketplaceService.ProcessReceipt = function(receipt)
+	local player = Players:GetPlayerByUserId(receipt.PlayerId)
+	local product = Store.productById(receipt.ProductId)
+	if not player or not product then
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+	local profile = profiles[player]
+	if not profile then
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+	if table.find(profile.receipts, receipt.PurchaseId) then
+		return Enum.ProductPurchaseDecision.PurchaseGranted
+	end
+	profile.souls += product.souls
+	table.insert(profile.receipts, receipt.PurchaseId)
+	while #profile.receipts > 50 do
+		table.remove(profile.receipts, 1)
+	end
+	if not saveProfile(player) then
+		profile.souls -= product.souls
+		table.remove(profile.receipts, table.find(profile.receipts, receipt.PurchaseId))
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+	push:FireClient(player, { kind = "souls", amount = product.souls, name = product.name })
+	return Enum.ProductPurchaseDecision.PurchaseGranted
+end
+
 
 local function submitScore(store, player: Player, score: number)
 	if not store then
@@ -318,6 +386,20 @@ local function snapshot(g)
 	}
 end
 
+local function storeView(player: Player)
+	local out = { passes = {}, products = {}, cloaks = {}, premium = isPremium(player), premiumBonus = Store.PREMIUM_BONUS }
+	for _, p in Store.PASSES do
+		table.insert(out.passes, { key = p.key, id = p.id, name = p.name, emoji = p.emoji, price = p.price, desc = p.desc, owned = owns(player, p.key) })
+	end
+	for _, p in Store.PRODUCTS do
+		table.insert(out.products, { key = p.key, id = p.id, name = p.name, emoji = p.emoji, price = p.price, souls = p.souls })
+	end
+	for _, c in Store.CLOAKS do
+		table.insert(out.cloaks, { key = c.key, name = c.name })
+	end
+	return out
+end
+
 local function profileView(player: Player)
 	local profile = profiles[player]
 	local today = Daily.number()
@@ -354,6 +436,12 @@ local function profileView(player: Player)
 		},
 		endlessResumable = active ~= nil and active.mode == "endless",
 		online = profileStore ~= nil,
+		store = storeView(player),
+		cosmetics = {
+			cloak = if owns(player, "cloaks") then profile.cloak else "",
+			aura = owns(player, "aura"),
+			crown = owns(player, "founder"),
+		},
 	}
 end
 
@@ -364,6 +452,16 @@ local function finishRun(player: Player, g)
 	local total = 0
 	for _, l in lines do
 		total += l[2]
+	end
+	local base = total
+	if owns(player, "doubleSouls") then
+		table.insert(lines, { "Grave Robber 2×", base })
+		total += base
+	end
+	if isPremium(player) then
+		local bonus = math.floor(base * Store.PREMIUM_BONUS + 0.5)
+		table.insert(lines, { "Premium bonus", bonus })
+		total += bonus
 	end
 	profile.souls += total
 	profile.earned += total
@@ -389,7 +487,10 @@ local function finishRun(player: Player, g)
 	for _, l in lines do
 		table.insert(outLines, { label = l[1], souls = l[2] })
 	end
-	return { souls = total, lines = outLines, newBest = newBest, bestEndless = profile.bestEndless, emojis = g:relicEmojis(20) }
+	return {
+		souls = total, lines = outLines, newBest = newBest, bestEndless = profile.bestEndless, emojis = g:relicEmojis(20),
+		upsell = not owns(player, "doubleSouls") and (Store.passByKey("doubleSouls") :: any).id ~= 0,
+	}
 end
 
 local function startRun(player: Player, mode: string, heroId: string?)
@@ -539,6 +640,14 @@ function handlers.pickHero(player: Player, req)
 	return { profile = profileView(player) }
 end
 
+function handlers.pickCloak(player: Player, req)
+	local profile = profiles[player]
+	if owns(player, "cloaks") and (req.key == "" or Store.cloakByKey(req.key)) then
+		profile.cloak = req.key
+	end
+	return { profile = profileView(player) }
+end
+
 function handlers.board(player: Player, req)
 	if req.board == "daily" then
 		local n = Daily.number()
@@ -566,7 +675,17 @@ remote.OnServerInvoke = function(player: Player, req)
 	return res
 end
 
+-- A Game Pass bought in-game counts straight away.
+MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passId, purchased)
+	local pass = Store.passById(passId)
+	if purchased and pass and passes[player] then
+		passes[player][pass.key] = true
+		push:FireClient(player, { kind = "pass", name = pass.name })
+	end
+end)
+
 Players.PlayerAdded:Connect(function(player)
+	task.spawn(loadPasses, player)
 	profiles[player] = loadProfile(player)
 	presence.Value = #Players:GetPlayers()
 end)
@@ -577,11 +696,13 @@ Players.PlayerRemoving:Connect(function(player)
 	runs[player] = nil
 	runMeta[player] = nil
 	lastInput[player] = nil
+	passes[player] = nil
 	presence.Value = #Players:GetPlayers() - 1
 end)
 
 for _, player in Players:GetPlayers() do
 	task.spawn(function()
+		loadPasses(player)
 		profiles[player] = loadProfile(player)
 	end)
 end

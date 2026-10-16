@@ -13,6 +13,40 @@ A Roblox version of One More Crypt. The rules are a line-by-line Luau port of `s
 7. Make it public: **Game Settings → Permissions → Playability → Public**, or **Creator Dashboard → your experience → Privacy**.
 8. Add an icon and thumbnails in the Creator Dashboard (`public/og.png` and the images in `brand/` work as a start).
 
+## Turn on the shop
+
+The game ships with a Shop (menu → 🛒 Shop) that is ready to sell once you create the items on Roblox. Until then every item shows "Not on sale yet".
+
+1. Publish the game first (above).
+2. Go to [create.roblox.com](https://create.roblox.com) → **Creations** → your game → **Monetization → Passes**. Create these four Game Passes, then open each one's **Sales** tab, turn on **Item for Sale** and set a price:
+
+   | Pass | Suggested price | What it does |
+   | --- | --- | --- |
+   | Grave Robber | 199 Robux | 2× Souls from every run |
+   | Cloak Collection | 99 Robux | Six extra cloak colours, picked on the menu |
+   | Soulfire Aura | 149 Robux | Blue soulfire around the hero |
+   | Crypt Founder | 299 Robux | Gold crown on the hero and the Founder title |
+
+3. Under **Monetization → Developer Products**, create three products:
+
+   | Product | Suggested price | Gives |
+   | --- | --- | --- |
+   | Pouch of Souls | 49 Robux | 250 Souls |
+   | Urn of Souls | 129 Robux | 800 Souls |
+   | Ossuary Hoard | 349 Robux | 2,500 Souls |
+
+4. Copy each item's ID number (shown on its page, or **Copy Asset ID** from its "…" menu).
+5. In Studio, open **ReplicatedStorage → OneMoreCrypt → Store** and replace each `id = 0` with the matching ID. If you prefer editing files, the same list is in `src/shared/Store.luau`; rebuild the place afterwards.
+6. Publish again. The Shop now shows real prices and the buy buttons work.
+
+Also switch on, in **Monetization**:
+- **Private Servers**: let players rent their own server for a few Robux a month.
+- **Premium Payouts** need no setup. Roblox pays you for the time Premium members spend in the game. The game gives Premium members +20% Souls so they have a reason to play.
+
+The shop leaves the Daily Descent fair: passes are cosmetic or speed up Ossuary unlocks, and Souls only buy Endless unlocks, so nobody can pay for a better daily score.
+
+Your Robux show up in the Creator Dashboard. Developer Exchange (DevEx) turns earned Robux into real money once you meet Roblox's requirements: be 13 or older, have a verified email, and earn more than the minimum balance. Check the current rate and minimum on Roblox's DevEx page.
+
 ## What's in it
 
 - The full rules: all 7 heroes, 41 relics, 12 fusions and 6 ascended relics at the Soul Forge, elites, spike traps, Blood Shrines, Iron Chests, Pale Fountains, the three bosses and the Abyss below floor 30.
@@ -23,6 +57,7 @@ A Roblox version of One More Crypt. The rules are a line-by-line Luau port of `s
 - **3D board:** a torch-lit 7×7 room. Heroes and monsters are voxel models built from the web game's 12×12 pixel art (`src/sprites.ts`, `src/enemy-art.ts`), and they shatter into voxels when they die.
 - **Controls:** WASD, arrow keys or HJKL to move and Space to wait. On phones and tablets: swipe, tap a tile or use the on-screen d-pad.
 - **Cheat-resistant:** the game runs on the server. The client only sends moves and draws the result.
+- **Shop:** Game Passes and Soul packs (see above). Purchases are saved before they're confirmed, and each receipt pays out once.
 
 Not ported yet: the Hollow hub, achievements, the Grimoire, hero looks that change with relics, the music, and share cards. The web game's Supabase accounts aren't linked: Roblox progress is separate.
 
@@ -36,6 +71,7 @@ Not ported yet: the Hollow hub, achievements, the Grimoire, hero looks that chan
 | `src/shared/Relics.luau`, `Content.luau` | Relics, fusions, heroes, elites and floor events |
 | `src/shared/Rng.luau` | The seeded RNG, bit-for-bit identical to `src/rng.ts` |
 | `src/shared/Daily.luau` | Daily numbering in Central Time, matching `src/daily.ts` |
+| `src/shared/Store.luau` | Shop items and their IDs |
 | `src/shared/Sprites.luau` | Pixel art, generated from the web sprites. Don't edit by hand |
 | `src/server/CryptServer.server.luau` | Runs every player's game, saves progress, leaderboards |
 | `src/client/CryptClient.client.luau` | The 3D board, effects, HUD, menus and controls |

@@ -19,7 +19,10 @@ local Sprites = require(Shared:WaitForChild("Sprites"))
 local Relics = require(Shared:WaitForChild("Relics"))
 local Content = require(Shared:WaitForChild("Content"))
 local Daily = require(Shared:WaitForChild("Daily"))
+local Store = require(Shared:WaitForChild("Store"))
 local remote: RemoteFunction = Shared:WaitForChild("Crypt")
+local pushEvent: RemoteEvent = Shared:WaitForChild("CryptPush")
+local MarketplaceService = game:GetService("MarketplaceService")
 local presence: IntValue = Shared:WaitForChild("SoulsInCrypt")
 
 local player = Players.LocalPlayer
@@ -41,7 +44,9 @@ end)
 
 local W, H = 7, 7
 local TILE = 4
-local PIX = TILE * 0.8 / 12
+local PIX = TILE * 0.9 / 12
+-- Figures lean back toward the camera so they don't look squashed from above.
+local LEAN = math.rad(36)
 local ORIGIN = Vector3.new(0, 200, 0)
 
 local C = {
@@ -55,10 +60,10 @@ local C = {
 	red = Color3.fromRGB(210, 58, 70),
 	green = Color3.fromRGB(126, 224, 129),
 	ice = Color3.fromRGB(159, 232, 255),
-	floorA = Color3.fromRGB(42, 34, 52),
-	floorB = Color3.fromRGB(36, 29, 46),
-	wall = Color3.fromRGB(62, 54, 76),
-	wallTop = Color3.fromRGB(88, 78, 104),
+	floorA = Color3.fromRGB(58, 48, 72),
+	floorB = Color3.fromRGB(50, 41, 62),
+	wall = Color3.fromRGB(78, 68, 95),
+	wallTop = Color3.fromRGB(108, 96, 128),
 }
 
 local HEADING = Enum.Font.Arcade
@@ -71,7 +76,7 @@ end
 
 -- ---------- atmosphere ----------
 
-Lighting.Ambient = Color3.fromRGB(70, 58, 92)
+Lighting.Ambient = Color3.fromRGB(95, 82, 120)
 Lighting.OutdoorAmbient = Color3.fromRGB(40, 32, 56)
 Lighting.Brightness = 0.4
 Lighting.ClockTime = 0
@@ -318,7 +323,7 @@ local function baseCameraCFrame(): CFrame
 	local needW = W * TILE + 6
 	local needH = H * TILE + 14
 	local dist = math.max((needW / 2) / math.tan(hfov / 2), (needH / 2) / math.tan(vfov / 2))
-	local pitch = math.rad(58)
+	local pitch = math.rad(52)
 	local target = ORIGIN + Vector3.new(0, 1, 1.2)
 	local eye = target + Vector3.new(0, math.sin(pitch), math.cos(pitch)) * dist
 	return CFrame.lookAt(eye, target)
@@ -537,7 +542,7 @@ local function buildBoard(state)
 	board.potion = nil
 	if state.potion then
 		local model, root = buildVoxel(Sprites.POTION, {})
-		root.CFrame = CFrame.new(tilePos(state.potion.x, state.potion.y))
+		root.CFrame = CFrame.new(tilePos(state.potion.x, state.potion.y)) * CFrame.Angles(-LEAN, 0, 0)
 		model.Parent = boardFolder
 		board.potion = model
 	end
@@ -616,12 +621,68 @@ local function heroCloak(hero: string)
 	return Sprites.CLOAKS[hero] or Sprites.CLOAKS.default
 end
 
+-- Store cosmetics the player owns: { cloak = key or "", aura = bool, crown = bool }.
+local cosmetics = { cloak = "", aura = false, crown = false }
+
+--- Founder's crown: a little gold voxel crown on the hero's head.
+local function addCrown(model: Model, root: BasePart)
+	local gold = Color3.fromRGB(242, 193, 78)
+	local y = 12.5 * PIX
+	local pieces = {
+		{ Vector3.new(PIX * 6, PIX, PIX * 2.2), Vector3.new(0, y, 0) },
+		{ Vector3.new(PIX, PIX, PIX * 2.2), Vector3.new(-PIX * 2.5, y + PIX, 0) },
+		{ Vector3.new(PIX, PIX * 1.6, PIX * 2.2), Vector3.new(0, y + PIX * 1.3, 0) },
+		{ Vector3.new(PIX, PIX, PIX * 2.2), Vector3.new(PIX * 2.5, y + PIX, 0) },
+	}
+	for _, piece in pieces do
+		local p = part({ Size = piece[1], Color = gold, Material = Enum.Material.Neon, Anchored = false })
+		p.CFrame = root.CFrame * CFrame.new(piece[2] + Vector3.new(-0.5 * PIX, 0, 0))
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = root
+		weld.Part1 = p
+		weld.Parent = p
+		p.Parent = model
+	end
+	local gem = part({ Size = Vector3.new(PIX * 0.8, PIX * 0.8, PIX * 2.4), Color = Color3.fromRGB(210, 58, 70), Material = Enum.Material.Neon, Anchored = false })
+	gem.CFrame = root.CFrame * CFrame.new(-0.5 * PIX, y, 0)
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = root
+	weld.Part1 = gem
+	weld.Parent = gem
+	gem.Parent = model
+end
+
+--- Soulfire aura: blue flames and embers rising off the hero.
+local function addAura(root: BasePart)
+	local att = Instance.new("Attachment")
+	att.Position = Vector3.new(0, 6 * PIX, 0)
+	att.Parent = root
+	local pe = Instance.new("ParticleEmitter")
+	pe.Color = ColorSequence.new(Color3.fromRGB(127, 200, 255), Color3.fromRGB(60, 90, 255))
+	pe.LightEmission = 1
+	pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.3), NumberSequenceKeypoint.new(1, 0) })
+	pe.Transparency = NumberSequence.new(0.2, 1)
+	pe.Lifetime = NumberRange.new(0.6, 1.1)
+	pe.Rate = 26
+	pe.Speed = NumberRange.new(1, 2.5)
+	pe.SpreadAngle = Vector2.new(25, 25)
+	pe.Acceleration = Vector3.new(0, 3, 0)
+	pe.Shape = Enum.ParticleEmitterShape.Box
+	pe.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	pe.Parent = att
+	local glow = Instance.new("PointLight")
+	glow.Color = Color3.fromRGB(110, 160, 255)
+	glow.Range = 8
+	glow.Brightness = 1.5
+	glow.Parent = att
+end
+
 local function newUnit(id, kind: string, ally: boolean, heroId: string?)
 	local rows, colors, lit = nil, {}, true
 	if kind == "hero" then
 		rows = Sprites.PLAYER
 		lit = false
-		local cloak = heroCloak(heroId or "knight")
+		local cloak = Store.cloakByKey(cosmetics.cloak) or heroCloak(heroId or "knight")
 		colors = { p = cloak.p, P = cloak.P }
 	else
 		rows = Sprites.ENEMIES[kind].idle[1]
@@ -646,7 +707,7 @@ local function newUnit(id, kind: string, ally: boolean, heroId: string?)
 	model.Parent = unitFolder
 	local u = { id = id, kind = kind, model = model, root = root, highlight = highlight, facing = 1, x = nil, y = nil, scale = scale }
 	if kind ~= "hero" then
-		u.gui, u.fill, u.tag = unitGui(root, 12 * PIX * scale + 0.6)
+		u.gui, u.fill, u.tag = unitGui(root, 12 * PIX * scale * math.cos(LEAN) + 0.6)
 	else
 		local light = Instance.new("PointLight")
 		light.Color = Color3.fromRGB(255, 200, 150)
@@ -654,13 +715,19 @@ local function newUnit(id, kind: string, ally: boolean, heroId: string?)
 		light.Brightness = 1.4
 		light.Shadows = true
 		light.Parent = root
+		if cosmetics.crown then
+			addCrown(model, root)
+		end
+		if cosmetics.aura then
+			addAura(root)
+		end
 	end
 	units[id] = u
 	return u
 end
 
 local function placeUnit(u, x: number, y: number, facing: number, instant: boolean)
-	local target = CFrame.new(tilePos(x, y)) * CFrame.Angles(0, if facing < 0 then math.pi else 0, 0)
+	local target = CFrame.new(tilePos(x, y)) * CFrame.Angles(-LEAN, 0, 0) * CFrame.Angles(0, if facing < 0 then math.pi else 0, 0)
 	if instant or not u.x then
 		u.root.CFrame = target
 	else
@@ -679,7 +746,7 @@ local function lunge(u, dir)
 	if not u.x then
 		return
 	end
-	local base = CFrame.new(tilePos(u.x, u.y)) * CFrame.Angles(0, if u.facing < 0 then math.pi else 0, 0)
+	local base = CFrame.new(tilePos(u.x, u.y)) * CFrame.Angles(-LEAN, 0, 0) * CFrame.Angles(0, if u.facing < 0 then math.pi else 0, 0)
 	local out = base + Vector3.new(dir.x, 0, dir.y) * TILE * 0.3
 	local t = TweenService:Create(u.root, TweenInfo.new(0.07, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { CFrame = out })
 	t.Completed:Connect(function()
@@ -1312,7 +1379,8 @@ do
 	local row = new("Frame", { Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, LayoutOrder = 1, Parent = top }, {
 		new("UISizeConstraint", { MaxSize = Vector2.new(640, 40) }),
 	})
-	local floorLabel = text({ Size = UDim2.new(0.34, 0, 1, 0), AutomaticSize = Enum.AutomaticSize.None, Font = HEADING, TextSize = 22, TextXAlignment = Enum.TextXAlignment.Left, Text = "", Parent = row })
+	local floorLabel = text({ Size = UDim2.new(0.32, 0, 0, 24), AutomaticSize = Enum.AutomaticSize.None, Font = HEADING, TextSize = 20, TextXAlignment = Enum.TextXAlignment.Left, Text = "", Parent = row })
+	local modeLabel = text({ Position = UDim2.fromOffset(0, 24), Size = UDim2.new(0.32, 0, 0, 14), AutomaticSize = Enum.AutomaticSize.None, TextSize = 12, TextColor3 = C.dim, TextXAlignment = Enum.TextXAlignment.Left, Text = "", Parent = row })
 	local hpBack = new("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.new(0.34, 0, 0, 22), BackgroundColor3 = Color3.fromRGB(42, 24, 32), Parent = row }, { corner(6), stroke(C.line) })
 	local hpFill = new("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = C.red, Parent = hpBack }, { corner(6) })
 	local hpText = text({ Size = UDim2.fromScale(1, 1), AutomaticSize = Enum.AutomaticSize.None, Font = BOLD, TextSize = 14, Text = "", ZIndex = 2, Parent = hpBack })
@@ -1391,7 +1459,8 @@ do
 
 	function hud.update(s)
 		local f = s.floor
-		floorLabel.Text = (if s.mode == "daily" then `DAILY #{s.dailyNo} · ` else "") .. `FLOOR {f}`
+		floorLabel.Text = `FLOOR {f}`
+		modeLabel.Text = if s.mode == "daily" then `Daily #{s.dailyNo}` else "Endless"
 		floorLabel.TextColor3 = if s.boss then C.red elseif f > 30 then Color3.fromRGB(255, 120, 120) else C.gold
 		hpFill.Size = UDim2.fromScale(math.clamp(s.hp / math.max(1, s.maxHp), 0, 1), 1)
 		hpText.Text = `❤ {s.hp}/{s.maxHp}`
@@ -1544,6 +1613,12 @@ renderOverlays = function(s, result)
 			if r.newBest then
 				text({ Text = "New best Endless depth!", Font = BOLD, TextColor3 = C.gold, Parent = deathCard })
 			end
+			if r.upsell then
+				local pass = Store.passByKey("doubleSouls")
+				button(`⚱️ Double every run's Souls with Grave Robber`, function()
+					MarketplaceService:PromptGamePassPurchase(player, pass.id)
+				end, { Parent = deathCard, TextSize = 15, TextColor3 = C.gold })
+			end
 			if r.board then
 				text({ Text = if s.mode == "daily" then `DAILY #{s.dailyNo} LEADERBOARD` else "ENDLESS LEADERBOARD", Font = HEADING, TextSize = 18, TextColor3 = C.gold, Parent = deathCard })
 				boardList(deathCard, r.board, 50)
@@ -1588,6 +1663,8 @@ screens.menu = menuScreen
 screens.ossuary = ossuaryScreen
 screens.boards = boardsScreen
 screens.howto = howScreen
+local shopScreen, shopCard = overlay("Shop", 560)
+screens.shop = shopScreen
 menuScreen.BackgroundTransparency = 0.45
 
 local function startRun(mode: string, hero: string?)
@@ -1645,9 +1722,10 @@ showMenu = function()
 	clearUnits()
 	clear(menuCard)
 	local p = profile
+	cosmetics = p.cosmetics
 	text({ Text = "ONE MORE CRYPT", Font = HEADING, TextSize = 40, TextColor3 = C.gold, Parent = menuCard })
 	text({ Text = "Same crypt for everyone. One attempt a day.", TextColor3 = C.dim, Parent = menuCard })
-	text({ Text = `⚱ {p.souls} Souls`, Font = BOLD, TextColor3 = C.gold, Parent = menuCard })
+	text({ Text = `⚱ {p.souls} Souls` .. (if p.cosmetics.crown then "  ·  👑 Crypt Founder" else ""), Font = BOLD, TextColor3 = C.gold, Parent = menuCard })
 
 	-- Daily card.
 	local d = p.daily
@@ -1694,6 +1772,36 @@ showMenu = function()
 	if selected then
 		text({ Text = `{selected.name} · {selected.hp} HP · {selected.perk}: {selected.perkDesc}`, TextSize = 14, TextColor3 = C.dim, Parent = endless })
 	end
+	local cloakPass = nil
+	for _, pass in p.store.passes do
+		if pass.key == "cloaks" then
+			cloakPass = pass
+		end
+	end
+	if cloakPass and cloakPass.owned then
+		local cloakRow = new("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, Parent = endless }, {
+			new("UIGridLayout", { CellSize = UDim2.new(1 / 7, -5, 0, 34), CellPadding = UDim2.fromOffset(5, 5), SortOrder = Enum.SortOrder.LayoutOrder }),
+		})
+		local options = { { key = "", name = "Own" } }
+		for _, c in p.store.cloaks do
+			table.insert(options, c)
+		end
+		for i, c in options do
+			local b = button(c.name, function()
+				local res = call({ op = "pickCloak", key = c.key })
+				profile = res.profile or profile
+				showMenu()
+			end, { LayoutOrder = i, TextSize = 11, Parent = cloakRow })
+			local col = Store.cloakByKey(c.key)
+			if col then
+				b.BackgroundColor3 = col.p
+			end
+			if c.key == p.cosmetics.cloak then
+				b:FindFirstChildOfClass("UIStroke").Color = C.gold
+				b:FindFirstChildOfClass("UIStroke").Thickness = 3
+			end
+		end
+	end
 	if p.endlessResumable then
 		button("Resume Endless run", function()
 			startRun("endless", "resume")
@@ -1704,8 +1812,13 @@ showMenu = function()
 	end, { Parent = endless })
 
 	local row = new("Frame", { Size = UDim2.new(1, 0, 0, 44), BackgroundTransparency = 1, Parent = menuCard }, {
-		new("UIGridLayout", { CellSize = UDim2.new(1 / 3, -6, 0, 44), CellPadding = UDim2.fromOffset(6, 0) }),
+		new("UIGridLayout", { CellSize = UDim2.new(1 / 2, -3, 0, 44), CellPadding = UDim2.fromOffset(6, 6) }),
 	})
+	row.Size = UDim2.new(1, 0, 0, 94)
+	button("🛒 Shop", function()
+		show("shop")
+		menus.renderShop()
+	end, { Parent = row, TextColor3 = C.gold })
 	button("Ossuary", function()
 		show("ossuary")
 		menus.renderOssuary()
@@ -1788,6 +1901,93 @@ menus.renderBoards = function(which: string)
 	end)
 end
 
+local priceCache = {}
+--- The real Robux price set in the Creator Dashboard, falling back to the suggested one.
+local function priceOf(id: number, infoType, fallback: number, label: TextLabel)
+	label.Text = `R$ {fallback}`
+	if id == 0 then
+		return
+	end
+	if priceCache[id] then
+		label.Text = `R$ {priceCache[id]}`
+		return
+	end
+	task.spawn(function()
+		local ok, info = pcall(MarketplaceService.GetProductInfo, MarketplaceService, id, infoType)
+		if ok and info and info.PriceInRobux then
+			priceCache[id] = info.PriceInRobux
+			if label.Parent then
+				label.Text = `R$ {info.PriceInRobux}`
+			end
+		end
+	end)
+end
+
+local function shopItem(emoji: string, name: string, desc: string, id: number, infoType, fallback: number, owned: boolean, onBuy: () -> ())
+	local box = new("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundColor3 = C.panel2, Parent = shopCard }, {
+		corner(10), stroke(if owned then C.green else C.line), pad(12), list(6, false, Enum.HorizontalAlignment.Left),
+	})
+	text({ Text = `{emoji}  {name}`, Font = BOLD, TextSize = 18, TextColor3 = C.gold, TextXAlignment = Enum.TextXAlignment.Left, Parent = box })
+	text({ Text = desc, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, Parent = box })
+	if owned then
+		text({ Text = "✓ Owned", Font = BOLD, TextColor3 = C.green, TextXAlignment = Enum.TextXAlignment.Left, Parent = box })
+	elseif id == 0 then
+		text({ Text = "Not on sale yet", TextColor3 = C.dim, TextXAlignment = Enum.TextXAlignment.Left, Parent = box })
+	else
+		local b = button("", onBuy, { Size = UDim2.new(0, 140, 0, 38), TextColor3 = C.gold, Parent = box })
+		local label = text({ Size = UDim2.fromScale(1, 1), AutomaticSize = Enum.AutomaticSize.None, Font = BOLD, TextColor3 = C.gold, Parent = b })
+		priceOf(id, infoType, fallback, label)
+	end
+end
+
+menus.renderShop = function()
+	clear(shopCard)
+	local st = profile.store
+	text({ Text = "THE CRYPT SHOP", Font = HEADING, TextSize = 30, TextColor3 = C.gold, Parent = shopCard })
+	text({ Text = "Cosmetics and Souls. Nothing here changes the Daily Descent: everyone braves the same crypt.", TextColor3 = C.dim, Parent = shopCard })
+	text({ Text = "GAME PASSES", Font = HEADING, TextSize = 18, Parent = shopCard })
+	for _, pass in st.passes do
+		shopItem(pass.emoji, pass.name, pass.desc, pass.id, Enum.InfoType.GamePass, pass.price, pass.owned, function()
+			MarketplaceService:PromptGamePassPurchase(player, pass.id)
+		end)
+	end
+	text({ Text = "SOULS", Font = HEADING, TextSize = 18, Parent = shopCard })
+	text({ Text = `You have ⚱ {profile.souls}. Spend Souls in the Ossuary on heroes and forbidden relics for Endless.`, TextColor3 = C.dim, Parent = shopCard })
+	for _, prod in st.products do
+		shopItem(prod.emoji, prod.name, `{prod.souls} Souls`, prod.id, Enum.InfoType.Product, prod.price, false, function()
+			MarketplaceService:PromptProductPurchase(player, prod.id)
+		end)
+	end
+	if st.premium then
+		text({ Text = `⭐ Premium member: +{math.floor(st.premiumBonus * 100)}% Souls on every run.`, TextColor3 = C.gold, Parent = shopCard })
+	else
+		text({ Text = `⭐ Roblox Premium members earn +{math.floor(st.premiumBonus * 100)}% Souls on every run.`, TextColor3 = C.dim, Parent = shopCard })
+	end
+	button("Back", function()
+		showMenu()
+	end, { Parent = shopCard })
+end
+
+-- Purchases land on the server; it tells us here so the menus can catch up.
+pushEvent.OnClientEvent:Connect(function(msg)
+	if msg.kind == "souls" then
+		showToast(`{msg.name}: +{msg.amount} Souls`, C.gold)
+	elseif msg.kind == "pass" then
+		showToast(`{msg.name} unlocked. Thank you!`, C.gold)
+	end
+	sound(SFX.pick, 0.5)
+	local res = call({ op = "profile" })
+	if res.profile then
+		profile = res.profile
+		cosmetics = profile.cosmetics
+		if screens.shop.Visible then
+			menus.renderShop()
+		elseif screens.menu.Visible then
+			showMenu()
+		end
+	end
+end)
+
 do
 	text({ Text = "HOW TO PLAY", Font = HEADING, TextSize = 30, TextColor3 = C.gold, Parent = howCard })
 	local rules = {
@@ -1825,7 +2025,7 @@ end)
 RunService.RenderStepped:Connect(function()
 	if board.potion and board.potion.PrimaryPart and state and state.potion then
 		local t = os.clock()
-		board.potion.PrimaryPart.CFrame = CFrame.new(tilePos(state.potion.x, state.potion.y) + Vector3.new(0, 0.3 + math.sin(t * 3) * 0.2, 0)) * CFrame.Angles(0, math.sin(t) * 0.4, 0)
+		board.potion.PrimaryPart.CFrame = CFrame.new(tilePos(state.potion.x, state.potion.y) + Vector3.new(0, 0.3 + math.sin(t * 3) * 0.2, 0)) * CFrame.Angles(-LEAN, 0, 0) * CFrame.Angles(0, math.sin(t) * 0.4, 0)
 	end
 end)
 
@@ -1841,5 +2041,6 @@ do
 	end
 	loading:Destroy()
 	profile = res.profile
+	cosmetics = profile.cosmetics
 	showMenu()
 end
