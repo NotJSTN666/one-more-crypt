@@ -806,6 +806,69 @@ local function updateUnitGui(u, e)
 	end
 end
 
+-- Rival racers on your floor, drawn as see-through heroes with their names.
+local ghosts = {} -- [userId] = { model, root, x, y }
+local ghostFolder = Instance.new("Folder")
+ghostFolder.Name = "Ghosts"
+ghostFolder.Parent = world
+
+local function clearGhosts()
+	for id, g in ghosts do
+		g.model:Destroy()
+		ghosts[id] = nil
+	end
+end
+
+local function updateGhosts(race, myFloor: number?)
+	local seen = {}
+	if race and race.phase == "running" and myFloor then
+		for _, r in race.standings do
+			if not r.you and r.alive and not r.left and r.floor == myFloor and r.userId ~= player.UserId then
+				seen[r.userId] = true
+				local g = ghosts[r.userId]
+				if not g then
+					local cloak = Sprites.CLOAKS[race.hero] or Sprites.CLOAKS.default
+					local model, root = buildVoxel(Sprites.PLAYER, { p = cloak.p, P = cloak.P }, false)
+					for _, p in model:GetDescendants() do
+						if p:IsA("BasePart") and p ~= root then
+							p.Transparency = 0.55
+							p.CastShadow = false
+						end
+					end
+					local tag = Instance.new("BillboardGui")
+					tag.Size = UDim2.fromOffset(120, 20)
+					tag.StudsOffsetWorldSpace = Vector3.new(0, 12 * PIX * math.cos(LEAN) + 0.7, 0)
+					tag.AlwaysOnTop = true
+					tag.LightInfluence = 0
+					tag.Parent = root
+					local label = Instance.new("TextLabel")
+					label.BackgroundTransparency = 1
+					label.Size = UDim2.fromScale(1, 1)
+					label.Font = Enum.Font.GothamBold
+					label.TextSize = 13
+					label.TextColor3 = Color3.fromRGB(159, 232, 255)
+					label.TextStrokeTransparency = 0.3
+					label.Text = r.name
+					label.Parent = tag
+					model.Parent = ghostFolder
+					g = { model = model, root = root }
+					ghosts[r.userId] = g
+					root.CFrame = CFrame.new(tilePos(r.x, r.y) + Vector3.new(0.6, 0, 0.6)) * CFrame.Angles(-LEAN, 0, 0)
+				end
+				-- Nudged off-centre so a rival on your tile doesn't hide you.
+				local target = CFrame.new(tilePos(r.x, r.y) + Vector3.new(0.6, 0, 0.6)) * CFrame.Angles(-LEAN, 0, 0)
+				TweenService:Create(g.root, TweenInfo.new(0.15), { CFrame = target }):Play()
+			end
+		end
+	end
+	for id, g in ghosts do
+		if not seen[id] then
+			g.model:Destroy()
+			ghosts[id] = nil
+		end
+	end
+end
+
 local function clearUnits()
 	for id, u in units do
 		u.model:Destroy()
@@ -937,7 +1000,7 @@ local function clear(frame: Instance)
 	end
 end
 
-local screens = {}
+local screens: { [string]: any } = {}
 local menus: { [string]: any } = {}
 local function show(name: string?)
 	for n, s in screens do
@@ -1596,6 +1659,9 @@ renderOverlays = function(s, result)
 			send("x")
 		end, { Parent = eventCard })
 		show("event")
+	elseif phase == "dead" and s.mode == "race" then
+		menus.renderRaceWatch()
+		show("racewatch")
 	elseif phase == "dead" then
 		local r = lastResult
 		clear(deathCard)
@@ -1648,6 +1714,7 @@ renderOverlays = function(s, result)
 	end
 	-- The HUD stays up under the overlays during a run.
 	screens.hud.Visible = phase ~= "dead"
+	screens.racepanel.Visible = s.mode == "race" and phase ~= "dead"
 	local touch = UserInputService.TouchEnabled
 	screens.dpad.Visible = phase == "play" and touch
 	screens.hint.Visible = phase == "play" and not touch
@@ -1666,6 +1733,204 @@ screens.howto = howScreen
 local shopScreen, shopCard = overlay("Shop", 560)
 screens.shop = shopScreen
 menuScreen.BackgroundTransparency = 0.45
+
+-- ---------- the Crypt Race ----------
+
+local raceState = nil -- the latest race view from the server
+local raceLobbyScreen, raceLobbyCard = overlay("RaceLobby", 520)
+local raceWatchScreen, raceWatchCard = overlay("RaceWatch", 520)
+local raceResultsScreen, raceResultsCard = overlay("RaceResults", 520)
+screens.racelobby = raceLobbyScreen
+screens.racewatch = raceWatchScreen
+screens.raceresults = raceResultsScreen
+
+local function clock(seconds: number): string
+	seconds = math.max(0, math.floor(seconds))
+	return string.format("%d:%02d", seconds // 60, seconds % 60)
+end
+
+local function standingsList(parent: Instance, race, order: number?)
+	local box = new("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundColor3 = C.panel2, LayoutOrder = order or 0, Parent = parent }, { corner(8), pad(10), list(4) })
+	if #race.standings == 0 then
+		text({ Text = "No racers yet.", TextColor3 = C.dim, Parent = box })
+	end
+	for _, r in race.standings do
+		local status = if r.left then "left" elseif race.phase == "lobby" or race.phase == "countdown" then "ready" elseif r.alive then `❤ {r.hp}/{r.maxHp}` else "fallen"
+		text({
+			Text = `{r.rank}.  {r.name}  —  floor {r.floor} · {r.kills} kills · {status}`,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextSize = 15,
+			TextColor3 = if r.you then C.gold elseif r.left or (not r.alive and race.phase == "running") then C.dim else C.text,
+			Parent = box,
+		})
+	end
+	return box
+end
+
+-- Live standings beside the board during a race.
+local racePanel = new("Frame", {
+	Name = "RacePanel",
+	AnchorPoint = Vector2.new(1, 0),
+	Position = UDim2.new(1, -12, 0, 140),
+	Size = UDim2.fromOffset(210, 0),
+	AutomaticSize = Enum.AutomaticSize.Y,
+	BackgroundColor3 = C.panel,
+	BackgroundTransparency = 0.15,
+	Visible = false,
+	Parent = gui,
+}, { corner(10), stroke(C.line), pad(10), list(4, false, Enum.HorizontalAlignment.Left) })
+screens.racepanel = racePanel
+
+local function renderRacePanel()
+	clear(racePanel)
+	local race = raceState
+	if not race then
+		return
+	end
+	text({ Text = `RACE · {clock(race.secondsLeft)}`, Font = HEADING, TextSize = 14, TextColor3 = if race.secondsLeft <= 30 then C.red else C.gold, TextXAlignment = Enum.TextXAlignment.Left, Parent = racePanel })
+	for _, r in race.standings do
+		if not r.left then
+			text({
+				Text = `{r.rank}. {r.name}  F{r.floor}` .. (if r.alive then "" else " ☠"),
+				TextSize = 13,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextColor3 = if r.you then C.gold elseif r.alive then C.text else C.dim,
+				Parent = racePanel,
+			})
+		end
+	end
+end
+
+menus.renderRaceLobby = function()
+	clear(raceLobbyCard)
+	local race = raceState
+	text({ Text = "CRYPT RACE", Font = HEADING, TextSize = 30, TextColor3 = C.gold, Parent = raceLobbyCard })
+	text({ Text = `Everyone races through the same crypt with the same hero. Deepest floor after {clock(race and race.length or 300)} wins.`, TextColor3 = C.dim, Parent = raceLobbyCard })
+	if not race then
+		return
+	end
+	local status
+	if race.queued then
+		status = "A race is under way. You're in the next one."
+	elseif race.phase == "lobby" then
+		status = `Waiting for racers ({race.count}/{race.max}). The race starts once {race.min} have joined.`
+	elseif race.phase == "countdown" then
+		status = `The race starts in {race.secondsLeft}…`
+	elseif race.phase == "running" then
+		status = `A race is under way ({clock(race.secondsLeft)} left).`
+	else
+		status = `Next race opens in {race.secondsLeft}…`
+	end
+	text({ Text = status, Font = BOLD, TextColor3 = C.gold, Parent = raceLobbyCard })
+	text({ Text = `Prizes: 🏆 {race.prizes[1]} · {race.prizes[2]} · {race.prizes[3]} Souls, on top of the run's own Souls.`, TextSize = 14, TextColor3 = C.dim, Parent = raceLobbyCard })
+	if race.phase == "lobby" or race.phase == "countdown" then
+		standingsList(raceLobbyCard, race)
+	end
+	text({ Text = "Invite friends to this server, or rent a Private Server, to race together.", TextSize = 12, TextColor3 = C.dim, Parent = raceLobbyCard })
+	button("Leave", function()
+		local res = call({ op = "raceLeave" })
+		raceState = res.race or raceState
+		profile = res.profile or profile
+		showMenu()
+	end, { Parent = raceLobbyCard })
+end
+
+menus.renderRaceWatch = function()
+	clear(raceWatchCard)
+	local race = raceState
+	text({ Text = `YOU FELL ON FLOOR {state and state.floor or 0}`, Font = HEADING, TextSize = 26, TextColor3 = C.red, Parent = raceWatchCard })
+	text({ Text = "The race goes on. Souls and prizes are paid when it ends.", TextColor3 = C.dim, Parent = raceWatchCard })
+	if race then
+		text({ Text = `{clock(race.secondsLeft)} left`, Font = HEADING, TextSize = 18, TextColor3 = C.gold, Parent = raceWatchCard })
+		standingsList(raceWatchCard, race)
+	end
+	button("Leave the race", function()
+		inRun = false
+		local res = call({ op = "raceLeave" })
+		raceState = res.race or raceState
+		profile = res.profile or profile
+		showMenu()
+	end, { Parent = raceWatchCard })
+end
+
+local function renderRaceResults(race, you)
+	clear(raceResultsCard)
+	local mine = nil
+	for _, r in race.results do
+		if r.name == (player.DisplayName or player.Name) then
+			mine = r
+		end
+	end
+	local rank = you and you.rank or (mine and mine.rank) or 0
+	text({ Text = if rank == 1 then "🏆 YOU WON THE RACE" else `RACE OVER · #{rank}`, Font = HEADING, TextSize = 26, TextColor3 = C.gold, Parent = raceResultsCard })
+	local box = new("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundColor3 = C.panel2, Parent = raceResultsCard }, { corner(8), pad(10), list(4) })
+	for _, r in race.results do
+		text({
+			Text = `{r.rank}.  {r.name}  —  floor {r.floor} · {r.kills} kills` .. (if r.left then " · left" else `  +{r.souls} Souls`),
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextSize = 15,
+			TextColor3 = if r.rank == rank then C.gold else C.text,
+			Parent = box,
+		})
+	end
+	if you then
+		local mineBox = new("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundColor3 = C.panel2, Parent = raceResultsCard }, { corner(8), pad(10), list(3) })
+		for _, l in you.lines do
+			text({ Text = `{l.label}   +{l.souls}`, TextSize = 15, Parent = mineBox })
+		end
+		text({ Text = `+{you.total} Souls`, Font = HEADING, TextSize = 22, TextColor3 = C.gold, Parent = mineBox })
+	end
+	button("Race again", function()
+		local res = call({ op = "raceJoin" })
+		raceState = res.race or raceState
+		if res.error then
+			showToast(res.error, C.red)
+		end
+		show("racelobby")
+		menus.renderRaceLobby()
+	end, { Parent = raceResultsCard, TextColor3 = C.gold })
+	button("Back to the surface", function()
+		local res = call({ op = "profile" })
+		profile = res.profile or profile
+		showMenu()
+	end, { Parent = raceResultsCard })
+	show("raceresults")
+end
+
+local function onRacePush(msg)
+	raceState = msg.race or raceState
+	if msg.kind == "raceStart" then
+		inRun = true
+		queue = {}
+		lastResult = nil
+		board.floor = -1
+		clearUnits()
+		clearGhosts()
+		applyState(msg.state, {})
+		showBanner(`RACE! · {msg.race.heroName}`, C.gold)
+		sound(SFX.pick, 0.5, 1.2)
+	elseif msg.kind == "raceEnd" then
+		inRun = false
+		clearGhosts()
+		renderRaceResults(msg.race, msg.you)
+		sound(SFX.pick, 0.6, 0.8)
+		return
+	end
+	-- Keep whatever race screen is up current.
+	if screens.racelobby.Visible then
+		menus.renderRaceLobby()
+	elseif screens.racewatch.Visible then
+		menus.renderRaceWatch()
+	elseif screens.menu.Visible and menus.raceLine then
+		menus.raceLine()
+	end
+	if inRun and state and state.mode == "race" then
+		renderRacePanel()
+		updateGhosts(raceState, if state.phase ~= "dead" then state.floor else nil)
+	else
+		updateGhosts(nil)
+	end
+end
 
 local function startRun(mode: string, hero: string?)
 	local res = call({ op = "start", mode = mode, hero = hero })
@@ -1720,6 +1985,7 @@ end
 showMenu = function()
 	inRun = false
 	clearUnits()
+	clearGhosts()
 	clear(menuCard)
 	local p = profile
 	cosmetics = p.cosmetics
@@ -1746,6 +2012,32 @@ showMenu = function()
 		end, { Parent = daily, TextColor3 = C.gold })
 	end
 	countdownLabel = text({ Text = "", TextSize = 13, TextColor3 = C.dim, Parent = daily })
+
+	-- Multiplayer card.
+	local raceCard = new("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundColor3 = C.panel2, Parent = menuCard }, { corner(10), stroke(C.ice, 1.5), pad(14), list(6) })
+	text({ Text = "⚔ CRYPT RACE", Font = HEADING, TextSize = 24, TextColor3 = C.ice, Parent = raceCard })
+	text({ Text = "Multiplayer: race everyone in this server through the same crypt. Deepest floor in 5 minutes wins Souls.", TextColor3 = C.dim, Parent = raceCard })
+	local raceInfo = text({ Text = "", TextSize = 14, Font = BOLD, TextColor3 = C.ice, Parent = raceCard })
+	menus.raceLine = function()
+		local r = raceState
+		if not raceInfo.Parent or not r then
+			return
+		end
+		raceInfo.Text = if r.phase == "running" then `A race is under way · {r.count} racing · {clock(r.secondsLeft)} left`
+			elseif r.phase == "countdown" then `{r.count} racers ready · starts in {r.secondsLeft}`
+			elseif r.phase == "results" then "A race just finished · next one opening"
+			else `{r.count} waiting in the lobby`
+	end
+	menus.raceLine()
+	button("Join the race", function()
+		local res = call({ op = "raceJoin" })
+		raceState = res.race or raceState
+		if res.error then
+			showToast(res.error, C.red)
+		end
+		show("racelobby")
+		menus.renderRaceLobby()
+	end, { Parent = raceCard, TextColor3 = C.ice })
 
 	-- Endless card.
 	local endless = new("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundColor3 = C.panel2, Parent = menuCard }, { corner(10), stroke(), pad(14), list(6) })
@@ -1970,6 +2262,10 @@ end
 
 -- Purchases land on the server; it tells us here so the menus can catch up.
 pushEvent.OnClientEvent:Connect(function(msg)
+	if msg.kind == "race" or msg.kind == "raceStart" or msg.kind == "raceEnd" then
+		onRacePush(msg)
+		return
+	end
 	if msg.kind == "souls" then
 		showToast(`{msg.name}: +{msg.amount} Souls`, C.gold)
 	elseif msg.kind == "pass" then
@@ -1999,6 +2295,7 @@ do
 		"🪤  Spikes hurt whoever walks on them. Lure foes across them.",
 		"🩸  Shrines, chests and fountains offer deals. The Soul Forge, after each boss, fuses two relics.",
 		"⏳  Space (or the hourglass) waits a turn: let foes come to you.",
+		"⚔  Crypt Race (multiplayer): everyone who joins races through the same crypt with the same hero. Deepest floor after 5 minutes wins extra Souls. Rivals on your floor show up as ghosts.",
 		"📅  The Daily Descent is the same crypt for everyone, and the same as on onemorecrypt.com. One attempt a day.",
 		"⚱  Every run earns Souls. Spend them in the Ossuary on heroes and forbidden relics for Endless.",
 		"🎮  Move: WASD, arrows or HJKL · on phones swipe, tap a tile or use the d-pad.",

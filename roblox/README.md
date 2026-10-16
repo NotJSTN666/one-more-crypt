@@ -52,6 +52,7 @@ Your Robux show up in the Creator Dashboard. Developer Exchange (DevEx) turns ea
 - The full rules: all 7 heroes, 41 relics, 12 fusions and 6 ascended relics at the Soul Forge, elites, spike traps, Blood Shrines, Iron Chests, Pale Fountains, the three bosses and the Abyss below floor 30.
 - **Daily Descent:** a new crypt at midnight Central Time, one official attempt per player, and a daily leaderboard.
 - **Endless:** random crypts with your unlocked heroes and forbidden relics, and an all-time leaderboard.
+- **Crypt Race (multiplayer):** players in a server join a lobby; once 2 have joined, a 15-second countdown starts (up to 8 racers). Everyone gets the same crypt and the same random hero, with live standings and rivals on your floor drawn as ghost heroes. Deepest floor after 5 minutes wins (ties go to whoever got there first, then most kills). The top three get 60 / 30 / 15 bonus Souls on top of their run's Souls. Late arrivals queue for the next race. Set **Game Settings → Places → Max Players** to 8 or more so friends fit, and switch on Private Servers so groups can race privately.
 - **Souls and the Ossuary:** every run pays Souls, spent on heroes and the ten forbidden relics. Saved to Roblox DataStores.
 - **Runs resume:** leaving mid-run (closing Roblox, or the ☰ button) keeps the run. It's rebuilt from its saved inputs when you come back.
 - **3D board:** a torch-lit 7×7 room. Heroes and monsters are voxel models built from the web game's 12×12 pixel art (`src/sprites.ts`, `src/enemy-art.ts`), and they shatter into voxels when they die.

@@ -3,7 +3,8 @@
 -- inputs and draws what comes back: nobody can edit their HP or skip floors.
 -- Saves Souls, unlocks and best depths to DataStores, keeps one official daily
 -- attempt per player, runs the daily and Endless leaderboards, and sells the
--- Game Passes and Soul packs listed in Store.luau.
+-- Game Passes and Soul packs listed in Store.luau, and hosts the Crypt Race:
+-- everyone who joins races through the same crypt at once.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -129,7 +130,8 @@ local function captureActive(player: Player)
 	end
 	local g = runs[player]
 	local meta = runMeta[player]
-	if g and meta and not g:isOver() then
+	-- Race runs end with the race, so they're never kept to resume.
+	if g and meta and not g:isOver() and meta.mode ~= "race" then
 		profile.active = {
 			mode = meta.mode,
 			seed = g.seed,
@@ -445,10 +447,9 @@ local function profileView(player: Player)
 	}
 end
 
-local function finishRun(player: Player, g)
+--- Pay a run's Souls (with Grave Robber and Premium bonuses). Returns the total and the lines.
+local function payRun(player: Player, lines: { { any } })
 	local profile = profiles[player]
-	local meta = runMeta[player]
-	local lines = g:runSouls()
 	local total = 0
 	for _, l in lines do
 		total += l[2]
@@ -466,6 +467,17 @@ local function finishRun(player: Player, g)
 	profile.souls += total
 	profile.earned += total
 	profile.runs += 1
+	local outLines = {}
+	for _, l in lines do
+		table.insert(outLines, { label = l[1], souls = l[2] })
+	end
+	return total, outLines
+end
+
+local function finishRun(player: Player, g)
+	local profile = profiles[player]
+	local meta = runMeta[player]
+	local total, outLines = payRun(player, g:runSouls())
 	local newBest = false
 	local score = g.floor * 10000 + math.min(9999, g.kills)
 	if meta.mode == "daily" then
@@ -483,10 +495,6 @@ local function finishRun(player: Player, g)
 	runMeta[player] = nil
 	profile.active = nil
 	task.spawn(saveProfile, player)
-	local outLines = {}
-	for _, l in lines do
-		table.insert(outLines, { label = l[1], souls = l[2] })
-	end
 	return {
 		souls = total, lines = outLines, newBest = newBest, bestEndless = profile.bestEndless, emojis = g:relicEmojis(20),
 		upsell = not owns(player, "doubleSouls") and (Store.passByKey("doubleSouls") :: any).id ~= 0,
@@ -547,6 +555,9 @@ end
 
 local VALID_INPUT = "^[UDLRWrax0-3b-m]$"
 
+-- Crypt Race functions, defined further down.
+local raceView, noteRacer, leaveRace
+
 local handlers = {}
 
 function handlers.profile(player: Player)
@@ -592,7 +603,15 @@ function handlers.input(player: Player, req)
 	if meta.mode == "daily" then
 		profile.daily[tostring(meta.dailyNo)] = math.max(profile.daily[tostring(meta.dailyNo)] or 0, g.floor)
 	end
-	if g:isOver() then
+	if meta.mode == "race" then
+		noteRacer(player, g)
+		if g:isOver() then
+			-- Souls are paid when the race ends, with placings.
+			runs[player] = nil
+			runMeta[player] = nil
+			result = { raceDead = true, race = raceView(player) }
+		end
+	elseif g:isOver() then
 		result = finishRun(player, g)
 		result.board = readBoard(if meta.mode == "daily" then "daily" .. meta.dailyNo else "endless", if meta.mode == "daily" then dailyBoard(meta.dailyNo) else endlessBoard)
 	elseif g.floor ~= floorBefore then
@@ -602,6 +621,10 @@ function handlers.input(player: Player, req)
 end
 
 function handlers.leave(player: Player)
+	if runMeta[player] and runMeta[player].mode == "race" then
+		leaveRace(player)
+		return { profile = profileView(player) }
+	end
 	-- Back to the menu; the run is kept and can be resumed.
 	captureActive(player)
 	task.spawn(saveProfile, player)
@@ -656,6 +679,300 @@ function handlers.board(player: Player, req)
 	return { board = readBoard("endless", endlessBoard), title = "Endless" }
 end
 
+-- ---------- the Crypt Race ----------
+-- Everyone who joins races through the same crypt with the same hero. Deepest floor
+-- when the timer runs out wins (ties: who got there first, then most kills).
+
+local RACE_MAX = 8
+local RACE_MIN = 2
+local RACE_COUNTDOWN = 15
+local RACE_LENGTH = 300
+local RACE_RESULTS = 15
+local RACE_PRIZES = { 60, 30, 15 }
+
+local race = {
+	phase = "lobby", -- lobby, countdown, running, results
+	number = 0,
+	racers = {}, -- [Player] = racer
+	order = {}, -- players in join order
+	nextUp = {}, -- players waiting for the next race
+	seed = 0,
+	hero = "knight",
+	startsAt = 0,
+	endsAt = 0,
+	resultsUntil = 0,
+	results = nil,
+	dirty = true,
+	lastPush = 0,
+}
+
+local function newRacer(player: Player)
+	return { player = player, name = player.DisplayName or player.Name, userId = player.UserId, floor = 0, x = 3, y = 6, hp = 0, maxHp = 0, kills = 0, alive = true, left = false, reachedAt = 0, game = nil }
+end
+
+local function raceCount(): number
+	local n = 0
+	for _, p in race.order do
+		if not race.racers[p].left then
+			n += 1
+		end
+	end
+	return n
+end
+
+local function raceStandings()
+	local list = {}
+	for _, p in race.order do
+		table.insert(list, race.racers[p])
+	end
+	table.sort(list, function(a, b)
+		if a.left ~= b.left then
+			return not a.left
+		end
+		if a.floor ~= b.floor then
+			return a.floor > b.floor
+		end
+		if a.reachedAt ~= b.reachedAt then
+			return a.reachedAt < b.reachedAt
+		end
+		return a.kills > b.kills
+	end)
+	return list
+end
+
+function raceView(viewer: Player?)
+	local now = os.clock()
+	local standings = {}
+	for i, r in raceStandings() do
+		table.insert(standings, {
+			rank = i, name = r.name, userId = r.userId, floor = r.floor, x = r.x, y = r.y, hp = r.hp, maxHp = r.maxHp,
+			kills = r.kills, alive = r.alive, left = r.left, you = r.player == viewer,
+		})
+	end
+	local secondsLeft = 0
+	if race.phase == "countdown" then
+		secondsLeft = race.startsAt - now
+	elseif race.phase == "running" then
+		secondsLeft = race.endsAt - now
+	elseif race.phase == "results" then
+		secondsLeft = race.resultsUntil - now
+	end
+	return {
+		phase = race.phase,
+		number = race.number,
+		count = raceCount(),
+		max = RACE_MAX,
+		min = RACE_MIN,
+		length = RACE_LENGTH,
+		hero = race.hero,
+		heroName = Content.HERO_BY_ID[race.hero].name,
+		secondsLeft = math.max(0, math.floor(secondsLeft + 0.5)),
+		standings = standings,
+		results = race.results,
+		joined = viewer ~= nil and race.racers[viewer] ~= nil and not race.racers[viewer].left,
+		queued = viewer ~= nil and table.find(race.nextUp, viewer) ~= nil,
+		prizes = RACE_PRIZES,
+	}
+end
+
+local function pushRace()
+	race.dirty = false
+	race.lastPush = os.clock()
+	for _, p in Players:GetPlayers() do
+		push:FireClient(p, { kind = "race", race = raceView(p) })
+	end
+end
+
+function noteRacer(player: Player, g)
+	local r = race.racers[player]
+	if not r then
+		return
+	end
+	if g.floor > r.floor then
+		r.reachedAt = os.clock()
+	end
+	r.floor, r.x, r.y = g.floor, g.player.x, g.player.y
+	r.hp, r.maxHp, r.kills = g.player.hp, g.player.maxHp, g.kills
+	r.alive = not g:isOver()
+	race.dirty = true
+end
+
+local function addRacer(player: Player)
+	if race.racers[player] then
+		race.racers[player].left = false
+	else
+		race.racers[player] = newRacer(player)
+		table.insert(race.order, player)
+	end
+	race.dirty = true
+end
+
+local function startRace()
+	race.phase = "running"
+	race.number += 1
+	race.seed = Random.new():NextInteger(0, 2147483646)
+	race.hero = Content.HEROES[Random.new():NextInteger(1, #Content.HEROES)].id
+	race.endsAt = os.clock() + RACE_LENGTH
+	local config = { hero = race.hero, pool = Game.fullPool(), forge = true, mercy = true }
+	for _, p in race.order do
+		local r = race.racers[p]
+		if not r.left then
+			local g = Game.new("race", race.seed, 0, config)
+			r.game = g
+			runs[p] = g
+			runMeta[p] = { mode = "race", dailyNo = 0, inputs = "" }
+			noteRacer(p, g)
+			r.reachedAt = os.clock()
+			g.events = {}
+			push:FireClient(p, { kind = "raceStart", state = snapshot(g), race = raceView(p) })
+		end
+	end
+	race.dirty = true
+end
+
+local function endRace()
+	race.phase = "results"
+	race.resultsUntil = os.clock() + RACE_RESULTS
+	local results = {}
+	local contested = raceCount() >= RACE_MIN
+	for i, r in raceStandings() do
+		local entry = { rank = i, name = r.name, floor = r.floor, kills = r.kills, left = r.left, souls = 0 }
+		local p = r.player
+		if not r.left and r.game and profiles[p] then
+			local lines = r.game:runSouls()
+			local prize = if contested then RACE_PRIZES[i] else nil
+			if prize then
+				table.insert(lines, { if i == 1 then "🏆 Race winner" else `#{i} in the race`, prize })
+			end
+			local total, outLines = payRun(p, lines)
+			entry.souls = total
+			r.payout = { total = total, lines = outLines, rank = i }
+			if runMeta[p] and runMeta[p].mode == "race" then
+				runs[p] = nil
+				runMeta[p] = nil
+			end
+			task.spawn(saveProfile, p)
+		end
+		table.insert(results, entry)
+	end
+	race.results = results
+	for _, p in race.order do
+		local r = race.racers[p]
+		if not r.left and r.payout then
+			push:FireClient(p, { kind = "raceEnd", race = raceView(p), you = r.payout })
+		end
+	end
+	race.dirty = true
+end
+
+local function resetRace()
+	race.phase = "lobby"
+	race.racers = {}
+	race.order = {}
+	race.results = nil
+	for _, p in race.nextUp do
+		if p.Parent then
+			addRacer(p)
+		end
+	end
+	race.nextUp = {}
+	race.dirty = true
+end
+
+local function raceTick()
+	local now = os.clock()
+	local count = raceCount()
+	if race.phase == "lobby" then
+		if count >= RACE_MIN then
+			race.phase = "countdown"
+			race.startsAt = now + RACE_COUNTDOWN
+			race.dirty = true
+		end
+	elseif race.phase == "countdown" then
+		if count < RACE_MIN then
+			race.phase = "lobby"
+			race.dirty = true
+		elseif now >= race.startsAt or count >= RACE_MAX then
+			startRace()
+		end
+	elseif race.phase == "running" then
+		local anyAlive = false
+		for _, p in race.order do
+			local r = race.racers[p]
+			if not r.left and r.alive then
+				anyAlive = true
+			end
+		end
+		if now >= race.endsAt or not anyAlive then
+			endRace()
+		end
+	elseif race.phase == "results" then
+		if now >= race.resultsUntil then
+			resetRace()
+		end
+	end
+	if race.dirty or (race.phase ~= "lobby" and now - race.lastPush >= 1) then
+		pushRace()
+	end
+end
+
+function leaveRace(player: Player)
+	local i = table.find(race.nextUp, player)
+	if i then
+		table.remove(race.nextUp, i)
+	end
+	local r = race.racers[player]
+	if r then
+		if race.phase == "lobby" or race.phase == "countdown" then
+			race.racers[player] = nil
+			table.remove(race.order, table.find(race.order, player))
+		else
+			r.left = true
+			r.alive = false
+		end
+		race.dirty = true
+	end
+	if runMeta[player] and runMeta[player].mode == "race" then
+		runs[player] = nil
+		runMeta[player] = nil
+	end
+end
+
+function handlers.raceJoin(player: Player)
+	if race.phase == "lobby" or race.phase == "countdown" then
+		if raceCount() >= RACE_MAX and not race.racers[player] then
+			return { error = "This race is full. You're first in line for the next one.", race = raceView(player) }
+		end
+		runs[player] = nil
+		runMeta[player] = nil
+		addRacer(player)
+	elseif not table.find(race.nextUp, player) and not race.racers[player] then
+		table.insert(race.nextUp, player)
+		race.dirty = true
+	end
+	return { race = raceView(player) }
+end
+
+function handlers.raceLeave(player: Player)
+	leaveRace(player)
+	return { race = raceView(player), profile = profileView(player) }
+end
+
+function handlers.race(player: Player)
+	return { race = raceView(player) }
+end
+
+-- Drive the race clock.
+task.spawn(function()
+	while true do
+		task.wait(0.25)
+		local ok, err = pcall(raceTick)
+		if not ok then
+			warn("[One More Crypt] race tick failed:", err)
+		end
+	end
+end)
+
 remote.OnServerInvoke = function(player: Player, req)
 	if type(req) ~= "table" or type(req.op) ~= "string" then
 		return { error = "bad request" }
@@ -691,6 +1008,7 @@ Players.PlayerAdded:Connect(function(player)
 end)
 
 Players.PlayerRemoving:Connect(function(player)
+	leaveRace(player)
 	saveProfile(player)
 	profiles[player] = nil
 	runs[player] = nil

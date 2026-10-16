@@ -20,7 +20,20 @@ local function signal()
   return s
 end
 Color3 = { fromRGB = function(r, g, b) return { r, g, b } end, fromHex = function(h) return h end }
-task = { spawn = function(fn, ...) fn(...) end, wait = function() end, delay = function() end }
+-- task.spawn runs at once; task.wait inside a spawned task parks it until pump() resumes it.
+local sleepers = {}
+task = {
+  spawn = function(fn, ...) local co = coroutine.create(fn); local ok, err = coroutine.resume(co, ...); if not ok then error(err) end end,
+  wait = function() if coroutine.isyieldable() then table.insert(sleepers, (coroutine.running())); coroutine.yield() end end,
+  delay = function() end,
+}
+local function pump(n)
+  for _ = 1, n do
+    local list = sleepers
+    sleepers = {}
+    for _, co in list do local ok, err = coroutine.resume(co); if not ok then error(err) end end
+  end
+end
 Random = { new = function() return { NextInteger = function(_, a, b) return a + (os.clock() * 1e6) % (b - a + 1) // 1 end } end }
 
 local __mods, __cache = {}, {}
@@ -217,6 +230,63 @@ local labels = {}
 for _, l in res.result.lines do labels[l.label] = l.souls end
 check(labels["Grave Robber 2×"] ~= nil and labels["Premium bonus"] ~= nil, "Grave Robber doubles Souls and Premium adds a bonus")
 check(res.result.upsell == false, "no Grave Robber upsell once it's owned")
+-- ---------- the Crypt Race ----------
+local bob = { UserId = 2, Name = "bob", DisplayName = "Bob", Parent = true, MembershipType = "none" }
+table.insert(playerList, bob)
+playerAdded:Fire(bob)
+local function as(who, req) return remote.OnServerInvoke(who, req) end
+local function lastPush(who, kind)
+  for i = #pushed, 1, -1 do if pushed[i].kind == kind then return pushed[i] end end
+  return nil
+end
+table.clear(pushed)
+local r1 = as(alice, { op = "raceJoin" }).race
+check(r1.joined and r1.count == 1 and r1.phase == "lobby", "first racer waits in the lobby")
+as(bob, { op = "raceJoin" })
+pump(1)
+check(lastPush(alice, "race").race.phase == "countdown", "two racers start the countdown")
+local guardRace = 0
+while not lastPush(alice, "raceStart") and guardRace < 100 do pump(1); guardRace += 1 end
+local starts = {}
+for _, m in pushed do if m.kind == "raceStart" then table.insert(starts, m) end end
+check(#starts == 2, "both racers get a starting board")
+check(#starts == 2 and table.concat(starts[1].state.walls, ",") == table.concat(starts[2].state.walls, ",") and starts[1].state.hero == starts[2].state.hero, "both race the same crypt with the same hero")
+local savedBefore = invoke({ op = "profile" }).profile.endlessResumable
+for _, ch in { "U", "U", "L" } do as(alice, { op = "input", ch = ch }) end
+local st = lastPush(alice, "race")
+pump(1)
+st = lastPush(alice, "race").race
+local mine = nil
+for _, row in st.standings do if row.name == "alice" then mine = row end end
+check(mine ~= nil and mine.floor >= 1 and mine.alive, "standings track each racer")
+playerRemoving:Fire(alice); playerAdded:Fire(alice)
+check(invoke({ op = "profile" }).profile.endlessResumable == savedBefore, "a race never replaces a saved run")
+-- alice dropped out by rejoining; re-add her to the race state check: bob races on alone until time.
+local soulsBob = as(bob, { op = "profile" }).profile.souls
+guardRace = 0
+while not lastPush(bob, "raceEnd") and guardRace < 2000 do pump(1); guardRace += 1 end
+local ended = lastPush(bob, "raceEnd")
+check(ended ~= nil, "the race ends when the timer runs out")
+check(ended and ended.you.total > 0 and as(bob, { op = "profile" }).profile.souls == soulsBob + ended.you.total, "racers are paid Souls when the race ends")
+check(ended and ended.race.results[1].name == "Bob", "results rank the racers")
+check(as(bob, { op = "input", ch = "U" }).error == "no run", "the race board closes at the end")
+guardRace = 0
+while lastPush(bob, "race").race.phase ~= "lobby" and guardRace < 500 do pump(1); guardRace += 1 end
+check(lastPush(bob, "race").race.phase == "lobby", "the lobby reopens after the results")
+
+-- A contested finish pays prizes.
+table.clear(pushed)
+as(alice, { op = "raceJoin" }); as(bob, { op = "raceJoin" })
+guardRace = 0
+while not lastPush(alice, "raceStart") and guardRace < 200 do pump(1); guardRace += 1 end
+as(alice, { op = "input", ch = "U" })
+guardRace = 0
+while not lastPush(alice, "raceEnd") and guardRace < 2000 do pump(1); guardRace += 1 end
+local winners = 0
+for _, m in pushed do
+  if m.kind == "raceEnd" then for _, l in m.you.lines do if string.find(l.label, "Race winner") then winners += 1 end end end
+end
+check(winners == 1, "exactly one racer gets the winner's prize")
 print(if fails == 0 then "server sim: all checks passed" else ("server sim: " .. fails .. " failed"))
 `;
 const dir = mkdtempSync(join(tmpdir(), 'omc-'));
