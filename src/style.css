@@ -254,6 +254,39 @@ button {
 #dpad [data-dir='1,0'] { grid-area: 2 / 3; }
 #dpad [data-dir='0,1'] { grid-area: 3 / 2; }
 
+/* Wait button for mouse and keyboard players (touch has it on the d-pad). */
+.wait-btn {
+  align-self: center;
+  margin-top: 8px;
+  padding: 6px 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-bottom-width: 3px;
+  color: var(--muted);
+  font-family: var(--pixel);
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+
+.wait-btn:hover {
+  color: var(--text);
+  border-color: var(--gold);
+}
+
+.wait-btn kbd {
+  margin-left: 6px;
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  font-family: inherit;
+  font-size: 9px;
+}
+
+@media (pointer: coarse) {
+  .wait-btn {
+    display: none;
+  }
+}
+
 /* ---------- overlays ---------- */
 
 #overlay {
@@ -1756,4 +1789,31 @@ body.tutorial #relic-bar {
   height: 100vh;
   z-index: 50;
   cursor: pointer;
+}
+
+/* Relic screen: current health, and a nudge to rest when it is low. */
+.choice-hp {
+  margin: -4px 0 10px;
+  text-align: center;
+  font-family: var(--pixel);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.choice-hp.low {
+  color: #ff6b74;
+}
+
+#rest.rest-urge {
+  border-color: #ff6b74;
+  box-shadow: 0 0 0 1px rgba(255, 107, 116, 0.4), 0 0 18px rgba(255, 107, 116, 0.25);
+  animation: rest-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes rest-pulse {
+  50% { box-shadow: 0 0 0 1px rgba(255, 107, 116, 0.7), 0 0 26px rgba(255, 107, 116, 0.45); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #rest.rest-urge { animation: none; }
 }

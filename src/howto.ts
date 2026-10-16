@@ -96,10 +96,10 @@ export function howToHtml(): string {
       <div class="controls">
         <div>${keycaps(['↑', '←', '↓', '→'])}<span>or</span>${keycaps(['W', 'A', 'S', 'D'])}</div>
         <div>${keycaps(['Space'])}<span>wait a turn</span></div>
-        <div class="touch">📱 <span>Swipe, or tap a tile</span></div>
+        <div class="touch">📱 <span>Swipe or tap a tile · tap your hero to wait</span></div>
       </div>
       <h3>1 · Move</h3>
-      <p>Every step you take, every foe takes one too. Think before you move.</p>
+      <p>Every step you take, every foe takes one too. Think before you move. Waiting a turn lets foes come to you.</p>
     </section>
     ${demo('strike', '2 · Bump to strike', 'Walk into a foe to attack it. Numbers show the damage dealt.')}
     ${demo('stairs', '3 · Clear the floor', 'Slay every foe to unseal the stairs, then step on them to go deeper.')}

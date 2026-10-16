@@ -324,7 +324,25 @@ function act(dx: number, dy: number) {
   unlockAudio();
   if (!game || game.phase !== 'play' || !overlay.hidden || tutorial?.busy || fusionPlaying) return;
   if (game.act(dx, dy)) processEvents();
-  else sfx.bump();
+  else {
+    sfx.bump();
+    const x = game.player.x + dx;
+    const y = game.player.y + dy;
+    if (dx || dy) if (!game.inBounds(x, y) || game.isWall(x, y)) waitHint();
+  }
+}
+
+/** Walking into a wall doesn't pass the turn. The first few times, say how to wait. */
+function waitHint() {
+  let shown = 0;
+  try {
+    shown = Number(localStorage.getItem('omc:waitHint')) || 0;
+    if (shown >= 3) return;
+    localStorage.setItem('omc:waitHint', String(shown + 1));
+  } catch {
+    // Storage blocked: still show the hint.
+  }
+  toast(matchMedia('(pointer: coarse)').matches ? 'To wait a turn, tap WAIT or your hero' : 'To wait a turn, press Space');
 }
 
 function processEvents() {
@@ -500,6 +518,8 @@ canvas.addEventListener('pointerup', (e) => {
   else act(0, Math.sign(ty));
 });
 
+$('wait-btn').addEventListener('click', () => act(0, 0));
+
 document.querySelectorAll<HTMLButtonElement>('#dpad button').forEach((btn) => {
   btn.addEventListener('pointerdown', (e) => {
     e.preventDefault();
@@ -619,6 +639,10 @@ function updateTip() {
     tip.innerHTML = '<b>Longbow:</b> move toward a foe 2-3 tiles away in a straight line to shoot it.';
   else if (game.floor === 1 && game.turns < 6)
     tip.innerHTML = 'Move with arrows, WASD, swipe or tap. <b>Bump foes to strike.</b> They move when you do.';
+  else if (game.floor <= 2 && game.turns < 14)
+    tip.innerHTML = matchMedia('(pointer: coarse)').matches
+      ? '<b>Tap WAIT</b> (or your hero) to pass a turn and let foes come to you.'
+      : '<b>Press Space</b> to wait a turn and let foes come to you.';
   else if (game.relicLog.length && game.floor === 2 && game.turns < 40)
     tip.textContent = 'Tap a relic below to read it. Relics stack.';
   else tip.textContent = 'Slay every foe to unseal the stairs.';
@@ -816,6 +840,7 @@ function showChoice() {
   if (game.phase !== 'choose' || !game.offer) return;
   sfx.relic();
   const offer = game.offer;
+  const low = game.player.hp * 10 <= game.player.maxHp * 4;
   const cards = offer.relics
     .map((r, i) => {
       const have = game.own(r.id);
@@ -829,9 +854,10 @@ function showChoice() {
   showOverlay('choose', `
     <h2>Floor ${game.floor} cleared</h2>
     <p class="sub">Claim a relic from the dead<span class="keys-hint"> · ↑↓ or W/S to choose, Enter or Space to take</span></p>
+    <p class="choice-hp ${low ? 'low' : ''}">❤ ${game.player.hp}/${game.player.maxHp} HP${low ? ' · Low on health. Resting may be the smart pick.' : ''}</p>
     ${tutorial ? `<div class="coach-inline"><span>5 / 5 · Relics</span>${RELIC_COACH}</div>` : ''}
     <div class="offer">${cards}</div>
-    <button class="btn" id="rest">🔥 Rest instead<small>Heal ${offer.restHeal} HP (${game.player.hp}/${game.player.maxHp})</small></button>
+    <button class="btn ${low ? 'rest-urge' : ''}" id="rest">🔥 Rest instead<small>Heal ${offer.restHeal} HP (${game.player.hp}/${game.player.maxHp})</small></button>
   `);
   overlay.querySelectorAll<HTMLButtonElement>('.offer button').forEach((b) => {
     b.addEventListener('click', () => pickRelic(Number(b.dataset.i)));

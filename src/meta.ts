@@ -175,14 +175,16 @@ export function buyRelic(id: RelicId): boolean {
 }
 
 export const FORGE_DAILY = 2;
+/** Early-game tuning (gentler first floors) starts with Daily #4. */
+export const MERCY_DAILY = 4;
 
 /** The daily crypt is identical for everyone; Endless uses your hero and unlocks. */
 export function runConfig(mode: Mode, dailyNo: number): RunConfig {
   // Daily #1 ran with the launch relic set; new relics join from Daily #2.
   // The Soul Forge opens with Daily #2, so everyone in a daily crypt plays the same rules.
-  if (mode === 'daily') return { hero: dailyHero(dailyNo), pool: fullPool(dailyNo <= 1), forge: dailyNo >= FORGE_DAILY };
+  if (mode === 'daily') return { hero: dailyHero(dailyNo), pool: fullPool(dailyNo <= 1), forge: dailyNo >= FORGE_DAILY, mercy: dailyNo >= MERCY_DAILY };
   const hero = heroUnlocked(meta.hero) ? meta.hero : 'knight';
-  return { hero, pool: basePool(meta.relics.filter((id) => UNLOCKABLE_RELICS.includes(id))), forge: true };
+  return { hero, pool: basePool(meta.relics.filter((id) => UNLOCKABLE_RELICS.includes(id))), forge: true, mercy: true };
 }
 
 // ---------- achievements ----------

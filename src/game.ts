@@ -124,6 +124,8 @@ export interface RunConfig {
   pool: RelicId[];
   /** A Soul Forge on the floor after each boss (run log version 4 and later). */
   forge?: boolean;
+  /** Early-game tuning: a heal on clearing floors 1-5, gentler early Brutes and first boss (log version 5 and later). */
+  mercy?: boolean;
 }
 
 /** Daily runs use every relic; Endless only the unlocked ones. */
@@ -179,6 +181,8 @@ const ABYSS_FLOOR = 30;
 const LOG_VERSION = 3;
 /** Runs with the Soul Forge. */
 const FORGE_LOG_VERSION = 4;
+/** Runs with the early-game tuning. */
+const MERCY_LOG_VERSION = 5;
 /** One input character per Soul Forge option. */
 const FORGE_KEYS = 'bcdefghijklm';
 const BOW_RANGE = 3;
@@ -319,7 +323,7 @@ export class Game {
   header(): string {
     const unlocked = UNLOCKABLE_RELICS.filter((id) => this.config.pool.includes(id));
     // Pools without any post-launch relic are logged as version 2 so they replay with the launch set.
-    const version = this.config.forge ? FORGE_LOG_VERSION : this.config.pool.some((id) => !LEGACY_RELICS.includes(id)) ? LOG_VERSION : 2;
+    const version = this.config.mercy ? MERCY_LOG_VERSION : this.config.forge ? FORGE_LOG_VERSION : this.config.pool.some((id) => !LEGACY_RELICS.includes(id)) ? LOG_VERSION : 2;
     return `#${version}|${this.config.hero}|${unlocked.join(',')}|`;
   }
 
@@ -460,7 +464,7 @@ export class Game {
       { kind: 'ghoul', from: 1, w: 10 },
       { kind: 'bat', from: 1, w: 7 },
       { kind: 'archer', from: 2, w: 6 },
-      { kind: 'brute', from: 3, w: 4 },
+      { kind: 'brute', from: this.config.mercy ? 4 : 3, w: 4 },
       { kind: 'wraith', from: 4, w: 5 },
     ];
     const pool = roster.filter((p) => f >= p.from);
@@ -517,7 +521,8 @@ export class Game {
       y,
       hp: info.hp + hpBonus,
       maxHp: info.hp + hpBonus,
-      dmg: info.dmg + dmgBonus,
+      // Early Brutes hit a little softer, so one bad bump on floor 4 isn't the end.
+      dmg: info.dmg + dmgBonus - (this.config.mercy && kind === 'brute' && this.floor < 6 ? 1 : 0),
       burn: 0,
       burnDmg: 0,
       frozen: 0,
@@ -1032,6 +1037,8 @@ export class Game {
       this.stairsOpen = true;
       this.warnings = [];
       if (this.floor >= 3 && !this.hurtThisFloor) this.stats.cleanFloors++;
+      // A breather for new players: clearing one of the first five floors heals 1 HP.
+      if (this.config.mercy && this.floor <= 5) this.heal(1);
       this.events.push({ t: 'stairs' });
     }
   }
@@ -1265,19 +1272,27 @@ export class Game {
     return dir;
   }
 
-  private summonNear(e: Enemy, kind: EnemyKind): boolean {
-    if (this.alive.length >= MAX_ENEMIES) return false;
+  private summonNear(e: Enemy, kind: EnemyKind): Enemy | null {
+    if (this.alive.length >= MAX_ENEMIES) return null;
     const spots = DIRS8.map((d) => ({ x: e.x + d.x, y: e.y + d.y })).filter((p) => this.isFree(p.x, p.y));
-    if (!spots.length) return false;
+    if (!spots.length) return null;
     const s = spots[Math.floor(this.combat() * spots.length)];
-    this.makeEnemy(kind, s.x, s.y);
+    const made = this.makeEnemy(kind, s.x, s.y);
     this.events.push({ t: 'summon', x: s.x, y: s.y });
-    return true;
+    return made;
   }
 
   /** Slow, summons ghouls every few turns. */
   private wardenAct(e: Enemy, dist: number[]) {
-    if (e.turns % 4 === 0 && this.summonNear(e, 'ghoul')) return;
+    // The first Warden (floor 5) raises fewer, frailer ghouls.
+    const first = this.config.mercy && this.floor === 5;
+    if (e.turns % (first ? 5 : 4) === 0) {
+      const ghoul = this.summonNear(e, 'ghoul');
+      if (ghoul) {
+        if (first) ghoul.hp = ghoul.maxHp = Math.max(1, ghoul.hp - 1);
+        return;
+      }
+    }
     if (this.adjacentToPlayer(e)) return this.attackPlayer(e);
     if (e.rest > 0) {
       e.rest--;
@@ -1409,7 +1424,8 @@ export class Game {
     // Runs logged before version 3 were played with the launch relic set.
     const legacy = Number(m[1]) < 3;
     const forge = Number(m[1]) >= FORGE_LOG_VERSION;
-    return { config: { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge }, inputs: full.slice(m[0].length) };
+    const mercy = Number(m[1]) >= MERCY_LOG_VERSION;
+    return { config: { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy }, inputs: full.slice(m[0].length) };
   }
 
   /** Re-simulate a run from its full input log. Used to verify scores and resume runs. */

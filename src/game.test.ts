@@ -323,3 +323,51 @@ describe('ascension', () => {
     expect(g.r('scale')).toBe(5);
   });
 });
+
+describe('early-game tuning (mercy)', () => {
+  const make = (seed: number, mercy: boolean) => new Game('endless', seed, 0, { hero: 'knight', pool: fullPool(), forge: true, mercy });
+  const enter = (g: Game, f: number) => (g as unknown as { enterFloor(f: number): void }).enterFloor(f);
+
+  it('is recorded in the log header and read back', () => {
+    const g = make(3, true);
+    expect(g.header()).toMatch(/^#5\|/);
+    const { config } = Game.parseLog(g.header());
+    expect(config.mercy).toBe(true);
+    expect(config.forge).toBe(true);
+    expect(Game.parseLog(make(3, false).header()).config.mercy).toBe(false);
+  });
+
+  it('keeps Grave Brutes off floor 3 and softens them until floor 6', () => {
+    for (let seed = 1; seed <= 200; seed++) {
+      const g = make(seed, true);
+      enter(g, 3);
+      expect(g.alive.some((e) => e.kind === 'brute')).toBe(false);
+      enter(g, 4);
+      for (const e of g.alive) if (e.kind === 'brute' && !e.elite) expect(e.dmg).toBe(2);
+    }
+  });
+
+  it('heals 1 HP when an early floor is cleared', () => {
+    const g = make(8, true);
+    enter(g, 2);
+    g.player.hp = 3;
+    for (const e of g.alive) e.dead = true;
+    (g as unknown as { checkCleared(): void }).checkCleared();
+    expect(g.stairsOpen).toBe(true);
+    expect(g.player.hp).toBe(4);
+  });
+
+  it('leaves runs without it exactly as before', () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      const g = make(seed, false);
+      for (let i = 0; i < 400 && g.phase !== 'dead'; i++) {
+        if (g.phase === 'choose') g.choose(0);
+        else if (g.phase === 'event') g.resolveEvent(false);
+        else g.act(...([[0, -1], [1, 0], [0, 1], [-1, 0], [0, 0]][(seed + i * 7) % 5] as [number, number]));
+      }
+      const again = Game.replay('endless', seed, 0, g.header() + g.log);
+      expect([again.floor, again.kills, again.player.hp]).toEqual([g.floor, g.kills, g.player.hp]);
+      expect(g.header()).toMatch(/^#4\|/);
+    }
+  });
+});
