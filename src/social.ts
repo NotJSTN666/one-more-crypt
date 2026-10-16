@@ -216,6 +216,22 @@ async function doFlush() {
   }
 }
 
+let record: { at: number; value: Promise<{ name: string; floor: number } | null> } | null = null;
+
+/** The deepest endless run anyone has made, cached for a few minutes. Null offline or on error. */
+export function endlessRecord(): Promise<{ name: string; floor: number } | null> {
+  if (!ONLINE) return Promise.resolve(null);
+  if (!record || Date.now() - record.at > 5 * 60_000) {
+    record = {
+      at: Date.now(),
+      value: endlessBoard(null, 1)
+        .then((b) => (b.rows[0] ? { name: b.rows[0].name, floor: b.rows[0].floor } : null))
+        .catch(() => null),
+    };
+  }
+  return record.value;
+}
+
 /** One line for the results screen, e.g. "#3 of 41 today". */
 export async function rankLine(mode: 'daily' | 'endless', dailyNo: number, floor: number): Promise<string> {
   const acc = session.account;

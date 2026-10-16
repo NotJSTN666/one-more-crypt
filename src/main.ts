@@ -19,7 +19,7 @@ import { IMPACT, playFusion } from './fusefx';
 import { howToHtml, startHowTo } from './howto';
 import { RELIC_COACH, TUTORIAL } from './tutorial';
 import { copyText, descentStrip, followXHtml, playTime, shareText, siteUrl, xIntentUrl } from './share';
-import { initSocial, needsName, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
+import { endlessRecord, initSocial, needsName, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
 import { currentStreak, loadSave, recordDaily, writeSave, type RunResult } from './storage';
 import { $, esc, hideOverlay, on, overlay, overlayShownAt, screen, showOverlay, toast } from './ui';
 
@@ -702,6 +702,13 @@ function showTitle() {
     : resumable?.mode === 'daily'
       ? ''
       : `<button class="btn primary" id="daily">Daily Descent #${today}<small>Today's hero: the ${heroToday}. One attempt.</small></button>`;
+  // Once today's daily is done (and nothing is waiting to be continued), Endless is the next step.
+  const endlessNext = Boolean(done) && !resumable;
+  const endlessBtn = `<button class="btn ${endlessNext ? 'primary' : ''}" id="endless">Endless Descent<small>${
+    endlessNext
+      ? `${save.bestEndless ? `Your best: floor ${save.bestEndless}` : 'No limit. No daily reset. How deep can you go?'}<span class="endless-record"></span>`
+      : save.bestEndless ? `Deepest: floor ${save.bestEndless}` : 'Choose your hero, random crypts'
+  }</small></button>`;
   const continueBlock = resumable
     ? `<button class="btn primary" id="continue">▶ Continue ${resumable.mode === 'daily' ? `Daily #${resumable.dailyNo}` : 'Endless'}<small>${HERO_BY_ID[resumable.hero].name} · floor ${resumable.floor} · ${resumable.player.hp}/${resumable.player.maxHp} HP</small></button>`
     : '';
@@ -712,8 +719,9 @@ function showTitle() {
     ${onlineCountHtml()}
     ${continueBlock}
     ${dailyBlock}
+    ${endlessNext ? endlessBtn : ''}
     <button class="btn hollow-btn" id="hollow">🌙 Enter the Hollow<small>Walk the graveyard. Every door leads somewhere.</small></button>
-    <button class="btn" id="endless">Endless Descent<small>${save.bestEndless ? `Deepest: floor ${save.bestEndless}` : 'Choose your hero, random crypts'}</small></button>
+    ${endlessNext ? '' : endlessBtn}
     <div class="row">
       <button class="btn" id="ossuary">🏛️ Ossuary<small>💀 ${meta.souls} Souls</small></button>
       <button class="btn" id="grimoire">📖 Grimoire<small>Relics, combos, achievements</small></button>
@@ -729,6 +737,7 @@ function showTitle() {
   on('#daily', () => withTutorialOffer(() => startRun('daily')));
   on('#continue', () => resumable && resumeRun(resumable));
   on('#endless', () => withTutorialOffer(() => showHeroSelect(() => startRun('endless'), showTitle)));
+  if (endlessNext) showEndlessRecord();
   on('#ossuary', () => showOssuary(showTitle));
   on('#grimoire', () => showGrimoire(showTitle));
   on('#hall', () => openHall(showTitle));
@@ -1143,13 +1152,26 @@ function showDeath(r: RunResult, best: boolean) {
         : ''
     }
     ${soulRankHtml()}
-    ${ONLINE ? `<p class="rank-line" id="rank">${signedIn() ? 'Carving your name into the crypt…' : ''}</p>` : ''}
+    ${ONLINE ? `<p class="rank-line ${daily ? 'daily-rank' : ''}" id="rank">${signedIn() ? 'Carving your name into the crypt…' : ''}</p>` : ''}
     ${ONLINE && !signedIn() ? '<button class="btn" id="join">Claim a name for the leaderboard</button>' : ''}
+    ${
+      daily
+        ? `<p class="endless-tease">${
+            save.bestEndless
+              ? `Daily done. Endless is open: beat your best of <b>floor ${save.bestEndless}</b>.`
+              : 'Daily done. Endless has no limit and no daily reset.'
+          }<span class="endless-record"></span></p>
+    <button class="btn primary" id="again">Endless Descent<small>The crypt never ends. Keep descending.<span class="keys-hint"> · Enter or R</span></small></button>
     <button class="btn x" id="share">Share on 𝕏</button>
     <div class="row">
       <button class="btn" id="copy">Copy result</button>
-      <button class="btn" id="again">${daily ? 'Endless run' : 'Descend again'}<small class="keys-hint">Enter or R</small></button>
-    </div>
+    </div>`
+        : `<button class="btn x" id="share">Share on 𝕏</button>
+    <div class="row">
+      <button class="btn" id="copy">Copy result</button>
+      <button class="btn" id="again">Descend again<small class="keys-hint">Enter or R</small></button>
+    </div>`
+    }
     <div class="row grid2">
       ${ONLINE ? '<button class="btn" id="leaderboard">🏆 Leaderboard</button>' : ''}
       <button class="btn" id="hall">🏰 Hall</button>
@@ -1178,6 +1200,7 @@ function showDeath(r: RunResult, best: boolean) {
   on('#share', () => share(r, lastLabel));
   on('#copy', async () => toast((await copyText(shareText(r, lastLabel) + '\n' + siteUrl())) ? 'Copied!' : 'Copy failed'));
   on('#again', () => showHeroSelect(() => startRun('endless'), backHere));
+  if (daily) showEndlessRecord();
   on('#ossuary', () => showOssuary(backHere));
   on('#hall', () => openHall(backHere));
   on('#title', () => {
@@ -1185,6 +1208,16 @@ function showDeath(r: RunResult, best: boolean) {
     showTitle();
   });
   tickCountdowns();
+}
+
+/** Fill in the endless record wherever a screen invites the player to try Endless. */
+function showEndlessRecord() {
+  void endlessRecord().then((rec) => {
+    if (!rec) return;
+    const text = rec.floor > save.bestEndless ? ` The record is floor ${rec.floor} (${rec.name}).` : '';
+    overlay.querySelectorAll('.endless-tease .endless-record').forEach((el) => (el.textContent = text));
+    overlay.querySelectorAll('#endless .endless-record').forEach((el) => (el.textContent = ` · Record: floor ${rec.floor}`));
+  });
 }
 
 function share(r: RunResult, label: string) {

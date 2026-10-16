@@ -711,6 +711,33 @@ details.card summary {
   margin: 6px 0;
 }
 
+/* After a daily, where you placed is the headline. */
+.rank-line.daily-rank:not(:empty) {
+  padding: 10px 12px;
+  border: 1px solid var(--gold);
+  background: rgba(242, 193, 78, 0.08);
+  font-family: var(--pixel);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* After a daily: a nudge toward Endless, with a target to beat. */
+.endless-tease {
+  margin: 10px 0 6px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.endless-tease b {
+  color: var(--gold);
+  font-weight: normal;
+}
+
+.endless-tease .endless-record {
+  color: var(--muted);
+}
+
 /* ---------- leaderboard ---------- */
 
 .tabs {
