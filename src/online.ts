@@ -110,7 +110,7 @@ export async function currentAccount(): Promise<Account | null> {
   const { data } = await sb.auth.getSession();
   // Tidy auth tokens out of the address bar after a redirect sign-in.
   if (location.hash.includes('access_token') || location.search.includes('code=')) {
-    history.replaceState(null, '', siteUrl());
+    history.replaceState(null, '', location.pathname);
   }
   const user = data.session?.user;
   return user ? toAccount(sb, user) : null;

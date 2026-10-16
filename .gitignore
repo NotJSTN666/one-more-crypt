@@ -5,3 +5,4 @@ dist
 .env.local
 out
 dist-cards
+dist-itch

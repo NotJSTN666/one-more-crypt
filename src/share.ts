@@ -5,8 +5,9 @@ import type { RunResult } from './storage';
 
 export const GAME_NAME = 'ONE MORE CRYPT';
 
+/** The game's public address. The itch.io build sets VITE_PUBLIC_URL, since it runs in itch's frame. */
 export function siteUrl(): string {
-  return location.origin + location.pathname;
+  return import.meta.env.VITE_PUBLIC_URL || location.origin + location.pathname;
 }
 
 /** Wordle-style strip: one square per floor, a skull per boss slain, blood where you fell. */

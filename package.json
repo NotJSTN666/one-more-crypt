@@ -8,6 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "build:itch": "tsc --noEmit && vite build --mode itch --outDir dist-itch",
     "build:cards": "vite build --config vite.cards.config.ts"
   },
   "devDependencies": {
