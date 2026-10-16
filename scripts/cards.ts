@@ -210,8 +210,21 @@ export function drawChampion(canvas: HTMLCanvasElement, { name, mode = 'daily', 
   return { hero: hero.name };
 }
 
-/** Announce the new crypt and today's hero. */
-export function drawDaily(canvas: HTMLCanvasElement, { dailyNo, heroId }: { dailyNo: number; heroId: HeroId }) {
+/** How today's crypt is going when the picture is made: runs finished so far and the deepest one. */
+export interface DailyTally {
+  players: number;
+  top: number;
+  leader?: string;
+}
+
+function tallyLine(t: DailyTally): [string, string] {
+  if (!t.players) return ['NOBODY HAS DESCENDED YET', 'BE THE FIRST'];
+  const who = t.players === 1 ? '1 SOUL HAS DESCENDED' : `${t.players} SOULS HAVE DESCENDED`;
+  return [who, `DEEPEST: FLOOR ${t.top}${t.leader ? ` · ${t.leader.toUpperCase()}` : ''}`];
+}
+
+/** Announce the new crypt and today's hero, with today's tally when there is one. */
+export function drawDaily(canvas: HTMLCanvasElement, { dailyNo, heroId, tally }: { dailyNo: number; heroId: HeroId; tally?: DailyTally }) {
   use(canvas);
   const hero = HERO_BY_ID[heroId];
   backdrop('#2a1328');
@@ -232,6 +245,15 @@ export function drawDaily(canvas: HTMLCanvasElement, { dailyNo, heroId }: { dail
   text('THE CRYPT IS OPEN', W / 2, 228, '30px Silkscreen', '#e8dcc4', 'center');
   text(`TODAY'S HERO: THE ${hero.name.toUpperCase()}`, 600, 330, '28px Silkscreen', '#f2c14e');
   text(`${hero.hp} HP · ${hero.perk}`, 600, 375, '22px Silkscreen', '#9a8fa8');
+  if (tally) {
+    const [a, b] = tallyLine(tally);
+    ctx.fillStyle = 'rgba(7,4,11,0.72)';
+    ctx.fillRect(0, 560, W, 52);
+    ctx.fillStyle = '#d23a46';
+    ctx.fillRect(0, 560, W, 3);
+    const line = `${a}  ·  ${b}`;
+    text(line, W / 2, 596, fit(line, W - 96, 26, 'Silkscreen'), '#f2c14e', 'center');
+  }
   footer();
 }
 
@@ -257,7 +279,7 @@ export interface StoryLeader {
  */
 export function drawStory(
   canvas: HTMLCanvasElement,
-  { dailyNo, heroId, champion, endless }: { dailyNo: number; heroId: HeroId; champion?: StoryLeader & { dailyNo: number }; endless?: StoryLeader },
+  { dailyNo, heroId, champion, endless, tally }: { dailyNo: number; heroId: HeroId; champion?: StoryLeader & { dailyNo: number }; endless?: StoryLeader; tally?: DailyTally },
 ) {
   canvas.width = STORY_W;
   canvas.height = STORY_H;
@@ -291,12 +313,18 @@ export function drawStory(
   ctx.shadowBlur = 0;
   text(`TODAY'S HERO: THE ${hero.name.toUpperCase()}`, SW / 2, 750, fit(`TODAY'S HERO: THE ${hero.name.toUpperCase()}`, SW - 120, 34, 'Silkscreen'), '#f2c14e', 'center');
   text(`${hero.hp} HP · ${hero.perk}`, SW / 2, 795, '26px Silkscreen', '#9a8fa8', 'center');
+  if (tally) {
+    const [a, b] = tallyLine(tally);
+    text(a, SW / 2, 848, fit(a, SW - 120, 30, 'Silkscreen'), '#e8dcc4', 'center');
+    text(b, SW / 2, 890, fit(b, SW - 120, 30, 'Silkscreen'), '#f2c14e', 'center', 'rgba(242,193,78,0.45)');
+  }
+  const panelTop = tally ? 925 : 860;
 
   // the two leaders, side by side
   const panel = (x: number, label: string, color: string, glow: string, who: StoryLeader | undefined, look: Look | null, crown: boolean) => {
     const w = 460;
-    const top = 860;
-    const h = 560;
+    const top = panelTop;
+    const h = 545;
     ctx.fillStyle = 'rgba(20,13,28,0.85)';
     ctx.fillRect(x, top, w, h);
     ctx.fillStyle = color;
@@ -329,7 +357,8 @@ export function drawStory(
   panel(SW - 520, 'ENDLESS LEADER', '#c9a6ff', 'rgba(176,124,255,0.45)', endless, endlessLook, false);
 
   // call to action, above the reply bar; the gap below the title is for a link sticker
-  text('CAN YOU TAKE THE CROWN?', SW / 2, 1500, '38px Silkscreen', '#e8dcc4', 'center');
-  text('ONEMORECRYPT.COM', SW / 2, 1580, '58px Silkscreen', '#f2c14e', 'center', 'rgba(242,193,78,0.5)');
-  text('PLAY FREE IN YOUR BROWSER', SW / 2, 1630, '24px Silkscreen', '#9a8fa8', 'center');
+  const cta = tally ? 18 : 0;
+  text('CAN YOU TAKE THE CROWN?', SW / 2, 1500 + cta, '38px Silkscreen', '#e8dcc4', 'center');
+  text('ONEMORECRYPT.COM', SW / 2, 1580 + cta, '58px Silkscreen', '#f2c14e', 'center', 'rgba(242,193,78,0.5)');
+  text('PLAY FREE IN YOUR BROWSER', SW / 2, 1630 + cta, '24px Silkscreen', '#9a8fa8', 'center');
 }
