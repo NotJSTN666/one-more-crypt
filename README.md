@@ -4,6 +4,8 @@ A daily dark-fantasy roguelite that runs in the browser. Same crypt for everyone
 
 **Play:** https://onemorecrypt.com/
 
+**Roblox:** a Roblox version, sharing the same daily crypt, lives in [`roblox/`](roblox/README.md). Open `roblox/OneMoreCrypt.rbxlx` in Roblox Studio and publish it.
+
 ## How it plays
 
 - **Tutorial:** first-time players are offered a one-minute guided run (move, strike, dodge, descend, claim a relic), also playable from How to play. How to play itself shows each rule as a small live scene.

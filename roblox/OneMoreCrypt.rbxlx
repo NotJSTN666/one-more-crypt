@@ -1,0 +1,4661 @@
+<roblox version="4">
+  <Item class="Lighting" referent="0">
+    <Properties>
+      <string name="Name">Lighting</string>
+      <float name="Brightness">0.4</float>
+      <float name="ClockTime">0</float>
+      <bool name="GlobalShadows">true</bool>
+      <token name="Technology">4</token>
+    </Properties>
+  </Item>
+  <Item class="Players" referent="1">
+    <Properties>
+      <string name="Name">Players</string>
+      <bool name="CharacterAutoLoads">false</bool>
+    </Properties>
+  </Item>
+  <Item class="ReplicatedStorage" referent="2">
+    <Properties>
+      <string name="Name">ReplicatedStorage</string>
+    </Properties>
+    <Item class="Folder" referent="3">
+      <Properties>
+        <string name="Name">OneMoreCrypt</string>
+      </Properties>
+      <Item class="ModuleScript" referent="4">
+        <Properties>
+          <string name="Name">Content</string>
+          <string name="Source"><![CDATA[--!strict
+-- Heroes, elites and floor events, ported from src/content.ts.
+
+local Content = {}
+
+export type HeroDef = { id: string, name: string, hp: number, cost: number, perk: string, perkDesc: string }
+
+Content.HEROES = {
+	{ id = "knight", name = "Knight", hp = 10, cost = 0, perk = "Second Wind", perkDesc = "Heal 1 HP on every new floor." },
+	{ id = "rogue", name = "Rogue", hp = 7, cost = 150, perk = "Shadowstep", perkDesc = "Every 3rd step is free: foes don't act. 15% dodge." },
+	{ id = "necro", name = "Necromancer", hp = 8, cost = 300, perk = "Raise Dead", perkDesc = "Slain foes may rise as thralls that fight for you (up to 3)." },
+	{ id = "paladin", name = "Paladin", hp = 9, cost = 250, perk = "Smite", perkDesc = "+1 damage against the undead. Slaying a boss heals you fully." },
+	{ id = "ranger", name = "Ranger", hp = 7, cost = 350, perk = "Longbow", perkDesc = "Move toward a foe 2-3 tiles away in a clear line to shoot it instead." },
+	{ id = "mage", name = "Mage", hp = 5, cost = 400, perk = "Glass Cannon", perkDesc = "+2 attack, but only 5 HP. Every hit counts." },
+	{ id = "barbarian", name = "Barbarian", hp = 11, cost = 450, perk = "Rage", perkDesc = "+1 attack for every 3 HP you are missing." },
+} :: { HeroDef }
+
+Content.HERO_BY_ID = {} :: { [string]: HeroDef }
+for _, h in Content.HEROES do
+	Content.HERO_BY_ID[h.id] = h
+end
+
+--- Everyone plays the same hero in the daily crypt; it rotates each day.
+function Content.dailyHero(dailyNo: number): string
+	local n = #Content.HEROES
+	return Content.HEROES[(dailyNo - 1 + n * 100) % n + 1].id
+end
+
+Content.ELITE_MODS = { "shielded", "swift", "vampiric", "splitting", "explosive" }
+
+Content.ELITES = {
+	shielded = { name = "Shielded", color = Color3.fromRGB(159, 232, 255), desc = "Blocks the first hit." },
+	swift = { name = "Swift", color = Color3.fromRGB(242, 193, 78), desc = "Acts twice each turn." },
+	vampiric = { name = "Vampiric", color = Color3.fromRGB(210, 58, 70), desc = "Heals when it wounds you." },
+	splitting = { name = "Splitting", color = Color3.fromRGB(127, 154, 82), desc = "Splits in two when slain." },
+	explosive = { name = "Explosive", color = Color3.fromRGB(255, 138, 42), desc = "Explodes when slain, hurting everything nearby." },
+}
+
+Content.FEATURES = {
+	shrine = {
+		name = "Blood Shrine",
+		text = "A shrine slick with old blood. It will trade a rare relic for a piece of your life.",
+		accept = "Offer 3 max HP",
+		leave = "Walk away",
+	},
+	chest = {
+		name = "Iron Chest",
+		text = "A rusted chest, its lock rigged with a blade. Prying it open will cut you.",
+		accept = "Pry it open (take 2 damage)",
+		leave = "Leave it",
+	},
+	fountain = {
+		name = "Pale Fountain",
+		text = "Still water glows faintly. Drinking it mends every wound.",
+		accept = "Drink (heal fully)",
+		leave = "Leave it",
+	},
+	forge = {
+		name = "Soul Forge",
+		text = "An anvil burning with blue soulfire. It can melt two of your relics into something greater.",
+		accept = "Fuse",
+		leave = "Walk away",
+	},
+}
+
+return Content
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="5">
+        <Properties>
+          <string name="Name">Daily</string>
+          <string name="Source"><![CDATA[--!strict
+-- Daily numbering, matching src/daily.ts: Daily #1 is 2026-10-14 and a new crypt opens
+-- at midnight Central Time (US daylight saving rules), so Roblox and the web share it.
+
+local Daily = {}
+
+local DAY = 86400
+local EPOCH_DAY = 20740 -- 2026-10-14, in days since 1970-01-01
+
+-- Days since 1970-01-01 for a calendar date (Howard Hinnant's days_from_civil).
+local function daysFromCivil(y: number, m: number, d: number): number
+	if m <= 2 then
+		y -= 1
+	end
+	local era = (if y >= 0 then y else y - 399) // 400
+	local yoe = y - era * 400
+	local mp = (m + 9) % 12
+	local doy = (153 * mp + 2) // 5 + d - 1
+	local doe = yoe * 365 + yoe // 4 - yoe // 100 + doy
+	return era * 146097 + doe - 719468
+end
+
+-- The nth Sunday of a month, as days since 1970.
+local function nthSunday(y: number, m: number, n: number): number
+	local first = daysFromCivil(y, m, 1)
+	local weekday = (first + 4) % 7 -- 1970-01-01 was a Thursday; 0 = Sunday
+	return first + (7 - weekday) % 7 + 7 * (n - 1)
+end
+
+--- Seconds to add to UTC for Central Time at this moment (CDT -5h, CST -6h).
+function Daily.centralOffset(utc: number): number
+	local y = tonumber(os.date("!%Y", utc)) :: number
+	-- Daylight time runs from 2:00 CST on the second Sunday of March (08:00 UTC)
+	-- to 2:00 CDT on the first Sunday of November (07:00 UTC).
+	local start = nthSunday(y, 3, 2) * DAY + 8 * 3600
+	local stop = nthSunday(y, 11, 1) * DAY + 7 * 3600
+	return if utc >= start and utc < stop then -5 * 3600 else -6 * 3600
+end
+
+function Daily.number(utc: number?): number
+	local now = utc or os.time()
+	local localDay = (now + Daily.centralOffset(now)) // DAY
+	return localDay - EPOCH_DAY + 1
+end
+
+--- Seconds until the next crypt opens.
+function Daily.secondsUntilNext(utc: number?): number
+	local now = utc or os.time()
+	local today = Daily.number(now)
+	-- Step an hour at a time from the next local midnight guess; handles 23/25-hour days.
+	local guess = (((now + Daily.centralOffset(now)) // DAY) + 1) * DAY - Daily.centralOffset(now)
+	while Daily.number(guess) == today do
+		guess += 3600
+	end
+	while Daily.number(guess - 3600) > today do
+		guess -= 3600
+	end
+	return guess - now
+end
+
+function Daily.countdown(seconds: number): string
+	local s = math.max(0, math.floor(seconds))
+	return string.format("%02d:%02d:%02d", s // 3600, (s % 3600) // 60, s % 60)
+end
+
+return Daily
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="6">
+        <Properties>
+          <string name="Name">Game</string>
+          <string name="Source"><![CDATA[--!nonstrict
+-- Pure game logic, a line-by-line port of src/game.ts: no rendering, no Roblox
+-- services. Everything random is seeded, so the same seed and inputs give the same
+-- run as the web game (the daily crypt is the same crypt on both).
+
+local Rng = require(script.Parent.Rng)
+local Relics = require(script.Parent.Relics)
+local Content = require(script.Parent.Content)
+
+local mulberry32, hashSeed, randInt, weightedPick = Rng.mulberry32, Rng.hashSeed, Rng.randInt, Rng.weightedPick
+local RELICS, BY_ID, FUSIONS = Relics.RELICS, Relics.BY_ID, Relics.FUSIONS
+local contains = Relics.contains
+
+local W, H = 7, 7
+
+local Game = {}
+Game.__index = Game
+Game.W = W
+Game.H = H
+
+Game.ENEMY_INFO = {
+	ghoul = { name = "Ghoul", hp = 2, dmg = 1 },
+	bat = { name = "Blood Bat", hp = 1, dmg = 1 },
+	archer = { name = "Skeleton Archer", hp = 1, dmg = 2 },
+	brute = { name = "Grave Brute", hp = 4, dmg = 3 },
+	wraith = { name = "Wraith", hp = 2, dmg = 1 },
+	boss = { name = "The Bone Warden", hp = 10, dmg = 2 },
+	abbot = { name = "The Plague Abbot", hp = 16, dmg = 2 },
+	lich = { name = "The Lich King", hp = 22, dmg = 3 },
+	thrall = { name = "Thrall", hp = 2, dmg = 1 },
+}
+local ENEMY_INFO = Game.ENEMY_INFO
+
+local BOSS_KINDS = { "boss", "abbot", "lich" }
+Game.UNDEAD = { "ghoul", "archer", "brute", "wraith", "boss", "lich" }
+local UNDEAD = Game.UNDEAD
+local FLYING = { "bat", "wraith" }
+
+local function isBoss(e): boolean
+	return contains(BOSS_KINDS, e.kind)
+end
+Game.isBoss = isBoss
+
+local DIRS = {
+	{ x = 0, y = -1 },
+	{ x = 1, y = 0 },
+	{ x = 0, y = 1 },
+	{ x = -1, y = 0 },
+}
+local DIRS8 = { DIRS[1], DIRS[2], DIRS[3], DIRS[4], { x = 1, y = 1 }, { x = 1, y = -1 }, { x = -1, y = 1 }, { x = -1, y = -1 } }
+
+Game.START = { x = 3, y = 6 }
+local START = Game.START
+local POTION_HEAL = 3
+local REST_HEAL = 4
+local MAX_ENEMIES = 9
+local MAX_THRALLS = 3
+local MAX_HP_CAP = 99
+local ABYSS_FLOOR = 30
+local FORGE_KEYS = "bcdefghijklm"
+local BOW_RANGE = 3
+
+local function filter<T>(list: { T }, pred: (T) -> boolean): { T }
+	local out = {}
+	for _, v in list do
+		if pred(v) then
+			table.insert(out, v)
+		end
+	end
+	return out
+end
+
+local function sign(n: number): number
+	return if n > 0 then 1 elseif n < 0 then -1 else 0
+end
+
+--- Every relic. `legacy` limits it to the launch set (Daily #1).
+function Game.fullPool(legacy: boolean?): { string }
+	local out = {}
+	for _, r in RELICS do
+		if not legacy or contains(Relics.LEGACY, r.id) then
+			table.insert(out, r.id)
+		end
+	end
+	return out
+end
+
+--- Endless: every relic except the forbidden ones not yet unlocked.
+function Game.basePool(unlocked: { string }?, legacy: boolean?): { string }
+	local have = unlocked or {}
+	return filter(Game.fullPool(legacy), function(id)
+		return not contains(Relics.UNLOCKABLE, id) or contains(have, id)
+	end)
+end
+
+function Game.new(mode: string, seed: number, dailyNo: number?, config)
+	local self = setmetatable({}, Game)
+	self.mode = mode
+	self.seed = seed
+	self.dailyNo = dailyNo or 0
+	self.config = config or { hero = "knight", pool = Game.fullPool() }
+
+	self.floor = 0
+	self.walls = {}
+	self.spikes = {}
+	self.stairs = { x = 3, y = 0 }
+	self.stairsOpen = false
+	self.potion = nil
+	self.feature = nil
+	self.warnings = {}
+	self.enemies = {}
+	self.player = { x = START.x, y = START.y, hp = 10, maxHp = 10 }
+	self.relics = {}
+	self.relicLog = {}
+	self.phase = "play"
+	self.offer = nil
+	self.kills = 0
+	self.turns = 0
+	self.killedBy = ""
+	self.stats = {
+		elites = 0, bosses = {}, spikeKills = 0, maxKillsInTurn = 0, maxHit = 0, cleanFloors = 0, maxAllies = 0,
+		bossAtOneHp = false, arrowKills = 0, revived = false, turnsTo5 = 0, kinds = {}, fusions = 0,
+		shadowSteps = 0, dodges = 0, raised = 0, lowHpKills = 0,
+	}
+	self.log = ""
+	self.events = {}
+
+	self.harvestBonus = 0
+	self.shieldCharges = 0
+	self.phylacteryUsed = false
+	self.nextId = 1
+	self.steps = 0
+	self.attacks = 0
+	self.killsThisTurn = 0
+	self.hurtThisFloor = false
+	self.combat = mulberry32(hashSeed(seed, "combat"))
+	self.boost = {}
+
+	local hp = Content.HERO_BY_ID[self.config.hero].hp
+	self.player.hp = hp
+	self.player.maxHp = hp
+	self:enterFloor(1)
+	return self
+end
+
+-- ---------- queries ----------
+
+function Game:r(id: string): number
+	return (self.relics[id] or 0) + (self.boost[id] or 0)
+end
+
+function Game:own(id: string): number
+	return self.relics[id] or 0
+end
+
+function Game:hero(): string
+	return self.config.hero
+end
+
+function Game:atk(): number
+	local atk = 1 + self:r("whetstone") + 2 * self:r("crown") + self.harvestBonus
+	local missing = self.player.maxHp - self.player.hp
+	if self.config.hero == "barbarian" then
+		atk += math.floor(missing / 3)
+	end
+	if self.config.hero == "mage" then
+		atk += 2
+	end
+	if self:r("idol") > 0 and self.player.hp * 2 <= self.player.maxHp then
+		atk += self:r("idol")
+	end
+	return atk
+end
+
+function Game:shadowReady(): boolean
+	return self.config.hero == "rogue" and (self.steps + 1) % 3 == 0
+end
+
+function Game:isWall(x: number, y: number): boolean
+	return self.walls[y * W + x] == true
+end
+
+function Game:isSpike(x: number, y: number): boolean
+	return self.spikes[y * W + x] == true
+end
+
+function Game:inBounds(x: number, y: number): boolean
+	return x >= 0 and y >= 0 and x < W and y < H
+end
+
+function Game:enemyAt(x: number, y: number)
+	for _, e in self.enemies do
+		if not e.dead and not e.ally and e.x == x and e.y == y then
+			return e
+		end
+	end
+	return nil
+end
+
+function Game:unitAt(x: number, y: number)
+	for _, e in self.enemies do
+		if not e.dead and e.x == x and e.y == y then
+			return e
+		end
+	end
+	return nil
+end
+
+function Game:alive()
+	return filter(self.enemies, function(e)
+		return not e.dead and not e.ally
+	end)
+end
+
+function Game:allies()
+	return filter(self.enemies, function(e)
+		return not e.dead and e.ally
+	end)
+end
+
+function Game:isOver(): boolean
+	return self.phase == "dead"
+end
+
+function Game:isBossFloor(f: number?): boolean
+	return (f or self.floor) % 5 == 0
+end
+
+function Game:push(ev)
+	table.insert(self.events, ev)
+end
+
+-- ---------- floor generation ----------
+
+function Game:enterFloor(floor: number)
+	self.floor = floor
+	local rng = mulberry32(hashSeed(self.seed, "floor", floor))
+	self:generateLayout(rng)
+	local thralls = self:allies()
+	self.enemies = {}
+	self.spikes = {}
+	self.potion = nil
+	self.feature = nil
+	self.warnings = {}
+	self:spawnEnemies(rng)
+	self:placeTraps(rng)
+	if not self:isBossFloor() and floor > 1 and rng() < 0.4 then
+		local spot = self:randomFreeTile(rng, 2)
+		if spot then
+			self.potion = spot
+		end
+	end
+	if not self:isBossFloor() and floor > 1 and rng() < 0.35 then
+		local kind = weightedPick(rng, { "shrine", "chest", "fountain" }, function(k)
+			return if k == "fountain" then 2 else 4
+		end)
+		local spot = self:randomFreeTile(rng, 2)
+		if spot then
+			self.feature = { x = spot.x, y = spot.y, kind = kind, used = false }
+		end
+	end
+	-- The Soul Forge waits on the floor after each boss, in place of any other feature.
+	if self.config.forge and floor > 5 and floor % 5 == 1 then
+		self.feature = nil
+		local spot = self:randomFreeTile(mulberry32(hashSeed(self.seed, "forge", floor)), 2)
+		if spot then
+			self.feature = { x = spot.x, y = spot.y, kind = "forge", used = false }
+		end
+	end
+	self.player.x = START.x
+	self.player.y = START.y
+	self:placeThralls(thralls)
+	self.stairsOpen = false
+	self.harvestBonus = 0
+	self.hurtThisFloor = false
+	self.shieldCharges = self:r("mirror")
+	self:push({ t = "floor", floor = floor })
+	if floor == 5 and self.stats.turnsTo5 == 0 then
+		self.stats.turnsTo5 = self.turns
+	end
+
+	if self:r("vheart") > 0 and self:isBossFloor() then
+		self.phylacteryUsed = false
+	end
+	if self.config.hero == "knight" and floor > 1 then
+		self:heal(1)
+	end
+	local candle = self:r("candle")
+	if candle > 0 then
+		self:heal(candle * 2)
+	end
+	if self:r("tome") > 0 and floor % 3 == 0 then
+		local gift = self:randomRelic(mulberry32(hashSeed(self.seed, "tome", floor)), function()
+			return true
+		end)
+		if gift then
+			self:addRelic(gift.id)
+		end
+	end
+	local hell = self:r("hellfire")
+	if hell > 0 then
+		for _, e in self:alive() do
+			self:damageEnemy(e, hell * 2, "hellfire")
+		end
+		if self.player.hp > 1 then
+			self.player.hp -= 1
+			self:push({ t = "hurt", amount = 1 })
+		end
+		self:checkCleared()
+	end
+end
+
+function Game:generateLayout(rng)
+	for _ = 1, 200 do
+		self.walls = {}
+		self.stairs = { x = randInt(rng, 1, W - 2), y = randInt(rng, 0, 1) }
+		local count = randInt(rng, 4, 9)
+		local mirror = rng() < 0.5
+		for _ = 1, count do
+			local x = randInt(rng, 0, W - 1)
+			local y = randInt(rng, 1, H - 2)
+			self.walls[y * W + x] = true
+			if mirror then
+				self.walls[y * W + (W - 1 - x)] = true
+			end
+		end
+		self.walls[START.y * W + START.x] = nil
+		self.walls[self.stairs.y * W + self.stairs.x] = nil
+		if self:allFloorConnected() then
+			return
+		end
+	end
+	self.walls = {}
+end
+
+function Game:allFloorConnected(): boolean
+	local dist = self:distanceMap({ START }, false)
+	for i = 0, W * H - 1 do
+		if not self.walls[i] and dist[i] < 0 then
+			return false
+		end
+	end
+	return true
+end
+
+function Game:spawnEnemies(rng)
+	local f = self.floor
+	if self:isBossFloor() then
+		local tier = f // 5
+		local kind = BOSS_KINDS[(tier - 1) % 3 + 1]
+		local cycle = (tier - 1) // 3
+		local spot = { x = 3, y = 1 }
+		self.walls[spot.y * W + spot.x] = nil
+		local boss = self:makeEnemy(kind, spot.x, spot.y)
+		boss.hp = ENEMY_INFO[kind].hp + 12 * cycle + 4 * cycle * cycle
+		boss.maxHp = boss.hp
+		boss.dmg = ENEMY_INFO[kind].dmg + cycle
+		for i = 0, math.min(tier, 4) - 1 do
+			local s = self:randomFreeTile(rng, 3)
+			if s then
+				self:makeEnemy(if i % 2 == 1 then "archer" else "ghoul", s.x, s.y)
+			end
+		end
+		return
+	end
+	local roster = {
+		{ kind = "ghoul", from = 1, w = 10 },
+		{ kind = "bat", from = 1, w = 7 },
+		{ kind = "archer", from = 2, w = 6 },
+		{ kind = "brute", from = if self.config.mercy then 4 else 3, w = 4 },
+		{ kind = "wraith", from = 4, w = 5 },
+	}
+	local pool = filter(roster, function(p)
+		return f >= p.from
+	end)
+	local count = math.min(MAX_ENEMIES - 1, 2 + math.floor(f / 2))
+	local eliteChance = if f >= 3 then math.min(0.35, 0.06 + 0.025 * f) else 0
+	for _ = 1, count do
+		local spot = self:randomFreeTile(rng, 3)
+		if not spot then
+			break
+		end
+		local kind = weightedPick(rng, pool, function(p)
+			return p.w
+		end).kind
+		local e = self:makeEnemy(kind, spot.x, spot.y)
+		if rng() < eliteChance then
+			self:makeElite(e, Content.ELITE_MODS[math.floor(rng() * #Content.ELITE_MODS) + 1])
+		end
+	end
+end
+
+function Game:makeElite(e, mod: string)
+	e.elite = mod
+	e.hp += 1
+	e.maxHp += 1
+	if mod == "shielded" then
+		e.shield = 1
+	end
+end
+
+function Game:placeTraps(rng)
+	if self.floor < 2 or self:isBossFloor() then
+		return
+	end
+	local count = math.min(3, randInt(rng, 0, 1 + math.floor(self.floor / 4)))
+	for _ = 1, count do
+		local spot = self:randomFreeTile(rng, 2)
+		if spot then
+			self.spikes[spot.y * W + spot.x] = true
+		end
+	end
+end
+
+function Game:placeThralls(thralls)
+	for _, t in thralls do
+		local spot = self:nearestFree(START)
+		if spot then
+			t.x = spot.x
+			t.y = spot.y
+			t.burn = 0
+			t.frozen = 0
+			table.insert(self.enemies, t)
+		end
+	end
+end
+
+function Game:makeEnemy(kind: string, x: number, y: number)
+	local info = ENEMY_INFO[kind]
+	-- Gentle scaling early, then steep past floor 15 so broken builds still meet an end.
+	local late = math.max(0, self.floor - 15)
+	local scaled = not isBoss({ kind = kind }) and kind ~= "thrall"
+	local hpBonus = if scaled then math.floor((self.floor - 1) / 4) + late else 0
+	local dmgBonus = if scaled then math.floor((self.floor - 1) / 6) + math.floor(late / 3) else 0
+	local e = {
+		id = self.nextId,
+		kind = kind,
+		x = x,
+		y = y,
+		hp = info.hp + hpBonus,
+		maxHp = info.hp + hpBonus,
+		-- Early Brutes hit a little softer, so one bad bump on floor 4 isn't the end.
+		dmg = info.dmg + dmgBonus - (if self.config.mercy and kind == "brute" and self.floor < 6 then 1 else 0),
+		burn = 0,
+		burnDmg = 0,
+		frozen = 0,
+		marked = false,
+		aim = nil,
+		rest = if kind == "brute" or kind == "boss" or kind == "abbot" then 1 else 0,
+		turns = 0,
+		dead = false,
+		ally = false,
+		elite = nil,
+		shield = 0,
+	}
+	self.nextId += 1
+	table.insert(self.enemies, e)
+	return e
+end
+
+function Game:raiseThrall(x: number, y: number)
+	local t = self:makeEnemy("thrall", x, y)
+	t.ally = true
+	t.hp = 2 + math.floor(self.floor / 4)
+	t.maxHp = t.hp
+	t.dmg = 1 + math.floor(self.floor / 6)
+	self:push({ t = "raise", x = x, y = y })
+	self.stats.maxAllies = math.max(self.stats.maxAllies, #self:allies())
+	self.stats.raised += 1
+end
+
+function Game:isFree(x: number, y: number): boolean
+	if not self:inBounds(x, y) or self:isWall(x, y) or self:unitAt(x, y) then
+		return false
+	end
+	if x == self.player.x and y == self.player.y then
+		return false
+	end
+	return true
+end
+
+function Game:nearestFree(from)
+	local dist = self:distanceMap({ from }, false)
+	local best = nil
+	local bestD = math.huge
+	for y = 0, H - 1 do
+		for x = 0, W - 1 do
+			local d = dist[y * W + x]
+			if d > 0 and d < bestD and self:isFree(x, y) and not self:isSpike(x, y) then
+				bestD = d
+				best = { x = x, y = y }
+			end
+		end
+	end
+	return best
+end
+
+function Game:randomFreeTile(rng, minDistFromStart: number)
+	local free = {}
+	for y = 0, H - 1 do
+		for x = 0, W - 1 do
+			local ok = not (self:isWall(x, y) or self:isSpike(x, y))
+				and math.abs(x - START.x) + math.abs(y - START.y) >= minDistFromStart
+				and not (x == self.stairs.x and y == self.stairs.y)
+				and not self:unitAt(x, y)
+				and not (self.potion and self.potion.x == x and self.potion.y == y)
+				and not (self.feature and self.feature.x == x and self.feature.y == y)
+			if ok then
+				table.insert(free, { x = x, y = y })
+			end
+		end
+	end
+	return if #free > 0 then free[math.floor(rng() * #free) + 1] else nil
+end
+
+--- BFS distances from one or more tiles over non-wall tiles; -1 for unreachable.
+function Game:distanceMap(from, throughWalls: boolean): { [number]: number }
+	local dist = {}
+	for i = 0, W * H - 1 do
+		dist[i] = -1
+	end
+	local queue = table.clone(from)
+	for _, p in queue do
+		dist[p.y * W + p.x] = 0
+	end
+	local head = 1
+	while head <= #queue do
+		local p = queue[head]
+		head += 1
+		local d = dist[p.y * W + p.x]
+		for _, dir in DIRS do
+			local nx, ny = p.x + dir.x, p.y + dir.y
+			if self:inBounds(nx, ny) and dist[ny * W + nx] < 0 and (throughWalls or not self:isWall(nx, ny)) then
+				dist[ny * W + nx] = d + 1
+				table.insert(queue, { x = nx, y = ny })
+			end
+		end
+	end
+	return dist
+end
+
+-- ---------- player actions ----------
+
+--- Returns true if the action consumed a turn.
+function Game:act(dx: number, dy: number): boolean
+	local ok = self:doAct(dx, dy)
+	if ok then
+		self.log ..= if dx == 0 and dy == 0 then "W" elseif dx > 0 then "R" elseif dx < 0 then "L" elseif dy > 0 then "D" else "U"
+	end
+	return ok
+end
+
+function Game:doAct(dx: number, dy: number): boolean
+	if self.phase ~= "play" then
+		return false
+	end
+	self.killsThisTurn = 0
+	if dx == 0 and dy == 0 then
+		self:endTurn()
+		return true
+	end
+	local tx, ty = self.player.x + dx, self.player.y + dy
+	if not self:inBounds(tx, ty) then
+		return false
+	end
+	local target = self:enemyAt(tx, ty)
+	if target then
+		self:playerAttack(target, { x = dx, y = dy })
+		self:endTurn()
+		return true
+	end
+	local mark = if self.config.hero == "ranger" then self:bowTarget(dx, dy) else nil
+	if mark then
+		self:playerAttack(mark, { x = dx, y = dy }, true)
+		self:endTurn()
+		return true
+	end
+	if self:isWall(tx, ty) then
+		return false
+	end
+
+	-- Step past a thrall by swapping places with it.
+	local thrall = self:unitAt(tx, ty)
+	if thrall and thrall.ally then
+		thrall.x = self.player.x
+		thrall.y = self.player.y
+	end
+	self.player.x = tx
+	self.player.y = ty
+	self:playerEnters(tx, ty)
+	if self:isOver() then
+		return true
+	end
+	if self.potion and self.potion.x == tx and self.potion.y == ty then
+		self.potion = nil
+		self:push({ t = "potion" })
+		self:heal(POTION_HEAL + 2 * self:r("flask") + self:r("chalice"))
+	end
+	if self.stairsOpen and tx == self.stairs.x and ty == self.stairs.y then
+		self.turns += 1
+		self:descend()
+		return true
+	end
+	-- Rogue: every third step is taken unseen.
+	self.steps += 1
+	if self.config.hero == "rogue" and self.steps % 3 == 0 then
+		self.turns += 1
+		self:push({ t = "shadow" })
+		self.stats.shadowSteps += 1
+	else
+		self:endTurn()
+	end
+	local f = self.feature
+	if self.phase == "play" and f and not f.used and f.x == self.player.x and f.y == self.player.y then
+		self.phase = "event"
+		self:push({ t = "event", kind = f.kind })
+	end
+	return true
+end
+
+function Game:playerEnters(x: number, y: number)
+	if self:isSpike(x, y) and self:r("caltrops") == 0 then
+		self:push({ t = "spike", x = x, y = y })
+		self:hurtPlayer(1, nil, "the spikes")
+	end
+end
+
+function Game:unitEnters(e)
+	if not self:isSpike(e.x, e.y) or e.ally or contains(FLYING, e.kind) then
+		return
+	end
+	self:push({ t = "spike", x = e.x, y = e.y })
+	self:damageEnemy(e, 2 + 2 * self:r("caltrops"), "spike")
+	if e.dead then
+		self.stats.spikeKills += 1
+	end
+end
+
+--- Ranger: the first foe 2-3 tiles away in a clear straight line.
+function Game:bowTarget(dx: number, dy: number)
+	for k = 1, BOW_RANGE do
+		local x, y = self.player.x + dx * k, self.player.y + dy * k
+		if not self:inBounds(x, y) or self:isWall(x, y) then
+			return nil
+		end
+		local u = self:unitAt(x, y)
+		if u then
+			return if not u.ally and k >= 2 then u else nil
+		end
+	end
+	return nil
+end
+
+function Game:playerAttack(e, dir, ranged: boolean?)
+	if ranged then
+		self:push({ t = "shot", from = { x = self.player.x, y = self.player.y }, to = { x = e.x, y = e.y }, hit = false })
+	else
+		self:push({ t = "pattack", dir = dir })
+	end
+	self.attacks += 1
+	local dmg = self:atk()
+	if contains(UNDEAD, e.kind) then
+		dmg += self:r("rosary") + (if self.config.hero == "paladin" then 1 else 0)
+	end
+	if self:r("moon") > 0 then
+		dmg *= 2
+	end
+	if self:r("mark") > 0 and not e.marked then
+		dmg += 2 * self:r("mark")
+		e.marked = true
+	end
+	if self:r("shatter") > 0 and e.frozen > 0 then
+		dmg += 3 * self:r("shatter")
+	end
+	if self:r("pact") > 0 and self.player.hp <= 4 then
+		dmg *= self:r("pact") + 1
+	end
+	local crit = false
+	if self:r("dice") > 0 and self.combat() < 0.15 * self:r("dice") then
+		dmg *= 3
+		crit = true
+	end
+	self.stats.maxHit = math.max(self.stats.maxHit, dmg)
+	self:damageEnemy(e, dmg, if ranged then "pierce" else "melee", crit)
+	if ranged and e.dead then
+		self.stats.arrowKills += 1
+	end
+	local echoEvery = if self:r("echo") >= 2 then 3 else 4
+	if self:r("echo") > 0 and self.attacks % echoEvery == 0 and not e.dead then
+		self:damageEnemy(e, dmg, "melee")
+	end
+
+	if not e.dead then
+		if self:r("ember") > 0 then
+			e.burn = 3
+			e.burnDmg = math.max(e.burnDmg, self:r("ember"))
+		end
+		if self:r("frost") > 0 then
+			e.frozen = math.max(e.frozen, self:r("frost"))
+		end
+	end
+	for k = 1, self:r("pike") do
+		local behind = self:enemyAt(e.x + dir.x * k, e.y + dir.y * k)
+		if behind then
+			self:damageEnemy(behind, dmg, "pierce")
+		end
+	end
+	local whirl = self:r("whirl")
+	if whirl > 0 then
+		for _, d in DIRS do
+			local other = self:enemyAt(self.player.x + d.x, self.player.y + d.y)
+			if other and other ~= e then
+				self:damageEnemy(other, whirl, "whirl")
+			end
+		end
+	end
+	self:checkCleared()
+end
+
+function Game:descend()
+	self.phase = "choose"
+	self.offer = self:makeOffer()
+end
+
+function Game:randomRelic(rng, pred: (any) -> boolean)
+	local pool = filter(RELICS, function(r)
+		return contains(self.config.pool, r.id) and self:own(r.id) < r.maxStack and pred(r)
+	end)
+	if #pool == 0 then
+		return nil
+	end
+	return weightedPick(rng, pool, function(r)
+		return Relics.RARITY_WEIGHT[r.rarity]
+	end)
+end
+
+function Game:makeOffer()
+	local rng = mulberry32(hashSeed(self.seed, "relic", self.floor))
+	local pool = filter(RELICS, function(r)
+		return contains(self.config.pool, r.id) and self:own(r.id) < r.maxStack
+	end)
+	if self:r("heretic") > 0 then
+		local dark = filter(pool, function(r)
+			return r.rarity ~= "common"
+		end)
+		if #dark >= 3 then
+			pool = dark
+		end
+	end
+	local n = 3 + self:r("coin")
+	local picks = {}
+	while #picks < n and #pool > 0 do
+		local choice = weightedPick(rng, pool, function(r)
+			return Relics.RARITY_WEIGHT[r.rarity]
+		end)
+		table.insert(picks, choice)
+		table.remove(pool, table.find(pool, choice))
+	end
+	return { relics = picks, restHeal = REST_HEAL + 2 * self:r("chalice") }
+end
+
+--- Take a relic from the offer (0-based index), or rest when index is -1.
+function Game:choose(index: number)
+	if self.phase ~= "choose" or not self.offer then
+		return
+	end
+	if index < 0 then
+		self:heal(self.offer.restHeal)
+		self.log ..= "r"
+	else
+		local relic = self.offer.relics[index + 1]
+		if not relic then
+			return
+		end
+		self:addRelic(relic.id)
+		self.log ..= tostring(index)
+	end
+	self.offer = nil
+	self.phase = "play"
+	self:enterFloor(self.floor + 1)
+end
+
+function Game:canAcceptEvent(): boolean
+	if self.phase ~= "event" or not self.feature then
+		return false
+	end
+	if self.feature.kind == "shrine" then
+		return self.player.maxHp > 3
+	end
+	if self.feature.kind == "forge" then
+		return #self:forgeOptions() > 0
+	end
+	return true
+end
+
+--- Fusions the player can make at the Soul Forge with the relics they hold.
+function Game:forgeOptions()
+	local out = {}
+	for _, f in FUSIONS do
+		local ok = (f.tier ~= 2 or self.floor >= Relics.ASCEND_FLOOR) and self:own(f.id) == 0
+			and self:own(f.from[1]) > 0 and self:own(f.from[2]) > 0
+		if ok and #out < #FORGE_KEYS then
+			table.insert(out, f)
+		end
+	end
+	return out
+end
+
+--- Fuse the chosen option (0-based) at the Soul Forge the player is standing on.
+function Game:forge(index: number)
+	if self.phase ~= "event" or not self.feature or self.feature.kind ~= "forge" then
+		return
+	end
+	local f = self:forgeOptions()[index + 1]
+	if not f then
+		return
+	end
+	for _, id in f.from do
+		self.relics[id] = self:own(id) - 1
+		if self.relics[id] == 0 then
+			self.relics[id] = nil
+		end
+		local at = nil
+		for i = #self.relicLog, 1, -1 do
+			if self.relicLog[i] == id then
+				at = i
+				break
+			end
+		end
+		table.remove(self.relicLog, at or #self.relicLog)
+	end
+	self.relics[f.id] = 1
+	table.insert(self.relicLog, f.id)
+	local all = Relics.withFusions(self.relics)
+	self.boost = {}
+	for id, n in all do
+		local extra = n - self:own(id)
+		if extra ~= 0 then
+			self.boost[id] = extra
+		end
+	end
+	local grow = if f.id == "dragon" then 6 elseif f.id == "dracolich" then 10 else 0
+	if grow > 0 then
+		self:changeMaxHp(grow)
+		self:heal(self.player.maxHp)
+	end
+	-- Mirror charges for this floor follow the new count.
+	self.shieldCharges = math.max(self.shieldCharges, self:r("mirror"))
+	self.stats.fusions += 1
+	self:push({ t = "fuse", id = f.id, from = f.from })
+	self.log ..= string.sub(FORGE_KEYS, index + 1, index + 1)
+	self.feature.used = true
+	self.phase = "play"
+end
+
+--- Accept or walk away from the floor event the player is standing on.
+function Game:resolveEvent(accept: boolean)
+	if self.phase ~= "event" or not self.feature then
+		return
+	end
+	local f = self.feature
+	local rng = mulberry32(hashSeed(self.seed, "event", self.floor))
+	if accept and f.kind == "forge" then
+		return
+	end
+	if accept and self:canAcceptEvent() then
+		local any = function()
+			return true
+		end
+		if f.kind == "shrine" then
+			self:changeMaxHp(-3)
+			local gift = self:randomRelic(rng, function(r)
+				return r.rarity == "rare"
+			end) or self:randomRelic(rng, any)
+			if gift then
+				self:addRelic(gift.id)
+			end
+		elseif f.kind == "chest" then
+			if self:r("key") == 0 then
+				local cut = math.min(2, self.player.hp - 1)
+				if cut > 0 then
+					self.player.hp -= cut
+					self:push({ t = "hurt", amount = cut })
+				end
+			end
+			local gifts = if self:r("key") > 0 then 2 else 1
+			for _ = 1, gifts do
+				local gift = self:randomRelic(rng, any)
+				if gift then
+					self:addRelic(gift.id)
+				end
+			end
+		else
+			self:heal(self.player.maxHp)
+		end
+	end
+	self.log ..= if accept then "a" else "x"
+	f.used = true
+	self.phase = "play"
+end
+
+function Game:addRelic(id: string)
+	self.relics[id] = self:r(id) + 1
+	table.insert(self.relicLog, id)
+	self:push({ t = "relic", id = id })
+	if id == "heart" then
+		self:changeMaxHp(3)
+		self:heal(3)
+	elseif id == "crown" then
+		self:changeMaxHp(-3)
+	end
+end
+
+function Game:changeMaxHp(delta: number)
+	self.player.maxHp = math.min(MAX_HP_CAP, math.max(1, self.player.maxHp + delta))
+	self.player.hp = math.min(self.player.hp, self.player.maxHp)
+	if delta > 0 then
+		self:push({ t = "maxhp", amount = delta })
+	end
+end
+
+function Game:heal(amount: number)
+	local before = self.player.hp
+	self.player.hp = math.min(self.player.maxHp, self.player.hp + amount)
+	local healed = self.player.hp - before
+	if healed > 0 then
+		self:push({ t = "heal", amount = healed })
+	end
+end
+
+-- ---------- damage ----------
+
+function Game:damageEnemy(e, amount: number, kind: string, crit: boolean?)
+	if e.dead or amount <= 0 then
+		return
+	end
+	if e.shield > 0 and kind ~= "burn" then
+		e.shield -= 1
+		self:push({ t = "eblock", id = e.id, x = e.x, y = e.y })
+		return
+	end
+	e.hp -= amount
+	self:push({ t = "hit", id = e.id, x = e.x, y = e.y, amount = amount, kind = kind, crit = crit == true })
+	if e.hp <= 0 then
+		self:killEnemy(e)
+	end
+end
+
+function Game:killEnemy(e)
+	e.dead = true
+	e.hp = 0
+	self:push({ t = "kill", id = e.id, x = e.x, y = e.y, kind = e.kind, ally = e.ally, elite = e.elite })
+	if e.ally then
+		return
+	end
+
+	self.kills += 1
+	self.killsThisTurn += 1
+	if self.player.hp <= 3 then
+		self.stats.lowHpKills += 1
+	end
+	self.stats.kinds[e.kind] = (self.stats.kinds[e.kind] or 0) + 1
+	self.stats.maxKillsInTurn = math.max(self.stats.maxKillsInTurn, self.killsThisTurn)
+	if e.elite then
+		self.stats.elites += 1
+	end
+	if isBoss(e) then
+		self.stats.bosses[e.kind] = (self.stats.bosses[e.kind] or 0) + 1
+		if self.player.hp == 1 then
+			self.stats.bossAtOneHp = true
+		end
+		if self.config.hero == "paladin" then
+			self:heal(self.player.maxHp)
+		end
+	end
+
+	if self:r("fang") > 0 then
+		self:heal(self:r("fang"))
+	end
+	if self:r("lantern") > 0 and self.kills % 6 == 0 then
+		self:changeMaxHp(self:r("lantern"))
+		self:heal(self:r("lantern"))
+	end
+	if self:r("harvest") > 0 then
+		self.harvestBonus += self:r("harvest")
+	end
+
+	-- Raise the dead before anything else claims the tile.
+	local raiseChance = (if self.config.hero == "necro" then 0.3 else 0) + 0.15 * self:r("necro")
+	if raiseChance > 0 and not isBoss(e) and #self:allies() < MAX_THRALLS and self.combat() < raiseChance then
+		self:raiseThrall(e.x, e.y)
+	end
+
+	if e.elite == "splitting" then
+		local spawned = 0
+		for _, d in DIRS do
+			if spawned >= 2 then
+				break
+			end
+			local x, y = e.x + d.x, e.y + d.y
+			if self:isFree(x, y) and #self:alive() < MAX_ENEMIES then
+				local child = self:makeEnemy(e.kind, x, y)
+				child.hp = 1
+				child.maxHp = 1
+				self:push({ t = "summon", x = x, y = y })
+				spawned += 1
+			end
+		end
+	end
+	if e.elite == "explosive" then
+		self:push({ t = "burst", x = e.x, y = e.y })
+		for _, d in DIRS8 do
+			local x, y = e.x + d.x, e.y + d.y
+			if x == self.player.x and y == self.player.y then
+				self:hurtPlayer(2, nil, "an exploding foe")
+			end
+			local u = self:unitAt(x, y)
+			if u then
+				self:damageEnemy(u, 2, "burst")
+			end
+		end
+	end
+	if self:r("wildfire") > 0 and e.burn > 0 then
+		for _, d in DIRS8 do
+			local n = self:enemyAt(e.x + d.x, e.y + d.y)
+			if n then
+				n.burn = 3
+				n.burnDmg = math.max(n.burnDmg, e.burnDmg)
+			end
+		end
+	end
+	if self:r("bloom") > 0 then
+		self:push({ t = "burst", x = e.x, y = e.y })
+		for _, d in DIRS8 do
+			local n = self:enemyAt(e.x + d.x, e.y + d.y)
+			if n then
+				self:damageEnemy(n, self:r("bloom"), "burst")
+			end
+		end
+	end
+	if self:r("storm") > 0 then
+		local targets = self:alive()
+		local strikes = 1 + self:r("conductor")
+		local from = { x = e.x, y = e.y }
+		local i = 0
+		while i < strikes and #targets > 0 do
+			local idx = math.floor(self.combat() * #targets) + 1
+			local t = table.remove(targets, idx)
+			self:push({ t = "bolt", from = from, to = { x = t.x, y = t.y } })
+			from = { x = t.x, y = t.y }
+			self:damageEnemy(t, self:r("storm") + 1, "bolt")
+			if self:r("plasma") > 0 and not t.dead then
+				t.burn = 3
+				t.burnDmg = math.max(t.burnDmg, self:r("ember"))
+			end
+			i += 1
+		end
+	end
+end
+
+function Game:hurtPlayer(amount: number, src, cause: string?)
+	if self.phase == "dead" then
+		return
+	end
+	local dodge = math.min(0.5, self:r("dust") * 0.2 + (if self.config.hero == "rogue" then 0.15 else 0))
+	if dodge > 0 and self.combat() < dodge then
+		self:push({ t = "dodge" })
+		self.stats.dodges += 1
+		return
+	end
+	if self.shieldCharges > 0 then
+		self.shieldCharges -= 1
+		self:push({ t = "block" })
+		return
+	end
+	amount = math.max(1, amount - self:r("scale")) + self:r("moon")
+	self.player.hp -= amount
+	self.hurtThisFloor = true
+	self:push({ t = "hurt", amount = amount })
+	if src and src.elite == "vampiric" then
+		src.hp = math.min(src.maxHp, src.hp + 1)
+	end
+	if src and self:r("thorns") > 0 then
+		self:damageEnemy(src, self:r("thorns"), "thorns")
+	end
+	if self.player.hp <= 0 then
+		if self:r("phylactery") > 0 and not self.phylacteryUsed then
+			self.phylacteryUsed = true
+			self.stats.revived = true
+			self.player.hp = if self:r("vheart") > 0 then self.player.maxHp else 1
+			self:push({ t = "revive" })
+			return
+		end
+		self.player.hp = 0
+		self.phase = "dead"
+		self.killedBy = if src then ENEMY_INFO[src.kind].name else (cause or "the dark")
+		self:push({ t = "death" })
+	end
+end
+
+function Game:checkCleared()
+	if not self.stairsOpen and #self:alive() == 0 then
+		self.stairsOpen = true
+		self.warnings = {}
+		if self.floor >= 3 and not self.hurtThisFloor then
+			self.stats.cleanFloors += 1
+		end
+		-- A breather for new players: clearing one of the first five floors heals 1 HP.
+		if self.config.mercy and self.floor <= 5 then
+			self:heal(1)
+		end
+		self:push({ t = "stairs" })
+	end
+end
+
+-- ---------- the world's turn ----------
+
+function Game:endTurn()
+	self.turns += 1
+	self:turnRelics()
+	-- Plague Mask: whatever stands next to you at the end of your turn suffers.
+	local mask = self:r("mask")
+	if mask > 0 then
+		for _, d in DIRS do
+			local foe = self:enemyAt(self.player.x + d.x, self.player.y + d.y)
+			if foe then
+				self:damageEnemy(foe, mask, "mask")
+			end
+		end
+	end
+	-- Thralls act first.
+	for _, a in self:allies() do
+		if not a.dead then
+			if a.frozen > 0 then
+				a.frozen -= 1
+			else
+				self:allyAct(a)
+			end
+		end
+	end
+	self:resolveWarnings()
+	if self.phase == "dead" then
+		return
+	end
+
+	local dist = self:distanceMap({ self.player }, false)
+	local ghostDist = self:distanceMap({ self.player }, true)
+	for _, e in table.clone(self.enemies) do
+		if e.dead or e.ally then
+			continue
+		end
+		if e.burn > 0 then
+			e.burn -= 1
+			self:damageEnemy(e, e.burnDmg, "burn")
+			if e.dead then
+				continue
+			end
+		end
+		if e.frozen > 0 then
+			e.frozen -= 1
+			continue
+		end
+		local moves = if e.elite == "swift" then 2 else 1
+		local i = 0
+		while i < moves and not e.dead and not self:isOver() do
+			self:enemyAct(e, if e.kind == "wraith" then ghostDist else dist)
+			i += 1
+		end
+		if self:isOver() then
+			break
+		end
+	end
+	self.enemies = filter(self.enemies, function(e)
+		return not e.dead
+	end)
+	self:checkCleared()
+end
+
+function Game:turnRelics()
+	local wisp = self:r("wisp")
+	if wisp > 0 then
+		local targets = self:alive()
+		if #targets > 0 then
+			local t = targets[math.floor(self.combat() * #targets) + 1]
+			self:push({ t = "bolt", from = { x = self.player.x, y = self.player.y }, to = { x = t.x, y = t.y } })
+			self:damageEnemy(t, wisp, "bolt")
+		end
+	end
+	if self:r("doom") > 0 and self.turns % 10 == 0 and #self:alive() > 0 then
+		self:push({ t = "toll" })
+		for _, e in self:alive() do
+			self:push({ t = "burst", x = e.x, y = e.y })
+			self:damageEnemy(e, 4 * self:r("doom"), "burst")
+		end
+	end
+	if self:r("hourglass") > 0 and self.turns % 8 == 0 and #self:alive() > 0 then
+		self:push({ t = "timestop" })
+		for _, e in self:alive() do
+			e.frozen = math.max(e.frozen, 1)
+		end
+	end
+	self:checkCleared()
+end
+
+function Game:resolveWarnings()
+	local pending = self.warnings
+	self.warnings = {}
+	for _, w in pending do
+		if w.x == self.player.x and w.y == self.player.y then
+			self:hurtPlayer(w.dmg, nil, w.src)
+		end
+		local u = self:unitAt(w.x, w.y)
+		if u and u.ally then
+			self:damageEnemy(u, w.dmg, "bolt")
+		end
+		if self.phase == "dead" then
+			return
+		end
+	end
+end
+
+function Game:adjacentToPlayer(e): boolean
+	return math.abs(e.x - self.player.x) + math.abs(e.y - self.player.y) == 1
+end
+
+function Game:adjacentUnit(e, ally: boolean)
+	for _, d in DIRS do
+		local u = self:unitAt(e.x + d.x, e.y + d.y)
+		if u and u.ally == ally then
+			return u
+		end
+	end
+	return nil
+end
+
+function Game:attackPlayer(e)
+	self:push({ t = "eattack", id = e.id, dir = { x = self.player.x - e.x, y = self.player.y - e.y } })
+	self:hurtPlayer(e.dmg + self:abyssDamage(), e)
+end
+
+--- Extra damage in the Abyss, so even unkillable builds eventually fall.
+function Game:abyssDamage(): number
+	local depth = self.floor - ABYSS_FLOOR
+	return if depth > 0 then math.ceil((self.player.maxHp * depth * 3) / 100) else 0
+end
+
+--- Foes go for the player, but will maul a thrall that blocks the way.
+function Game:meleeOrMove(e, dist, ghost: boolean)
+	if self:adjacentToPlayer(e) then
+		self:attackPlayer(e)
+		return
+	end
+	local thrall = self:adjacentUnit(e, true)
+	if thrall then
+		self:push({ t = "eattack", id = e.id, dir = { x = thrall.x - e.x, y = thrall.y - e.y } })
+		self:damageEnemy(thrall, e.dmg, "claw")
+		return
+	end
+	self:stepToward(e, dist, ghost)
+end
+
+function Game:allyAct(a)
+	local foe = self:adjacentUnit(a, false)
+	if foe then
+		self:push({ t = "eattack", id = a.id, dir = { x = foe.x - a.x, y = foe.y - a.y } })
+		self:damageEnemy(foe, a.dmg, "ally")
+		self:checkCleared()
+		return
+	end
+	local foes = self:alive()
+	if #foes > 0 then
+		local spots = {}
+		for _, f in foes do
+			table.insert(spots, { x = f.x, y = f.y })
+		end
+		self:stepToward(a, self:distanceMap(spots, false), false)
+	elseif math.abs(a.x - self.player.x) + math.abs(a.y - self.player.y) > 2 then
+		self:stepToward(a, self:distanceMap({ self.player }, false), false)
+	end
+end
+
+function Game:enemyAct(e, dist)
+	e.turns += 1
+	local k = e.kind
+	if k == "ghoul" then
+		self:meleeOrMove(e, dist, false)
+	elseif k == "bat" then
+		if self:adjacentToPlayer(e) then
+			self:attackPlayer(e)
+		elseif self.combat() < 0.5 then
+			self:stepRandom(e)
+		else
+			self:stepToward(e, dist, false)
+		end
+	elseif k == "wraith" then
+		self:meleeOrMove(e, dist, true)
+	elseif k == "archer" then
+		self:archerAct(e, dist)
+	elseif k == "brute" then
+		if e.rest > 0 then
+			e.rest -= 1
+			return
+		end
+		self:meleeOrMove(e, dist, false)
+		e.rest = 1
+	elseif k == "boss" then
+		self:wardenAct(e, dist)
+	elseif k == "abbot" then
+		self:abbotAct(e, dist)
+	elseif k == "lich" then
+		self:lichAct(e)
+	end
+end
+
+function Game:archerAct(e, dist)
+	if e.aim then
+		local dir = e.aim
+		e.aim = nil
+		local x, y = e.x, e.y
+		local hit = false
+		while true do
+			local nx, ny = x + dir.x, y + dir.y
+			if not self:inBounds(nx, ny) or self:isWall(nx, ny) then
+				break
+			end
+			local blocker = self:unitAt(nx, ny)
+			if blocker then
+				-- Thralls take arrows meant for you.
+				if blocker.ally then
+					x, y = nx, ny
+					self:damageEnemy(blocker, e.dmg, "claw")
+				end
+				break
+			end
+			x, y = nx, ny
+			if x == self.player.x and y == self.player.y then
+				hit = true
+				break
+			end
+		end
+		self:push({ t = "shot", from = { x = e.x, y = e.y }, to = { x = x, y = y }, hit = hit })
+		if hit then
+			self:hurtPlayer(e.dmg, e)
+		end
+		return
+	end
+	local aim = self:lineOfSight(e)
+	if aim then
+		e.aim = aim
+		return
+	end
+	self:stepToward(e, dist, false)
+end
+
+--- Direction to the player if aligned with a clear line, else nil.
+function Game:lineOfSight(e)
+	local p = self.player
+	if e.x ~= p.x and e.y ~= p.y then
+		return nil
+	end
+	local dir = { x = sign(p.x - e.x), y = sign(p.y - e.y) }
+	local x, y = e.x + dir.x, e.y + dir.y
+	while x ~= p.x or y ~= p.y do
+		if self:isWall(x, y) or self:unitAt(x, y) then
+			return nil
+		end
+		x += dir.x
+		y += dir.y
+	end
+	return dir
+end
+
+function Game:summonNear(e, kind: string)
+	if #self:alive() >= MAX_ENEMIES then
+		return nil
+	end
+	local spots = {}
+	for _, d in DIRS8 do
+		local p = { x = e.x + d.x, y = e.y + d.y }
+		if self:isFree(p.x, p.y) then
+			table.insert(spots, p)
+		end
+	end
+	if #spots == 0 then
+		return nil
+	end
+	local s = spots[math.floor(self.combat() * #spots) + 1]
+	local made = self:makeEnemy(kind, s.x, s.y)
+	self:push({ t = "summon", x = s.x, y = s.y })
+	return made
+end
+
+--- Slow, summons ghouls every few turns.
+function Game:wardenAct(e, dist)
+	-- The first Warden (floor 5) raises fewer, frailer ghouls.
+	local first = self.config.mercy and self.floor == 5
+	if e.turns % (if first then 5 else 4) == 0 then
+		local ghoul = self:summonNear(e, "ghoul")
+		if ghoul then
+			if first then
+				ghoul.hp = math.max(1, ghoul.hp - 1)
+				ghoul.maxHp = ghoul.hp
+			end
+			return
+		end
+	end
+	if self:adjacentToPlayer(e) then
+		self:attackPlayer(e)
+		return
+	end
+	if e.rest > 0 then
+		e.rest -= 1
+		return
+	end
+	self:meleeOrMove(e, dist, false)
+	e.rest = 1
+end
+
+--- Rains plague on tiles around you (telegraphed), and calls bats.
+function Game:abbotAct(e, dist)
+	if e.turns % 3 == 0 then
+		local tiles = { { x = self.player.x, y = self.player.y } }
+		local near = {}
+		for y = 0, H - 1 do
+			for x = 0, W - 1 do
+				local d = math.abs(x - self.player.x) + math.abs(y - self.player.y)
+				if d >= 1 and d <= 2 and not self:isWall(x, y) then
+					table.insert(near, { x = x, y = y })
+				end
+			end
+		end
+		local i = 0
+		while i < 3 and #near > 0 do
+			table.insert(tiles, table.remove(near, math.floor(self.combat() * #near) + 1))
+			i += 1
+		end
+		for _, t in tiles do
+			table.insert(self.warnings, { x = t.x, y = t.y, dmg = e.dmg, kind = "plague", src = ENEMY_INFO.abbot.name })
+		end
+		self:push({ t = "warn" })
+		return
+	end
+	if e.turns % 5 == 0 and self:summonNear(e, "bat") then
+		return
+	end
+	if self:adjacentToPlayer(e) then
+		self:attackPlayer(e)
+		return
+	end
+	if e.rest > 0 then
+		e.rest -= 1
+		return
+	end
+	self:meleeOrMove(e, dist, false)
+	e.rest = 1
+end
+
+--- Blinks around the room and fires bolts along its row and column (telegraphed).
+function Game:lichAct(e)
+	if e.turns % 4 == 0 then
+		local spots = {}
+		for y = 0, H - 1 do
+			for x = 0, W - 1 do
+				if self:isFree(x, y) and not self:isSpike(x, y) and math.abs(x - self.player.x) + math.abs(y - self.player.y) >= 3 then
+					table.insert(spots, { x = x, y = y })
+				end
+			end
+		end
+		if #spots > 0 then
+			local to = spots[math.floor(self.combat() * #spots) + 1]
+			self:push({ t = "teleport", id = e.id, from = { x = e.x, y = e.y }, to = to })
+			e.x = to.x
+			e.y = to.y
+			return
+		end
+	end
+	if e.turns % 3 == 0 then
+		for _, d in DIRS do
+			local x, y = e.x + d.x, e.y + d.y
+			while self:inBounds(x, y) and not self:isWall(x, y) do
+				table.insert(self.warnings, { x = x, y = y, dmg = e.dmg, kind = "bolt", src = ENEMY_INFO.lich.name })
+				x += d.x
+				y += d.y
+			end
+		end
+		self:push({ t = "warn" })
+		return
+	end
+	if self:adjacentToPlayer(e) then
+		self:attackPlayer(e)
+	end
+end
+
+function Game:canEnemyEnter(x: number, y: number, ghost: boolean): boolean
+	if not self:inBounds(x, y) then
+		return false
+	end
+	if not ghost and self:isWall(x, y) then
+		return false
+	end
+	if self:unitAt(x, y) then
+		return false
+	end
+	if x == self.player.x and y == self.player.y then
+		return false
+	end
+	return true
+end
+
+function Game:stepToward(e, dist, ghost: boolean)
+	local here = dist[e.y * W + e.x]
+	local best = {}
+	local bestD = if here < 0 then math.huge else here
+	for _, d in DIRS do
+		local nx, ny = e.x + d.x, e.y + d.y
+		if self:canEnemyEnter(nx, ny, ghost) then
+			local nd = dist[ny * W + nx]
+			if nd >= 0 then
+				if nd < bestD then
+					bestD = nd
+					best = { { x = nx, y = ny } }
+				elseif nd == bestD and nd < here then
+					table.insert(best, { x = nx, y = ny })
+				end
+			end
+		end
+	end
+	if #best == 0 then
+		return
+	end
+	local step = best[math.floor(self.combat() * #best) + 1]
+	e.x = step.x
+	e.y = step.y
+	self:unitEnters(e)
+end
+
+function Game:stepRandom(e)
+	local options = filter(DIRS, function(d)
+		return self:canEnemyEnter(e.x + d.x, e.y + d.y, false)
+	end)
+	if #options == 0 then
+		return
+	end
+	local d = options[math.floor(self.combat() * #options) + 1]
+	e.x += d.x
+	e.y += d.y
+	self:unitEnters(e)
+end
+
+--- Tiles an archer's loaded shot will cross, for the telegraph.
+function Game:shotPath(e)
+	if not e.aim then
+		return {}
+	end
+	local path = {}
+	local x, y = e.x + e.aim.x, e.y + e.aim.y
+	while self:inBounds(x, y) and not self:isWall(x, y) and not self:unitAt(x, y) do
+		table.insert(path, { x = x, y = y })
+		x += e.aim.x
+		y += e.aim.y
+	end
+	return path
+end
+
+--- Apply one input character, as in the web game's log: U/D/L/R/W, 0-3 picks, r rest,
+--- a/x accept or leave a floor event, b-m Soul Forge options.
+function Game:input(ch: string)
+	local moves = { U = { 0, -1 }, D = { 0, 1 }, L = { -1, 0 }, R = { 1, 0 }, W = { 0, 0 } }
+	if self.phase == "dead" then
+		return
+	end
+	if moves[ch] then
+		self:act(moves[ch][1], moves[ch][2])
+	elseif ch == "r" then
+		self:choose(-1)
+	elseif ch == "a" or ch == "x" then
+		self:resolveEvent(ch == "a")
+	elseif string.find(FORGE_KEYS, ch, 1, true) then
+		self:forge((string.find(FORGE_KEYS, ch, 1, true) :: number) - 1)
+	elseif tonumber(ch) then
+		self:choose(tonumber(ch) :: number)
+	end
+end
+
+--- Souls a finished run pays, line by line (from src/meta.ts).
+function Game:runSouls(): { { any } }
+	local bosses = 0
+	for _, n in self.stats.bosses do
+		bosses += n
+	end
+	local lines = {
+		{ `Floor {self.floor}`, self.floor * 4 },
+		{ `{self.kills} kills`, self.kills },
+	}
+	if self.stats.elites > 0 then
+		table.insert(lines, { `{self.stats.elites} elites`, self.stats.elites * 3 })
+	end
+	if bosses > 0 then
+		table.insert(lines, { `{bosses} boss{if bosses > 1 then "es" else ""}`, bosses * 20 })
+	end
+	if self.mode == "daily" then
+		local sum = 0
+		for _, l in lines do
+			sum += l[2]
+		end
+		table.insert(lines, { "Daily bonus", math.floor(sum * 0.5 + 0.5) })
+	end
+	return lines
+end
+
+function Game:relicEmojis(max: number?): string
+	local out = {}
+	for i, id in self.relicLog do
+		if i > (max or 12) then
+			break
+		end
+		table.insert(out, BY_ID[id].emoji)
+	end
+	return table.concat(out)
+end
+
+return Game
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="7">
+        <Properties>
+          <string name="Name">Relics</string>
+          <string name="Source"><![CDATA[--!strict
+-- Relic catalogue, ported from src/relics.ts. Order matters: offers are drawn from
+-- this list with a seeded RNG, so it must match the web game exactly.
+
+export type RelicDef = {
+	id: string,
+	name: string,
+	emoji: string,
+	rarity: string,
+	maxStack: number,
+	desc: (n: number) -> string,
+}
+
+export type FusionDef = {
+	id: string,
+	from: { string },
+	grants: { [string]: number },
+	-- Keys of `grants` in source order, so ascended relics unpack the same way every time.
+	grantOrder: { string },
+	tier: number?,
+}
+
+local Relics = {}
+
+local function s(n: number): string
+	return if n > 1 then "s" else ""
+end
+
+local function def(id: string, name: string, emoji: string, rarity: string, maxStack: number, desc: (n: number) -> string): RelicDef
+	return { id = id, name = name, emoji = emoji, rarity = rarity, maxStack = maxStack, desc = desc }
+end
+
+Relics.RELICS = {
+	def("fang", "Vampire Fang", "🦷", "common", 5, function(n) return `Heal {n} HP on each kill.` end),
+	def("heart", "Iron Heart", "🫀", "common", 9, function() return "+3 max HP and heal 3." end),
+	def("whetstone", "Whetstone", "🗡️", "common", 9, function() return "+1 attack." end),
+	def("thorns", "Thorned Mail", "🌵", "common", 5, function(n) return `Enemies that strike you take {n} damage.` end),
+	def("ember", "Ember Brand", "🔥", "common", 5, function(n) return `Your hits set foes ablaze: {n} damage per turn for 3 turns.` end),
+	def("frost", "Frost Sigil", "❄️", "common", 3, function(n) return `Your hits freeze foes for {n} turn{s(n)}.` end),
+	def("storm", "Storm Rune", "⚡", "common", 5, function(n) return `On kill, lightning strikes a random foe for {n + 1} damage.` end),
+	def("bloom", "Corpse Bloom", "💥", "common", 5, function(n) return `Slain foes burst, dealing {n} damage to adjacent foes.` end),
+	def("dust", "Grave Dust", "🌫️", "common", 3, function(n) return `{math.min(50, n * 20)}% chance to dodge attacks.` end),
+	def("mark", "Hunter's Mark", "🎯", "common", 5, function(n) return `Your first hit on each foe deals +{n * 2} damage.` end),
+	def("lantern", "Soul Lantern", "🏮", "common", 5, function(n) return `Every 6 kills, gain +{n} max HP.` end),
+	def("crown", "Cursed Crown", "👑", "cursed", 3, function() return "+2 attack, but -3 max HP." end),
+	def("pact", "Blood Pact", "🩸", "rare", 3, function(n) return `At 4 HP or less, deal {n + 1}x damage.` end),
+	def("whirl", "Whirling Blade", "🌀", "common", 5, function(n) return `Your attacks also hit every other adjacent foe for {n}.` end),
+	def("pike", "Bone Pike", "🔱", "common", 3, function(n) return `Attacks pierce {n} tile{s(n)} behind your target.` end),
+	def("candle", "Votive Candle", "🕯️", "common", 5, function(n) return `Heal {n * 2} HP when you enter a floor.` end),
+	def("hellfire", "Hellfire Pact", "☄️", "rare", 3, function(n) return `Entering a floor deals {n * 2} damage to all foes. You take 1.` end),
+	def("coin", "Ferryman's Coin", "🪙", "rare", 1, function() return "Relic offerings show 4 choices." end),
+	def("dice", "Bone Dice", "🎲", "common", 4, function(n) return `{n * 15}% chance for hits to deal triple damage.` end),
+	def("wildfire", "Wildfire", "🌋", "rare", 1, function() return "Burning foes spread their flames to neighbours when they die." end),
+	def("shatter", "Glacial Shatter", "💎", "rare", 3, function(n) return `Hits on frozen foes deal +{n * 3} damage.` end),
+	def("conductor", "Iron Conductor", "⛓️", "rare", 3, function(n) return `Lightning chains to {n} more foe{s(n)}.` end),
+	def("mirror", "Mirror Shield", "🛡️", "common", 3, function(n) return `Block the first {n} hit{s(n)} on each floor.` end),
+	def("phylactery", "Phylactery", "⚱️", "rare", 1, function() return "Once, survive a killing blow at 1 HP." end),
+	def("flask", "Ichor Flask", "🧪", "common", 3, function(n) return `Potions heal {n * 2} more.` end),
+	def("harvest", "Grim Harvest", "🪓", "rare", 3, function(n) return `Each kill grants +{n} attack until the floor ends.` end),
+	def("echo", "Echo Bell", "🔔", "rare", 2, function(n) return `Every {if n > 1 then "3rd" else "4th"} attack strikes twice.` end),
+	def("necro", "Necrotic Touch", "🦴", "rare", 3, function(n) return `Slain foes have a {n * 15}% chance to rise as your thralls.` end),
+	def("caltrops", "Caltrops", "🪤", "common", 2, function(n) return `Spike traps can't hurt you and deal +{n * 2} damage to foes.` end),
+	def("key", "Skeleton Key", "🗝️", "common", 1, function() return "Iron chests open freely, and each holds a second relic." end),
+	def("mask", "Plague Mask", "🎭", "rare", 3, function(n) return `Foes next to you at the end of your turn take {n} damage.` end),
+	def("tome", "Black Tome", "📕", "rare", 1, function() return "Every 3rd floor you enter grants a random relic." end),
+	def("rosary", "Saint's Rosary", "📿", "common", 3, function(n) return `+{n} damage against the undead.` end),
+	def("idol", "Berserker Idol", "🗿", "common", 3, function(n) return `+{n} attack while at half health or less.` end),
+	def("hourglass", "Stopped Hourglass", "⏳", "rare", 1, function() return "Every 8th turn, time stops: every foe is frozen for a turn." end),
+	def("chalice", "Blood Chalice", "🍷", "common", 3, function(n) return `Resting heals {n * 2} more and potions heal {n} more.` end),
+	def("scale", "Wyrm Scale", "🐉", "common", 3, function(n) return `Hits on you deal {n} less damage (never below 1).` end),
+	def("wisp", "Wisp Lantern", "👻", "rare", 3, function(n) return `A wisp strikes a random foe for {n} damage every turn.` end),
+	def("doom", "Doom Bell", "🛎️", "rare", 2, function(n) return `Every 10th turn the bell tolls: {n * 4} damage to every foe.` end),
+	def("heretic", "Heretic's Codex", "📜", "rare", 1, function() return "Relic offerings show only rare and cursed relics." end),
+	def("moon", "Blood Moon", "🌑", "cursed", 1, function() return "Deal double damage, but every hit on you deals 1 more." end),
+}
+
+--- Relics that start locked in Endless and are bought with Souls.
+Relics.UNLOCKABLE = { "echo", "necro", "caltrops", "key", "mask", "tome", "wisp", "doom", "heretic", "moon" }
+
+Relics.COSTS = {
+	caltrops = 120, key = 120, echo = 220, mask = 260, necro = 300,
+	wisp = 340, tome = 380, doom = 450, heretic = 500, moon = 600,
+}
+
+--- The launch relic set (Daily #1).
+Relics.LEGACY = {
+	"fang", "heart", "whetstone", "thorns", "ember", "frost", "storm", "bloom", "dust", "mark", "lantern", "crown", "pact",
+	"whirl", "pike", "candle", "hellfire", "coin", "dice", "wildfire", "shatter", "conductor", "mirror", "phylactery", "flask",
+	"harvest", "echo", "necro", "caltrops", "key", "mask", "tome",
+}
+
+-- Forges this deep (after the fourth boss) can also ascend two fused relics.
+Relics.ASCEND_FLOOR = 21
+
+local function fusion(id: string, a: string, b: string, grants: { { any } }, tier: number?): FusionDef
+	local map, order = {}, {}
+	for _, g in grants do
+		map[g[1]] = g[2]
+		table.insert(order, g[1])
+	end
+	return { id = id, from = { a, b }, grants = map, grantOrder = order, tier = tier }
+end
+
+Relics.FUSIONS = {
+	fusion("plasma", "ember", "storm", { { "ember", 2 }, { "storm", 2 }, { "conductor", 1 } }),
+	fusion("zero", "frost", "shatter", { { "frost", 2 }, { "shatter", 3 } }),
+	fusion("vheart", "fang", "phylactery", { { "fang", 3 }, { "phylactery", 1 } }),
+	fusion("aegis", "thorns", "mirror", { { "thorns", 3 }, { "mirror", 2 } }),
+	fusion("reaper", "whirl", "pike", { { "whirl", 3 }, { "pike", 2 } }),
+	fusion("pyre", "bloom", "wildfire", { { "bloom", 3 }, { "wildfire", 1 }, { "ember", 1 } }),
+	fusion("eternal", "candle", "lantern", { { "candle", 3 }, { "lantern", 2 } }),
+	fusion("fate", "dice", "mark", { { "dice", 3 }, { "mark", 3 } }),
+	fusion("oath", "pact", "idol", { { "pact", 2 }, { "idol", 3 } }),
+	fusion("lichbook", "necro", "harvest", { { "necro", 3 }, { "harvest", 2 } }),
+	fusion("dragon", "heart", "scale", { { "scale", 3 } }),
+	fusion("twinblade", "echo", "whetstone", { { "echo", 2 }, { "whetstone", 2 } }),
+	fusion("suneater", "plasma", "pyre", { { "plasma", 1 }, { "pyre", 1 }, { "ember", 2 }, { "storm", 2 }, { "conductor", 1 } }, 2),
+	fusion("bastion", "zero", "aegis", { { "zero", 1 }, { "aegis", 1 }, { "frost", 1 }, { "shatter", 2 }, { "thorns", 2 }, { "mirror", 1 } }, 2),
+	fusion("immortal", "vheart", "eternal", { { "vheart", 1 }, { "eternal", 1 }, { "fang", 2 }, { "candle", 2 }, { "lantern", 1 } }, 2),
+	fusion("wager", "fate", "oath", { { "fate", 1 }, { "oath", 1 }, { "dice", 1 }, { "mark", 2 }, { "pact", 1 }, { "idol", 2 } }, 2),
+	fusion("thousand", "reaper", "twinblade", { { "reaper", 1 }, { "twinblade", 1 }, { "whirl", 2 }, { "pike", 1 }, { "whetstone", 3 } }, 2),
+	fusion("dracolich", "lichbook", "dragon", { { "lichbook", 1 }, { "dragon", 1 }, { "necro", 1 }, { "harvest", 2 }, { "scale", 2 } }, 2),
+}
+
+local function fixed(text: string): (n: number) -> string
+	return function()
+		return text
+	end
+end
+
+Relics.FUSED = {
+	def("plasma", "Plasma Brand", "🌩️", "fused", 1, fixed("Burns like 2 Ember Brands, strikes like 2 Storm Runes, and its lightning chains and sets foes ablaze.")),
+	def("zero", "Absolute Zero", "🧊", "fused", 1, fixed("Hits freeze foes for 2 turns, and hits on frozen foes deal +9 damage.")),
+	def("vheart", "Vampire Lord's Heart", "🧛", "fused", 1, fixed("Heal 3 HP on each kill. Survive a killing blow at full HP, once per boss floor.")),
+	def("aegis", "Thorned Aegis", "🌹", "fused", 1, fixed("Block the first 2 hits on each floor. Foes that strike you take 3 damage.")),
+	def("reaper", "Reaper's Scythe", "☠️", "fused", 1, fixed("Attacks hit every other adjacent foe for 3 and pierce 2 tiles behind your target.")),
+	def("pyre", "Funeral Pyre", "🎆", "fused", 1, fixed("Your hits burn, slain foes burst for 3, and burning foes spread their flames when they die.")),
+	def("eternal", "Eternal Flame", "🪔", "fused", 1, fixed("Heal 6 HP on each new floor. Every 6 kills, gain +2 max HP.")),
+	def("fate", "Fate's Edge", "🃏", "fused", 1, fixed("45% chance for hits to deal triple damage. Your first hit on each foe deals +6.")),
+	def("oath", "Berserker's Oath", "😈", "fused", 1, fixed("+3 attack at half health or less, and triple damage at 4 HP or less.")),
+	def("lichbook", "Book of the Dead", "📖", "fused", 1, fixed("Slain foes have a 45% chance to rise as thralls. Each kill grants +2 attack until the floor ends.")),
+	def("dragon", "Dragonheart", "🐲", "fused", 1, fixed("+6 max HP when forged. Hits on you deal 3 less damage (never below 1).")),
+	def("twinblade", "Twin Blade", "⚔️", "fused", 1, fixed("+2 attack, and every 3rd attack strikes twice.")),
+	def("suneater", "Sun Eater", "☀️", "ascended", 1, fixed("Plasma Brand and Funeral Pyre in one, plus 2 more Ember Brands, 2 more Storm Runes and a longer lightning chain.")),
+	def("bastion", "Glacier Bastion", "🏔️", "ascended", 1, fixed("Absolute Zero and Thorned Aegis in one: block 3 hits a floor, freeze for 3 turns, +15 damage to frozen foes, 5 thorns.")),
+	def("immortal", "Immortal Heart", "💖", "ascended", 1, fixed("Vampire Lord's Heart and Eternal Flame in one: heal 5 per kill, 10 per floor, and rise again at full HP every boss floor.")),
+	def("wager", "Death's Wager", "⚰️", "ascended", 1, fixed("Fate's Edge and Berserker's Oath in one: 60% triple hits, +10 on first strikes, and fury when wounded.")),
+	def("thousand", "Thousand Cuts", "🌪️", "ascended", 1, fixed("Reaper's Scythe and Twin Blade in one: +5 attack, every 3rd attack strikes twice, 5 damage sweeps around you and attacks pierce 3 tiles.")),
+	def("dracolich", "Dracolich", "👁️", "ascended", 1, fixed("+10 max HP when forged. Book of the Dead and Dragonheart in one: 60% of the slain rise, +4 attack per kill, 5 less damage taken.")),
+}
+
+Relics.BY_ID = {} :: { [string]: RelicDef }
+for _, r in Relics.RELICS do
+	Relics.BY_ID[r.id] = r
+end
+for _, r in Relics.FUSED do
+	Relics.BY_ID[r.id] = r
+end
+
+Relics.FUSION_BY_ID = {} :: { [string]: FusionDef }
+for _, f in Relics.FUSIONS do
+	Relics.FUSION_BY_ID[f.id] = f
+end
+
+Relics.RARITY_WEIGHT = { common = 10, rare = 4, cursed = 5, fused = 0, ascended = 0 }
+
+Relics.RARITY_COLOR = {
+	common = Color3.fromRGB(201, 209, 224),
+	rare = Color3.fromRGB(127, 180, 255),
+	cursed = Color3.fromRGB(210, 58, 70),
+	fused = Color3.fromRGB(159, 232, 255),
+	ascended = Color3.fromRGB(242, 193, 78),
+}
+
+--- Relic counts plus everything fused and ascended relics grant.
+function Relics.withFusions(relics: { [string]: number }): { [string]: number }
+	local out = table.clone(relics)
+	local open = {}
+	for _, f in Relics.FUSIONS do
+		if (relics[f.id] or 0) > 0 then
+			table.insert(open, f.id)
+		end
+	end
+	while #open > 0 do
+		local f = Relics.FUSION_BY_ID[table.remove(open) :: string]
+		for _, id in f.grantOrder do
+			out[id] = (out[id] or 0) + f.grants[id]
+			if Relics.FUSION_BY_ID[id] then
+				table.insert(open, id)
+			end
+		end
+	end
+	return out
+end
+
+function Relics.contains(list: { string }, id: string): boolean
+	return table.find(list, id) ~= nil
+end
+
+return Relics
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="8">
+        <Properties>
+          <string name="Name">Rng</string>
+          <string name="Source"><![CDATA[--!strict
+-- Small deterministic RNG, bit-for-bit identical to src/rng.ts, so a seed builds the
+-- same crypt on Roblox as on onemorecrypt.com.
+
+local Rng = {}
+
+export type Rng = () -> number
+
+local TWO32 = 4294967296
+
+-- Math.imul: the low 32 bits of a 32x32-bit product, without losing precision in doubles.
+local function imul(a: number, b: number): number
+	a %= TWO32
+	b %= TWO32
+	local ah, al = a // 65536, a % 65536
+	local bh, bl = b // 65536, b % 65536
+	return (((ah * bl + al * bh) % 65536) * 65536 + al * bl) % TWO32
+end
+Rng.imul = imul
+
+function Rng.mulberry32(seed: number): Rng
+	local a = seed % TWO32
+	return function(): number
+		a = (a + 0x6d2b79f5) % TWO32
+		local t = a
+		t = imul(bit32.bxor(t, bit32.rshift(t, 15)), bit32.bor(t, 1))
+		t = bit32.bxor(t, (t + imul(bit32.bxor(t, bit32.rshift(t, 7)), bit32.bor(t, 61))) % TWO32)
+		return bit32.bxor(t, bit32.rshift(t, 14)) / TWO32
+	end
+end
+
+local function partString(part: string | number): string
+	if type(part) == "number" then
+		if part == math.floor(part) then
+			return string.format("%d", part)
+		end
+		return tostring(part)
+	end
+	return part
+end
+
+--- Hash any number of values into a 32-bit seed.
+function Rng.hashSeed(...: string | number): number
+	local h = 2166136261
+	for i = 1, select("#", ...) do
+		local s = partString((select(i, ...)))
+		for c = 1, #s do
+			h = bit32.bxor(h, string.byte(s, c))
+			h = imul(h, 16777619)
+		end
+		h = bit32.bxor(h, 0x9e3779b9)
+		h = imul(h, 16777619)
+	end
+	return h
+end
+
+function Rng.randInt(rng: Rng, min: number, maxInclusive: number): number
+	return min + math.floor(rng() * (maxInclusive - min + 1))
+end
+
+function Rng.weightedPick<T>(rng: Rng, items: { T }, weight: (T) -> number): T
+	local total = 0
+	for _, t in items do
+		total += weight(t)
+	end
+	local r = rng() * total
+	for _, t in items do
+		r -= weight(t)
+		if r <= 0 then
+			return t
+		end
+	end
+	return items[#items]
+end
+
+return Rng
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="9">
+        <Properties>
+          <string name="Name">Sprites</string>
+          <string name="Source"><![CDATA[--!strict
+-- Generated by roblox/scripts/gen-sprites.ts from the web game's pixel art. Do not edit.
+
+local Sprites = {}
+
+Sprites.PALETTE = {
+	["k"] = Color3.fromHex("#0d0812"),
+	["b"] = Color3.fromHex("#e8dcc4"),
+	["B"] = Color3.fromHex("#a89a80"),
+	["r"] = Color3.fromHex("#d23a46"),
+	["R"] = Color3.fromHex("#701826"),
+	["g"] = Color3.fromHex("#7f9a52"),
+	["G"] = Color3.fromHex("#43572f"),
+	["p"] = Color3.fromHex("#3b4f7d"),
+	["P"] = Color3.fromHex("#22304f"),
+	["s"] = Color3.fromHex("#c9d1e0"),
+	["S"] = Color3.fromHex("#5d667a"),
+	["y"] = Color3.fromHex("#f2c14e"),
+	["w"] = Color3.fromHex("#ffffff"),
+	["c"] = Color3.fromHex("#9fe8ff"),
+	["C"] = Color3.fromHex("#3e8db5"),
+	["n"] = Color3.fromHex("#7b6a8c"),
+	["v"] = Color3.fromHex("#6b3a96"),
+	["V"] = Color3.fromHex("#3a1d55"),
+	["o"] = Color3.fromHex("#7a5532"),
+	["l"] = Color3.fromHex("#ff9aa5"),
+	["L"] = Color3.fromHex("#d8323f"),
+	["D"] = Color3.fromHex("#7a1220"),
+	["h"] = Color3.fromHex("#fff6e0"),
+	["e"] = Color3.fromHex("#ff4d5a"),
+	["m"] = Color3.fromHex("#a3bf6a"),
+	["q"] = Color3.fromHex("#2a3a1e"),
+	["x"] = Color3.fromHex("#4a0f1c"),
+	["u"] = Color3.fromHex("#9a8bab"),
+	["N"] = Color3.fromHex("#4f4560"),
+	["a"] = Color3.fromHex("#1f4a63"),
+	["f"] = Color3.fromHex("#8f5cc0"),
+	["j"] = Color3.fromHex("#c9c36a"),
+	["Y"] = Color3.fromHex("#a8781f"),
+}
+
+-- Cloak colours (p light, P dark) by hero.
+Sprites.CLOAKS = {
+	default = { p = Color3.fromHex("#3b4f7d"), P = Color3.fromHex("#22304f") },
+	rogue = { p = Color3.fromHex("#2f5238"), P = Color3.fromHex("#1b3021") },
+	necro = { p = Color3.fromHex("#45285a"), P = Color3.fromHex("#26142f") },
+	paladin = { p = Color3.fromHex("#c9c3b2"), P = Color3.fromHex("#857d6c") },
+	ranger = { p = Color3.fromHex("#55693a"), P = Color3.fromHex("#33421f") },
+	mage = { p = Color3.fromHex("#2f4aa8"), P = Color3.fromHex("#1a2a66") },
+	barbarian = { p = Color3.fromHex("#7a3f24"), P = Color3.fromHex("#4a2414") },
+	pact = { p = Color3.fromHex("#8a2232"), P = Color3.fromHex("#4f0f1b") },
+	dust = { p = Color3.fromHex("#6d6880"), P = Color3.fromHex("#433f52") },
+	crown = { p = Color3.fromHex("#4b3a78"), P = Color3.fromHex("#2c2148") },
+}
+
+Sprites.PLAYER = { "....kkkk....", "...kPPPPk...", "..kPPPPPPk..", "..kPkkkkPk..", "..kPkykyPk.s", "...kPPPPk.ks", "..kpPppPpkks", ".kppPpppPpky", ".kpkpppppkk.", "..kkpPpPpk..", "...kSk.kSk..", "...kk...kk.." }
+Sprites.POTION = { ".....kk.....", "....kook....", "....kook....", "....kwsk....", "....kwck....", "...kLlLLk...", "..kLwLLLLk..", "..kLlLLLLk..", "..kLLLLLDk..", "..kDLLLDDk..", "...kDDDDk...", "....kkkk...." }
+
+-- Each enemy: two idle frames and an attack pose, facing right.
+Sprites.ENEMIES = {
+	ghoul = {
+		idle = { { "............", "...kkkkk....", "..kmmmggk...", "..kmgggggk..", "..kgkegkek..", "..kggggggk..", "...kGwkwGk..", "..kkgGqGgkkk", ".kmgkGqGkmgk", ".kgk.kGgk.k.", "....kgkgk...", "...kk..kk..." }, { "............", "............", "...kkkkk....", "..kmmmggk...", "..kmgggggk..", "..kgkegkek..", "..kggggggk..", "..kkGkRkGkk.", ".kmgGqGgkmgk", ".kgkkGqGk.k.", "...kgk.kgk..", "..kk.....kk." } },
+		attack = { "............", "....kkkkk...", "...kmmmggk..", "...kmgggggk.", "...kgkegkek.", "...kggggggk.", "....kGRRRGk.", "..kkgGqGgkkk", ".kgGkGqGkmgk", "kgk..kGgk.kk", "....kgk.kgk.", "...kk....kk." },
+	},
+	bat = {
+		idle = { { "............", "k..........k", "kk...kk...kk", "kxk.kRRk.kxk", "kxRkkRRkkRxk", "kxRRkrrkRRxk", ".kxRerreRxk.", "..kxRrrRxk..", "...kkRRkk...", "....kwwk....", ".....kk.....", "............" }, { "............", "............", ".....kk.....", "....kRRk....", "...kkRRkk...", "..kRkrrkRk..", ".kxRerreRxk.", "kxxRRrrRRxxk", "kxRkkRRkkRxk", "kxk.kwwk.kxk", "kk...kk...kk", "k..........k" } },
+		attack = { "............", "............", ".....kk.....", "....kRRk....", "...kkRRkk...", "..kRkrrkRk..", ".kxReeeeRxk.", "kxxRRrrRRxxk", "kxRkwRRwkRxk", "kxk.kRRk.kxk", "kk...kk...kk", "k..........k" },
+	},
+	archer = {
+		idle = { { "...kkkk.....", "..khbbbk..k.", "..kbkekk..ko", "..kbbbbk.k.o", "...kBwBk.k.o", "..kkkbkkkkbo", ".kbkbbBk.k.o", ".kk.kbBk.k.o", "....kbBk..ko", "...kbkkbk.k.", "...kb..bk...", "..kk....kk.." }, { "............", "...kkkk...k.", "..khbbbk..ko", "..kbkekk.k.o", "..kbbbbk.k.o", "...kBkBk.k.o", "..kkkbkkkkbo", ".kbkbbBk.k.o", ".kk.kbBk..ko", "...kbkkbk.k.", "..kb....bk..", ".kk......kk." } },
+		attack = { "...kkkk...k.", "..khbbbk.k.o", "..kbkekk.k.o", "..kbbbbkk..o", "...kBwBkk..o", "..kkkbkssssy", ".kbkbbBkk..o", ".kk.kbBkk..o", "....kbBk.k.o", "...kbkkbk.k.", "...kb..bk...", "..kk....kk.." },
+	},
+	brute = {
+		idle = { { "..kkkkkkkk..", ".kuunnnnnNk.", ".kneknnekNk.", ".knnnnnnnNk.", ".knkwkwkwNk.", "kkkNnnnnNkkk", "kunnnSSnnnNk", "kunknSSnkNNk", "knnknnnnkNNk", "kkkkNnnNkkkk", "...knNknNk..", "...kkk.kkk.." }, { "............", "..kkkkkkkk..", ".kuunnnnnNk.", ".kneknnekNk.", ".knnnnnnnNk.", "kknkwkwkwNkk", "kunNnnnnNnNk", "kunnnSSnnnNk", "knnknSSnkNNk", "kkkkNnnNkkkk", "..knNk.knNk.", "..kkk...kkk." } },
+		attack = { "kkk......kkk", "kuk.kkkk.kNk", "knkkunnnkkNk", ".kknekneNkk.", "..knnnnnNk..", "..knRRRRNk..", ".kkNnnnnNkk.", ".knnnSSnnNk.", ".knnnSSnnNk.", ".kkkNnnNkkk.", "...knNknNk..", "...kkk.kkk.." },
+	},
+	wraith = {
+		idle = { { "....kkkk....", "...kwccck...", "..kcccccck..", "..kckcckck..", "..kcwccwck..", "..kccaacck..", ".kCcccccCk..", "kCcCccCcCCk.", ".kCaCCcCaCk.", "..kCkaCkCk..", "..k.kak.kk..", ".....k......" }, { "............", "....kkkk....", "...kwccck...", "..kcccccck..", "..kckcckck..", "..kcwccwck..", "..kccaacck..", ".kCcccccCk..", "kCcCccCcCCk.", ".kCaCCcCaCk.", "..kCkCaCkk..", "...kk.ak...." } },
+		attack = { "....kkkk....", "...kwccck...", "..kcccccck..", "..kckcckck..", "..kcwccwck..", "..kcaaaack..", "kkCcccccCkkk", "cCcCccCcCCkc", "k.kaCCcCaCk.", "..kCkaCkCk..", "..k.kak.kk..", ".....k......" },
+	},
+	boss = {
+		idle = { { "..y.y..y.y..", "..yYyyyyYy..", "..khbbbbbk..", ".khkkbbkkbk.", ".kbkebbkebk.", ".kbbbbbbbbk.", "..kbkwkwkk..", ".kRRkbbkRRk.", "kRrRRbbRRrRk", "kRkRrbbrRkRk", "kk.kRRRRk.kk", "...kk..kk..." }, { "..w.y..y.y..", "..yYyyyyYy..", "..khbbbbbk..", ".khkkbbkkbk.", ".kbkebbkebk.", ".kbbbbbbbbk.", "..kbkwkwkk..", ".kRRkbbkRRk.", "kRRrRbbRrRRk", "kRkRRbbRRkRk", ".kkkRRRRkkk.", "...kk..kk..." } },
+		attack = { "..y.y..y.y..", "..yYyyyyYy..", "..khbbbbbk..", ".khkkbbkkbk.", ".kbkebbkebk.", ".kbbbbbbbbk.", "..kbkRRkbk..", "kkRRkbbkRRkk", "bkRRRbbRRRkb", "kRkRrbbrRkRk", "kk.kRRRRk.kk", "...kk..kk..." },
+	},
+	abbot = {
+		idle = { { "...kkkkk....", "..kgGGGGk...", ".kgGGGGGGk..", ".kGkbbbkGk..", ".kGbekbekk..", "..kbbjbbbbk.", "..kGbbbk.kk.", ".kgGGGGGk.o.", "kgGqGGqGGkok", "kGgGGGGgGkjk", ".kGGqGGGk.k.", "..kk..kk...." }, { "...kkkkk....", "..kgGGGGk...", ".kgGGGGGGk..", ".kGkbbbkGk..", ".kGbekbekk..", "..kbbjbbbbk.", "..kGbbbk.k..", ".kgGGGGGkko.", "kgGqGGqGGk.o", "kGgGGGGgGk.k", ".kGGqGGGk.jk", "..kk..kk..k." } },
+		attack = { "...kkkkk.jj.", "..kgGGGGkjjk", ".kgGGGGGGkjk", ".kGkbbbkGkok", ".kGbekbekko.", "..kbbjbbbko.", "..kGbbbkkk..", ".kgGGGGGk...", "kgGqGGqGGk..", "kGgGGGGgGk..", ".kGGqGGGk...", "..kk..kk...." },
+	},
+	lich = {
+		idle = { { ".c..c..c..c.", ".cccccccccc.", "..khbbbbbk..", ".kbkckkckbk.", ".kbbbbbbbbk.", "..kbkbkbkk..", ".kVVkbbkVVk.", "kVfVvbbvVfVk", "kVvVVvvVVvVk", "kVkVVfVVVkVk", ".kVVvVVvVVk.", "..kkVVVVkk.." }, { "c..c..c..c..", ".cccccccccc.", "..khbbbbbk..", ".kbkwkkwkbk.", ".kbbbbbbbbk.", "..kbkbkbkk..", ".kVVkbbkVVk.", "kVfVvbbvVfVk", "kVvVVvvVVvVk", "kVkVVfVVVkVk", ".kVVvVVvVVk.", "..kkVVVVkk.." } },
+		attack = { ".c..c..c..c.", ".cccccccccc.", "..khbbbbbk..", ".kbkwkkwkbk.", "ckbbbbbbbbkc", "ckkbkbkbkkkc", "kbVVkbbkVVbk", ".kfVvbbvVfk.", ".kvVVvvVVvk.", ".kVVVfVVVVk.", ".kVVvVVvVVk.", "..kkVVVVkk.." },
+	},
+	thrall = {
+		idle = { { "....kkkk....", "...khbbbk...", "...kgbbgk...", "...kbkkbk...", "....kbbk....", "..kkbbbbkk.s", ".kb.kbBk.kks", ".kb.kbBk..ks", "....kbbk..ky", "...kb..bk...", "...kb..bk...", "..kk....kk.." }, { "............", "....kkkk....", "...khbbbk...", "...kgbbgk...", "...kbkkbk..s", "....kbbk...s", "..kkbbbbkkks", ".kb.kbBk..ky", ".kb.kbBk....", "...kbkkbk...", "..kb....bk..", ".kk......kk." } },
+		attack = { "....kkkk...s", "...khbbbk..s", "...kgbbgk..s", "...kbkkbk.ks", "....kbbk.kky", "..kkbbbbkk..", ".kb.kbBk....", ".kb.kbBk....", "....kbbk....", "...kb..bk...", "..kb....bk..", ".kk......kk." },
+	},
+}
+
+return Sprites
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="ServerScriptService" referent="10">
+    <Properties>
+      <string name="Name">ServerScriptService</string>
+    </Properties>
+    <Item class="Script" referent="11">
+      <Properties>
+        <string name="Name">CryptServer</string>
+        <token name="RunContext">0</token>
+        <string name="Source"><![CDATA[--!nonstrict
+-- One More Crypt server. Each player's run lives here, so the client only sends
+-- inputs and draws what comes back: nobody can edit their HP or skip floors.
+-- Saves Souls, unlocks and best depths to DataStores, keeps one official daily
+-- attempt per player, and runs the daily and Endless leaderboards.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local DataStoreService = game:GetService("DataStoreService")
+local RunService = game:GetService("RunService")
+
+local Shared = ReplicatedStorage:WaitForChild("OneMoreCrypt")
+local Game = require(Shared.Game)
+local Relics = require(Shared.Relics)
+local Content = require(Shared.Content)
+local Daily = require(Shared.Daily)
+local Rng = require(Shared.Rng)
+
+-- The board is the whole game: no avatar to walk around.
+Players.CharacterAutoLoads = false
+
+local remote = Instance.new("RemoteFunction")
+remote.Name = "Crypt"
+remote.Parent = Shared
+
+local presence = Instance.new("IntValue")
+presence.Name = "SoulsInCrypt"
+presence.Parent = Shared
+
+-- The seed name the web game has used since launch, so every daily is the same crypt everywhere.
+local DAILY_SEED_NAME = "cryptfall-daily"
+local FORGE_DAILY = 2
+local MERCY_DAILY = 4
+local PROFILE_VERSION = 1
+
+-- ---------- storage ----------
+
+local storeOk, profileStore = pcall(function()
+	return DataStoreService:GetDataStore("OneMoreCrypt_Profiles_v1")
+end)
+if not storeOk then
+	warn("[One More Crypt] DataStores unavailable; progress will not be saved. In Studio, turn on Game Settings > Security > Enable Studio Access to API Services.")
+	profileStore = nil
+end
+-- GetDataStore succeeds even when requests will fail (Studio without API access), so probe once.
+if profileStore then
+	local ok = pcall(function()
+		profileStore:GetAsync("probe")
+	end)
+	if not ok then
+		warn("[One More Crypt] DataStores unavailable; progress will not be saved. In Studio, turn on Game Settings > Security > Enable Studio Access to API Services.")
+		profileStore = nil
+	end
+end
+
+local function orderedStore(name: string)
+	if not profileStore then
+		return nil
+	end
+	local ok, store = pcall(function()
+		return DataStoreService:GetOrderedDataStore(name)
+	end)
+	return if ok then store else nil
+end
+
+local endlessBoard = orderedStore("OneMoreCrypt_Endless_v1")
+
+local function dailyBoard(dailyNo: number)
+	return orderedStore("OneMoreCrypt_Daily_v1_" .. dailyNo)
+end
+
+local function newProfile()
+	return {
+		version = PROFILE_VERSION,
+		souls = 0,
+		earned = 0,
+		heroes = { "knight" },
+		relics = {},
+		hero = "knight",
+		bestEndless = 0,
+		runs = 0,
+		-- dailyNo (as a string key) -> deepest floor reached in the official attempt
+		daily = {},
+		-- The run in progress, so leaving mid-run loses nothing: rebuilt from its inputs.
+		active = nil,
+	}
+end
+
+local profiles = {} -- [Player] = profile
+local runs = {} -- [Player] = Game
+local runMeta = {} -- [Player] = { mode, dailyNo }
+local lastInput = {} -- [Player] = os.clock()
+
+local function loadProfile(player: Player)
+	local profile = newProfile()
+	if profileStore then
+		local ok, data = pcall(function()
+			return profileStore:GetAsync("u" .. player.UserId)
+		end)
+		if ok and type(data) == "table" then
+			for k, v in data do
+				profile[k] = v
+			end
+		elseif not ok then
+			warn("[One More Crypt] Could not load profile:", data)
+		end
+	end
+	return profile
+end
+
+--- Remember the run in progress on the profile, so it can be resumed later.
+local function captureActive(player: Player)
+	local profile = profiles[player]
+	if not profile then
+		return
+	end
+	local g = runs[player]
+	local meta = runMeta[player]
+	if g and meta and not g:isOver() then
+		profile.active = {
+			mode = meta.mode,
+			seed = g.seed,
+			dailyNo = meta.dailyNo,
+			hero = g.config.hero,
+			relics = profile.relics,
+			forge = g.config.forge,
+			mercy = g.config.mercy,
+			legacy = meta.legacy,
+			inputs = meta.inputs,
+		}
+	end
+end
+
+local function saveProfile(player: Player)
+	local profile = profiles[player]
+	if not profile then
+		return
+	end
+	captureActive(player)
+	if not profileStore then
+		return
+	end
+	local ok, err = pcall(function()
+		profileStore:SetAsync("u" .. player.UserId, profile)
+	end)
+	if not ok then
+		warn("[One More Crypt] Could not save profile:", err)
+	end
+end
+
+local function submitScore(store, player: Player, score: number)
+	if not store then
+		return
+	end
+	task.spawn(function()
+		pcall(function()
+			store:UpdateAsync("u" .. player.UserId, function(old)
+				if old and old >= score then
+					return nil
+				end
+				return score
+			end)
+		end)
+	end)
+end
+
+-- Leaderboards are cached for a minute so busy servers stay inside DataStore limits.
+local boardCache = {}
+local function readBoard(key: string, store)
+	local cached = boardCache[key]
+	if cached and os.clock() - cached.at < 60 then
+		return cached.rows
+	end
+	local rows = {}
+	if store then
+		local ok, pages = pcall(function()
+			return store:GetSortedAsync(false, 20)
+		end)
+		if ok then
+			for i, entry in pages:GetCurrentPage() do
+				local userId = tonumber(string.sub(entry.key, 2))
+				local name = "Unknown soul"
+				if userId then
+					local okName, n = pcall(Players.GetNameFromUserIdAsync, Players, userId)
+					if okName then
+						name = n
+					end
+				end
+				table.insert(rows, { rank = i, name = name, score = entry.value })
+			end
+		end
+	end
+	boardCache[key] = { at = os.clock(), rows = rows }
+	return rows
+end
+
+-- ---------- runs ----------
+
+local function unlockedRelics(profile)
+	local out = {}
+	for _, id in profile.relics do
+		if Relics.contains(Relics.UNLOCKABLE, id) then
+			table.insert(out, id)
+		end
+	end
+	return out
+end
+
+local function dailyConfig(dailyNo: number)
+	return {
+		hero = Content.dailyHero(dailyNo),
+		pool = Game.fullPool(dailyNo <= 1),
+		forge = dailyNo >= FORGE_DAILY,
+		mercy = dailyNo >= MERCY_DAILY,
+	}
+end
+
+local function relicView(id: string, n: number)
+	local def = Relics.BY_ID[id]
+	return { id = id, n = n, name = def.name, emoji = def.emoji, rarity = def.rarity, desc = def.desc(math.max(1, n)) }
+end
+
+--- Everything the client needs to draw the board and menus.
+local function snapshot(g)
+	local walls, spikes = {}, {}
+	for i = 0, Game.W * Game.H - 1 do
+		if g.walls[i] then
+			table.insert(walls, i)
+		end
+		if g.spikes[i] then
+			table.insert(spikes, i)
+		end
+	end
+	local enemies = {}
+	for _, e in g.enemies do
+		if not e.dead then
+			local path = {}
+			for _, p in g:shotPath(e) do
+				table.insert(path, { x = p.x, y = p.y })
+			end
+			table.insert(enemies, {
+				id = e.id, kind = e.kind, x = e.x, y = e.y, hp = e.hp, maxHp = e.maxHp, elite = e.elite or "",
+				frozen = e.frozen, burn = e.burn, ally = e.ally, shield = e.shield, path = path,
+				name = Game.ENEMY_INFO[e.kind].name,
+			})
+		end
+	end
+	local relics = {}
+	local seen = {}
+	for _, id in g.relicLog do
+		if not seen[id] then
+			seen[id] = true
+			table.insert(relics, relicView(id, g:own(id)))
+		end
+	end
+	local offer = nil
+	if g.offer then
+		local picks = {}
+		for _, r in g.offer.relics do
+			table.insert(picks, relicView(r.id, g:own(r.id) + 1))
+		end
+		offer = { relics = picks, restHeal = g.offer.restHeal }
+	end
+	local feature = nil
+	if g.feature then
+		local f = Content.FEATURES[g.feature.kind]
+		feature = {
+			x = g.feature.x, y = g.feature.y, kind = g.feature.kind, used = g.feature.used,
+			name = f.name, text = f.text, accept = f.accept, leave = f.leave,
+		}
+	end
+	local forge = {}
+	if g.phase == "event" and g.feature and g.feature.kind == "forge" then
+		for i, f in g:forgeOptions() do
+			local a, b = Relics.BY_ID[f.from[1]], Relics.BY_ID[f.from[2]]
+			local made = Relics.BY_ID[f.id]
+			table.insert(forge, {
+				index = i - 1, id = f.id, name = made.name, emoji = made.emoji, rarity = made.rarity, desc = made.desc(1),
+				recipe = `{a.emoji} {a.name} + {b.emoji} {b.name}`,
+			})
+		end
+	end
+	local warnings = {}
+	for _, w in g.warnings do
+		table.insert(warnings, { x = w.x, y = w.y, kind = w.kind })
+	end
+	return {
+		mode = g.mode,
+		dailyNo = g.dailyNo,
+		hero = g.config.hero,
+		heroName = Content.HERO_BY_ID[g.config.hero].name,
+		floor = g.floor,
+		phase = g.phase,
+		hp = g.player.hp,
+		maxHp = g.player.maxHp,
+		x = g.player.x,
+		y = g.player.y,
+		atk = g:atk(),
+		shield = g.shieldCharges,
+		kills = g.kills,
+		turns = g.turns,
+		shadowReady = g:shadowReady(),
+		boss = g:isBossFloor(),
+		walls = walls,
+		spikes = spikes,
+		stairs = { x = g.stairs.x, y = g.stairs.y },
+		stairsOpen = g.stairsOpen,
+		potion = if g.potion then { x = g.potion.x, y = g.potion.y } else nil,
+		feature = feature,
+		warnings = warnings,
+		enemies = enemies,
+		relics = relics,
+		emojis = g:relicEmojis(20),
+		offer = offer,
+		forge = forge,
+		canAccept = g:canAcceptEvent(),
+		killedBy = g.killedBy,
+	}
+end
+
+local function profileView(player: Player)
+	local profile = profiles[player]
+	local today = Daily.number()
+	local heroes = {}
+	for _, h in Content.HEROES do
+		table.insert(heroes, {
+			id = h.id, name = h.name, hp = h.hp, cost = h.cost, perk = h.perk, perkDesc = h.perkDesc,
+			owned = Relics.contains(profile.heroes, h.id),
+		})
+	end
+	local forbidden = {}
+	for _, id in Relics.UNLOCKABLE do
+		local def = Relics.BY_ID[id]
+		table.insert(forbidden, {
+			id = id, name = def.name, emoji = def.emoji, rarity = def.rarity, desc = def.desc(1),
+			cost = Relics.COSTS[id], owned = Relics.contains(profile.relics, id),
+		})
+	end
+	local played = profile.daily[tostring(today)]
+	local active = profile.active
+	return {
+		souls = profile.souls,
+		earned = profile.earned,
+		hero = profile.hero,
+		bestEndless = profile.bestEndless,
+		heroes = heroes,
+		forbidden = forbidden,
+		daily = {
+			number = today,
+			hero = Content.HERO_BY_ID[Content.dailyHero(today)].name,
+			played = played,
+			resumable = active ~= nil and active.mode == "daily" and active.dailyNo == today,
+			secondsLeft = Daily.secondsUntilNext(),
+		},
+		endlessResumable = active ~= nil and active.mode == "endless",
+		online = profileStore ~= nil,
+	}
+end
+
+local function finishRun(player: Player, g)
+	local profile = profiles[player]
+	local meta = runMeta[player]
+	local lines = g:runSouls()
+	local total = 0
+	for _, l in lines do
+		total += l[2]
+	end
+	profile.souls += total
+	profile.earned += total
+	profile.runs += 1
+	local newBest = false
+	local score = g.floor * 10000 + math.min(9999, g.kills)
+	if meta.mode == "daily" then
+		submitScore(dailyBoard(meta.dailyNo), player, score)
+		boardCache["daily" .. meta.dailyNo] = nil
+	else
+		if g.floor > profile.bestEndless then
+			profile.bestEndless = g.floor
+			newBest = true
+		end
+		submitScore(endlessBoard, player, score)
+		boardCache.endless = nil
+	end
+	runs[player] = nil
+	runMeta[player] = nil
+	profile.active = nil
+	task.spawn(saveProfile, player)
+	local outLines = {}
+	for _, l in lines do
+		table.insert(outLines, { label = l[1], souls = l[2] })
+	end
+	return { souls = total, lines = outLines, newBest = newBest, bestEndless = profile.bestEndless, emojis = g:relicEmojis(20) }
+end
+
+local function startRun(player: Player, mode: string, heroId: string?)
+	local profile = profiles[player]
+	local active = profile.active
+	if mode == "daily" then
+		local today = Daily.number()
+		-- Rejoining mid-attempt rebuilds the run from its inputs.
+		if active and active.mode == "daily" and active.dailyNo == today then
+			local g = Game.new("daily", active.seed, today, dailyConfig(today))
+			for k = 1, #active.inputs do
+				g:input(string.sub(active.inputs, k, k))
+			end
+			g.events = {}
+			runs[player] = g
+			runMeta[player] = { mode = "daily", dailyNo = today, inputs = active.inputs }
+			return g
+		end
+		if profile.daily[tostring(today)] then
+			return nil, "You have already braved today's crypt. A new one opens at midnight Central Time; try Endless meanwhile."
+		end
+		local g = Game.new("daily", Rng.hashSeed(DAILY_SEED_NAME, today), today, dailyConfig(today))
+		profile.daily[tostring(today)] = 1
+		profile.active = nil
+		runs[player] = g
+		runMeta[player] = { mode = "daily", dailyNo = today, inputs = "" }
+		task.spawn(saveProfile, player)
+		return g
+	end
+
+	if heroId == "resume" and active and active.mode == "endless" then
+		local pool = Game.basePool(unlockedRelics({ relics = active.relics or {} }))
+		local g = Game.new("endless", active.seed, 0, { hero = active.hero, pool = pool, forge = true, mercy = true })
+		for k = 1, #active.inputs do
+			g:input(string.sub(active.inputs, k, k))
+		end
+		g.events = {}
+		runs[player] = g
+		runMeta[player] = { mode = "endless", dailyNo = 0, inputs = active.inputs }
+		return g
+	end
+	local hero = if heroId and Relics.contains(profile.heroes, heroId) then heroId else profile.hero
+	if not Relics.contains(profile.heroes, hero) then
+		hero = "knight"
+	end
+	profile.hero = hero
+	local seed = Random.new():NextInteger(0, 2147483646) * 2 + Random.new():NextInteger(0, 1)
+	local g = Game.new("endless", seed, 0, { hero = hero, pool = Game.basePool(unlockedRelics(profile)), forge = true, mercy = true })
+	profile.active = nil
+	runs[player] = g
+	runMeta[player] = { mode = "endless", dailyNo = 0, inputs = "" }
+	return g
+end
+
+local VALID_INPUT = "^[UDLRWrax0-3b-m]$"
+
+local handlers = {}
+
+function handlers.profile(player: Player)
+	return { profile = profileView(player) }
+end
+
+function handlers.start(player: Player, req)
+	if runs[player] and not runs[player]:isOver() and req.mode ~= "daily" then
+		-- Starting a new Endless run abandons the current one.
+		runs[player] = nil
+	end
+	local g, err = startRun(player, req.mode == "daily" and "daily" or "endless", req.hero)
+	if not g then
+		return { error = err, profile = profileView(player) }
+	end
+	return { state = snapshot(g), events = {} }
+end
+
+function handlers.input(player: Player, req)
+	local g = runs[player]
+	if not g or type(req.ch) ~= "string" or not string.match(req.ch, VALID_INPUT) then
+		return { error = "no run" }
+	end
+	-- Turn-based, but keep a lid on spam.
+	local now = os.clock()
+	if lastInput[player] and now - lastInput[player] < 0.03 then
+		return { state = snapshot(g), events = {} }
+	end
+	lastInput[player] = now
+	local before = #g.log
+	local floorBefore = g.floor
+	g.events = {}
+	g:input(req.ch)
+	local meta = runMeta[player]
+	if #g.log > before then
+		meta.inputs ..= string.sub(g.log, before + 1)
+	end
+	local state = snapshot(g)
+	local events = g.events
+	g.events = {}
+	local result = nil
+	local profile = profiles[player]
+	if meta.mode == "daily" then
+		profile.daily[tostring(meta.dailyNo)] = math.max(profile.daily[tostring(meta.dailyNo)] or 0, g.floor)
+	end
+	if g:isOver() then
+		result = finishRun(player, g)
+		result.board = readBoard(if meta.mode == "daily" then "daily" .. meta.dailyNo else "endless", if meta.mode == "daily" then dailyBoard(meta.dailyNo) else endlessBoard)
+	elseif g.floor ~= floorBefore then
+		task.spawn(saveProfile, player)
+	end
+	return { state = state, events = events, result = result }
+end
+
+function handlers.leave(player: Player)
+	-- Back to the menu; the run is kept and can be resumed.
+	captureActive(player)
+	task.spawn(saveProfile, player)
+	runs[player] = nil
+	runMeta[player] = nil
+	return { profile = profileView(player) }
+end
+
+function handlers.buyHero(player: Player, req)
+	local profile = profiles[player]
+	local hero = Content.HERO_BY_ID[req.id]
+	if hero and not Relics.contains(profile.heroes, hero.id) and profile.souls >= hero.cost then
+		profile.souls -= hero.cost
+		table.insert(profile.heroes, hero.id)
+		task.spawn(saveProfile, player)
+	end
+	return { profile = profileView(player) }
+end
+
+function handlers.buyRelic(player: Player, req)
+	local profile = profiles[player]
+	local cost = Relics.COSTS[req.id]
+	if cost and not Relics.contains(profile.relics, req.id) and profile.souls >= cost then
+		profile.souls -= cost
+		table.insert(profile.relics, req.id)
+		task.spawn(saveProfile, player)
+	end
+	return { profile = profileView(player) }
+end
+
+function handlers.pickHero(player: Player, req)
+	local profile = profiles[player]
+	if Relics.contains(profile.heroes, req.id) then
+		profile.hero = req.id
+	end
+	return { profile = profileView(player) }
+end
+
+function handlers.board(player: Player, req)
+	if req.board == "daily" then
+		local n = Daily.number()
+		return { board = readBoard("daily" .. n, dailyBoard(n)), title = `Daily #{n}` }
+	end
+	return { board = readBoard("endless", endlessBoard), title = "Endless" }
+end
+
+remote.OnServerInvoke = function(player: Player, req)
+	if type(req) ~= "table" or type(req.op) ~= "string" then
+		return { error = "bad request" }
+	end
+	while not profiles[player] and player.Parent do
+		task.wait(0.1)
+	end
+	local handler = handlers[req.op]
+	if not handler then
+		return { error = "unknown op" }
+	end
+	local ok, res = pcall(handler, player, req)
+	if not ok then
+		warn("[One More Crypt] " .. req.op .. " failed:", res)
+		return { error = "Something went wrong in the crypt." }
+	end
+	return res
+end
+
+Players.PlayerAdded:Connect(function(player)
+	profiles[player] = loadProfile(player)
+	presence.Value = #Players:GetPlayers()
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+	saveProfile(player)
+	profiles[player] = nil
+	runs[player] = nil
+	runMeta[player] = nil
+	lastInput[player] = nil
+	presence.Value = #Players:GetPlayers() - 1
+end)
+
+for _, player in Players:GetPlayers() do
+	task.spawn(function()
+		profiles[player] = loadProfile(player)
+	end)
+end
+
+game:BindToClose(function()
+	if RunService:IsStudio() and not profileStore then
+		return
+	end
+	for _, player in Players:GetPlayers() do
+		saveProfile(player)
+	end
+end)
+]]></string>
+      </Properties>
+    </Item>
+  </Item>
+  <Item class="StarterPlayer" referent="12">
+    <Properties>
+      <string name="Name">StarterPlayer</string>
+    </Properties>
+    <Item class="StarterPlayerScripts" referent="13">
+      <Properties>
+        <string name="Name">StarterPlayerScripts</string>
+      </Properties>
+      <Item class="LocalScript" referent="14">
+        <Properties>
+          <string name="Name">CryptClient</string>
+          <string name="Source"><![CDATA[--!nonstrict
+-- One More Crypt client: draws the 7x7 crypt as a lit 3D board with voxel models built
+-- from the web game's pixel art, plays the effects for each turn, and runs the menus.
+-- All rules run on the server; this script sends inputs and draws what comes back.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+local Debris = game:GetService("Debris")
+local SoundService = game:GetService("SoundService")
+local ContextActionService = game:GetService("ContextActionService")
+local StarterGui = game:GetService("StarterGui")
+
+local Shared = ReplicatedStorage:WaitForChild("OneMoreCrypt")
+local Sprites = require(Shared:WaitForChild("Sprites"))
+local Relics = require(Shared:WaitForChild("Relics"))
+local Content = require(Shared:WaitForChild("Content"))
+local Daily = require(Shared:WaitForChild("Daily"))
+local remote: RemoteFunction = Shared:WaitForChild("Crypt")
+local presence: IntValue = Shared:WaitForChild("SoulsInCrypt")
+
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+-- No avatar in this game: switch off the default movement controls and backpack.
+task.spawn(function()
+	local ok, module = pcall(function()
+		return require(player:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule", 10) :: any)
+	end)
+	if ok and module then
+		module:GetControls():Disable()
+	end
+end)
+pcall(function()
+	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
+	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Health, false)
+end)
+
+local W, H = 7, 7
+local TILE = 4
+local PIX = TILE * 0.8 / 12
+local ORIGIN = Vector3.new(0, 200, 0)
+
+local C = {
+	bg = Color3.fromRGB(7, 4, 11),
+	panel = Color3.fromRGB(20, 13, 28),
+	panel2 = Color3.fromRGB(32, 22, 44),
+	line = Color3.fromRGB(70, 52, 92),
+	text = Color3.fromRGB(232, 220, 196),
+	dim = Color3.fromRGB(154, 163, 181),
+	gold = Color3.fromRGB(242, 193, 78),
+	red = Color3.fromRGB(210, 58, 70),
+	green = Color3.fromRGB(126, 224, 129),
+	ice = Color3.fromRGB(159, 232, 255),
+	floorA = Color3.fromRGB(42, 34, 52),
+	floorB = Color3.fromRGB(36, 29, 46),
+	wall = Color3.fromRGB(62, 54, 76),
+	wallTop = Color3.fromRGB(88, 78, 104),
+}
+
+local HEADING = Enum.Font.Arcade
+local BODY = Enum.Font.GothamMedium
+local BOLD = Enum.Font.GothamBold
+
+local function tilePos(x: number, y: number): Vector3
+	return ORIGIN + Vector3.new((x - 3) * TILE, 0, (y - 3) * TILE)
+end
+
+-- ---------- atmosphere ----------
+
+Lighting.Ambient = Color3.fromRGB(70, 58, 92)
+Lighting.OutdoorAmbient = Color3.fromRGB(40, 32, 56)
+Lighting.Brightness = 0.4
+Lighting.ClockTime = 0
+Lighting.FogColor = C.bg
+Lighting.FogStart = 60
+Lighting.FogEnd = 220
+Lighting.GlobalShadows = true
+for _, child in Lighting:GetChildren() do
+	if child:IsA("Sky") or child:IsA("Atmosphere") then
+		child:Destroy()
+	end
+end
+local bloom = Instance.new("BloomEffect")
+bloom.Intensity = 0.6
+bloom.Size = 18
+bloom.Threshold = 0.9
+bloom.Parent = Lighting
+local grade = Instance.new("ColorCorrectionEffect")
+grade.Contrast = 0.12
+grade.Saturation = 0.05
+grade.TintColor = Color3.fromRGB(255, 240, 250)
+grade.Parent = Lighting
+
+local function sound(id: string, volume: number?, pitch: number?)
+	local s = Instance.new("Sound")
+	s.SoundId = id
+	s.Volume = volume or 0.5
+	s.PlaybackSpeed = pitch or 1
+	s.Parent = SoundService
+	s:Play()
+	Debris:AddItem(s, 3)
+end
+local SFX = {
+	swing = "rbxasset://sounds/swordslash.wav",
+	lunge = "rbxasset://sounds/swordlunge.wav",
+	death = "rbxasset://sounds/uuhhh.mp3",
+	pick = "rbxasset://sounds/electronicpingshort.wav",
+	click = "rbxasset://sounds/button.wav",
+}
+
+-- ---------- world folders ----------
+
+local world = Instance.new("Folder")
+world.Name = "Crypt"
+world.Parent = workspace
+local boardFolder = Instance.new("Folder")
+boardFolder.Name = "Board"
+boardFolder.Parent = world
+local unitFolder = Instance.new("Folder")
+unitFolder.Name = "Units"
+unitFolder.Parent = world
+local fxFolder = Instance.new("Folder")
+fxFolder.Name = "Effects"
+fxFolder.Parent = world
+local markFolder = Instance.new("Folder")
+markFolder.Name = "Marks"
+markFolder.Parent = world
+
+local function part(props): BasePart
+	local p = Instance.new(props.Class or "Part")
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = props.CanQuery == true
+	p.CanTouch = false
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	p.Material = props.Material or Enum.Material.SmoothPlastic
+	for k, v in props do
+		if k ~= "Class" and k ~= "Material" and k ~= "CanQuery" then
+			p[k] = v
+		end
+	end
+	return p
+end
+
+-- A dark void under the crypt, so the board floats in the dark.
+part({
+	Size = Vector3.new(400, 1, 400),
+	CFrame = CFrame.new(ORIGIN - Vector3.new(0, 6, 0)),
+	Color = Color3.fromRGB(5, 3, 8),
+	CanCollide = true,
+	Parent = world,
+})
+
+-- ---------- voxel models ----------
+
+local function shade(c: Color3, amt: number): Color3
+	if amt > 0 then
+		return c:Lerp(Color3.new(1, 1, 1), amt)
+	end
+	return c:Lerp(Color3.new(0, 0, 0), -amt)
+end
+
+--- Build a 12x12 sprite as a voxel model standing on the ground, facing the camera.
+--- Same-coloured runs in a row are merged into one part.
+local function buildVoxel(rows: { string }, colors: { [string]: Color3 }, lit: boolean?): (Model, BasePart)
+	local model = Instance.new("Model")
+	local root = part({ Size = Vector3.new(0.2, 0.2, 0.2), Transparency = 1, Name = "Root" })
+	root.Parent = model
+	model.PrimaryPart = root
+	local depth = PIX * 2
+	local function colorAt(x: number, y: number): Color3?
+		local row = rows[y]
+		if not row then
+			return nil
+		end
+		local ch = string.sub(row, x, x)
+		if ch == "." or ch == "" then
+			return nil
+		end
+		local c = colors[ch] or Sprites.PALETTE[ch] or Color3.new(1, 0, 1)
+		if lit and ch ~= "k" and ch ~= "w" and ch ~= "e" then
+			-- Light from above, as the web renderer does.
+			local function edge(cx, cy)
+				local r = rows[cy]
+				local e = if r then string.sub(r, cx, cx) else "."
+				return e == "." or e == "k" or e == ""
+			end
+			local top = edge(x, y - 1)
+			local bottom = edge(x, y + 1) or edge(x + 1, y)
+			if top and not bottom then
+				c = shade(c, 0.22)
+			elseif bottom and not top then
+				c = shade(c, -0.22)
+			end
+		end
+		return c
+	end
+	for y = 1, 12 do
+		local x = 1
+		while x <= 12 do
+			local c = colorAt(x, y)
+			if c then
+				local x2 = x
+				while x2 < 12 and colorAt(x2 + 1, y) == c do
+					x2 += 1
+				end
+				local n = x2 - x + 1
+				local p = part({
+					Size = Vector3.new(PIX * n, PIX, depth),
+					Color = c,
+					Material = if c == Sprites.PALETTE.e or c == Sprites.PALETTE.y then Enum.Material.Neon else Enum.Material.SmoothPlastic,
+					Anchored = false,
+				})
+				p.CFrame = CFrame.new(((x + x2) / 2 - 6.5) * PIX, (12.5 - y) * PIX, 0)
+				p.Parent = model
+				x = x2 + 1
+			else
+				x += 1
+			end
+		end
+	end
+	for _, p in model:GetChildren() do
+		if p ~= root and p:IsA("BasePart") then
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0 = root
+			weld.Part1 = p
+			weld.Parent = p
+		end
+	end
+	return model, root
+end
+
+-- ---------- floating text, beams and particles ----------
+
+local function anchorAt(pos: Vector3, life: number): BasePart
+	local a = part({ Size = Vector3.new(0.1, 0.1, 0.1), Transparency = 1, CFrame = CFrame.new(pos), Parent = fxFolder })
+	Debris:AddItem(a, life)
+	return a
+end
+
+local function floater(x: number, y: number, text: string, color: Color3, size: number?)
+	local a = anchorAt(tilePos(x, y) + Vector3.new(math.random() - 0.5, 3.4, 0), 1.4)
+	local gui = Instance.new("BillboardGui")
+	gui.Size = UDim2.fromOffset(160, 50)
+	gui.AlwaysOnTop = true
+	gui.LightInfluence = 0
+	gui.Parent = a
+	local label = Instance.new("TextLabel")
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.fromScale(1, 1)
+	label.Font = HEADING
+	label.Text = text
+	label.TextColor3 = color
+	label.TextScaled = false
+	label.TextSize = 26 * (size or 1)
+	label.TextStrokeTransparency = 0
+	label.TextStrokeColor3 = Color3.new(0, 0, 0)
+	label.Parent = gui
+	TweenService:Create(gui, TweenInfo.new(1.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { StudsOffset = Vector3.new(0, 2.2, 0) }):Play()
+	TweenService:Create(label, TweenInfo.new(0.5, Enum.EasingStyle.Linear, Enum.EasingDirection.In, 0, false, 0.6), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
+end
+
+local function burst(pos: Vector3, color: Color3, count: number, speed: number?)
+	local a = anchorAt(pos, 2)
+	local att = Instance.new("Attachment")
+	att.Parent = a
+	local pe = Instance.new("ParticleEmitter")
+	pe.Color = ColorSequence.new(color)
+	pe.LightEmission = 0.6
+	pe.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(1, 0) })
+	pe.Speed = NumberRange.new(4 * (speed or 1), 10 * (speed or 1))
+	pe.SpreadAngle = Vector2.new(180, 180)
+	pe.Lifetime = NumberRange.new(0.3, 0.7)
+	pe.Acceleration = Vector3.new(0, -20, 0)
+	pe.Drag = 3
+	pe.Rate = 0
+	pe.Shape = Enum.ParticleEmitterShape.Box
+	pe.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	pe.Parent = att
+	pe:Emit(count)
+end
+
+local function beam(from: Vector3, to: Vector3, color: Color3, life: number, width: number?)
+	local mid = (from + to) / 2
+	local len = (to - from).Magnitude
+	if len < 0.01 then
+		return
+	end
+	local b = part({
+		Size = Vector3.new(width or 0.25, width or 0.25, len),
+		CFrame = CFrame.lookAt(mid, to),
+		Color = color,
+		Material = Enum.Material.Neon,
+		Parent = fxFolder,
+	})
+	TweenService:Create(b, TweenInfo.new(life), { Transparency = 1, Size = Vector3.new(0.05, 0.05, len) }):Play()
+	Debris:AddItem(b, life + 0.1)
+end
+
+-- ---------- camera ----------
+
+local shakeUntil, shakeAmp = 0, 0
+local function shake(amp: number, dur: number)
+	shakeAmp = math.max(shakeAmp, amp)
+	shakeUntil = math.max(shakeUntil, os.clock() + dur)
+end
+
+local function baseCameraCFrame(): CFrame
+	local vp = camera.ViewportSize
+	local aspect = vp.X / math.max(1, vp.Y)
+	local vfov = math.rad(camera.FieldOfView)
+	local hfov = 2 * math.atan(math.tan(vfov / 2) * aspect)
+	local needW = W * TILE + 6
+	local needH = H * TILE + 14
+	local dist = math.max((needW / 2) / math.tan(hfov / 2), (needH / 2) / math.tan(vfov / 2))
+	local pitch = math.rad(58)
+	local target = ORIGIN + Vector3.new(0, 1, 1.2)
+	local eye = target + Vector3.new(0, math.sin(pitch), math.cos(pitch)) * dist
+	return CFrame.lookAt(eye, target)
+end
+
+camera.CameraType = Enum.CameraType.Scriptable
+camera.FieldOfView = 45
+RunService:BindToRenderStep("CryptCamera", Enum.RenderPriority.Camera.Value + 1, function()
+	camera.CameraType = Enum.CameraType.Scriptable
+	local cf = baseCameraCFrame()
+	if os.clock() < shakeUntil then
+		local a = shakeAmp
+		cf *= CFrame.new((math.random() - 0.5) * a, (math.random() - 0.5) * a, 0)
+	else
+		shakeAmp = 0
+	end
+	camera.CFrame = cf
+end)
+
+-- ---------- the board ----------
+
+local board = {
+	floor = -1,
+	mode = "",
+	tiles = {}, -- [idx] = floor part, for tap raycasts
+	stairs = nil,
+	stairsLight = nil,
+	grate = nil,
+	potion = nil,
+	feature = nil,
+}
+
+local function clearFolder(f: Instance)
+	for _, c in f:GetChildren() do
+		c:Destroy()
+	end
+end
+
+local function torch(pos: Vector3)
+	local post = part({ Size = Vector3.new(0.5, 3, 0.5), CFrame = CFrame.new(pos), Color = Color3.fromRGB(60, 40, 30), Parent = boardFolder })
+	local flame = part({
+		Size = Vector3.new(0.7, 0.9, 0.7),
+		CFrame = CFrame.new(pos + Vector3.new(0, 1.9, 0)),
+		Color = Color3.fromRGB(255, 150, 60),
+		Material = Enum.Material.Neon,
+		Parent = boardFolder,
+	})
+	local light = Instance.new("PointLight")
+	light.Color = Color3.fromRGB(255, 160, 90)
+	light.Range = 22
+	light.Brightness = 1.2
+	light.Shadows = true
+	light.Parent = flame
+	local fire = Instance.new("Fire")
+	fire.Size = 2
+	fire.Heat = 4
+	fire.Color = Color3.fromRGB(255, 140, 50)
+	fire.SecondaryColor = Color3.fromRGB(255, 60, 30)
+	fire.Parent = flame
+	return post
+end
+
+local FEATURE_STYLE = {
+	shrine = { base = Color3.fromRGB(58, 51, 70), glow = Color3.fromRGB(210, 58, 70), emoji = "🩸" },
+	chest = { base = Color3.fromRGB(122, 85, 50), glow = Color3.fromRGB(242, 193, 78), emoji = "🧰" },
+	fountain = { base = Color3.fromRGB(75, 66, 89), glow = Color3.fromRGB(159, 232, 255), emoji = "⛲" },
+	forge = { base = Color3.fromRGB(40, 36, 52), glow = Color3.fromRGB(127, 180, 255), emoji = "⚒️" },
+}
+
+local function buildFeature(f)
+	local style = FEATURE_STYLE[f.kind]
+	local model = Instance.new("Model")
+	model.Name = "Feature"
+	local pos = tilePos(f.x, f.y)
+	if f.kind == "chest" then
+		part({ Size = Vector3.new(2.6, 1.6, 1.8), CFrame = CFrame.new(pos + Vector3.new(0, 0.8, 0)), Color = style.base, Material = Enum.Material.Wood, Parent = model })
+		part({ Size = Vector3.new(2.7, 0.3, 1.9), CFrame = CFrame.new(pos + Vector3.new(0, 1.2, 0)), Color = Color3.fromRGB(93, 102, 122), Material = Enum.Material.Metal, Parent = model })
+		part({ Name = "Glow", Size = Vector3.new(0.5, 0.5, 0.2), CFrame = CFrame.new(pos + Vector3.new(0, 1.0, 0.95)), Color = style.glow, Material = Enum.Material.Neon, Parent = model })
+	elseif f.kind == "fountain" then
+		part({ Size = Vector3.new(3, 1, 3), CFrame = CFrame.new(pos + Vector3.new(0, 0.5, 0)), Color = style.base, Material = Enum.Material.Slate, Parent = model })
+		part({ Name = "Glow", Size = Vector3.new(2.4, 0.2, 2.4), CFrame = CFrame.new(pos + Vector3.new(0, 1.0, 0)), Color = style.glow, Material = Enum.Material.Neon, Transparency = 0.2, Parent = model })
+	elseif f.kind == "forge" then
+		part({ Size = Vector3.new(1.4, 1, 1.4), CFrame = CFrame.new(pos + Vector3.new(0, 0.5, 0)), Color = style.base, Material = Enum.Material.Metal, Parent = model })
+		part({ Size = Vector3.new(2.6, 0.6, 1.2), CFrame = CFrame.new(pos + Vector3.new(0, 1.3, 0)), Color = Color3.fromRGB(70, 70, 84), Material = Enum.Material.Metal, Parent = model })
+		part({ Name = "Glow", Size = Vector3.new(0.8, 0.8, 0.8), CFrame = CFrame.new(pos + Vector3.new(0, 2.1, 0)), Color = style.glow, Material = Enum.Material.Neon, Parent = model })
+	else
+		part({ Size = Vector3.new(2.2, 1.8, 2.2), CFrame = CFrame.new(pos + Vector3.new(0, 0.9, 0)), Color = style.base, Material = Enum.Material.Slate, Parent = model })
+		part({ Name = "Glow", Size = Vector3.new(1.8, 0.2, 1.8), CFrame = CFrame.new(pos + Vector3.new(0, 1.9, 0)), Color = style.glow, Material = Enum.Material.Neon, Parent = model })
+	end
+	local glow = model:FindFirstChild("Glow")
+	local light = Instance.new("PointLight")
+	light.Color = style.glow
+	light.Range = 10
+	light.Brightness = 2
+	light.Parent = glow
+	local gui = Instance.new("BillboardGui")
+	gui.Size = UDim2.fromOffset(40, 40)
+	gui.StudsOffsetWorldSpace = Vector3.new(0, 3.6, 0)
+	gui.LightInfluence = 0
+	gui.Parent = glow
+	local label = Instance.new("TextLabel")
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.fromScale(1, 1)
+	label.Text = style.emoji
+	label.TextScaled = true
+	label.Parent = gui
+	model.Parent = boardFolder
+	return model
+end
+
+local function setFeatureUsed(model: Model, used: boolean)
+	local glow = model:FindFirstChild("Glow")
+	if not glow then
+		return
+	end
+	glow.Material = if used then Enum.Material.SmoothPlastic else Enum.Material.Neon
+	if used then
+		glow.Color = Color3.fromRGB(60, 56, 70)
+	end
+	local light = glow:FindFirstChildOfClass("PointLight")
+	if light then
+		light.Enabled = not used
+	end
+	local gui = glow:FindFirstChildOfClass("BillboardGui")
+	if gui then
+		gui.Enabled = not used
+	end
+end
+
+local function buildBoard(state)
+	clearFolder(boardFolder)
+	board.tiles = {}
+	board.floor = state.floor
+	local walls, spikes = {}, {}
+	for _, i in state.walls do
+		walls[i] = true
+	end
+	for _, i in state.spikes do
+		spikes[i] = true
+	end
+	local boss = state.boss
+	for y = 0, H - 1 do
+		for x = 0, W - 1 do
+			local i = y * W + x
+			local pos = tilePos(x, y)
+			local isStairs = x == state.stairs.x and y == state.stairs.y
+			if walls[i] then
+				part({ Size = Vector3.new(TILE, TILE * 0.8, TILE), CFrame = CFrame.new(pos + Vector3.new(0, TILE * 0.4 - 0.5, 0)), Color = C.wall, Material = Enum.Material.Slate, CanCollide = true, Parent = boardFolder })
+				part({ Size = Vector3.new(TILE, 0.3, TILE), CFrame = CFrame.new(pos + Vector3.new(0, TILE * 0.8 - 0.35, 0)), Color = C.wallTop, Material = Enum.Material.Slate, Parent = boardFolder })
+			elseif isStairs then
+				local pit = part({ Size = Vector3.new(TILE, 1, TILE), CFrame = CFrame.new(pos - Vector3.new(0, 2.5, 0)), Color = Color3.fromRGB(4, 2, 6), CanQuery = true, Parent = boardFolder })
+				board.tiles[i] = pit
+				for s = 1, 3 do
+					part({ Size = Vector3.new(TILE * 0.8, 0.5, TILE * 0.25), CFrame = CFrame.new(pos + Vector3.new(0, -0.5 * s, -TILE * 0.35 + s * TILE * 0.22)), Color = Color3.fromRGB(28, 22, 36), Material = Enum.Material.Slate, Parent = boardFolder })
+				end
+				board.grate = Instance.new("Model")
+				for b = -2, 2 do
+					part({ Size = Vector3.new(0.25, 0.25, TILE), CFrame = CFrame.new(pos + Vector3.new(b * TILE * 0.2, -0.1, 0)), Color = Color3.fromRGB(93, 102, 122), Material = Enum.Material.Metal, Parent = board.grate })
+				end
+				for b = -1, 1 do
+					part({ Size = Vector3.new(TILE, 0.25, 0.25), CFrame = CFrame.new(pos + Vector3.new(0, -0.1, b * TILE * 0.3)), Color = Color3.fromRGB(93, 102, 122), Material = Enum.Material.Metal, Parent = board.grate })
+				end
+				board.grate.Parent = boardFolder
+				local glow = part({ Size = Vector3.new(TILE * 0.7, 0.1, TILE * 0.7), CFrame = CFrame.new(pos - Vector3.new(0, 1.9, 0)), Color = C.gold, Material = Enum.Material.Neon, Transparency = 1, Parent = boardFolder })
+				local light = Instance.new("PointLight")
+				light.Color = C.gold
+				light.Range = 12
+				light.Brightness = 0
+				light.Parent = glow
+				board.stairs = glow
+				board.stairsLight = light
+			else
+				local tile = part({
+					Size = Vector3.new(TILE, 1, TILE),
+					CFrame = CFrame.new(pos - Vector3.new(0, 0.5, 0)),
+					Color = if (x + y) % 2 == 0 then C.floorA else C.floorB,
+					Material = Enum.Material.Slate,
+					CanQuery = true,
+					CanCollide = true,
+					Parent = boardFolder,
+				})
+				if boss then
+					tile.Color = shade(tile.Color, -0.1):Lerp(Color3.fromRGB(80, 20, 30), 0.15)
+				end
+				board.tiles[i] = tile
+				if spikes[i] then
+					for sx = -1, 1 do
+						for sz = -1, 1 do
+							if (sx + sz) % 2 == 0 then
+								part({
+									Class = "WedgePart",
+									Size = Vector3.new(0.4, 0.9, 0.4),
+									CFrame = CFrame.new(pos + Vector3.new(sx * 1.1, 0.45, sz * 1.1)),
+									Color = Color3.fromRGB(201, 209, 224),
+									Material = Enum.Material.Metal,
+									Parent = boardFolder,
+								})
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+	-- Low rim walls around the room, and four torches.
+	local half = W * TILE / 2
+	for _, side in { { 0, -1 }, { 0, 1 }, { -1, 0 }, { 1, 0 } } do
+		local sx, sz = side[1], side[2]
+		local size = if sx == 0 then Vector3.new(W * TILE + 2, 2, 1) else Vector3.new(1, 2, H * TILE + 2)
+		part({ Size = size, CFrame = CFrame.new(ORIGIN + Vector3.new(sx * (half + 0.5), 0, sz * (half + 0.5))), Color = Color3.fromRGB(30, 24, 40), Material = Enum.Material.Slate, Parent = boardFolder })
+	end
+	for _, c in { { -1, -1 }, { 1, -1 }, { -1, 1 }, { 1, 1 } } do
+		torch(ORIGIN + Vector3.new(c[1] * (half + 1), 1, c[2] * (half + 1)))
+	end
+	board.feature = if state.feature then buildFeature(state.feature) else nil
+	board.potion = nil
+	if state.potion then
+		local model, root = buildVoxel(Sprites.POTION, {})
+		root.CFrame = CFrame.new(tilePos(state.potion.x, state.potion.y))
+		model.Parent = boardFolder
+		board.potion = model
+	end
+end
+
+local function refreshBoard(state)
+	if board.stairsLight then
+		board.stairsLight.Brightness = if state.stairsOpen then 3 else 0
+		board.stairs.Transparency = if state.stairsOpen then 0.2 else 1
+		if board.grate then
+			board.grate.Parent = if state.stairsOpen then nil else boardFolder
+		end
+	end
+	if board.potion and not state.potion then
+		board.potion:Destroy()
+		board.potion = nil
+	end
+	if board.feature and state.feature then
+		setFeatureUsed(board.feature, state.feature.used)
+	end
+	clearFolder(markFolder)
+	for _, w in state.warnings do
+		local color = if w.kind == "plague" then Color3.fromRGB(181, 224, 122) else Color3.fromRGB(211, 176, 255)
+		local m = part({ Size = Vector3.new(TILE * 0.9, 0.1, TILE * 0.9), CFrame = CFrame.new(tilePos(w.x, w.y) + Vector3.new(0, 0.06, 0)), Color = color, Material = Enum.Material.Neon, Transparency = 0.45, Parent = markFolder })
+		TweenService:Create(m, TweenInfo.new(0.45, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), { Transparency = 0.8 }):Play()
+	end
+	for _, e in state.enemies do
+		for _, p in e.path do
+			part({ Size = Vector3.new(TILE * 0.3, 0.08, TILE * 0.3), CFrame = CFrame.new(tilePos(p.x, p.y) + Vector3.new(0, 0.05, 0)) * CFrame.Angles(0, math.rad(45), 0), Color = C.red, Material = Enum.Material.Neon, Transparency = 0.35, Parent = markFolder })
+		end
+	end
+end
+
+-- ---------- units ----------
+
+local units = {} -- [id] = unit; the hero is "hero"
+
+local function makeLabel(parent: Instance, size: UDim2, text: string, color: Color3, font, textSize: number): TextLabel
+	local l = Instance.new("TextLabel")
+	l.BackgroundTransparency = 1
+	l.Size = size
+	l.Font = font
+	l.Text = text
+	l.TextColor3 = color
+	l.TextSize = textSize
+	l.TextStrokeTransparency = 0.3
+	l.Parent = parent
+	return l
+end
+
+local function unitGui(root: BasePart, height: number)
+	local gui = Instance.new("BillboardGui")
+	gui.Size = UDim2.fromOffset(64, 26)
+	gui.StudsOffsetWorldSpace = Vector3.new(0, height, 0)
+	gui.LightInfluence = 0
+	gui.AlwaysOnTop = true
+	gui.Parent = root
+	local back = Instance.new("Frame")
+	back.Size = UDim2.new(1, 0, 0, 6)
+	back.Position = UDim2.new(0, 0, 1, -6)
+	back.BackgroundColor3 = Color3.fromRGB(42, 24, 32)
+	back.BorderSizePixel = 0
+	back.Parent = gui
+	local fill = Instance.new("Frame")
+	fill.Name = "Fill"
+	fill.Size = UDim2.fromScale(1, 1)
+	fill.BackgroundColor3 = C.red
+	fill.BorderSizePixel = 0
+	fill.Parent = back
+	local tag = makeLabel(gui, UDim2.new(1, 0, 1, -7), "", C.text, BOLD, 12)
+	tag.Name = "Tag"
+	return gui, fill, tag
+end
+
+local function heroCloak(hero: string)
+	return Sprites.CLOAKS[hero] or Sprites.CLOAKS.default
+end
+
+local function newUnit(id, kind: string, ally: boolean, heroId: string?)
+	local rows, colors, lit = nil, {}, true
+	if kind == "hero" then
+		rows = Sprites.PLAYER
+		lit = false
+		local cloak = heroCloak(heroId or "knight")
+		colors = { p = cloak.p, P = cloak.P }
+	else
+		rows = Sprites.ENEMIES[kind].idle[1]
+		if ally then
+			-- Thralls glow a sickly green.
+			colors = { e = C.green }
+		end
+	end
+	local model, root = buildVoxel(rows, colors, lit)
+	model.Name = tostring(id)
+	local big = kind == "boss" or kind == "abbot" or kind == "lich"
+	local scale = if big then 1.45 else 1
+	if big then
+		model:ScaleTo(scale)
+	end
+	local highlight = Instance.new("Highlight")
+	highlight.FillColor = Color3.new(1, 1, 1)
+	highlight.FillTransparency = 1
+	highlight.OutlineTransparency = 1
+	highlight.DepthMode = Enum.HighlightDepthMode.Occluded
+	highlight.Parent = model
+	model.Parent = unitFolder
+	local u = { id = id, kind = kind, model = model, root = root, highlight = highlight, facing = 1, x = nil, y = nil, scale = scale }
+	if kind ~= "hero" then
+		u.gui, u.fill, u.tag = unitGui(root, 12 * PIX * scale + 0.6)
+	else
+		local light = Instance.new("PointLight")
+		light.Color = Color3.fromRGB(255, 200, 150)
+		light.Range = 14
+		light.Brightness = 1.4
+		light.Shadows = true
+		light.Parent = root
+	end
+	units[id] = u
+	return u
+end
+
+local function placeUnit(u, x: number, y: number, facing: number, instant: boolean)
+	local target = CFrame.new(tilePos(x, y)) * CFrame.Angles(0, if facing < 0 then math.pi else 0, 0)
+	if instant or not u.x then
+		u.root.CFrame = target
+	else
+		TweenService:Create(u.root, TweenInfo.new(0.13, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { CFrame = target }):Play()
+	end
+	u.x, u.y, u.facing = x, y, facing
+end
+
+local function flash(u, color: Color3?)
+	u.highlight.FillColor = color or Color3.new(1, 1, 1)
+	u.highlight.FillTransparency = 0.1
+	TweenService:Create(u.highlight, TweenInfo.new(0.18), { FillTransparency = 1 }):Play()
+end
+
+local function lunge(u, dir)
+	if not u.x then
+		return
+	end
+	local base = CFrame.new(tilePos(u.x, u.y)) * CFrame.Angles(0, if u.facing < 0 then math.pi else 0, 0)
+	local out = base + Vector3.new(dir.x, 0, dir.y) * TILE * 0.3
+	local t = TweenService:Create(u.root, TweenInfo.new(0.07, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { CFrame = out })
+	t.Completed:Connect(function()
+		TweenService:Create(u.root, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { CFrame = base }):Play()
+	end)
+	t:Play()
+end
+
+--- Smash a model into its voxels.
+local function shatter(u)
+	local model = u.model
+	if u.gui then
+		u.gui:Destroy()
+	end
+	u.root.Anchored = true
+	for _, p in model:GetDescendants() do
+		if p:IsA("BasePart") and p ~= u.root then
+			for _, w in p:GetChildren() do
+				if w:IsA("WeldConstraint") then
+					w:Destroy()
+				end
+			end
+			p.Anchored = false
+			p.CanCollide = true
+			p.AssemblyLinearVelocity = Vector3.new((math.random() - 0.5) * 18, 8 + math.random() * 10, (math.random() - 0.5) * 18)
+			p.AssemblyAngularVelocity = Vector3.new(math.random() * 10, math.random() * 10, math.random() * 10)
+			TweenService:Create(p, TweenInfo.new(0.8, Enum.EasingStyle.Linear, Enum.EasingDirection.In, 0, false, 0.2), { Transparency = 1 }):Play()
+		end
+	end
+	Debris:AddItem(model, 1.2)
+	units[u.id] = nil
+end
+
+local function updateUnitGui(u, e)
+	local frac = math.clamp(e.hp / math.max(1, e.maxHp), 0, 1)
+	u.fill.Size = UDim2.fromScale(frac, 1)
+	u.fill.BackgroundColor3 = if e.ally then C.green else C.red
+	local bits = {}
+	if e.elite ~= "" then
+		table.insert(bits, Content.ELITES[e.elite].name)
+	end
+	if e.shield > 0 then
+		table.insert(bits, "🛡")
+	end
+	if e.frozen > 0 then
+		table.insert(bits, "❄")
+	end
+	if e.burn > 0 then
+		table.insert(bits, "🔥")
+	end
+	u.tag.Text = table.concat(bits, " ")
+	u.tag.TextColor3 = if e.elite ~= "" then Content.ELITES[e.elite].color else C.text
+	u.highlight.OutlineColor = if e.elite ~= "" then Content.ELITES[e.elite].color else C.text
+	u.highlight.OutlineTransparency = if e.elite ~= "" then 0.2 elseif e.frozen > 0 then 0.4 else 1
+	if e.frozen > 0 and e.elite == "" then
+		u.highlight.OutlineColor = C.ice
+	end
+end
+
+local function clearUnits()
+	for id, u in units do
+		u.model:Destroy()
+		units[id] = nil
+	end
+end
+
+-- ---------- GUI helpers ----------
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "OneMoreCrypt"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.Parent = player:WaitForChild("PlayerGui")
+
+local function new(class: string, props, children: { Instance }?)
+	local inst = Instance.new(class)
+	for k, v in props do
+		if k ~= "Parent" then
+			inst[k] = v
+		end
+	end
+	if children then
+		for _, c in children do
+			c.Parent = inst
+		end
+	end
+	if props.Parent then
+		inst.Parent = props.Parent
+	end
+	return inst
+end
+
+local function corner(r: number?)
+	return new("UICorner", { CornerRadius = UDim.new(0, r or 8) })
+end
+
+local function stroke(color: Color3?, t: number?)
+	return new("UIStroke", { Color = color or C.line, Thickness = t or 1.5, ApplyStrokeMode = Enum.ApplyStrokeMode.Border })
+end
+
+local function pad(n: number)
+	return new("UIPadding", { PaddingLeft = UDim.new(0, n), PaddingRight = UDim.new(0, n), PaddingTop = UDim.new(0, n), PaddingBottom = UDim.new(0, n) })
+end
+
+local function list(spacing: number, horizontal: boolean?, align)
+	return new("UIListLayout", {
+		Padding = UDim.new(0, spacing),
+		FillDirection = if horizontal then Enum.FillDirection.Horizontal else Enum.FillDirection.Vertical,
+		HorizontalAlignment = align or Enum.HorizontalAlignment.Center,
+		VerticalAlignment = if horizontal then Enum.VerticalAlignment.Center else Enum.VerticalAlignment.Top,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+	})
+end
+
+local function text(props)
+	local defaults = {
+		BackgroundTransparency = 1,
+		Font = BODY,
+		TextColor3 = C.text,
+		TextSize = 16,
+		TextWrapped = true,
+		Size = UDim2.new(1, 0, 0, 20),
+		AutomaticSize = Enum.AutomaticSize.Y,
+	}
+	for k, v in props do
+		defaults[k] = v
+	end
+	return new("TextLabel", defaults)
+end
+
+local function button(label: string, onClick: () -> (), props)
+	local defaults = {
+		Size = UDim2.new(1, 0, 0, 44),
+		BackgroundColor3 = C.panel2,
+		AutoButtonColor = true,
+		Font = BOLD,
+		Text = label,
+		TextColor3 = C.text,
+		TextSize = 17,
+		TextWrapped = true,
+	}
+	for k, v in props or {} do
+		defaults[k] = v
+	end
+	local b = new("TextButton", defaults, { corner(8), stroke() })
+	b.Activated:Connect(function()
+		sound(SFX.click, 0.3)
+		onClick()
+	end)
+	return b
+end
+
+local function overlay(name: string, maxWidth: number?)
+	local shade = new("Frame", {
+		Name = name,
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = C.bg,
+		BackgroundTransparency = 0.25,
+		Visible = false,
+		ZIndex = 5,
+		Parent = gui,
+	})
+	local scroll = new("ScrollingFrame", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		CanvasSize = UDim2.new(),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		ScrollBarThickness = 4,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+		Parent = shade,
+	}, { list(0), new("UIPadding", { PaddingTop = UDim.new(0, 56), PaddingBottom = UDim.new(0, 40), PaddingLeft = UDim.new(0, 16), PaddingRight = UDim.new(0, 16) }) })
+	local card = new("Frame", {
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundColor3 = C.panel,
+		Parent = scroll,
+	}, { corner(12), stroke(C.line, 2), pad(18), list(10), new("UISizeConstraint", { MaxSize = Vector2.new(maxWidth or 520, math.huge) }) })
+	return shade, card
+end
+
+local function clear(frame: Instance)
+	for _, c in frame:GetChildren() do
+		if c:IsA("GuiObject") then
+			c:Destroy()
+		end
+	end
+end
+
+local screens = {}
+local menus: { [string]: any } = {}
+local function show(name: string?)
+	for n, s in screens do
+		s.Visible = n == name
+	end
+end
+
+-- ---------- state ----------
+
+local state = nil
+local profile = nil
+local busy = false
+local queue = {}
+local inRun = false
+
+local hud -- forward
+local renderOverlays -- forward
+local showMenu -- forward
+
+local function call(req)
+	local ok, res = pcall(function()
+		return remote:InvokeServer(req)
+	end)
+	if not ok then
+		return { error = "Lost touch with the crypt. Try again." }
+	end
+	return res
+end
+
+-- ---------- toast & banner ----------
+
+local toast = new("TextLabel", {
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 120),
+	Size = UDim2.fromOffset(0, 0),
+	AutomaticSize = Enum.AutomaticSize.XY,
+	BackgroundColor3 = C.panel,
+	BackgroundTransparency = 0.1,
+	Font = BOLD,
+	TextSize = 16,
+	TextColor3 = C.text,
+	Visible = false,
+	ZIndex = 20,
+	Parent = gui,
+}, { corner(8), pad(10), stroke(C.gold) })
+local toastToken = 0
+local function showToast(msg: string, color: Color3?)
+	toastToken += 1
+	local my = toastToken
+	toast.Text = msg
+	toast.TextColor3 = color or C.text
+	toast.Visible = true
+	task.delay(2.6, function()
+		if toastToken == my then
+			toast.Visible = false
+		end
+	end)
+end
+
+local banner = new("TextLabel", {
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.32),
+	Size = UDim2.new(1, 0, 0, 60),
+	BackgroundTransparency = 1,
+	Font = HEADING,
+	TextSize = 40,
+	TextColor3 = C.gold,
+	TextStrokeTransparency = 0,
+	TextTransparency = 1,
+	TextStrokeColor3 = Color3.new(0, 0, 0),
+	ZIndex = 15,
+	Parent = gui,
+})
+local function showBanner(msg: string, color: Color3?)
+	banner.Text = msg
+	banner.TextColor3 = color or C.gold
+	banner.TextTransparency = 0
+	banner.TextStrokeTransparency = 0
+	TweenService:Create(banner, TweenInfo.new(0.6, Enum.EasingStyle.Linear, Enum.EasingDirection.In, 0, false, 1), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
+end
+
+-- ---------- events → effects ----------
+
+local HIT_COLORS = {
+	melee = Color3.fromRGB(255, 255, 255), burn = Color3.fromRGB(255, 138, 42), thorns = Color3.fromRGB(127, 154, 82),
+	bolt = C.ice, burst = C.red, pierce = Color3.fromRGB(255, 255, 255), whirl = Color3.fromRGB(201, 209, 224),
+	hellfire = Color3.fromRGB(255, 90, 42), spike = Color3.fromRGB(201, 209, 224), mask = Color3.fromRGB(127, 154, 82),
+	ally = C.green, claw = Color3.fromRGB(255, 77, 90),
+}
+
+local BOSS_NAMES = { boss = "THE BONE WARDEN", abbot = "THE PLAGUE ABBOT", lich = "THE LICH KING" }
+
+local function playEvents(events, s)
+	local hero = units.hero
+	local killed = {}
+	for _, ev in events do
+		local t = ev.t
+		if t == "pattack" then
+			if hero then
+				lunge(hero, ev.dir)
+			end
+			sound(SFX.swing, 0.35, 0.9 + math.random() * 0.2)
+		elseif t == "eattack" then
+			local u = units[ev.id]
+			if u then
+				lunge(u, ev.dir)
+			end
+		elseif t == "hit" then
+			floater(ev.x, ev.y, tostring(ev.amount) .. (if ev.crit then "!" else ""), if ev.crit then C.gold else HIT_COLORS[ev.kind] or C.text, if ev.crit then 1.4 else 1)
+			local u = units[ev.id]
+			if u then
+				flash(u, if ev.kind == "burn" then Color3.fromRGB(255, 138, 42) else nil)
+			end
+			if ev.crit then
+				shake(0.6, 0.15)
+			end
+		elseif t == "eblock" then
+			floater(ev.x, ev.y, "BLOCK", C.ice, 0.8)
+			burst(tilePos(ev.x, ev.y) + Vector3.new(0, 1.5, 0), C.ice, 10)
+		elseif t == "kill" then
+			killed[ev.id] = true
+			local color = if ev.ally then C.green elseif ev.kind == "wraith" then C.ice else Color3.fromRGB(232, 220, 196)
+			burst(tilePos(ev.x, ev.y) + Vector3.new(0, 1.5, 0), color, 14)
+			if BOSS_NAMES[ev.kind] then
+				showBanner(BOSS_NAMES[ev.kind] .. " FALLS", C.gold)
+				shake(1.2, 0.4)
+			end
+		elseif t == "hurt" then
+			floater(s.x, s.y, "-" .. ev.amount, Color3.fromRGB(255, 77, 90), 1.1)
+			if hero then
+				flash(hero, C.red)
+			end
+			shake(0.5 + math.min(1, ev.amount / 5), 0.18)
+		elseif t == "heal" then
+			floater(s.x, s.y, "+" .. ev.amount, C.green, 1)
+		elseif t == "maxhp" then
+			floater(s.x, s.y, `+{ev.amount} MAX`, C.green, 1.1)
+		elseif t == "dodge" then
+			floater(s.x, s.y, "DODGE", Color3.fromRGB(201, 209, 224), 0.9)
+		elseif t == "block" then
+			floater(s.x, s.y, "BLOCK", C.ice, 0.9)
+			burst(tilePos(s.x, s.y) + Vector3.new(0, 1.5, 0), C.ice, 10)
+		elseif t == "revive" then
+			floater(s.x, s.y, "DEATH DENIED", C.gold, 1.4)
+			burst(tilePos(s.x, s.y) + Vector3.new(0, 1.5, 0), C.gold, 30, 1.5)
+		elseif t == "bolt" then
+			beam(tilePos(ev.from.x, ev.from.y) + Vector3.new(0, 1.5, 0), tilePos(ev.to.x, ev.to.y) + Vector3.new(0, 1.5, 0), C.ice, 0.25, 0.3)
+		elseif t == "shot" then
+			beam(tilePos(ev.from.x, ev.from.y) + Vector3.new(0, 1.4, 0), tilePos(ev.to.x, ev.to.y) + Vector3.new(0, 1.4, 0), Color3.fromRGB(232, 220, 196), 0.2, 0.15)
+		elseif t == "burst" then
+			burst(tilePos(ev.x, ev.y) + Vector3.new(0, 1, 0), C.red, 18, 1.4)
+		elseif t == "summon" or t == "raise" then
+			burst(tilePos(ev.x, ev.y) + Vector3.new(0, 0.5, 0), if t == "raise" then C.green else Color3.fromRGB(127, 154, 82), 16)
+			if t == "raise" then
+				floater(ev.x, ev.y, "RISE", C.green, 1)
+			end
+		elseif t == "teleport" then
+			burst(tilePos(ev.from.x, ev.from.y) + Vector3.new(0, 1.5, 0), Color3.fromRGB(155, 107, 214), 18)
+			burst(tilePos(ev.to.x, ev.to.y) + Vector3.new(0, 1.5, 0), Color3.fromRGB(155, 107, 214), 18)
+		elseif t == "spike" then
+			burst(tilePos(ev.x, ev.y) + Vector3.new(0, 0.5, 0), Color3.fromRGB(201, 209, 224), 8)
+		elseif t == "shadow" then
+			floater(s.x, s.y, "UNSEEN", C.dim, 0.8)
+		elseif t == "stairs" then
+			burst(tilePos(s.stairs.x, s.stairs.y), C.gold, 24)
+			floater(s.stairs.x, s.stairs.y, "DESCEND", C.gold, 1.2)
+		elseif t == "potion" then
+			burst(tilePos(s.x, s.y) + Vector3.new(0, 1, 0), Color3.fromRGB(255, 77, 90), 14)
+		elseif t == "timestop" then
+			showBanner("TIME STOPS", C.ice)
+		elseif t == "toll" then
+			showBanner("THE BELL TOLLS", C.gold)
+			shake(0.8, 0.3)
+		elseif t == "relic" then
+			local def = Relics.BY_ID[ev.id]
+			showToast(`{def.emoji}  {def.name}`, Relics.RARITY_COLOR[def.rarity])
+			sound(SFX.pick, 0.4)
+		elseif t == "fuse" then
+			local def = Relics.BY_ID[ev.id]
+			showBanner(`{def.emoji} {string.upper(def.name)}`, Relics.RARITY_COLOR[def.rarity])
+			burst(tilePos(s.x, s.y) + Vector3.new(0, 1.5, 0), Color3.fromRGB(127, 180, 255), 40, 1.6)
+			sound(SFX.pick, 0.5, 0.7)
+		elseif t == "floor" then
+			if s.boss then
+				local tier = s.floor // 5
+				local kind = ({ "boss", "abbot", "lich" })[(tier - 1) % 3 + 1]
+				showBanner(BOSS_NAMES[kind], C.red)
+			else
+				showBanner(`FLOOR {ev.floor}`, if ev.floor > 30 then C.red else C.gold)
+			end
+		elseif t == "death" then
+			if hero then
+				burst(tilePos(s.x, s.y) + Vector3.new(0, 1.5, 0), C.red, 40, 1.8)
+			end
+			shake(1.5, 0.5)
+			sound(SFX.death, 0.6)
+		end
+	end
+	return killed
+end
+
+local function applyState(s, events)
+	local floorChanged = s.floor ~= board.floor
+	if floorChanged then
+		clearUnits()
+		buildBoard(s)
+	end
+	refreshBoard(s)
+
+	local killed = playEvents(events or {}, s)
+
+	-- The hero.
+	local hero = units.hero
+	if not hero then
+		hero = newUnit("hero", "hero", false, s.hero)
+	end
+	local heroFacing = hero.facing
+	if hero.x and s.x ~= hero.x then
+		heroFacing = if s.x > hero.x then 1 else -1
+	end
+	if s.phase == "dead" then
+		if hero.model.Parent then
+			shatter(hero)
+		end
+	else
+		placeUnit(hero, s.x, s.y, heroFacing, floorChanged)
+		hero.highlight.OutlineColor = C.gold
+		hero.highlight.OutlineTransparency = if s.shadowReady then 0.3 elseif s.shield > 0 then 0.5 else 1
+		if s.shield > 0 then
+			hero.highlight.OutlineColor = C.ice
+		end
+	end
+
+	-- Foes and thralls.
+	local present = {}
+	for _, e in s.enemies do
+		present[e.id] = true
+		local u = units[e.id]
+		if not u then
+			u = newUnit(e.id, e.kind, e.ally)
+			placeUnit(u, e.x, e.y, if s.x < e.x then -1 else 1, true)
+			if not floorChanged then
+				burst(tilePos(e.x, e.y) + Vector3.new(0, 1, 0), Color3.fromRGB(127, 154, 82), 10)
+			end
+		end
+		-- Foes face the hero; thralls face where they're going.
+		local facing = if e.ally then (if u.x and e.x ~= u.x then (if e.x > u.x then 1 else -1) else u.facing) else (if s.x < e.x then -1 elseif s.x > e.x then 1 else u.facing)
+		placeUnit(u, e.x, e.y, facing, false)
+		updateUnitGui(u, e)
+	end
+	for id, u in units do
+		if id ~= "hero" and not present[id] then
+			if killed[id] then
+				shatter(u)
+			else
+				u.model:Destroy()
+				units[id] = nil
+			end
+		end
+	end
+	state = s
+	hud.update(s)
+	renderOverlays(s)
+end
+
+-- ---------- input ----------
+
+local function pump()
+	if busy then
+		return
+	end
+	busy = true
+	while #queue > 0 and inRun do
+		local ch = table.remove(queue, 1)
+		local res = call({ op = "input", ch = ch })
+		if res.error then
+			queue = {}
+			if res.error ~= "no run" then
+				showToast(res.error, C.red)
+			end
+			break
+		end
+		applyState(res.state, res.events)
+		if res.result then
+			queue = {}
+			renderOverlays(res.state, res.result)
+		end
+		if #queue > 0 then
+			task.wait(0.05)
+		end
+	end
+	busy = false
+end
+
+local function send(ch: string)
+	if not inRun or not state then
+		return
+	end
+	if #queue >= 2 then
+		return
+	end
+	table.insert(queue, ch)
+	task.spawn(pump)
+end
+
+local function moveToward(tx: number, ty: number)
+	if not state or state.phase ~= "play" then
+		return
+	end
+	local dx, dy = tx - state.x, ty - state.y
+	if dx == 0 and dy == 0 then
+		send("W")
+	elseif math.abs(dx) >= math.abs(dy) then
+		send(if dx > 0 then "R" else "L")
+	else
+		send(if dy > 0 then "D" else "U")
+	end
+end
+
+local KEYS_MOVE = {
+	[Enum.KeyCode.W] = "U", [Enum.KeyCode.Up] = "U", [Enum.KeyCode.K] = "U",
+	[Enum.KeyCode.S] = "D", [Enum.KeyCode.Down] = "D", [Enum.KeyCode.J] = "D",
+	[Enum.KeyCode.A] = "L", [Enum.KeyCode.Left] = "L", [Enum.KeyCode.H] = "L",
+	[Enum.KeyCode.D] = "R", [Enum.KeyCode.Right] = "R", [Enum.KeyCode.L] = "R",
+	[Enum.KeyCode.Space] = "W", [Enum.KeyCode.Period] = "W",
+}
+local NUMBER_KEYS = { Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four, Enum.KeyCode.Five, Enum.KeyCode.Six, Enum.KeyCode.Seven, Enum.KeyCode.Eight, Enum.KeyCode.Nine }
+local FORGE_KEYS = "bcdefghijklm"
+
+local touchStart = nil
+
+local function onKey(key: Enum.KeyCode)
+	do
+		if state.phase == "play" then
+			local ch = KEYS_MOVE[key]
+			if ch then
+				send(ch)
+			end
+		elseif state.phase == "choose" then
+			local n = table.find(NUMBER_KEYS, key)
+			if n and state.offer and n <= #state.offer.relics then
+				send(tostring(n - 1))
+			elseif key == Enum.KeyCode.R then
+				send("r")
+			end
+		elseif state.phase == "event" then
+			local n = table.find(NUMBER_KEYS, key)
+			if state.feature and state.feature.kind == "forge" and n and n <= #state.forge then
+				send(string.sub(FORGE_KEYS, n, n))
+			elseif key == Enum.KeyCode.Y or key == Enum.KeyCode.Return then
+				if state.canAccept and state.feature.kind ~= "forge" then
+					send("a")
+				end
+			elseif key == Enum.KeyCode.N or key == Enum.KeyCode.X then
+				send("x")
+			end
+		end
+	end
+end
+
+local GAME_KEYS = { Enum.KeyCode.R, Enum.KeyCode.Y, Enum.KeyCode.N, Enum.KeyCode.X, Enum.KeyCode.Return }
+for key in KEYS_MOVE do
+	table.insert(GAME_KEYS, key)
+end
+for _, key in NUMBER_KEYS do
+	table.insert(GAME_KEYS, key)
+end
+ContextActionService:BindActionAtPriority("CryptKeys", function(_, inputState, input)
+	if not inRun or not state then
+		return Enum.ContextActionResult.Pass
+	end
+	if inputState == Enum.UserInputState.Begin then
+		onKey(input.KeyCode)
+	end
+	return Enum.ContextActionResult.Sink
+end, false, Enum.ContextActionPriority.High.Value + 100, table.unpack(GAME_KEYS))
+
+UserInputService.InputBegan:Connect(function(input, processed)
+	if processed or not inRun or not state then
+		return
+	end
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		touchStart = input.Position
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input, processed)
+	if not touchStart or not inRun or not state or state.phase ~= "play" then
+		touchStart = nil
+		return
+	end
+	if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
+		return
+	end
+	local delta = input.Position - touchStart
+	local startPos = touchStart
+	touchStart = nil
+	if processed then
+		return
+	end
+	if delta.Magnitude > 40 then
+		-- Swipe.
+		if math.abs(delta.X) > math.abs(delta.Y) then
+			send(if delta.X > 0 then "R" else "L")
+		else
+			send(if delta.Y > 0 then "D" else "U")
+		end
+		return
+	end
+	-- Tap a tile to step toward it.
+	local ray = camera:ViewportPointToRay(startPos.X, startPos.Y)
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Include
+	params.FilterDescendantsInstances = { boardFolder }
+	local hit = workspace:Raycast(ray.Origin, ray.Direction * 500, params)
+	if hit then
+		local local3 = hit.Position - ORIGIN
+		local tx = math.floor(local3.X / TILE + 3.5)
+		local ty = math.floor(local3.Z / TILE + 3.5)
+		if tx >= 0 and tx < W and ty >= 0 and ty < H then
+			moveToward(tx, ty)
+		end
+	end
+end)
+
+-- ---------- HUD ----------
+
+hud = {}
+do
+	local top = new("Frame", {
+		Name = "HUD",
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		Visible = false,
+		Parent = gui,
+	}, { new("UIPadding", { PaddingTop = UDim.new(0, 48), PaddingLeft = UDim.new(0, 12), PaddingRight = UDim.new(0, 12) }), list(6) })
+	screens.hud = top
+	local row = new("Frame", { Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, LayoutOrder = 1, Parent = top }, {
+		new("UISizeConstraint", { MaxSize = Vector2.new(640, 40) }),
+	})
+	local floorLabel = text({ Size = UDim2.new(0.34, 0, 1, 0), AutomaticSize = Enum.AutomaticSize.None, Font = HEADING, TextSize = 22, TextXAlignment = Enum.TextXAlignment.Left, Text = "", Parent = row })
+	local hpBack = new("Frame", { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.new(0.34, 0, 0, 22), BackgroundColor3 = Color3.fromRGB(42, 24, 32), Parent = row }, { corner(6), stroke(C.line) })
+	local hpFill = new("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = C.red, Parent = hpBack }, { corner(6) })
+	local hpText = text({ Size = UDim2.fromScale(1, 1), AutomaticSize = Enum.AutomaticSize.None, Font = BOLD, TextSize = 14, Text = "", ZIndex = 2, Parent = hpBack })
+	local stats = text({ AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -48, 0, 0), Size = UDim2.new(0.32, -50, 1, 0), AutomaticSize = Enum.AutomaticSize.None, Font = BOLD, TextSize = 15, TextXAlignment = Enum.TextXAlignment.Right, Text = "", Parent = row })
+	button("☰", function()
+		if busy then
+			return
+		end
+		local res = call({ op = "leave" })
+		inRun = false
+		queue = {}
+		if res.profile then
+			profile = res.profile
+		end
+		showMenu()
+	end, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0), Size = UDim2.fromOffset(40, 40), TextSize = 20, Parent = row })
+	local relicRow = new("ScrollingFrame", {
+		Size = UDim2.new(1, 0, 0, 40),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		CanvasSize = UDim2.new(),
+		AutomaticCanvasSize = Enum.AutomaticSize.X,
+		ScrollingDirection = Enum.ScrollingDirection.X,
+		ScrollBarThickness = 0,
+		LayoutOrder = 2,
+		Parent = top,
+	}, { list(4, true, Enum.HorizontalAlignment.Left), new("UISizeConstraint", { MaxSize = Vector2.new(640, 40) }) })
+	local hint = text({
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -12),
+		Size = UDim2.new(1, -24, 0, 18),
+		TextColor3 = C.dim,
+		TextSize = 14,
+		Text = "WASD / arrows to move · bump foes to attack · Space to wait · tap a tile",
+		Visible = false,
+		Parent = gui,
+	})
+	screens.hint = hint
+
+	-- On-screen d-pad for touch screens.
+	local dpad = new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -16),
+		Size = UDim2.fromOffset(168, 168),
+		BackgroundTransparency = 1,
+		Visible = false,
+		Parent = gui,
+	})
+	screens.dpad = dpad
+	local function padButton(label: string, ch: string, x: number, y: number)
+		button(label, function()
+			send(ch)
+		end, { Position = UDim2.fromOffset(x, y), Size = UDim2.fromOffset(54, 54), TextSize = 22, BackgroundTransparency = 0.25, Parent = dpad })
+	end
+	padButton("▲", "U", 57, 0)
+	padButton("▼", "D", 57, 114)
+	padButton("◀", "L", 0, 57)
+	padButton("▶", "R", 114, 57)
+	padButton("⏳", "W", 57, 57)
+
+	local tip = new("TextLabel", {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 140),
+		Size = UDim2.fromOffset(300, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundColor3 = C.panel,
+		Font = BODY,
+		TextSize = 15,
+		TextColor3 = C.text,
+		TextWrapped = true,
+		Visible = false,
+		ZIndex = 12,
+		Parent = gui,
+	}, { corner(8), pad(10), stroke() })
+	local tipToken = 0
+
+	function hud.update(s)
+		local f = s.floor
+		floorLabel.Text = (if s.mode == "daily" then `DAILY #{s.dailyNo} · ` else "") .. `FLOOR {f}`
+		floorLabel.TextColor3 = if s.boss then C.red elseif f > 30 then Color3.fromRGB(255, 120, 120) else C.gold
+		hpFill.Size = UDim2.fromScale(math.clamp(s.hp / math.max(1, s.maxHp), 0, 1), 1)
+		hpText.Text = `❤ {s.hp}/{s.maxHp}`
+		local bits = { `⚔ {s.atk}`, `💀 {s.kills}` }
+		if s.shield > 0 then
+			table.insert(bits, 2, `🛡 {s.shield}`)
+		end
+		stats.Text = table.concat(bits, "   ")
+		clear(relicRow)
+		for i, r in s.relics do
+			local b = new("TextButton", {
+				Size = UDim2.fromOffset(if r.n > 1 then 54 else 38, 36),
+				BackgroundColor3 = C.panel2,
+				Text = r.emoji .. (if r.n > 1 then `×{r.n}` else ""),
+				TextSize = 18,
+				Font = BOLD,
+				TextColor3 = C.text,
+				LayoutOrder = i,
+				Parent = relicRow,
+			}, { corner(6), stroke(Relics.RARITY_COLOR[r.rarity], 1.5) })
+			b.Activated:Connect(function()
+				tipToken += 1
+				local my = tipToken
+				tip.Text = `{r.emoji} {r.name}\n{r.desc}`
+				tip.Visible = true
+				task.delay(3, function()
+					if tipToken == my then
+						tip.Visible = false
+					end
+				end)
+			end)
+		end
+	end
+end
+
+-- ---------- run overlays ----------
+
+local chooseScreen, chooseCard = overlay("Choose", 560)
+local eventScreen, eventCard = overlay("Event", 480)
+local deathScreen, deathCard = overlay("Death", 520)
+screens.choose = chooseScreen
+screens.event = eventScreen
+screens.death = deathScreen
+
+local function relicCard(r, onClick, order: number)
+	local b = button("", onClick, { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = order, Parent = chooseCard })
+	b:FindFirstChildOfClass("UIStroke").Color = Relics.RARITY_COLOR[r.rarity]
+	new("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, Parent = b }, {
+		pad(12),
+		list(4, false, Enum.HorizontalAlignment.Left),
+		text({ Text = `[{order}]  {r.emoji}  {r.name}` .. (if r.n > 1 then `  ×{r.n}` else ""), Font = BOLD, TextSize = 18, TextColor3 = Relics.RARITY_COLOR[r.rarity], TextXAlignment = Enum.TextXAlignment.Left }),
+		text({ Text = r.desc, TextSize = 15, TextColor3 = C.text, TextXAlignment = Enum.TextXAlignment.Left }),
+		text({ Text = string.upper(r.rarity), TextSize = 11, Font = BOLD, TextColor3 = C.dim, TextXAlignment = Enum.TextXAlignment.Left }),
+	})
+	return b
+end
+
+local function boardList(parent: Instance, rows, order: number)
+	local box = new("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundColor3 = C.panel2, LayoutOrder = order, Parent = parent }, { corner(8), pad(10), list(4) })
+	if #rows == 0 then
+		text({ Text = "No descents recorded yet.", TextColor3 = C.dim, Parent = box })
+	end
+	for _, row in rows do
+		local floor = row.score // 10000
+		local kills = row.score % 10000
+		text({
+			Text = `{row.rank}.  {row.name}   —   floor {floor} · {kills} kills`,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextColor3 = if row.name == player.Name then C.gold else C.text,
+			TextSize = 15,
+			Parent = box,
+		})
+	end
+	return box
+end
+
+local lastResult = nil
+
+renderOverlays = function(s, result)
+	if result then
+		lastResult = result
+	end
+	if not inRun then
+		return
+	end
+	local phase = s.phase
+	if phase == "choose" then
+		clear(chooseCard)
+		text({ Text = `FLOOR {s.floor} CLEARED`, Font = HEADING, TextSize = 30, TextColor3 = C.gold, LayoutOrder = 0, Parent = chooseCard })
+		text({ Text = "Take a relic, or rest.", TextColor3 = C.dim, LayoutOrder = 0, Parent = chooseCard })
+		for i, r in s.offer.relics do
+			relicCard(r, function()
+				send(tostring(i - 1))
+			end, i)
+		end
+		button(`[R]  Rest  (+{s.offer.restHeal} HP)`, function()
+			send("r")
+		end, { LayoutOrder = 10, Parent = chooseCard, TextColor3 = C.green })
+		show("choose")
+	elseif phase == "event" then
+		clear(eventCard)
+		local f = s.feature
+		text({ Text = string.upper(f.name), Font = HEADING, TextSize = 28, TextColor3 = FEATURE_STYLE[f.kind].glow, Parent = eventCard })
+		text({ Text = f.text, TextColor3 = C.text, Parent = eventCard })
+		if f.kind == "forge" then
+			if #s.forge == 0 then
+				text({ Text = "You hold no pair of relics the forge can fuse.", TextColor3 = C.dim, Parent = eventCard })
+			end
+			for i, opt in s.forge do
+				local b = button("", function()
+					send(string.sub(FORGE_KEYS, i, i))
+				end, { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Parent = eventCard })
+				b:FindFirstChildOfClass("UIStroke").Color = Relics.RARITY_COLOR[opt.rarity]
+				new("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, Parent = b }, {
+					pad(10),
+					list(3, false, Enum.HorizontalAlignment.Left),
+					text({ Text = `[{i}]  {opt.emoji}  {opt.name}`, Font = BOLD, TextSize = 17, TextColor3 = Relics.RARITY_COLOR[opt.rarity], TextXAlignment = Enum.TextXAlignment.Left }),
+					text({ Text = opt.recipe, TextSize = 13, TextColor3 = C.dim, TextXAlignment = Enum.TextXAlignment.Left }),
+					text({ Text = opt.desc, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left }),
+				})
+			end
+		else
+			local accept = button(`[Y]  {f.accept}`, function()
+				if s.canAccept then
+					send("a")
+				end
+			end, { Parent = eventCard, TextColor3 = if s.canAccept then C.gold else C.dim })
+			if not s.canAccept then
+				accept.AutoButtonColor = false
+			end
+		end
+		button(`[N]  {f.leave}`, function()
+			send("x")
+		end, { Parent = eventCard })
+		show("event")
+	elseif phase == "dead" then
+		local r = lastResult
+		clear(deathCard)
+		text({ Text = `YOU FELL ON FLOOR {s.floor}`, Font = HEADING, TextSize = 30, TextColor3 = C.red, Parent = deathCard })
+		text({ Text = `Slain by {s.killedBy} · {s.kills} kills · {s.turns} turns · {s.heroName}`, TextColor3 = C.dim, Parent = deathCard })
+		if s.emojis ~= "" then
+			text({ Text = s.emojis, TextSize = 24, Parent = deathCard })
+		end
+		if r then
+			local box = new("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundColor3 = C.panel2, Parent = deathCard }, { corner(8), pad(10), list(3) })
+			for _, l in r.lines do
+				text({ Text = `{l.label}   +{l.souls}`, TextSize = 15, Parent = box })
+			end
+			text({ Text = `+{r.souls} Souls`, Font = HEADING, TextSize = 24, TextColor3 = C.gold, Parent = box })
+			if r.newBest then
+				text({ Text = "New best Endless depth!", Font = BOLD, TextColor3 = C.gold, Parent = deathCard })
+			end
+			if r.board then
+				text({ Text = if s.mode == "daily" then `DAILY #{s.dailyNo} LEADERBOARD` else "ENDLESS LEADERBOARD", Font = HEADING, TextSize = 18, TextColor3 = C.gold, Parent = deathCard })
+				boardList(deathCard, r.board, 50)
+				text({ Text = "Leaderboards refresh every minute.", TextSize = 12, TextColor3 = C.dim, LayoutOrder = 51, Parent = deathCard })
+			end
+		end
+		if s.mode == "daily" then
+			text({ Text = `Daily #{s.dailyNo + 1} opens at midnight Central Time. Endless is open now.`, TextColor3 = C.dim, LayoutOrder = 60, Parent = deathCard })
+		end
+		button("Descend again (Endless)", function()
+			local res = call({ op = "start", mode = "endless" })
+			if res.state then
+				lastResult = nil
+				board.floor = -1
+				applyState(res.state, {})
+			end
+		end, { LayoutOrder = 70, Parent = deathCard, TextColor3 = C.gold })
+		button("Back to the surface", function()
+			inRun = false
+			local res = call({ op = "profile" })
+			profile = res.profile or profile
+			showMenu()
+		end, { LayoutOrder = 71, Parent = deathCard })
+		show("death")
+	else
+		show("hud")
+	end
+	-- The HUD stays up under the overlays during a run.
+	screens.hud.Visible = phase ~= "dead"
+	local touch = UserInputService.TouchEnabled
+	screens.dpad.Visible = phase == "play" and touch
+	screens.hint.Visible = phase == "play" and not touch
+end
+
+-- ---------- menus ----------
+
+local menuScreen, menuCard = overlay("Menu", 520)
+local ossuaryScreen, ossuaryCard = overlay("Ossuary", 560)
+local boardsScreen, boardsCard = overlay("Boards", 520)
+local howScreen, howCard = overlay("HowTo", 520)
+screens.menu = menuScreen
+screens.ossuary = ossuaryScreen
+screens.boards = boardsScreen
+screens.howto = howScreen
+menuScreen.BackgroundTransparency = 0.45
+
+local function startRun(mode: string, hero: string?)
+	local res = call({ op = "start", mode = mode, hero = hero })
+	if res.error then
+		showToast(res.error, C.red)
+		if res.profile then
+			profile = res.profile
+			showMenu()
+		end
+		return
+	end
+	inRun = true
+	queue = {}
+	lastResult = nil
+	board.floor = -1
+	clearUnits()
+	applyState(res.state, {})
+	if res.state.floor == 1 and res.state.turns == 0 then
+		showBanner(if mode == "daily" then `DAILY #{res.state.dailyNo}` else "ENDLESS", C.gold)
+	end
+end
+
+local countdownLabel = nil
+local presenceLabel = nil
+
+local function updatePresence()
+	if presenceLabel and presenceLabel.Parent then
+		local n = presence.Value
+		presenceLabel.Text = `{n} soul{if n == 1 then "" else "s"} in this crypt right now`
+	end
+end
+presence.Changed:Connect(updatePresence)
+
+--- A still room behind the menus: the hero waiting at the foot of the stairs.
+local function showPreview()
+	local preview = {
+		floor = 0, boss = false, walls = { 8, 12, 22, 26, 36, 40 }, spikes = { 30 }, stairs = { x = 3, y = 0 },
+		stairsOpen = true, warnings = {}, enemies = {}, feature = nil, potion = nil,
+	}
+	buildBoard(preview)
+	refreshBoard(preview)
+	board.floor = -1
+	local hero = newUnit("hero", "hero", false, profile and profile.hero or "knight")
+	placeUnit(hero, 3, 4, 1, true)
+	for i, kind in { "ghoul", "bat", "archer" } do
+		local u = newUnit("preview" .. i, kind, false)
+		placeUnit(u, ({ 1, 3, 5 })[i], ({ 2, 1, 2 })[i], if i == 3 then -1 else 1, true)
+		u.gui.Enabled = false
+	end
+end
+
+showMenu = function()
+	inRun = false
+	clearUnits()
+	clear(menuCard)
+	local p = profile
+	text({ Text = "ONE MORE CRYPT", Font = HEADING, TextSize = 40, TextColor3 = C.gold, Parent = menuCard })
+	text({ Text = "Same crypt for everyone. One attempt a day.", TextColor3 = C.dim, Parent = menuCard })
+	text({ Text = `⚱ {p.souls} Souls`, Font = BOLD, TextColor3 = C.gold, Parent = menuCard })
+
+	-- Daily card.
+	local d = p.daily
+	local daily = new("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundColor3 = C.panel2, Parent = menuCard }, { corner(10), stroke(C.gold, 1.5), pad(14), list(6) })
+	text({ Text = `DAILY DESCENT #{d.number}`, Font = HEADING, TextSize = 24, TextColor3 = C.gold, Parent = daily })
+	text({ Text = `Hero of the day: {d.hero}`, Parent = daily })
+	if d.resumable then
+		text({ Text = `Your descent is waiting on floor {d.played}.`, TextColor3 = C.dim, Parent = daily })
+		button("Resume the descent", function()
+			startRun("daily")
+		end, { Parent = daily, TextColor3 = C.gold })
+	elseif d.played then
+		text({ Text = `You reached floor {d.played} today. Come back tomorrow, or practise in Endless.`, TextColor3 = C.dim, Parent = daily })
+	else
+		text({ Text = "One official attempt. Everyone gets the same crypt (the same one as onemorecrypt.com).", TextColor3 = C.dim, Parent = daily })
+		button("Descend", function()
+			startRun("daily")
+		end, { Parent = daily, TextColor3 = C.gold })
+	end
+	countdownLabel = text({ Text = "", TextSize = 13, TextColor3 = C.dim, Parent = daily })
+
+	-- Endless card.
+	local endless = new("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundColor3 = C.panel2, Parent = menuCard }, { corner(10), stroke(), pad(14), list(6) })
+	text({ Text = "ENDLESS", Font = HEADING, TextSize = 24, Parent = endless })
+	text({ Text = `Random crypts for practice. Best depth: floor {p.bestEndless}.`, TextColor3 = C.dim, Parent = endless })
+	local heroRow = new("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, Parent = endless }, {
+		new("UIGridLayout", { CellSize = UDim2.new(0.25, -6, 0, 40), CellPadding = UDim2.fromOffset(6, 6), SortOrder = Enum.SortOrder.LayoutOrder }),
+	})
+	local selected = nil
+	for i, h in p.heroes do
+		if h.owned then
+			local b = button(h.name, function()
+				local res = call({ op = "pickHero", id = h.id })
+				profile = res.profile or profile
+				showMenu()
+			end, { LayoutOrder = i, TextSize = 14, Parent = heroRow })
+			if h.id == p.hero then
+				b:FindFirstChildOfClass("UIStroke").Color = C.gold
+				b.TextColor3 = C.gold
+				selected = h
+			end
+		end
+	end
+	if selected then
+		text({ Text = `{selected.name} · {selected.hp} HP · {selected.perk}: {selected.perkDesc}`, TextSize = 14, TextColor3 = C.dim, Parent = endless })
+	end
+	if p.endlessResumable then
+		button("Resume Endless run", function()
+			startRun("endless", "resume")
+		end, { Parent = endless, TextColor3 = C.gold })
+	end
+	button("Begin a new Endless run", function()
+		startRun("endless", p.hero)
+	end, { Parent = endless })
+
+	local row = new("Frame", { Size = UDim2.new(1, 0, 0, 44), BackgroundTransparency = 1, Parent = menuCard }, {
+		new("UIGridLayout", { CellSize = UDim2.new(1 / 3, -6, 0, 44), CellPadding = UDim2.fromOffset(6, 0) }),
+	})
+	button("Ossuary", function()
+		show("ossuary")
+		menus.renderOssuary()
+	end, { Parent = row })
+	button("Leaderboards", function()
+		show("boards")
+		menus.renderBoards("daily")
+	end, { Parent = row })
+	button("How to play", function()
+		show("howto")
+	end, { Parent = row })
+	if not p.online then
+		text({ Text = "Progress is not being saved on this server (DataStores are off).", TextSize = 12, TextColor3 = C.red, Parent = menuCard })
+	end
+	presenceLabel = text({ Text = "", TextSize = 13, TextColor3 = C.dim, Parent = menuCard })
+	updatePresence()
+	showPreview()
+	show("menu")
+	camera.CameraType = Enum.CameraType.Scriptable
+end
+
+menus.renderOssuary = function()
+	clear(ossuaryCard)
+	local p = profile
+	text({ Text = "THE OSSUARY", Font = HEADING, TextSize = 30, TextColor3 = C.gold, Parent = ossuaryCard })
+	text({ Text = `Trade Souls for heroes and forbidden relics for Endless. You have ⚱ {p.souls}.`, TextColor3 = C.dim, Parent = ossuaryCard })
+	text({ Text = "HEROES", Font = HEADING, TextSize = 18, Parent = ossuaryCard })
+	for _, h in p.heroes do
+		local label = if h.owned then `{h.name} · owned` else `{h.name} · ⚱ {h.cost}`
+		local b = button(label .. `\n{h.perk}: {h.perkDesc}`, function()
+			if not h.owned then
+				local res = call({ op = "buyHero", id = h.id })
+				profile = res.profile or profile
+				menus.renderOssuary()
+			end
+		end, { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextSize = 14, Parent = ossuaryCard })
+		b.TextColor3 = if h.owned then C.dim elseif p.souls >= h.cost then C.gold else C.text
+		new("UIPadding", { PaddingTop = UDim.new(0, 8), PaddingBottom = UDim.new(0, 8), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), Parent = b })
+	end
+	text({ Text = "FORBIDDEN RELICS", Font = HEADING, TextSize = 18, Parent = ossuaryCard })
+	for _, r in p.forbidden do
+		local label = if r.owned then `{r.emoji} {r.name} · unlocked` else `{r.emoji} {r.name} · ⚱ {r.cost}`
+		local b = button(label .. `\n{r.desc}`, function()
+			if not r.owned then
+				local res = call({ op = "buyRelic", id = r.id })
+				profile = res.profile or profile
+				menus.renderOssuary()
+			end
+		end, { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, TextSize = 14, Parent = ossuaryCard })
+		b.TextColor3 = if r.owned then C.dim elseif p.souls >= r.cost then C.gold else C.text
+		new("UIPadding", { PaddingTop = UDim.new(0, 8), PaddingBottom = UDim.new(0, 8), PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), Parent = b })
+	end
+	button("Back", function()
+		showMenu()
+	end, { Parent = ossuaryCard })
+end
+
+menus.renderBoards = function(which: string)
+	clear(boardsCard)
+	text({ Text = "LEADERBOARDS", Font = HEADING, TextSize = 30, TextColor3 = C.gold, LayoutOrder = 1, Parent = boardsCard })
+	local tabs = new("Frame", { Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, LayoutOrder = 2, Parent = boardsCard }, {
+		new("UIGridLayout", { CellSize = UDim2.new(0.5, -4, 0, 40), CellPadding = UDim2.fromOffset(8, 0) }),
+	})
+	button("Today's daily", function()
+		menus.renderBoards("daily")
+	end, { Parent = tabs, TextColor3 = if which == "daily" then C.gold else C.text })
+	button("Endless", function()
+		menus.renderBoards("endless")
+	end, { Parent = tabs, TextColor3 = if which == "endless" then C.gold else C.text })
+	local loading = text({ Text = "Reading the tombstones…", TextColor3 = C.dim, LayoutOrder = 3, Parent = boardsCard })
+	button("Back", function()
+		showMenu()
+	end, { LayoutOrder = 20, Parent = boardsCard })
+	task.spawn(function()
+		local res = call({ op = "board", board = which })
+		if loading.Parent then
+			loading.Text = res.title or ""
+			boardList(boardsCard, res.board or {}, 4)
+		end
+	end)
+end
+
+do
+	text({ Text = "HOW TO PLAY", Font = HEADING, TextSize = 30, TextColor3 = C.gold, Parent = howCard })
+	local rules = {
+		"🗺  Every floor is a 7×7 room. Every move you make, every foe makes one.",
+		"⚔  Walk into a foe to attack it. Kill everything to unseal the stairs, then step on them.",
+		"🏮  After each floor, take 1 of 3 relics or rest. Relics stack: 2 Vampire Fangs heal for 2.",
+		"🏹  Skeleton Archers aim first: a red line shows where the arrow will fly. Step out of it.",
+		"☠  A boss waits every 5th floor. Purple and green tiles flash where a boss spell will land.",
+		"🪤  Spikes hurt whoever walks on them. Lure foes across them.",
+		"🩸  Shrines, chests and fountains offer deals. The Soul Forge, after each boss, fuses two relics.",
+		"⏳  Space (or the hourglass) waits a turn: let foes come to you.",
+		"📅  The Daily Descent is the same crypt for everyone, and the same as on onemorecrypt.com. One attempt a day.",
+		"⚱  Every run earns Souls. Spend them in the Ossuary on heroes and forbidden relics for Endless.",
+		"🎮  Move: WASD, arrows or HJKL · on phones swipe, tap a tile or use the d-pad.",
+	}
+	for _, r in rules do
+		text({ Text = r, TextXAlignment = Enum.TextXAlignment.Left, TextSize = 15, Parent = howCard })
+	end
+	button("Back", function()
+		showMenu()
+	end, { Parent = howCard })
+end
+
+-- Countdown to the next daily.
+task.spawn(function()
+	while true do
+		if countdownLabel and countdownLabel.Parent then
+			countdownLabel.Text = "Next crypt in " .. Daily.countdown(Daily.secondsUntilNext())
+		end
+		task.wait(1)
+	end
+end)
+
+-- Gentle idle bob for the potion and a slow spin on the hero's torchlight.
+RunService.RenderStepped:Connect(function()
+	if board.potion and board.potion.PrimaryPart and state and state.potion then
+		local t = os.clock()
+		board.potion.PrimaryPart.CFrame = CFrame.new(tilePos(state.potion.x, state.potion.y) + Vector3.new(0, 0.3 + math.sin(t * 3) * 0.2, 0)) * CFrame.Angles(0, math.sin(t) * 0.4, 0)
+	end
+end)
+
+-- ---------- boot ----------
+
+do
+	-- A preview room behind the menu.
+	local loading = text({ Text = "Opening the crypt…", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Font = HEADING, TextSize = 26, TextColor3 = C.gold, Parent = gui })
+	local res = call({ op = "profile" })
+	while not res.profile do
+		task.wait(1)
+		res = call({ op = "profile" })
+	end
+	loading:Destroy()
+	profile = res.profile
+	showMenu()
+end
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+</roblox>

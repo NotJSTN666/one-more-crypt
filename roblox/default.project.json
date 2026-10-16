@@ -1,0 +1,36 @@
+{
+  "name": "OneMoreCrypt",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "OneMoreCrypt": {
+        "$path": "src/shared"
+      }
+    },
+    "ServerScriptService": {
+      "CryptServer": {
+        "$path": "src/server/CryptServer.server.luau"
+      }
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "CryptClient": {
+          "$path": "src/client/CryptClient.client.luau"
+        }
+      }
+    },
+    "Players": {
+      "$properties": {
+        "CharacterAutoLoads": false
+      }
+    },
+    "Lighting": {
+      "$properties": {
+        "Technology": "Future",
+        "ClockTime": 0,
+        "Brightness": 0.4,
+        "GlobalShadows": true
+      }
+    }
+  }
+}

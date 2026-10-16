@@ -3,7 +3,7 @@
 import type { EnemyKind } from './game';
 import { ENEMY_ART } from './enemy-art';
 
-const PALETTE: Record<string, string> = {
+export const PALETTE: Record<string, string> = {
   k: '#0d0812', // outline
   b: '#e8dcc4', // bone
   B: '#a89a80', // bone shade
@@ -42,7 +42,7 @@ const PALETTE: Record<string, string> = {
 
 type SpriteName = 'player' | EnemyKind | 'potion';
 
-const ART: Record<SpriteName, string[]> = {
+export const ART: Record<SpriteName, string[]> = {
   player: [
     '....kkkk....',
     '...kPPPPk...',

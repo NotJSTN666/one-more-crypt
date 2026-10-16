@@ -38,7 +38,7 @@ const BODY = [
   '...kk...kk..',
 ];
 
-const CLOAKS = {
+export const CLOAKS = {
   default: { p: '#3b4f7d', P: '#22304f' },
   rogue: { p: '#2f5238', P: '#1b3021' },
   necro: { p: '#45285a', P: '#26142f' },
