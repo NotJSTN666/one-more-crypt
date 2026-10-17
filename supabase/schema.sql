@@ -61,6 +61,25 @@ drop policy if exists "rename own profile" on public.profiles;
 create policy "rename own profile" on public.profiles for update to authenticated
   using (id = auth.uid()) with check (id = auth.uid());
 
+-- Names are unique ignoring capitals: "Jstn" can't be claimed once "JSTN" exists.
+-- A trigger rather than a unique index, so names that already clash keep working.
+create or replace function public.profile_name_free() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if tg_op = 'INSERT' or new.name is distinct from old.name then
+    if exists (select 1 from public.profiles p where lower(p.name) = lower(new.name) and p.id <> new.id) then
+      raise exception 'That name is already taken.' using errcode = 'unique_violation';
+    end if;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists profile_name_free on public.profiles;
+create trigger profile_name_free before insert or update of name on public.profiles
+  for each row execute function public.profile_name_free();
+
+create index if not exists profiles_lower_name on public.profiles (lower(name));
+
 drop policy if exists "runs are public" on public.runs;
 create policy "runs are public" on public.runs for select using (true);
 
