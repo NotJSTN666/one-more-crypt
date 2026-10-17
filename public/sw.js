@@ -1,6 +1,6 @@
 // Lets the game install as an app and open offline. Always tries the network first so
 // players get new versions straight away; the cache is only a fallback.
-const CACHE = 'omc-v1';
+const CACHE = 'omc-v2';
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
@@ -35,7 +35,7 @@ self.addEventListener('push', (e) => {
     self.registration.showNotification(data.title || 'One More Crypt', {
       body: data.body || 'A new crypt is open.',
       icon: './icons/icon-192.png',
-      badge: './icons/icon-192.png',
+      badge: './icons/badge-96.png',
       tag: data.tag || 'daily',
       renotify: true,
       data: { url: data.url || './' },
