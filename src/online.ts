@@ -215,8 +215,18 @@ export async function dailyBelow(dailyNo: number, rank: number): Promise<number>
   return count ?? 0;
 }
 
-export function endlessBoard(userId: string | null, limit = 50): Promise<Board> {
-  return board('leaderboard_endless', (q) => q, userId, limit);
+export type EndlessPeriod = 'all' | 'week' | 'day';
+
+/** Each player's best endless run: of all time, this week (from Monday) or today, Central Time. */
+export async function endlessBoard(userId: string | null, limit = 50, period: EndlessPeriod = 'all'): Promise<Board> {
+  if (period === 'all') return board('leaderboard_endless', (q) => q, userId, limit);
+  const sb = await client();
+  const top = sb.rpc('endless_board', { p_period: period }, { count: 'exact' }).order('rank').order('name').limit(limit);
+  const mine = userId ? sb.rpc('endless_board', { p_period: period }).eq('user_id', userId).maybeSingle() : null;
+  const [a, b] = await Promise.all([top, mine]);
+  if (a.error?.code === 'PGRST202') throw new OnlineError('This board is still being set up. Check All time for now.');
+  if (a.error) throw friendly(a.error, 'Could not load the leaderboard.');
+  return { rows: (a.data ?? []) as BoardRow[], me: (b?.data as BoardRow) ?? null, total: a.count ?? 0 };
 }
 
 /** Progress saved on the account, or null if there is none (or the column isn't set up yet). */

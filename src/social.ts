@@ -12,6 +12,7 @@ import {
   dailyBelow,
   dailyBoard,
   endlessBoard,
+  type EndlessPeriod,
   linkEmail,
   myRuns,
   myRunLogs,
@@ -646,7 +647,13 @@ type Tab = 'today' | 'yesterday' | 'endless';
 const BOARD_FIRST = 25;
 const BOARD_MORE = 100;
 
-export function showLeaderboard(back: () => void, tab: Tab = 'today', limit = BOARD_FIRST) {
+const PERIODS: [EndlessPeriod, string][] = [
+  ['all', 'All time'],
+  ['week', 'This week'],
+  ['day', 'Today'],
+];
+
+export function showLeaderboard(back: () => void, tab: Tab = 'today', limit = BOARD_FIRST, period: EndlessPeriod = 'all') {
   const today = dailyNumber();
   const tabs: [Tab, string][] = [
     ['today', `Daily #${today}`],
@@ -662,29 +669,39 @@ export function showLeaderboard(back: () => void, tab: Tab = 'today', limit = BO
         .map(([t, label]) => `<button role="tab" data-tab="${t}" aria-selected="${t === tab}">${label}</button>`)
         .join('')}
     </div>
-    <p class="fine">Tap a name to visit their Crypt Hall.</p>
+    ${
+      tab === 'endless'
+        ? `<div class="subtabs" role="tablist" aria-label="Endless period">${PERIODS.map(
+            ([p, label]) => `<button role="tab" data-period="${p}" aria-selected="${p === period}">${label}</button>`,
+          ).join('')}</div>`
+        : ''
+    }
+    <p class="fine">${tab === 'endless' && period !== 'all' ? `Best endless run ${period === 'week' ? 'since Monday' : 'since midnight'} (Central Time). ` : ''}Tap a name to visit their Crypt Hall.</p>
     <div id="board-body" class="board"><p class="sub">Summoning the dead…</p></div>
     ${signedIn() ? '' : '<button class="btn" id="join">Claim a name to join</button>'}
     <button class="btn primary" id="back">Back</button>`);
   document.querySelectorAll<HTMLButtonElement>('.tabs button').forEach((b) =>
     b.addEventListener('click', () => showLeaderboard(back, b.dataset.tab as Tab)),
   );
+  document.querySelectorAll<HTMLButtonElement>('.subtabs button').forEach((b) =>
+    b.addEventListener('click', () => showLeaderboard(back, 'endless', BOARD_FIRST, b.dataset.period as EndlessPeriod)),
+  );
   on('#back', back);
   on('#back-top', back);
-  on('#join', () => showLogin(() => showLeaderboard(back, tab)));
+  on('#join', () => showLogin(() => showLeaderboard(back, tab, BOARD_FIRST, period)));
 
   const uid = session.account?.id ?? null;
   const fill = (n: number) => {
     const load: Promise<Board> =
-      tab === 'endless' ? endlessBoard(uid, n) : dailyBoard(tab === 'today' ? today : today - 1, uid, n);
+      tab === 'endless' ? endlessBoard(uid, n, period) : dailyBoard(tab === 'today' ? today : today - 1, uid, n);
     return Promise.all([load, reigningChampions()])
       .then(([b, champs]) => {
         if (screen !== 'board') return;
         const body = document.getElementById('board-body');
         if (!body) return;
-        body.innerHTML = boardHtml(b, uid, tab, n < BOARD_MORE, champs);
+        body.innerHTML = boardHtml(b, uid, tab, n < BOARD_MORE, champs, period);
         body.querySelectorAll<HTMLElement>('[data-hall]').forEach((li) =>
-          li.addEventListener('click', () => showPublicHall(li.dataset.hall!, () => showLeaderboard(back, tab, n))),
+          li.addEventListener('click', () => showPublicHall(li.dataset.hall!, () => showLeaderboard(back, tab, n, period))),
         );
         const more = body.querySelector<HTMLButtonElement>('#board-more');
         more?.addEventListener('click', () => {
@@ -717,9 +734,10 @@ function boardPortrait(r: BoardRow): string {
   return url;
 }
 
-function boardHtml(b: Board, uid: string | null, tab: Tab, canShowMore: boolean, champs: Set<string>): string {
+function boardHtml(b: Board, uid: string | null, tab: Tab, canShowMore: boolean, champs: Set<string>, period: EndlessPeriod = 'all'): string {
   if (!b.rows.length) {
-    return `<p class="sub">${tab === 'endless' ? 'No endless runs yet.' : 'Nobody has fallen yet today. Be the first.'}</p>`;
+    const none = tab !== 'endless' ? 'Nobody has fallen yet today. Be the first.' : period === 'day' ? 'No endless runs yet today. Be the first.' : period === 'week' ? 'No endless runs yet this week. Be the first.' : 'No endless runs yet.';
+    return `<p class="sub">${none}</p>`;
   }
   const row = (r: BoardRow) => `
     <li class="${r.user_id === uid ? 'me' : ''}" data-hall="${esc(r.name)}" tabindex="0" title="Visit ${esc(r.name)}'s Hall">

@@ -376,3 +376,49 @@ $$;
 revoke all on function public.crypt_stats() from public, anon, authenticated;
 
 notify pgrst, 'reload schema';
+
+-- ---------- endless leaderboard by period ----------
+-- Each player's best endless run today or this week (Central Time: days start at midnight,
+-- weeks on Monday), ranked like leaderboard_endless. 'all' covers every run.
+create index if not exists runs_endless_recent on public.runs (created_at) where mode = 'endless';
+
+create or replace function public.endless_board(p_period text)
+returns table (
+  user_id uuid, name text, floor int, kills int, turns int, relics text, killed_by text, created_at timestamptz,
+  rank bigint, title text, earned bigint, hero text, outfit_look text, outfit_head text, seconds int
+)
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  with bounds as (
+    select case p_period
+      when 'day' then date_trunc('day', now() at time zone 'America/Chicago') at time zone 'America/Chicago'
+      when 'week' then date_trunc('week', now() at time zone 'America/Chicago') at time zone 'America/Chicago'
+      else '-infinity'::timestamptz
+    end as since
+  ),
+  best as (
+    select distinct on (r.user_id)
+      r.user_id, r.floor, r.kills, r.turns, r.relics, r.killed_by, r.created_at, r.seconds, r.log
+    from public.runs r, bounds b
+    where r.mode = 'endless' and r.created_at >= b.since
+    order by r.user_id, r.floor desc, r.kills desc, r.turns asc
+  )
+  select
+    b.user_id, p.name, b.floor, b.kills, b.turns, b.relics, b.killed_by, b.created_at,
+    rank() over (order by b.floor desc, b.kills desc, b.turns asc),
+    left(p.meta->>'title', 40),
+    case when jsonb_typeof(p.meta->'earned') = 'number' then least(greatest((p.meta->>'earned')::numeric, 0), 1000000000)::bigint else 0 end,
+    h.hero,
+    left(coalesce(p.meta->'outfits'->h.hero->>'look', p.meta->>'look'), 24),
+    left(p.meta->'outfits'->h.hero->>'head', 24),
+    b.seconds
+  from best b
+  join public.profiles p on p.id = b.user_id
+  cross join lateral (select substring(b.log from '^#[0-9]+\|([a-z]+)\|') as hero) h
+$$;
+grant execute on function public.endless_board(text) to anon, authenticated;
+
+notify pgrst, 'reload schema';
