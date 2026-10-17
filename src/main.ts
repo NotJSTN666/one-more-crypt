@@ -767,7 +767,7 @@ function showTitle() {
   on('#grimoire', () => showGrimoire(showTitle));
   on('#hall', () => openHall(showTitle));
   on('#hollow', () => enterHollow());
-  on('#story', () => showStory());
+  on('#story', () => (storyOpen() ? showStory() : toast('🔔 Act I: The Bell Beneath is coming soon.')));
   on('#help', () => showHelp(showTitle));
   on('#install', () => {
     if (installMode() === 'ios') return showInstallHelp(showTitle);
@@ -1466,7 +1466,17 @@ function beginChapter(ch: Chapter, back: () => void) {
   );
 }
 
+// Story mode is still being tested: it shows as coming soon to everyone but its tester (JSTN).
+const STORY_TESTERS = ['ad5d6ad6-bd7b-4952-a0cb-9917d15909fd'];
+
+function storyOpen(): boolean {
+  return Boolean(session.account && STORY_TESTERS.includes(session.account.id));
+}
+
 function storyButtonHtml(): string {
+  if (!storyOpen()) {
+    return `<button class="btn story-btn soon" id="story">📖 Story: The Bell Beneath<small>Coming soon · Who rings the bell beneath the crypt?</small></button>`;
+  }
   const done = meta.story.done.filter((n) => CHAPTER_BY_N[n]).length;
   const next = CHAPTERS.find((c) => !meta.story.done.includes(c.n));
   return `<button class="btn story-btn" id="story">📖 Story: The Bell Beneath<small>${

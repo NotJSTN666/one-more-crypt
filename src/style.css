@@ -2272,3 +2272,8 @@ body.tutorial #relic-bar {
   font-size: 12px;
   color: var(--muted);
 }
+
+.btn.story-btn.soon {
+  opacity: 0.6;
+  box-shadow: none;
+}
