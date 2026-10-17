@@ -343,6 +343,16 @@ let dialog: string | null = null;
 let pending: { place: HollowPlace } | { ghost: string } | { dungeon: number } | null = null;
 let raf = 0;
 let facing = 1;
+/** The on-screen arrow being held down, stepping again every so often. */
+let hold = 0;
+
+function stopHold() {
+  window.clearInterval(hold);
+  hold = 0;
+}
+// A finger lifted anywhere ends a hold, even off the button.
+window.addEventListener('pointerup', stopHold);
+window.addEventListener('pointercancel', stopHold);
 /** Narrow screens see part of the map, following the hero; `camX` is in map pixels. */
 let viewCols = 17;
 let camX = 0;
@@ -372,6 +382,11 @@ function walkable(x: number, y: number): boolean {
   return !OUTDOOR_SOLID.has(c);
 }
 
+/** Where the player stands right now (for tests). */
+export function debugPos() {
+  return { area: areaId, x: pos.x, y: pos.y };
+}
+
 /** Put the player somewhere in the world, for the next time it opens. */
 export function setHollowSpot(to: string, x: number, y: number) {
   if (!AREAS[to]) return;
@@ -397,6 +412,7 @@ export function showHollow(h: HollowHooks) {
 
 /** Draw the current area (again, after moving to a new one). */
 function open() {
+  stopHold();
   draw.x = pos.x;
   draw.y = pos.y;
   trail = { x: pos.x - 1 >= 0 && walkable(pos.x - 1, pos.y) ? pos.x - 1 : pos.x, y: pos.y + (walkable(pos.x - 1, pos.y) ? 0 : 1) };
@@ -448,21 +464,24 @@ function open() {
     }
     closeDialog();
   });
-  // On-screen arrows: tap to step, hold to keep walking.
+  // On-screen arrows: tap to step, hold to keep walking. Only one arrow is ever held, and
+  // the hold ends with the finger, or when this area's screen goes away (a door or road
+  // redraws it, and the button under the finger never hears it lift).
   overlay.querySelectorAll<HTMLButtonElement>('.hollow-dpad button').forEach((b) => {
     const [dx, dy] = b.dataset.d!.split(',').map(Number);
-    let timer = 0;
-    const stop = () => window.clearInterval(timer);
     b.addEventListener('pointerdown', (e) => {
       e.preventDefault();
+      stopHold();
       if (pending) return backOut();
       if (dialog) return closeDialog();
       path = [];
       step(dx, dy);
-      stop();
-      timer = window.setInterval(() => (screen === 'hollow' && !dialog ? step(dx, dy) : stop()), 180);
+      hold = window.setInterval(() => {
+        if (screen !== 'hollow' || dialog || pending || !b.isConnected) return stopHold();
+        step(dx, dy);
+      }, 180);
     });
-    for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, stop);
+    for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, stopHold);
     b.addEventListener('contextmenu', (e) => e.preventDefault());
   });
   if (areaId === 'graveyard' && Date.now() - ghostsLoaded > 60_000) {
