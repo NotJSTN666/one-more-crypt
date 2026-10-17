@@ -1981,3 +1981,23 @@ body.tutorial #relic-bar {
   border-color: #a8781f;
   box-shadow: inset 0 0 18px rgba(255, 138, 42, 0.18);
 }
+
+.reminders .check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 0;
+  font-family: system-ui, sans-serif;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.reminders input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--blood);
+}
+
+.reminder-on {
+  color: var(--spectral);
+}

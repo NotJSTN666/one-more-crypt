@@ -10,7 +10,7 @@ interface InstallPromptEvent extends Event {
 let deferred: InstallPromptEvent | null = null;
 let listeners: (() => void)[] = [];
 
-const framed = (() => {
+export const framed = (() => {
   try {
     return window.top !== window.self;
   } catch {

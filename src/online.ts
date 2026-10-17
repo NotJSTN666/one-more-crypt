@@ -343,3 +343,40 @@ export function startActivityPings() {
     if (!document.hidden) void pingActivity();
   });
 }
+
+// ---------- daily reminders (web push) ----------
+
+/** The key browsers need to sign up for reminders. Null until the reminder job first runs. */
+export async function pushPublicKey(): Promise<string | null> {
+  const sb = await client();
+  const { data, error } = await sb.rpc('push_public_key');
+  if (error) throw friendly(error, 'Reminders are not available.');
+  return (data as string | null) || null;
+}
+
+export interface PushSignup {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  tz: string;
+  morning: boolean;
+  evening: boolean;
+}
+
+export async function savePush(s: PushSignup): Promise<void> {
+  const sb = await client();
+  const { error } = await sb.rpc('save_push', {
+    p_endpoint: s.endpoint,
+    p_p256dh: s.p256dh,
+    p_auth: s.auth,
+    p_tz: s.tz,
+    p_morning: s.morning,
+    p_evening: s.evening,
+  });
+  if (error) throw friendly(error, 'Could not turn on reminders.');
+}
+
+export async function dropPush(endpoint: string): Promise<void> {
+  const sb = await client();
+  await sb.rpc('drop_push', { p_endpoint: endpoint });
+}

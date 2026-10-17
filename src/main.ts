@@ -20,6 +20,7 @@ import { howToHtml, startHowTo } from './howto';
 import { RELIC_COACH, TUTORIAL } from './tutorial';
 import { copyText, descentStrip, followXHtml, playTime, shareText, siteUrl, xIntentUrl } from './share';
 import { installMode, onInstallChange, promptInstall, setupInstall } from './install';
+import { enableReminders, reminderPrefs, remindersAvailable, remindersNeedInstall } from './push';
 import { claimPodiums, type PodiumFinish } from './social';
 import { endlessRecord, initSocial, needsName, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
 import { currentStreak, loadSave, recordDaily, writeSave, type RunResult } from './storage';
@@ -1245,6 +1246,7 @@ function showDeath(r: RunResult, best: boolean) {
       <button class="btn" id="title">Title</button>
     </div>
     ${daily ? '<p class="sub">Next crypt opens in <span class="countdown">--:--:--</span></p>' : ''}
+    ${daily ? reminderPromptHtml() : ''}
     ${onlineCountHtml()}
     ${followXHtml}
   `);
@@ -1273,7 +1275,27 @@ function showDeath(r: RunResult, best: boolean) {
     newGame('endless');
     showTitle();
   });
+  on('#remind', async () => {
+    const btn = $('#remind') as HTMLButtonElement;
+    btn.disabled = true;
+    try {
+      await enableReminders();
+      btn.outerHTML = '<p class="fine reminder-on">🔔 Reminders on: 8 AM when a new crypt opens, 7 PM if you haven\'t played. Change them in your profile.</p>';
+    } catch (e) {
+      btn.disabled = false;
+      toast((e as Error).message);
+    }
+  });
+  on('#remind-install', () => showInstallHelp(backHere));
   tickCountdowns();
+}
+
+/** After the daily: offer a reminder for tomorrow's crypt (signed-in players only). */
+function reminderPromptHtml(): string {
+  if (!signedIn() || reminderPrefs()) return '';
+  if (remindersAvailable()) return '<button class="btn" id="remind">🔔 Remind me when tomorrow\'s crypt opens</button>';
+  if (remindersNeedInstall()) return '<button class="link-btn" id="remind-install">📲 Install the app to get a reminder when the next crypt opens</button>';
+  return '';
 }
 
 /** Fill in the endless record wherever a screen invites the player to try Endless. */

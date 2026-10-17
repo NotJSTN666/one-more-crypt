@@ -1,0 +1,44 @@
+name: Daily reminders
+
+# Every hour: send the 8 AM "a new crypt is open" and 7 PM "the crypt closes soon"
+# notifications to players whose local time it is. See scripts/reminders.mjs.
+# Needs the SUPABASE_URL variable (already set for the site) and the
+# SUPABASE_SERVICE_ROLE_KEY secret.
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+    inputs:
+      test_name:
+        description: 'Send a test notification to this player now (leave empty for a normal run)'
+        type: string
+        default: ''
+      dry_run:
+        description: 'Only print what would be sent'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reminders
+  cancel-in-progress: false
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: node scripts/reminders.mjs
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TEST_NAME: ${{ inputs.test_name }}
+          DRY_RUN: ${{ inputs.dry_run }}

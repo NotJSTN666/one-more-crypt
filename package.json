@@ -16,7 +16,8 @@
     "twitter-api-v2": "1.29.1",
     "typescript": "^5.6.3",
     "vite": "^5.4.10",
-    "vitest": "^2.1.4"
+    "vitest": "^2.1.4",
+    "web-push": "^3.6.7"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.3"

@@ -226,3 +226,68 @@ $$;
 revoke all on function public.crypt_stats() from public, anon, authenticated;
 
 notify pgrst, 'reload schema';
+
+-- ---------- daily reminders (web push) ----------
+-- Sent hourly by .github/workflows/reminders.yml. Players only reach these through the
+-- functions below; the tables themselves are private.
+
+-- The notification keys. The reminder job makes them on its first run.
+create table if not exists public.push_config (
+  id int primary key default 1 check (id = 1),
+  public_key text not null,
+  private_key text not null,
+  created_at timestamptz not null default now()
+);
+alter table public.push_config enable row level security;
+
+-- One row per device that asked for reminders.
+create table if not exists public.push_subs (
+  endpoint text primary key check (length(endpoint) <= 1000),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  p256dh text not null check (length(p256dh) <= 200),
+  auth text not null check (length(auth) <= 100),
+  tz text not null default 'America/Chicago' check (length(tz) <= 64),
+  morning boolean not null default true,
+  evening boolean not null default true,
+  last_morning date,
+  last_evening date,
+  created_at timestamptz not null default now()
+);
+alter table public.push_subs enable row level security;
+create index if not exists push_subs_user on public.push_subs (user_id);
+
+revoke all on public.push_config, public.push_subs from anon, authenticated;
+
+create or replace function public.push_public_key() returns text
+language sql stable security definer set search_path = public as $$
+  select public_key from public.push_config where id = 1
+$$;
+
+-- Sign this device up (or change its choices). The endpoint is secret to the browser that
+-- made it, so whoever sends it owns it.
+create or replace function public.save_push(p_endpoint text, p_p256dh text, p_auth text, p_tz text, p_morning boolean, p_evening boolean)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then raise exception 'Not signed in.'; end if;
+  if p_endpoint !~ '^https://' then raise exception 'Not a push address.'; end if;
+  insert into public.push_subs (endpoint, user_id, p256dh, auth, tz, morning, evening)
+  values (p_endpoint, auth.uid(), p_p256dh, p_auth, coalesce(nullif(left(p_tz, 64), ''), 'America/Chicago'), p_morning, p_evening)
+  on conflict (endpoint) do update set
+    user_id = excluded.user_id, p256dh = excluded.p256dh, auth = excluded.auth,
+    tz = excluded.tz, morning = excluded.morning, evening = excluded.evening;
+  -- At most 10 devices per player.
+  delete from public.push_subs where endpoint in (
+    select endpoint from public.push_subs where user_id = auth.uid() order by created_at desc offset 10
+  );
+end $$;
+
+create or replace function public.drop_push(p_endpoint text) returns void
+language sql security definer set search_path = public as $$
+  delete from public.push_subs where endpoint = p_endpoint
+$$;
+
+revoke execute on function public.push_public_key(), public.save_push(text, text, text, text, boolean, boolean), public.drop_push(text) from public;
+grant execute on function public.push_public_key() to anon, authenticated;
+grant execute on function public.save_push(text, text, text, text, boolean, boolean), public.drop_push(text) to authenticated;
+
+notify pgrst, 'reload schema';

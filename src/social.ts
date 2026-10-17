@@ -1,6 +1,7 @@
 // Sign-in, profile and leaderboard screens, plus keeping local progress in sync
 // with the server.
 
+import { disableReminders, enableReminders, reminderPrefs, remindersAvailable, remindersNeedInstall, refreshReminders } from './push';
 import { playTime } from './share';
 import { dailyNumber } from './daily';
 import {
@@ -107,6 +108,7 @@ async function refreshAccount() {
 }
 
 async function afterSignIn() {
+  refreshReminders();
   await flushPending();
   await syncFromServer();
   await syncMeta();
@@ -462,6 +464,43 @@ export function needsName(): boolean {
 
 // ---------- profile ----------
 
+function remindersCard(): string {
+  if (remindersNeedInstall()) {
+    return `<div class="card"><div>🔔 Daily reminders</div><p class="fine">On iPhone and iPad, add the game to your home screen first (Share → Add to Home Screen), then turn reminders on from the app.</p></div>`;
+  }
+  if (!remindersAvailable()) return '';
+  const p = reminderPrefs();
+  return `<div class="card reminders">
+      <div>🔔 Daily reminders</div>
+      <label class="check"><input type="checkbox" id="rem-morning" ${p?.morning ? 'checked' : ''} /> 8 AM: a new crypt is open</label>
+      <label class="check"><input type="checkbox" id="rem-evening" ${p?.evening ? 'checked' : ''} /> 7 PM: if you haven't descended yet</label>
+      <p class="fine" id="rem-status" role="status">Your local time. Skipped on days you've already played.</p>
+    </div>`;
+}
+
+function wireReminders() {
+  const morning = document.querySelector<HTMLInputElement>('#rem-morning');
+  const evening = document.querySelector<HTMLInputElement>('#rem-evening');
+  const status = document.querySelector<HTMLElement>('#rem-status');
+  if (!morning || !evening || !status) return;
+  const change = async () => {
+    morning.disabled = evening.disabled = true;
+    status.textContent = 'Saving…';
+    try {
+      await enableReminders({ morning: morning.checked, evening: evening.checked });
+      status.textContent = morning.checked || evening.checked ? 'Reminders on. Your local time.' : 'Reminders off.';
+    } catch (e) {
+      const p = reminderPrefs();
+      morning.checked = Boolean(p?.morning);
+      evening.checked = Boolean(p?.evening);
+      status.textContent = (e as Error).message;
+    }
+    morning.disabled = evening.disabled = false;
+  };
+  morning.addEventListener('change', change);
+  evening.addEventListener('change', change);
+}
+
 export function showProfile(back: () => void) {
   const acc = session.account;
   if (ONLINE && !acc?.name) return showLogin(back, acc ? 'name' : 'start');
@@ -495,8 +534,10 @@ export function showProfile(back: () => void) {
           </div>`
         : ''
     }
+    ${acc ? remindersCard() : ''}
     <button class="btn primary" id="back">Back</button>
     ${acc ? '<button class="link-btn" id="signout">Sign out</button>' : ''}`);
+  wireReminders();
 
   wireDice();
   onSubmit('#name-form', async (form) => {
@@ -530,6 +571,7 @@ export function showProfile(back: () => void) {
   on('#back', back);
   on('#signout', async () => {
     if (acc?.kind === 'guest' && !confirm('Sign out of a guest account? You will not be able to sign back in to it.')) return;
+    await disableReminders().catch(() => undefined);
     await signOut();
     session.account = null;
     onChange();
