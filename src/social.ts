@@ -33,10 +33,10 @@ import {
   type RunSubmission,
 } from './online';
 import { showPublicHall, titleName } from './hall';
-import { HEAD_BY_ID, LOOK_BY_ID, rankFor } from './progression';
+import { HEAD_BY_ID, LOOK_BY_ID, PODIUM, rankFor } from './progression';
 import { HERO_BY_ID, dailyHero, type HeroId } from './content';
 import { heroPortrait } from './hero';
-import { BACKFILL_VERSION, backfillHeroes, meta, mergeMeta, onMetaChange, type Meta } from './meta';
+import { BACKFILL_VERSION, backfillHeroes, grantPodium, meta, mergeMeta, onMetaChange, saveMeta, type Meta } from './meta';
 import { currentStreak, writeSave, type Save } from './storage';
 import { esc, field, formStatus, on, onSubmit, screen, showOverlay, toast } from './ui';
 
@@ -230,6 +230,63 @@ export function endlessRecord(): Promise<{ name: string; floor: number } | null>
     };
   }
   return record.value;
+}
+
+// ---------- daily podium ----------
+
+export interface PodiumFinish {
+  dailyNo: number;
+  place: number;
+  total: number;
+}
+
+let podiumCheck: Promise<PodiumFinish[]> | null = null;
+
+/**
+ * Once a day is over, the top 3 of its Daily Descent win rewards. Looks back over the last
+ * week of finished dailies the player hasn't been checked for, pays out any podium finish
+ * once, and returns them for the celebration screen.
+ */
+export function claimPodiums(): Promise<PodiumFinish[]> {
+  const acc = session.account;
+  if (!ONLINE || !acc) return Promise.resolve([]);
+  podiumCheck ??= (async () => {
+    const last = dailyNumber() - 1;
+    const won: PodiumFinish[] = [];
+    try {
+      for (let d = Math.max(meta.podiumChecked + 1, last - 6, 1); d <= last; d++) {
+        if (meta.podiums[d]) continue;
+        const b = await dailyBoard(d, acc.id, 1);
+        const place = b.me?.rank ?? 0;
+        const prize = PODIUM.find((p) => p.place === place);
+        if (prize && grantPodium(d, place, prize.souls, prize.head)) won.push({ dailyNo: d, place, total: b.total });
+      }
+      meta.podiumChecked = Math.max(meta.podiumChecked, last);
+      saveMeta();
+    } catch {
+      // Offline or the board didn't load: try again next time.
+    }
+    podiumCheck = null;
+    return won;
+  })();
+  return podiumCheck;
+}
+
+const reigning = new Map<number, Promise<Set<string>>>();
+
+/** Who won yesterday's Daily Descent (ties share it): they wear a crown on the boards today. */
+function reigningChampions(): Promise<Set<string>> {
+  const d = dailyNumber() - 1;
+  if (d < 1) return Promise.resolve(new Set());
+  if (!reigning.has(d)) {
+    reigning.set(
+      d,
+      dailyBoard(d, null, 5)
+        .then((b) => new Set(b.rows.filter((r) => r.rank === 1).map((r) => r.user_id)))
+        .catch(() => new Set<string>()),
+    );
+  }
+  return reigning.get(d)!;
 }
 
 /** One line for the results screen, e.g. "#3 of 41 today". */
@@ -576,12 +633,12 @@ export function showLeaderboard(back: () => void, tab: Tab = 'today', limit = BO
   const fill = (n: number) => {
     const load: Promise<Board> =
       tab === 'endless' ? endlessBoard(uid, n) : dailyBoard(tab === 'today' ? today : today - 1, uid, n);
-    return load
-      .then((b) => {
+    return Promise.all([load, reigningChampions()])
+      .then(([b, champs]) => {
         if (screen !== 'board') return;
         const body = document.getElementById('board-body');
         if (!body) return;
-        body.innerHTML = boardHtml(b, uid, tab, n < BOARD_MORE);
+        body.innerHTML = boardHtml(b, uid, tab, n < BOARD_MORE, champs);
         body.querySelectorAll<HTMLElement>('[data-hall]').forEach((li) =>
           li.addEventListener('click', () => showPublicHall(li.dataset.hall!, () => showLeaderboard(back, tab, n))),
         );
@@ -616,7 +673,7 @@ function boardPortrait(r: BoardRow): string {
   return url;
 }
 
-function boardHtml(b: Board, uid: string | null, tab: Tab, canShowMore: boolean): string {
+function boardHtml(b: Board, uid: string | null, tab: Tab, canShowMore: boolean, champs: Set<string>): string {
   if (!b.rows.length) {
     return `<p class="sub">${tab === 'endless' ? 'No endless runs yet.' : 'Nobody has fallen yet today. Be the first.'}</p>`;
   }
@@ -624,7 +681,7 @@ function boardHtml(b: Board, uid: string | null, tab: Tab, canShowMore: boolean)
     <li class="${r.user_id === uid ? 'me' : ''}" data-hall="${esc(r.name)}" tabindex="0" title="Visit ${esc(r.name)}'s Hall">
       <span class="rank">${r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : `#${r.rank}`}</span>
       <img class="board-hero" src="${boardPortrait(r)}" alt="" width="24" height="24" />
-      <span class="who"><span style="color:${rankFor(Number(r.earned) || 0).color}">${esc(r.name)}</span>${titleName(r.title) ? ` <em class="title-tag">${esc(titleName(r.title))}</em>` : ''}<small>${esc(r.relics)}</small></span>
+      <span class="who"><span style="color:${rankFor(Number(r.earned) || 0).color}">${esc(r.name)}</span>${champs.has(r.user_id) ? ' <span class="reigning" title="Reigning champion: won yesterday\'s Daily Descent">👑</span>' : ''}${titleName(r.title) ? ` <em class="title-tag">${esc(titleName(r.title))}</em>` : ''}<small>${esc(r.relics)}</small></span>
       <span class="depth">F${r.floor}<small>${r.kills} kills${r.seconds ? ` · ⏱ ${playTime(r.seconds)}` : ''}</small></span>
     </li>`;
   const meOutside = b.me && !b.rows.some((r) => r.user_id === b.me!.user_id);

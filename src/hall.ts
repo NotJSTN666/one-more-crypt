@@ -31,6 +31,8 @@ export interface HallData {
   /** Bosses slain before the Bestiary existed still count as trophies. */
   bossFeats: Partial<Record<EnemyKind, boolean>>;
   best: BestRuns;
+  /** Daily podium finishes: how many 1st, 2nd and 3rd places. */
+  podiums: [number, number, number];
 }
 
 const BOSS_FEAT: Partial<Record<EnemyKind, string>> = { boss: 'warden', abbot: 'abbot', lich: 'lich' };
@@ -67,8 +69,11 @@ export function hallData(name: string, m: Partial<Meta> | Record<string, unknown
       at: num(run.at, 1e13),
     };
   }
+  const places = Object.values(obj(raw.podiums)).map((p) => num(p, 9));
+  const podiums: [number, number, number] = [1, 2, 3].map((p) => places.filter((x) => x === p).length) as [number, number, number];
   return {
     name,
+    podiums,
     title: typeof raw.title === 'string' && TITLE_BY_ID[raw.title] ? raw.title : '',
     earned: num(raw.earned),
     feats: Object.keys(achievements).filter((id) => ACHIEVEMENT_BY_ID[id]).length,
@@ -333,7 +338,12 @@ function trophiesBody(d: HallData): string {
   const bosses = BOSSES.reduce((a, k) => a + (d.bestiary[k] ?? 0), 0);
   const cell = (v: number | string, label: string) => `<div><b>${v}</b>${label}</div>`;
   const statues = Object.keys(d.best).length;
-  return `<div class="stat-grid">
+  const [gold, silver, bronze] = d.podiums;
+  const podium =
+    gold + silver + bronze
+      ? `<div class="podium-row" title="Daily Descent podium finishes">${gold ? `<span>🥇×${gold}</span>` : ''}${silver ? `<span>🥈×${silver}</span>` : ''}${bronze ? `<span>🥉×${bronze}</span>` : ''}<small>DAILY PODIUMS</small></div>`
+      : '';
+  return `${podium}<div class="stat-grid">
       ${cell(d.earned.toLocaleString(), 'SOULS EARNED')}
       ${cell(`${d.feats}/${ACHIEVEMENTS.length}`, 'ACHIEVEMENTS')}
       ${cell(`${d.combos}/${COMBOS.length}`, 'COMBOS')}

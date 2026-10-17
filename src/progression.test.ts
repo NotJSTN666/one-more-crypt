@@ -111,3 +111,26 @@ describe('enemy art', () => {
     }
   });
 });
+
+describe('daily podium', () => {
+  it('pays each finish once and unlocks its exclusive headwear and title', async () => {
+    const { grantPodium, headUnlocked, mergeMeta, podiumCount, titleUnlocked } = await import('./meta');
+    const { HEAD_BY_ID, PODIUM } = await import('./progression');
+    meta.podiums = {};
+    const souls = meta.souls;
+    expect(headUnlocked(HEAD_BY_ID.champcrown)).toBe(false);
+    expect(titleUnlocked('podium:1')).toBe(false);
+
+    expect(grantPodium(41, 1, PODIUM[0].souls, PODIUM[0].head)).toBe(true);
+    expect(grantPodium(41, 1, PODIUM[0].souls, PODIUM[0].head)).toBe(false);
+    expect(meta.souls).toBe(souls + 300);
+    expect(headUnlocked(HEAD_BY_ID.champcrown)).toBe(true);
+    expect(headUnlocked(HEAD_BY_ID.silvercirclet)).toBe(false);
+    expect(titleUnlocked('podium:1')).toBe(true);
+
+    // Another device's finishes join in; a better place on the same day wins.
+    mergeMeta({ podiums: { 42: 3, 41: 2 } });
+    expect(meta.podiums).toEqual({ 41: 1, 42: 3 });
+    expect([podiumCount(1), podiumCount(2), podiumCount(3)]).toEqual([1, 0, 1]);
+  });
+});

@@ -83,6 +83,14 @@ export const TITLES: TitleDef[] = [
     how: `Slay ${bestiaryTiers(k)[TITLE_TIER]} ${k === 'boss' ? 'Bone Wardens' : k === 'abbot' ? 'Plague Abbots' : k === 'lich' ? 'Lich Kings' : `${k}s`}.`,
   })),
   ...SOUL_RANKS.slice(1).map((r) => ({ id: `rank:${r.name}`, name: r.name, how: `Earn ${r.souls.toLocaleString()} Souls in total.` })),
+  { id: 'podium:1', name: 'Crypt Champion', how: 'Finish 1st in a Daily Descent.' },
+];
+
+/** Rewards for the top 3 of each Daily Descent, given once the day is over. */
+export const PODIUM = [
+  { place: 1, medal: '🥇', name: 'Crypt Champion', souls: 300, head: 'champcrown' },
+  { place: 2, medal: '🥈', name: 'Silver Shade', souls: 150, head: 'silvercirclet' },
+  { place: 3, medal: '🥉', name: 'Bronze Bones', souls: 75, head: 'bronzelaurel' },
 ];
 
 export const TITLE_BY_ID = Object.fromEntries(TITLES.map((t) => [t.id, t])) as Record<string, TitleDef>;
@@ -97,7 +105,7 @@ export interface LookDef {
   /** Colour of the drifting aura motes, if any. */
   aura: string | null;
   /** What unlocks it: an achievement, a Soul Rank (index) or a Bestiary tier. */
-  unlock: { feat: string } | { rank: number } | { beast: EnemyKind; tier: number } | { costume: string };
+  unlock: { feat: string } | { rank: number } | { beast: EnemyKind; tier: number } | { costume: string } | { podium: number };
   how: string;
 }
 
@@ -187,6 +195,10 @@ const DARK = '#1a1520';
 
 export const HEADS: HeadDef[] = [
   // Shared by every hero.
+  // Daily podium rewards: only ever won by finishing in the top 3 of a Daily Descent.
+  { id: 'champcrown', name: "Champion's Crown", unlock: { podium: 1 }, how: 'Finish 1st in a Daily Descent.', pixels: [[3, 0, GOLD], [5, 0, '#fff2c0'], [6, 0, '#fff2c0'], [8, 0, GOLD], ...row(1, 3, 8, GOLD), ...row(2, 3, 8, '#a8781f'), [4, 2, RED], [5, 2, '#9fe8ff'], [6, 2, '#9fe8ff'], [7, 2, RED]] },
+  { id: 'silvercirclet', name: 'Silver Circlet', unlock: { podium: 2 }, how: 'Finish 2nd in a Daily Descent.', pixels: [...row(2, 3, 8, '#c9d1e0'), [5, 1, '#eef3fb'], [6, 1, '#eef3fb'], [5, 2, '#9fe8ff'], [6, 2, '#7fb4ff']] },
+  { id: 'bronzelaurel', name: 'Bronze Laurel', unlock: { podium: 3 }, how: 'Finish 3rd in a Daily Descent.', pixels: [[2, 3, '#8a5a28'], [2, 2, '#b07a3c'], [3, 1, '#cd8f4a'], [4, 1, '#b07a3c'], [9, 3, '#8a5a28'], [9, 2, '#b07a3c'], [8, 1, '#cd8f4a'], [7, 1, '#b07a3c']] },
   { id: 'tophat', name: "Gravedigger's Hat", unlock: { feat: 'gravekeeper' }, how: 'Read every epitaph in the Hollow.', pixels: [...row(0, 4, 7, DARK), ...row(1, 4, 7, RED), ...row(2, 2, 9, DARK)] },
   { id: 'forgehelm', name: 'Forged Helm', unlock: { feat: 'forge' }, how: 'Fuse two relics at the Soul Forge.', pixels: [...row(1, 3, 8, '#5d667a'), ...row(2, 3, 8, '#5d667a'), [3, 3, '#5d667a'], [8, 3, '#5d667a'], ...row(0, 5, 6, '#5fe3ff')] },
 

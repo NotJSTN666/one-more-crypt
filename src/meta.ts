@@ -50,6 +50,10 @@ export interface Meta {
   /** Hero costumes earned by a feat within one run (records like floors are checked live). */
   heroUnlocks: Partial<Record<HeroId, string[]>>;
   rankSeen: number;
+  /** Daily number -> place (1-3) for each Daily Descent finished on the podium. */
+  podiums: Record<string, number>;
+  /** The last daily already checked for a podium finish. */
+  podiumChecked: number;
 }
 
 export interface HeroStats {
@@ -77,6 +81,7 @@ function empty(): Meta {
   return {
     souls: 0, earned: 0, heroes: ['knight'], relics: [], achievements: {}, codex: {}, combos: {}, fusions: {}, elitesSlain: 0, hero: 'knight',
     bestiary: {}, bestiaryTier: {}, best: {}, title: '', look: '', looksSeen: [], rankSeen: 0, heroStats: {}, heroBackfill: 0, epitaphs: [], outfits: {}, headsSeen: [], heroUnlocks: {},
+    podiums: {}, podiumChecked: 0,
   };
 }
 
@@ -145,6 +150,11 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   for (const [h, st] of Object.entries(other.heroStats ?? {})) mergeHeroStats(h as HeroId, st);
   meta.heroBackfill = Math.max(meta.heroBackfill, other.heroBackfill ?? 0);
   meta.epitaphs = [...new Set([...meta.epitaphs, ...(other.epitaphs ?? [])])];
+  for (const [d, place] of Object.entries(other.podiums ?? {})) {
+    const p = Number(place);
+    if (p >= 1 && p <= 3) meta.podiums[d] = Math.min(meta.podiums[d] ?? 9, p);
+  }
+  meta.podiumChecked = Math.max(meta.podiumChecked, other.podiumChecked ?? 0);
   const changed = JSON.stringify(meta) !== before;
   if (changed) saveMeta();
   return changed;
@@ -358,6 +368,7 @@ function unlockMet(u: Unlock): boolean {
   if ('feat' in u) return Boolean(meta.achievements[u.feat]);
   if ('rank' in u) return rankIndex(meta.earned) >= u.rank;
   if ('costume' in u) return costumeUnlocked(u.costume);
+  if ('podium' in u) return podiumCount(u.podium) > 0;
   return (meta.bestiaryTier[u.beast] ?? 0) > u.tier;
 }
 
@@ -401,8 +412,25 @@ function noteHeroCostumes(game: Game) {
   }
 }
 
+/** How many times the player has finished in this place. */
+export function podiumCount(place: number): number {
+  return Object.values(meta.podiums).filter((p) => p === place).length;
+}
+
+/** Record a podium finish and pay its Souls. Returns false if it was already counted. */
+export function grantPodium(dailyNo: number, place: number, souls: number, head: string): boolean {
+  if (meta.podiums[dailyNo]) return false;
+  meta.podiums[dailyNo] = place;
+  meta.souls += souls;
+  meta.earned += souls;
+  if (!meta.headsSeen.includes(head)) meta.headsSeen.push(head);
+  saveMeta();
+  return true;
+}
+
 export function titleUnlocked(id: string): boolean {
   const [kind, key] = id.split(':');
+  if (kind === 'podium') return podiumCount(Number(key)) > 0;
   if (kind === 'feat') return Boolean(meta.achievements[key]);
   if (kind === 'beast') return (meta.bestiaryTier[key as EnemyKind] ?? 0) > TITLE_TIER;
   if (kind === 'rank') return meta.earned >= (SOUL_RANKS.find((r) => r.name === key)?.souls ?? Infinity);

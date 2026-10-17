@@ -1886,3 +1886,71 @@ body.tutorial #relic-bar {
   color: var(--text);
   border-color: var(--gold);
 }
+
+/* Daily podium */
+.podium-tease {
+  margin: 4px 0;
+  font-size: 12px;
+  color: var(--gold);
+}
+
+.podium-medal {
+  font-size: 64px;
+  line-height: 1;
+  text-align: center;
+  filter: drop-shadow(0 0 18px rgba(242, 193, 78, 0.55));
+  animation: medal-in 0.6s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+
+@keyframes medal-in {
+  from { transform: scale(0.3) rotate(-20deg); opacity: 0; }
+}
+
+.podium-title {
+  color: var(--gold);
+  text-shadow: 0 0 18px rgba(242, 193, 78, 0.45);
+}
+
+.podium-rewards {
+  list-style: none;
+  margin: 12px auto;
+  padding: 0;
+  max-width: 360px;
+  display: grid;
+  gap: 8px;
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.podium-rewards b {
+  color: var(--gold);
+  font-weight: normal;
+}
+
+.podium-row {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 0 0 10px;
+  font-size: 20px;
+}
+
+.podium-row small {
+  flex-basis: 100%;
+  text-align: center;
+  font-family: var(--pixel);
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--muted);
+}
+
+.reigning {
+  font-size: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .podium-medal { animation: none; }
+}

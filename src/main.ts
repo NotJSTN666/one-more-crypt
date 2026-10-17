@@ -4,12 +4,12 @@ import { dailyNumber, formatCountdown, msUntilNextDaily } from './daily';
 import { ELITES, FEATURES, HERO_BY_ID, dailyHero, type ComboDef } from './content';
 import { heroPortrait } from './hero';
 import { ENEMY_INFO, Game, fullPool, isBoss, type GameEvent, type Mode } from './game';
-import { checkRun, finishRunMeta, meta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, type RunReward } from './meta';
+import { checkRun, equipOutfit, finishRunMeta, meta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
 import { hallFromLink, showHall, showPublicHall, soulRankHtml, titleName } from './hall';
-import { rankFor } from './progression';
+import { HEAD_BY_ID, PODIUM, rankFor } from './progression';
 import { Renderer } from './render';
 import { hashSeed } from './rng';
 import { ONLINE, dailyBoard, pingActivity, startActivityPings } from './online';
@@ -20,6 +20,7 @@ import { howToHtml, startHowTo } from './howto';
 import { RELIC_COACH, TUTORIAL } from './tutorial';
 import { copyText, descentStrip, followXHtml, playTime, shareText, siteUrl, xIntentUrl } from './share';
 import { installMode, onInstallChange, promptInstall, setupInstall } from './install';
+import { claimPodiums, type PodiumFinish } from './social';
 import { endlessRecord, initSocial, needsName, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
 import { currentStreak, loadSave, recordDaily, writeSave, type RunResult } from './storage';
 import { $, esc, hideOverlay, on, overlay, overlayShownAt, screen, showOverlay, toast } from './ui';
@@ -754,6 +755,47 @@ function showTitle() {
   });
   on('#share-today', () => done && share(done, `Daily #${today}`));
   tickCountdowns();
+  // Finished on yesterday's podium? Celebrate once the result is in.
+  if (signedIn()) {
+    void claimPodiums().then((won) => {
+      if (won.length && screen === 'title') showPodium(won, showTitle);
+    });
+  }
+}
+
+const ORDINAL = ['', '1st', '2nd', '3rd'];
+
+/** The reward screen for finishing in the top 3 of a Daily Descent. */
+function showPodium(won: PodiumFinish[], back: () => void) {
+  const best = [...won].sort((a, b) => a.place - b.place || b.dailyNo - a.dailyNo)[0];
+  const prize = PODIUM.find((p) => p.place === best.place)!;
+  const head = HEAD_BY_ID[prize.head];
+  const souls = won.reduce((n, w) => n + (PODIUM.find((p) => p.place === w.place)?.souls ?? 0), 0);
+  const others = won.filter((w) => w !== best);
+  sfx.relic();
+  showOverlay('podium', `
+    <div class="podium-medal">${prize.medal}</div>
+    <h2 class="podium-title">${esc(prize.name)}</h2>
+    <p class="sub">Daily #${best.dailyNo} is over. You placed <b>${ORDINAL[best.place]}</b> of ${best.total}.</p>
+    <img class="hero-portrait" src="${heroPortrait(meta.hero, {}, [], 8, outfitFor(meta.hero).look, prize.head)}" alt="Your hero wearing the ${esc(head.name)}" width="96" height="96" />
+    <ul class="podium-rewards">
+      <li>🎩 <b>${esc(head.name)}</b>: exclusive headwear for any hero, in the Wardrobe</li>
+      ${best.place === 1 ? '<li>📜 <b>Crypt Champion</b>: a new title for your name</li><li>👑 A crown by your name on the boards today</li>' : ''}
+      <li>💀 <b>+${souls} Souls</b></li>
+      ${others.map((w) => `<li>${PODIUM.find((p) => p.place === w.place)!.medal} Also ${ORDINAL[w.place]} in Daily #${w.dailyNo}</li>`).join('')}
+    </ul>
+    <button class="btn primary" id="wear">Wear it now</button>
+    <button class="btn x" id="share-podium">Share on 𝕏</button>
+    <button class="btn" id="back">Continue</button>`);
+  on('#wear', () => {
+    equipOutfit(meta.hero, 'head', prize.head);
+    toast(`Your ${HERO_BY_ID[meta.hero].name} wears the ${head.name}`);
+    back();
+  });
+  on('#share-podium', () =>
+    window.open(xIntentUrl(`${prize.medal} I placed ${ORDINAL[best.place]} of ${best.total} in One More Crypt Daily #${best.dailyNo}.\nOne crypt. One try a day. Can you take the crown?\n${siteUrl()}`), '_blank', 'noopener'),
+  );
+  on('#back', back);
 }
 
 /** Safari can't prompt, so show how to add the game to the home screen by hand. */
@@ -1179,7 +1221,8 @@ function showDeath(r: RunResult, best: boolean) {
     ${ONLINE && !signedIn() ? '<button class="btn" id="join">Claim a name for the leaderboard</button>' : ''}
     ${
       daily
-        ? `<p class="endless-tease">${
+        ? `${ONLINE ? '<p class="podium-tease">🥇 Finish in the top 3 when the day ends to win exclusive headwear and Souls.</p>' : ''}
+    <p class="endless-tease">${
             save.bestEndless
               ? `Daily done. Endless is open: beat your best of <b>floor ${save.bestEndless}</b>.`
               : 'Daily done. Endless has no limit and no daily reset.'

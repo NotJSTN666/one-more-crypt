@@ -312,6 +312,8 @@ export class Renderer {
     };
     const aura = LOOK_BY_ID[this.outfit.look]?.aura;
     if (aura) emit(0.22, x + Math.random() * 12, y + 4 + Math.random() * 8, -8, aura);
+    // The Champion's Crown glints now and then.
+    if (this.outfit.head === 'champcrown' && Math.sin(this.time * 2.2) > 0.9) emit(0.5, x + 3 + Math.random() * 6, y + Math.random() * 2, -5, Math.random() < 0.5 ? '#fff2c0' : '#f2c14e');
     if (r('ember') || r('wildfire')) emit(0.35, tipX, tipY + Math.random() * 3, -16, Math.random() < 0.5 ? '#ff8a2a' : '#f2c14e');
     if (r('frost')) emit(0.2, x + Math.random() * 12, y + Math.random() * 6, 6, '#9fe8ff');
     if (r('storm') && Math.random() < 0.06) {
