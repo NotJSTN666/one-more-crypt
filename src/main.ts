@@ -19,6 +19,7 @@ import { IMPACT, playFusion } from './fusefx';
 import { howToHtml, startHowTo } from './howto';
 import { RELIC_COACH, TUTORIAL } from './tutorial';
 import { copyText, descentStrip, followXHtml, playTime, shareText, siteUrl, xIntentUrl } from './share';
+import { installMode, onInstallChange, promptInstall, setupInstall } from './install';
 import { endlessRecord, initSocial, needsName, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
 import { currentStreak, loadSave, recordDaily, writeSave, type RunResult } from './storage';
 import { $, esc, hideOverlay, on, overlay, overlayShownAt, screen, showOverlay, toast } from './ui';
@@ -729,6 +730,7 @@ function showTitle() {
     <button class="btn" id="hall">🏰 The Crypt Hall<small style="color:${rankFor(meta.earned).color}">${esc(rankFor(meta.earned).name)} · trophies, titles, wardrobe</small></button>
     ${ONLINE ? '<button class="btn" id="leaderboard">🏆 Leaderboards</button>' : ''}
     <button class="btn" id="help">How to play</button>
+    ${installMode() ? '<button class="btn install-btn" id="install">📲 Install the app<small>Play from your home screen, full screen</small></button>' : ''}
     ${streak > 1 ? `<div class="streak">🕯️ ${streak}-day streak</div>` : ''}
     ${followXHtml}
   `);
@@ -743,8 +745,29 @@ function showTitle() {
   on('#hall', () => openHall(showTitle));
   on('#hollow', () => enterHollow());
   on('#help', () => showHelp(showTitle));
+  on('#install', () => {
+    if (installMode() === 'ios') return showInstallHelp(showTitle);
+    void promptInstall().then((ok) => {
+      if (ok) toast('Installed! Find One More Crypt on your home screen.');
+      if (screen === 'title') showTitle();
+    });
+  });
   on('#share-today', () => done && share(done, `Daily #${today}`));
   tickCountdowns();
+}
+
+/** Safari can't prompt, so show how to add the game to the home screen by hand. */
+function showInstallHelp(back: () => void) {
+  showOverlay('install', `
+    <h2>Install the app</h2>
+    <p class="sub">Play One More Crypt from your home screen, full screen, like any other app.</p>
+    <ol class="install-steps">
+      <li>Tap the <b>Share</b> button <span aria-hidden="true">⬆️</span> in Safari's toolbar.</li>
+      <li>Scroll down and tap <b>Add to Home Screen</b>.</li>
+      <li>Tap <b>Add</b>. The crypt is now on your home screen.</li>
+    </ol>
+    <button class="btn primary" id="back">Got it</button>`);
+  on('#back', back);
 }
 
 function accountChip(): string {
@@ -1256,6 +1279,10 @@ function loop(now: number) {
   },
 };
 
+setupInstall();
+onInstallChange(() => {
+  if (screen === 'title') showTitle();
+});
 updateMuteIcon();
 fitBoard();
 newGame('endless');
