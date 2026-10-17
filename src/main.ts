@@ -6,7 +6,7 @@ import { heroPortrait } from './hero';
 import { ENEMY_INFO, Game, fullPool, isBoss, type GameEvent, type Mode } from './game';
 import { checkRun, equipOutfit, finishRunMeta, meta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
-import { celebrate, celebrateNotes, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
+import { celebrate, celebrateNotes, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
 import { hallFromLink, showHall, showPublicHall, soulRankHtml, titleName } from './hall';
 import { HEAD_BY_ID, PODIUM, rankFor } from './progression';
@@ -1323,6 +1323,7 @@ function loop(now: number) {
 };
 
 setupInstall();
+setHallOpener((back) => openHall(back));
 onInstallChange(() => {
   if (screen === 'title') showTitle();
 });

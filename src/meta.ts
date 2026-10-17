@@ -54,6 +54,8 @@ export interface Meta {
   podiums: Record<string, number>;
   /** The last daily already checked for a podium finish. */
   podiumChecked: number;
+  /** Cosmetics and Hall decorations bought in the Ossuary. */
+  bought: string[];
 }
 
 export interface HeroStats {
@@ -73,6 +75,11 @@ export const RELIC_COSTS: Partial<Record<RelicId, number>> = {
   doom: 450,
   heretic: 500,
   moon: 600,
+  leech: 400,
+  headsman: 450,
+  thunder: 550,
+  grail: 650,
+  glass: 800,
 };
 
 const KEY = 'wardenfall:meta';
@@ -81,7 +88,7 @@ function empty(): Meta {
   return {
     souls: 0, earned: 0, heroes: ['knight'], relics: [], achievements: {}, codex: {}, combos: {}, fusions: {}, elitesSlain: 0, hero: 'knight',
     bestiary: {}, bestiaryTier: {}, best: {}, title: '', look: '', looksSeen: [], rankSeen: 0, heroStats: {}, heroBackfill: 0, epitaphs: [], outfits: {}, headsSeen: [], heroUnlocks: {},
-    podiums: {}, podiumChecked: 0,
+    podiums: {}, podiumChecked: 0, bought: [],
   };
 }
 
@@ -155,6 +162,7 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
     if (p >= 1 && p <= 3) meta.podiums[d] = Math.min(meta.podiums[d] ?? 9, p);
   }
   meta.podiumChecked = Math.max(meta.podiumChecked, other.podiumChecked ?? 0);
+  meta.bought = [...new Set([...meta.bought, ...(Array.isArray(other.bought) ? other.bought.map(String) : [])])];
   const changed = JSON.stringify(meta) !== before;
   if (changed) saveMeta();
   return changed;
@@ -357,11 +365,24 @@ export function finishRunMeta(game: Game, streak: number): RunReward {
 // ---------- titles, looks and the Bestiary ----------
 
 export function lookUnlocked(l: LookDef): boolean {
-  return unlockMet(l.unlock);
+  return 'cost' in l.unlock ? meta.bought.includes(l.id) : unlockMet(l.unlock);
 }
 
 export function headUnlocked(h: HeadDef): boolean {
+  if (h.unlock && 'cost' in h.unlock) return meta.bought.includes(h.id);
   return h.unlock ? unlockMet(h.unlock) : costumeUnlocked(h.id);
+}
+
+/** Buy a cosmetic or Hall decoration from the Ossuary. */
+export function buyItem(id: string, cost: number): boolean {
+  if (meta.bought.includes(id) || meta.souls < cost) return false;
+  meta.souls -= cost;
+  meta.bought.push(id);
+  // Bought on purpose, so there's no need to announce it after the next run.
+  if (!meta.looksSeen.includes(id)) meta.looksSeen.push(id);
+  if (!meta.headsSeen.includes(id)) meta.headsSeen.push(id);
+  saveMeta();
+  return true;
 }
 
 function unlockMet(u: Unlock): boolean {
@@ -369,6 +390,7 @@ function unlockMet(u: Unlock): boolean {
   if ('rank' in u) return rankIndex(meta.earned) >= u.rank;
   if ('costume' in u) return costumeUnlocked(u.costume);
   if ('podium' in u) return podiumCount(u.podium) > 0;
+  if ('cost' in u) return false;
   return (meta.bestiaryTier[u.beast] ?? 0) > u.tier;
 }
 

@@ -44,6 +44,12 @@ export type RelicId =
   | 'doom'
   | 'heretic'
   | 'moon'
+  // Endless only: bought in the Ossuary, never in the daily crypt
+  | 'headsman'
+  | 'grail'
+  | 'thunder'
+  | 'leech'
+  | 'glass'
   // Fused at the Soul Forge, never offered
   | FusedId;
 
@@ -64,6 +70,8 @@ export interface RelicDef {
   maxStack: number;
   /** Description given the count the player would have after taking it. */
   desc: (n: number) => string;
+  /** Only ever offered in Endless (once bought), so the daily crypt stays the same. */
+  endless?: true;
 }
 
 export const RELICS: RelicDef[] = [
@@ -110,10 +118,19 @@ export const RELICS: RelicDef[] = [
   { id: 'doom', name: 'Doom Bell', emoji: '🛎️', rarity: 'rare', maxStack: 2, desc: (n) => `Every 10th turn the bell tolls: ${n * 4} damage to every foe.` },
   { id: 'heretic', name: "Heretic's Codex", emoji: '📜', rarity: 'rare', maxStack: 1, desc: () => `Relic offerings show only rare and cursed relics.` },
   { id: 'moon', name: 'Blood Moon', emoji: '🌑', rarity: 'cursed', maxStack: 1, desc: () => `Deal double damage, but every hit on you deals 1 more.` },
+  // Endless-only forbidden relics. Kept out of the daily pool entirely.
+  { id: 'headsman', name: "Headsman's Blade", emoji: '🔪', rarity: 'common', maxStack: 3, endless: true, desc: (n) => `Hits on foes at half health or less deal +${n * 2} damage.` },
+  { id: 'grail', name: 'Unholy Grail', emoji: '🏆', rarity: 'rare', maxStack: 1, endless: true, desc: () => `Resting heals you fully.` },
+  { id: 'thunder', name: 'Thunderhead', emoji: '🌩️', rarity: 'rare', maxStack: 2, endless: true, desc: (n) => `Every 5th turn, lightning strikes ${n * 2} random foes for 3 damage.` },
+  { id: 'leech', name: 'Leech Ring', emoji: '💍', rarity: 'common', maxStack: 3, endless: true, desc: (n) => `Every 5th turn, heal ${n} HP.` },
+  { id: 'glass', name: 'Glass Skull', emoji: '💀', rarity: 'cursed', maxStack: 1, endless: true, desc: () => `+4 attack, but your max HP is cut by a third.` },
 ];
 
 /** Relics that start locked in Endless and are bought in the Ossuary. */
-export const UNLOCKABLE_RELICS: RelicId[] = ['echo', 'necro', 'caltrops', 'key', 'mask', 'tome', 'wisp', 'doom', 'heretic', 'moon'];
+export const UNLOCKABLE_RELICS: RelicId[] = ['echo', 'necro', 'caltrops', 'key', 'mask', 'tome', 'wisp', 'doom', 'heretic', 'moon', 'headsman', 'grail', 'thunder', 'leech', 'glass'];
+
+/** Forbidden relics that are only ever offered in Endless. */
+export const ENDLESS_RELICS: RelicId[] = ['headsman', 'grail', 'thunder', 'leech', 'glass'];
 
 /** The relics that existed at launch (run log version 2 and Daily #1). */
 export const LEGACY_RELICS: RelicId[] = [

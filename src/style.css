@@ -1955,3 +1955,29 @@ body.tutorial #relic-bar {
 @media (prefers-reduced-motion: reduce) {
   .podium-medal { animation: none; }
 }
+
+/* Ossuary: Endless-only relics and legendary cosmetics */
+.endless-tag,
+.legend-tag {
+  margin-left: 4px;
+  padding: 1px 5px;
+  font-style: normal;
+  font-size: 9px;
+  letter-spacing: 1px;
+  vertical-align: 2px;
+}
+
+.endless-tag {
+  color: #c9a6ff;
+  border: 1px solid #5a3a8a;
+}
+
+.legend-tag {
+  color: #ffd23f;
+  border: 1px solid #a8781f;
+}
+
+.shop-item.legendary {
+  border-color: #a8781f;
+  box-shadow: inset 0 0 18px rgba(255, 138, 42, 0.18);
+}

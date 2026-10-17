@@ -312,6 +312,24 @@ export class Renderer {
     };
     const aura = LOOK_BY_ID[this.outfit.look]?.aura;
     if (aura) emit(0.22, x + Math.random() * 12, y + 4 + Math.random() * 8, -8, aura);
+    // Legendary looks from the Ossuary: a mantle trailing embers, and skulls circling your head.
+    if (this.outfit.look === 'inferno') emit(0.5, x + Math.random() * 12, y + 4 + Math.random() * 8, -18, Math.random() < 0.45 ? '#ff8a2a' : Math.random() < 0.6 ? '#ffd23f' : '#d23a46');
+    if (this.outfit.head === 'skullhalo') {
+      const ctx = this.ctx;
+      for (let i = 0; i < 3; i++) {
+        const a = this.time * 2.2 + (i * Math.PI * 2) / 3;
+        const sx = Math.round(x + 5 + Math.cos(a) * 8);
+        const sy = Math.round(y + 1 + Math.sin(a) * 2.5);
+        ctx.globalAlpha = Math.sin(a) < 0 ? 0.55 : 1;
+        ctx.fillStyle = '#e8dcc4';
+        ctx.fillRect(sx, sy, 3, 2);
+        ctx.fillRect(sx + 1, sy + 2, 1, 1);
+        ctx.fillStyle = '#d23a46';
+        ctx.fillRect(sx, sy + 1, 1, 1);
+        ctx.fillRect(sx + 2, sy + 1, 1, 1);
+      }
+      ctx.globalAlpha = 1;
+    }
     // The Champion's Crown glints now and then.
     if (this.outfit.head === 'champcrown' && Math.sin(this.time * 2.2) > 0.9) emit(0.5, x + 3 + Math.random() * 6, y + Math.random() * 2, -5, Math.random() < 0.5 ? '#fff2c0' : '#f2c14e');
     if (r('ember') || r('wildfire')) emit(0.35, tipX, tipY + Math.random() * 3, -16, Math.random() < 0.5 ? '#ff8a2a' : '#f2c14e');

@@ -105,7 +105,7 @@ export interface LookDef {
   /** Colour of the drifting aura motes, if any. */
   aura: string | null;
   /** What unlocks it: an achievement, a Soul Rank (index) or a Bestiary tier. */
-  unlock: { feat: string } | { rank: number } | { beast: EnemyKind; tier: number } | { costume: string } | { podium: number };
+  unlock: { feat: string } | { rank: number } | { beast: EnemyKind; tier: number } | { costume: string } | { podium: number } | { cost: number };
   how: string;
 }
 
@@ -124,7 +124,49 @@ export const LOOKS: LookDef[] = [
   { id: 'soulfire', name: 'Soulfire', cloak: { p: '#1d3b4a', P: '#0e1f28' }, aura: '#5fe3ff', unlock: { rank: 4 }, how: 'Reach the Lich Lord Soul Rank.' },
 ];
 
+// Cloaks sold in the Ossuary for Souls. Looks only, so the daily crypt stays fair.
+const sold = (cost: number) => ({ unlock: { cost }, how: `Sold in the Ossuary for ${cost.toLocaleString()} Souls.` });
+LOOKS.push(
+  { id: 'cinder', name: 'Cinder Cloak', cloak: { p: '#b5431c', P: '#6e2410' }, aura: '#ff8a2a', ...sold(300) },
+  { id: 'moss', name: 'Gravemoss', cloak: { p: '#4f6b3a', P: '#2a3b1f' }, aura: null, ...sold(300) },
+  { id: 'glacier', name: 'Glacier Shroud', cloak: { p: '#7fb4d8', P: '#3d6a8a' }, aura: '#e8fbff', ...sold(450) },
+  { id: 'ash', name: 'Ashen Robe', cloak: { p: '#8a8590', P: '#4a4652' }, aura: '#c8c3d7', ...sold(500) },
+  { id: 'royal', name: 'Royal Purple', cloak: { p: '#7a34b0', P: '#3a1458' }, aura: '#f2c14e', ...sold(700) },
+  { id: 'void', name: 'Voidwalker', cloak: { p: '#1a1430', P: '#0a0716' }, aura: '#7b5cff', ...sold(900) },
+  { id: 'ghostlight', name: 'Ghostlight', cloak: { p: '#c9f2e6', P: '#7fb8a8' }, aura: '#e8fff8', ...sold(1100) },
+  { id: 'molten', name: 'Molten Gold', cloak: { p: '#e0aa2e', P: '#8a6012' }, aura: '#ffd23f', ...sold(1500) },
+  // Legendary: drifts embers in the crypt.
+  { id: 'inferno', name: 'Inferno Mantle', cloak: { p: '#ff5a1f', P: '#8a1f0c' }, aura: '#ff8a2a', ...sold(5000) },
+);
+
 export const LOOK_BY_ID = Object.fromEntries(LOOKS.map((l) => [l.id, l])) as Record<string, LookDef>;
+
+/** Ossuary items that are pure show: the price, and whether it's a legendary piece. */
+export function shopPrice(unlock: Unlock | undefined): number {
+  return unlock && 'cost' in unlock ? unlock.cost : 0;
+}
+export const LEGENDARY = ['inferno', 'skullhalo'];
+
+// ---------- Hall decorations ----------
+// Bought in the Ossuary and shown in your Crypt Hall, for you and every visitor.
+
+export interface DecorDef {
+  id: string;
+  name: string;
+  emoji: string;
+  cost: number;
+  desc: string;
+}
+
+export const DECOR: DecorDef[] = [
+  { id: 'skulls', name: 'Skull Piles', emoji: '💀', cost: 300, desc: 'Heaps of skulls in the corners of your Hall.' },
+  { id: 'carpet', name: 'Blood Carpet', emoji: '🟥', cost: 500, desc: 'A gold-trimmed red carpet before your statues.' },
+  { id: 'cat', name: 'Grave Cat', emoji: '🐈‍⬛', cost: 700, desc: 'A black cat that keeps watch, and blinks.' },
+  { id: 'braziers', name: 'Twin Braziers', emoji: '🔥', cost: 900, desc: 'Two roaring braziers either side of your throne room.' },
+  { id: 'tomb', name: 'Your Tomb', emoji: '🪦', cost: 1500, desc: 'A gravestone with your name and deepest floor carved in.' },
+  { id: 'throne', name: 'Bone Throne', emoji: '🪑', cost: 2500, desc: 'A throne of bone at the heart of your Hall.' },
+];
+export const DECOR_BY_ID = Object.fromEntries(DECOR.map((d) => [d.id, d])) as Record<string, DecorDef>;
 
 // ---------- costumes ----------
 // Headwear is drawn over the hero's hood. A few pieces are shared by every hero; the
@@ -198,6 +240,17 @@ export const HEADS: HeadDef[] = [
   // Daily podium rewards: only ever won by finishing in the top 3 of a Daily Descent.
   { id: 'champcrown', name: "Champion's Crown", unlock: { podium: 1 }, how: 'Finish 1st in a Daily Descent.', pixels: [[3, 0, GOLD], [5, 0, '#fff2c0'], [6, 0, '#fff2c0'], [8, 0, GOLD], ...row(1, 3, 8, GOLD), ...row(2, 3, 8, '#a8781f'), [4, 2, RED], [5, 2, '#9fe8ff'], [6, 2, '#9fe8ff'], [7, 2, RED]] },
   { id: 'silvercirclet', name: 'Silver Circlet', unlock: { podium: 2 }, how: 'Finish 2nd in a Daily Descent.', pixels: [...row(2, 3, 8, '#c9d1e0'), [5, 1, '#eef3fb'], [6, 1, '#eef3fb'], [5, 2, '#9fe8ff'], [6, 2, '#7fb4ff']] },
+  // Sold in the Ossuary for Souls.
+  { id: 'jester', name: 'Jester Cap', ...sold(400), pixels: [...row(2, 3, 8, '#5a1622'), [3, 1, RED], [2, 0, RED], [8, 1, '#2e8b57'], [9, 0, '#2e8b57'], [1, 0, GOLD], [10, 0, GOLD]] },
+  { id: 'toadstool', name: 'Toadstool Cap', ...sold(500), pixels: [...row(0, 4, 7, '#c0392b'), ...row(1, 3, 8, '#c0392b'), ...row(2, 2, 9, '#c0392b'), [5, 0, '#ffffff'], [4, 1, '#ffffff'], [7, 1, '#ffffff'], [3, 2, '#ffffff'], [8, 2, '#ffffff']] },
+  { id: 'candles', name: 'Candle Crown', ...sold(600), pixels: [...row(2, 3, 8, BONE), [3, 1, BONE], [3, 0, '#ff8a2a'], [6, 1, BONE], [6, 0, GOLD], [8, 1, BONE], [8, 0, '#ff8a2a']] },
+  { id: 'ironhorns', name: 'Iron Horns', ...sold(700), pixels: [...row(2, 4, 7, '#5d667a'), [3, 2, '#5d667a'], [8, 2, '#5d667a'], [2, 1, '#8a8a96'], [2, 0, STEEL], [9, 1, '#8a8a96'], [9, 0, STEEL]] },
+  { id: 'raven', name: 'Raven Mask', ...sold(800), pixels: [...row(3, 4, 7, '#141119'), [6, 5, '#3a3346'], [7, 5, '#3a3346'], [8, 5, '#5a5466'], [9, 6, '#5a5466']] },
+  { id: 'cyclops', name: 'Cyclops Helm', ...sold(1000), pixels: [...row(1, 3, 8, STEEL), ...row(2, 3, 8, '#9aa3b5'), ...row(3, 3, 8, '#9aa3b5'), ...row(4, 3, 8, '#9aa3b5'), [5, 4, '#ff4d5a'], [6, 4, '#ff4d5a']] },
+  { id: 'executioner', name: "Executioner's Hood", ...sold(1200), pixels: [...row(0, 4, 7, '#0b0710'), ...row(1, 3, 8, '#0b0710'), ...row(2, 2, 9, '#0b0710'), ...row(3, 2, 9, '#0b0710'), [3, 4, '#0b0710'], [4, 4, '#0b0710'], [6, 4, '#0b0710'], [8, 4, '#0b0710']] },
+  { id: 'pumpkin', name: "Jack-o'-Lantern", ...sold(1500), pixels: [[5, 0, '#3d6b2a'], [6, 0, '#3d6b2a'], ...row(1, 4, 7, '#e67e22'), ...row(2, 3, 8, '#e67e22'), ...row(3, 3, 8, '#e67e22'), ...row(4, 3, 8, '#e67e22'), ...row(5, 3, 8, '#e67e22'), ...row(6, 4, 7, '#d35400'), [4, 3, '#ffd23f'], [7, 3, '#ffd23f'], [4, 5, '#ffd23f'], [5, 5, '#2a1505'], [6, 5, '#ffd23f'], [7, 5, '#2a1505']] },
+  // Legendary: skulls circle your head in the crypt.
+  { id: 'skullhalo', name: 'Halo of Skulls', ...sold(10000), pixels: [...row(0, 3, 8, '#fff2c0'), [2, 1, GOLD], [9, 1, GOLD]] },
   { id: 'bronzelaurel', name: 'Bronze Laurel', unlock: { podium: 3 }, how: 'Finish 3rd in a Daily Descent.', pixels: [[2, 3, '#8a5a28'], [2, 2, '#b07a3c'], [3, 1, '#cd8f4a'], [4, 1, '#b07a3c'], [9, 3, '#8a5a28'], [9, 2, '#b07a3c'], [8, 1, '#cd8f4a'], [7, 1, '#b07a3c']] },
   { id: 'tophat', name: "Gravedigger's Hat", unlock: { feat: 'gravekeeper' }, how: 'Read every epitaph in the Hollow.', pixels: [...row(0, 4, 7, DARK), ...row(1, 4, 7, RED), ...row(2, 2, 9, DARK)] },
   { id: 'forgehelm', name: 'Forged Helm', unlock: { feat: 'forge' }, how: 'Fuse two relics at the Soul Forge.', pixels: [...row(1, 3, 8, '#5d667a'), ...row(2, 3, 8, '#5d667a'), [3, 3, '#5d667a'], [8, 3, '#5d667a'], ...row(0, 5, 6, '#5fe3ff')] },

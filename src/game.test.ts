@@ -371,3 +371,41 @@ describe('early-game tuning (mercy)', () => {
     }
   });
 });
+
+describe('Endless-only forbidden relics', () => {
+  const ENDLESS = ['headsman', 'grail', 'thunder', 'leech', 'glass'] as RelicId[];
+  it('never enter the daily pool, and join Endless only once bought', () => {
+    for (const id of ENDLESS) {
+      expect(fullPool()).not.toContain(id);
+      expect(basePool()).not.toContain(id);
+    }
+    expect(basePool(['grail', 'echo'] as RelicId[])).toContain('grail');
+    expect(basePool(['grail'] as RelicId[]).slice(0, -1)).toEqual(basePool());
+  });
+
+  it('do what they say', () => {
+    const g = new Game('endless', 21, 0, { hero: 'knight', pool: basePool(ENDLESS), forge: true, mercy: true });
+    const max = g.player.maxHp;
+    g.addRelic('glass');
+    expect(g.player.maxHp).toBe(max - Math.ceil(max / 3));
+    expect(g.atk).toBe(5);
+    g.addRelic('grail');
+    g.player.hp = 1;
+    const r = g as unknown as { makeOffer(): { restHeal: number } };
+    expect(r.makeOffer().restHeal).toBe(g.player.maxHp);
+  });
+
+  it('replay exactly when they are in the pool', () => {
+    for (let seed = 1; seed <= 25; seed++) {
+      const g = new Game('endless', seed, 0, { hero: 'mage', pool: basePool(ENDLESS), forge: true, mercy: true });
+      for (let i = 0; i < 500 && g.phase !== 'dead'; i++) {
+        if (g.phase === 'choose') g.choose(i % 3);
+        else if (g.phase === 'event') g.resolveEvent(i % 2 === 0);
+        else g.act(...([[0, -1], [1, 0], [0, 1], [-1, 0], [0, 0]][(seed + i * 3) % 5] as [number, number]));
+      }
+      expect(g.header()).toContain('headsman,grail,thunder,leech,glass');
+      const again = Game.replay('endless', seed, 0, g.header() + g.log);
+      expect([again.floor, again.kills, again.player.hp]).toEqual([g.floor, g.kills, g.player.hp]);
+    }
+  });
+});

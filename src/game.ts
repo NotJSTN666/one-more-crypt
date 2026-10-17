@@ -4,7 +4,7 @@
 
 import { ELITE_MODS, HERO_BY_ID, type EliteMod, type FeatureKind, type HeroId } from './content';
 import {
-  ASCEND_FLOOR, FUSIONS, LEGACY_RELICS, RELICS, RELIC_BY_ID, RARITY_WEIGHT, UNLOCKABLE_RELICS, type FusedId, type FusionDef, type RelicDef, type RelicId, withFusions,
+  ASCEND_FLOOR, ENDLESS_RELICS, FUSIONS, LEGACY_RELICS, RELICS, RELIC_BY_ID, RARITY_WEIGHT, UNLOCKABLE_RELICS, type FusedId, type FusionDef, type RelicDef, type RelicId, withFusions,
 } from './relics';
 import { hashSeed, mulberry32, randInt, weightedPick, type Rng } from './rng';
 
@@ -131,11 +131,14 @@ export interface RunConfig {
 /** Daily runs use every relic; Endless only the unlocked ones. */
 /** Every relic. `legacy` limits it to the launch set, for older runs and Daily #1. */
 export function fullPool(legacy = false): RelicId[] {
-  return RELICS.filter((r) => !legacy || LEGACY_RELICS.includes(r.id)).map((r) => r.id);
+  return RELICS.filter((r) => !r.endless && (!legacy || LEGACY_RELICS.includes(r.id))).map((r) => r.id);
 }
 
+/** An Endless pool: the base relics plus the forbidden ones the player has unlocked. */
 export function basePool(unlocked: RelicId[] = [], legacy = false): RelicId[] {
-  return fullPool(legacy).filter((id) => !UNLOCKABLE_RELICS.includes(id) || unlocked.includes(id));
+  const base = fullPool(legacy).filter((id) => !UNLOCKABLE_RELICS.includes(id) || unlocked.includes(id));
+  // Endless-only relics join at the end, and only once bought, so older runs replay unchanged.
+  return [...base, ...ENDLESS_RELICS.filter((id) => unlocked.includes(id))];
 }
 
 export interface RunStats {
@@ -262,7 +265,7 @@ export class Game {
   }
 
   get atk(): number {
-    let atk = 1 + this.r('whetstone') + 2 * this.r('crown') + this.harvestBonus;
+    let atk = 1 + this.r('whetstone') + 2 * this.r('crown') + 4 * this.r('glass') + this.harvestBonus;
     const missing = this.player.maxHp - this.player.hp;
     if (this.hero === 'barbarian') atk += Math.floor(missing / 3);
     if (this.hero === 'mage') atk += 2;
@@ -714,6 +717,7 @@ export class Game {
       e.marked = true;
     }
     if (this.r('shatter') && e.frozen > 0) dmg += 3 * this.r('shatter');
+    if (this.r('headsman') && e.hp * 2 <= e.maxHp) dmg += 2 * this.r('headsman');
     if (this.r('pact') && this.player.hp <= 4) dmg *= this.r('pact') + 1;
     let crit = false;
     if (this.r('dice') && this.combat() < 0.15 * this.r('dice')) {
@@ -771,7 +775,7 @@ export class Game {
       picks.push(choice);
       pool.splice(pool.indexOf(choice), 1);
     }
-    return { relics: picks, restHeal: REST_HEAL + 2 * this.r('chalice') };
+    return { relics: picks, restHeal: this.r('grail') ? this.player.maxHp : REST_HEAL + 2 * this.r('chalice') };
   }
 
   /** Take a relic from the offer (index), or rest when index is -1. */
@@ -880,6 +884,8 @@ export class Game {
       this.heal(3);
     } else if (id === 'crown') {
       this.changeMaxHp(-3);
+    } else if (id === 'glass') {
+      this.changeMaxHp(-Math.ceil(this.player.maxHp / 3));
     }
   }
 
@@ -1109,6 +1115,16 @@ export class Game {
         this.damageEnemy(e, 4 * this.r('doom'), 'burst');
       }
     }
+    const thunder = this.r('thunder');
+    if (thunder && this.turns % 5 === 0 && this.alive.length) {
+      for (let k = 0; k < thunder * 2 && this.alive.length; k++) {
+        const targets = this.alive;
+        const t = targets[Math.floor(this.combat() * targets.length)];
+        this.events.push({ t: 'bolt', from: { x: t.x, y: t.y - 3 }, to: { x: t.x, y: t.y } });
+        this.damageEnemy(t, 3, 'bolt');
+      }
+    }
+    if (this.r('leech') && this.turns % 5 === 0) this.heal(this.r('leech'));
     if (this.r('hourglass') && this.turns % 8 === 0 && this.alive.length) {
       this.events.push({ t: 'timestop' });
       for (const e of this.alive) e.frozen = Math.max(e.frozen, 1);

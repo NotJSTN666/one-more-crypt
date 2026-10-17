@@ -134,3 +134,22 @@ describe('daily podium', () => {
     expect([podiumCount(1), podiumCount(2), podiumCount(3)]).toEqual([1, 0, 1]);
   });
 });
+
+describe('the Ossuary shop', () => {
+  it('sells cosmetics and decorations once, for Souls', async () => {
+    const { buyItem, headUnlocked, lookUnlocked, mergeMeta } = await import('./meta');
+    const { DECOR, HEAD_BY_ID, LOOK_BY_ID, shopPrice } = await import('./progression');
+    meta.bought = [];
+    meta.souls = 1000;
+    expect(lookUnlocked(LOOK_BY_ID.cinder)).toBe(false);
+    expect(buyItem('cinder', shopPrice(LOOK_BY_ID.cinder.unlock))).toBe(true);
+    expect(meta.souls).toBe(700);
+    expect(lookUnlocked(LOOK_BY_ID.cinder)).toBe(true);
+    expect(buyItem('cinder', 300)).toBe(false);
+    expect(buyItem('pumpkin', 1500)).toBe(false); // can't afford
+    expect(headUnlocked(HEAD_BY_ID.pumpkin)).toBe(false);
+    mergeMeta({ bought: ['throne'] });
+    expect(meta.bought).toEqual(['cinder', 'throne']);
+    expect(DECOR.every((d) => d.cost > 0)).toBe(true);
+  });
+});

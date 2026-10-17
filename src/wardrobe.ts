@@ -38,7 +38,7 @@ export function showWardrobe(back: () => void, hero: HeroId = meta.hero, changed
       <span class="name">${has ? '' : '🔒 '}${esc(name)}</span>
       ${own ? `<span class="own">${esc(heroName)} only</span>` : ''}
       ${worn ? '<span class="worn">✓ Wearing</span>' : ''}
-      <span class="desc">${!id ? esc(how) : has ? `Earned: ${esc(how)}` : esc(how)}</span>
+      <span class="desc">${!id ? esc(how) : has ? (how.startsWith('Sold in the Ossuary') ? 'Bought in the Ossuary.' : `Earned: ${esc(how)}`) : esc(how)}</span>
     </button>`;
   };
 

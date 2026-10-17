@@ -11,7 +11,7 @@ import { equipTitle, meta, titleUnlocked, type Meta } from './meta';
 import { showWardrobe } from './wardrobe';
 import { ONLINE, loadHall } from './online';
 import {
-  BESTIARY_KINDS, BESTIARY_TITLES, HEAD_BY_ID, LOOK_BY_ID, TITLES, TITLE_BY_ID, TITLE_TIER, bestiaryTiers, rankFor, rankProgress,
+  BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, HEAD_BY_ID, LOOK_BY_ID, TITLES, TITLE_BY_ID, TITLE_TIER, bestiaryTiers, rankFor, rankProgress,
   type BestRun, type BestRuns,
 } from './progression';
 import { RELICS, RELIC_BY_ID, type RelicId } from './relics';
@@ -33,6 +33,8 @@ export interface HallData {
   best: BestRuns;
   /** Daily podium finishes: how many 1st, 2nd and 3rd places. */
   podiums: [number, number, number];
+  /** Decorations bought in the Ossuary. */
+  decor: string[];
 }
 
 const BOSS_FEAT: Partial<Record<EnemyKind, string>> = { boss: 'warden', abbot: 'abbot', lich: 'lich' };
@@ -71,9 +73,11 @@ export function hallData(name: string, m: Partial<Meta> | Record<string, unknown
   }
   const places = Object.values(obj(raw.podiums)).map((p) => num(p, 9));
   const podiums: [number, number, number] = [1, 2, 3].map((p) => places.filter((x) => x === p).length) as [number, number, number];
+  const decor = (Array.isArray(raw.bought) ? raw.bought : []).filter((id): id is string => typeof id === 'string' && Boolean(DECOR_BY_ID[id]));
   return {
     name,
     podiums,
+    decor,
     title: typeof raw.title === 'string' && TITLE_BY_ID[raw.title] ? raw.title : '',
     earned: num(raw.earned),
     feats: Object.keys(achievements).filter((id) => ACHIEVEMENT_BY_ID[id]).length,
@@ -228,6 +232,127 @@ function statue(ctx: CanvasRenderingContext2D, x: number, hero: HeroId, run: Bes
   fitText(ctx, HERO_BY_ID[hero].name.replace(/^The /, '').toUpperCase(), x, base + 82, 18, FONT_PIXEL, run ? '#9a8fa8' : '#4a4058', 122);
 }
 
+// ---------- decorations (bought in the Ossuary) ----------
+
+function skullPile(ctx: CanvasRenderingContext2D, x: number) {
+  const skull = (sx: number, sy: number) => {
+    ctx.fillStyle = '#d8cfb8';
+    ctx.fillRect(sx, sy, 14, 10);
+    ctx.fillRect(sx + 3, sy + 10, 8, 4);
+    ctx.fillStyle = '#1a1520';
+    ctx.fillRect(sx + 2, sy + 4, 4, 3);
+    ctx.fillRect(sx + 8, sy + 4, 4, 3);
+  };
+  [[-23, 452], [-7, 452], [9, 452], [-15, 438], [1, 438], [-7, 424]].forEach(([dx, y]) => skull(x + dx, y));
+}
+
+function carpet(ctx: CanvasRenderingContext2D) {
+  ctx.fillStyle = '#5a1622';
+  ctx.fillRect(0, 478, W, 26);
+  ctx.fillStyle = '#c99a2e';
+  ctx.fillRect(0, 478, W, 3);
+  ctx.fillRect(0, 501, W, 3);
+  ctx.fillStyle = 'rgba(201,154,46,0.35)';
+  for (let x = 12; x < W; x += 32) ctx.fillRect(x, 488, 8, 6);
+}
+
+function graveCat(ctx: CanvasRenderingContext2D, x: number, t: number) {
+  const px = (dx: number, dy: number, w: number, h: number, c: string) => {
+    ctx.fillStyle = c;
+    ctx.fillRect(x + dx * 4, 466 - 48 + dy * 4, w * 4, h * 4);
+  };
+  const black = '#3a3048';
+  px(1, 0, 1, 2, black); px(4, 0, 1, 2, black); // ears
+  px(0, 2, 6, 4, black); // head
+  px(0, 6, 7, 6, black); // body
+  px(6, 9, 3, 2, black); // tail
+  px(8, 7, 1, 3, black);
+  const blink = Math.sin(t * 1.3) > 0.97;
+  if (!blink) {
+    px(1, 3, 1, 1, '#d4ff5a');
+    px(4, 3, 1, 1, '#d4ff5a');
+  }
+}
+
+function brazier(ctx: CanvasRenderingContext2D, x: number, t: number) {
+  ctx.fillStyle = '#3a3346';
+  ctx.fillRect(x - 4, 436, 8, 30);
+  ctx.fillRect(x - 14, 462, 28, 4);
+  ctx.fillStyle = '#5d667a';
+  ctx.fillRect(x - 16, 426, 32, 12);
+  const f = 1 + Math.sin(t * 11 + x) * 0.15;
+  const glow = ctx.createRadialGradient(x, 410, 4, x, 410, 70 * f);
+  glow.addColorStop(0, 'rgba(255,150,60,0.4)');
+  glow.addColorStop(1, 'rgba(255,150,60,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(x - 80, 340, 160, 130);
+  ctx.fillStyle = '#ff8a2a';
+  ctx.fillRect(x - 12, 426 - 18 * f, 24, 18 * f);
+  ctx.fillStyle = '#ffd23f';
+  ctx.fillRect(x - 6, 426 - 26 * f, 12, 26 * f);
+}
+
+function tomb(ctx: CanvasRenderingContext2D, x: number, name: string, floor: number) {
+  ctx.fillStyle = '#4a4058';
+  ctx.beginPath();
+  ctx.moveTo(x - 34, 466);
+  ctx.lineTo(x - 34, 396);
+  ctx.quadraticCurveTo(x, 366, x + 34, 396);
+  ctx.lineTo(x + 34, 466);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#3a3346';
+  ctx.fillRect(x - 34, 458, 68, 8);
+  text(ctx, 'HERE LIES', x, 404, `9px ${FONT_PIXEL}`, '#9a8fa8');
+  fitText(ctx, (name || 'NAMELESS').toUpperCase(), x, 424, 12, FONT_PIXEL, '#e8dcc4', 60);
+  if (floor) text(ctx, `FELL ON F${floor}`, x, 444, `9px ${FONT_PIXEL}`, '#c99a2e');
+}
+
+function throne(ctx: CanvasRenderingContext2D, x: number) {
+  const bone = '#d8cfb8';
+  const shade = '#a89f88';
+  ctx.fillStyle = shade;
+  ctx.fillRect(x - 30, 380, 60, 56); // back
+  ctx.fillStyle = bone;
+  ctx.fillRect(x - 26, 384, 52, 48);
+  ctx.fillStyle = '#5a1622';
+  ctx.fillRect(x - 18, 392, 36, 40); // cushion
+  ctx.fillStyle = bone;
+  ctx.fillRect(x - 40, 430, 80, 10); // seat
+  ctx.fillRect(x - 40, 410, 10, 30); // arms
+  ctx.fillRect(x + 30, 410, 10, 30);
+  ctx.fillRect(x - 36, 440, 8, 26); // legs
+  ctx.fillRect(x + 28, 440, 8, 26);
+  // skull finials
+  for (const sx of [x - 34, x + 26, x - 6]) {
+    const sy = sx === x - 6 ? 366 : 372;
+    ctx.fillStyle = bone;
+    ctx.fillRect(sx, sy, 12, 10);
+    ctx.fillStyle = '#1a1520';
+    ctx.fillRect(sx + 2, sy + 4, 3, 3);
+    ctx.fillRect(sx + 7, sy + 4, 3, 3);
+  }
+}
+
+function drawDecor(ctx: CanvasRenderingContext2D, d: HallData, t: number, layer: 'wall' | 'floor') {
+  const has = (id: string) => d.decor.includes(id);
+  if (layer === 'floor') {
+    if (has('carpet')) carpet(ctx);
+    return;
+  }
+  if (has('skulls')) {
+    skullPile(ctx, 150);
+    skullPile(ctx, 810);
+  }
+  if (has('cat')) graveCat(ctx, 238, t);
+  if (has('braziers')) {
+    brazier(ctx, 356, t);
+    brazier(ctx, 604, t);
+  }
+  if (has('tomb')) tomb(ctx, 716, d.name, Math.max(0, ...Object.values(d.best).map((r) => r?.floor ?? 0)));
+  if (has('throne')) throne(ctx, 480);
+}
+
 /** Draw the Hall at time t (seconds), for the screen and the saved image. */
 export function drawHall(ctx: CanvasRenderingContext2D, d: HallData, t = 0) {
   ctx.imageSmoothingEnabled = false;
@@ -284,6 +409,8 @@ export function drawHall(ctx: CanvasRenderingContext2D, d: HallData, t = 0) {
     const kills = d.bestiary[k] ?? 0;
     trophy(ctx, [232, 480, 728][i], k, kills, kills > 0 || Boolean(d.bossFeats[k]));
   });
+  drawDecor(ctx, d, t, 'wall');
+  drawDecor(ctx, d, t, 'floor');
 
   // statues of each hero's deepest run
   const deepest = Math.max(0, ...Object.values(d.best).map((r) => r?.floor ?? 0));
