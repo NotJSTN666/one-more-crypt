@@ -362,3 +362,82 @@ export function drawStory(
   text('ONEMORECRYPT.COM', SW / 2, 1580 + cta, '58px Silkscreen', '#f2c14e', 'center', 'rgba(242,193,78,0.5)');
   text('PLAY FREE IN YOUR BROWSER', SW / 2, 1630 + cta, '24px Silkscreen', '#9a8fa8', 'center');
 }
+
+// ---------- one daily post ----------
+
+/**
+ * Everything for the day's single X post on one 1200x675 card: today's crypt and hero on
+ * the left, yesterday's champion and the endless leader on the right, and today's tally
+ * along the bottom.
+ */
+export function drawDigest(
+  canvas: HTMLCanvasElement,
+  { dailyNo, heroId, champion, endless, tally }: { dailyNo: number; heroId: HeroId; champion?: StoryLeader & { dailyNo: number }; endless?: StoryLeader; tally?: DailyTally },
+) {
+  use(canvas);
+  const hero = HERO_BY_ID[heroId];
+  backdrop('#2a1328');
+  motes('#ff8a2a', 34, 5);
+  vignette();
+
+  // today's crypt
+  text(`DAILY #${dailyNo}`, 300, 128, '108px "Pirata One"', '#d23a46', 'center', 'rgba(210,58,70,0.7)');
+  text('THE CRYPT IS OPEN', 300, 176, '24px Silkscreen', '#e8dcc4', 'center');
+  ctx.shadowColor = 'rgba(210,58,70,0.8)';
+  ctx.shadowBlur = 32;
+  ctx.drawImage(heroSprite(hero.id, {}, []).normal, 200, 205, 200, 200);
+  ctx.shadowBlur = 0;
+  const heroLine = `TODAY'S HERO: THE ${hero.name.toUpperCase()}`;
+  text(heroLine, 300, 452, fit(heroLine, 540, 24, 'Silkscreen'), '#f2c14e', 'center');
+  text(`${hero.hp} HP · ${hero.perk}`, 300, 488, '18px Silkscreen', '#9a8fa8', 'center');
+
+  // the two leaders, stacked
+  const panel = (y: number, label: string, color: string, glow: string, who: StoryLeader | undefined, look: Look | null, crown: boolean) => {
+    const x = 630;
+    const w = 530;
+    const h = 210;
+    ctx.fillStyle = 'rgba(20,13,28,0.88)';
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, w, 5);
+    text(label, x + 24, y + 38, fit(label, w - 48, 20, 'Silkscreen'), color);
+    if (!who || !look) {
+      text('UNCLAIMED · BE THE FIRST', x + w / 2, y + 130, '22px Silkscreen', '#6b6680', 'center');
+      return;
+    }
+    const size = 128;
+    const sx = x + 28;
+    const sy = y + 62;
+    const spot = ctx.createRadialGradient(sx + size / 2, sy + size / 2, 6, sx + size / 2, sy + size / 2, 110);
+    spot.addColorStop(0, glow);
+    spot.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = spot;
+    ctx.fillRect(x, y + 6, 220, h - 6);
+    ctx.shadowColor = glow;
+    ctx.shadowBlur = 20;
+    ctx.drawImage(heroSprite(look.hero, look.relics, look.log).normal, sx, sy, size, size);
+    ctx.shadowBlur = 0;
+    if (crown) pixels(CROWN, CROWN_COL, sx + size / 2 - (11 * 5) / 2, sy - 22, 5);
+    const tx = x + 190;
+    text(who.name, tx, y + 112, fit(who.name, w - 210, 54, '"Pirata One"'), '#f2c14e', 'left', 'rgba(242,193,78,0.45)');
+    const stats = `FLOOR ${who.floor} · ${who.kills} KILLS`;
+    text(stats, tx, y + 152, fit(stats, w - 210, 22, 'Silkscreen'), '#e8dcc4');
+    text(`as the ${HERO_BY_ID[look.hero].name}`, tx, y + 184, '18px Silkscreen', '#9a8fa8');
+  };
+  const champLook = champion ? heroLook({ ...champion, mode: 'daily' }) : null;
+  const endlessLook = endless ? heroLook({ ...endless, mode: 'endless' }) : null;
+  panel(48, champion ? `CHAMPION OF DAILY #${champion.dailyNo}` : "YESTERDAY'S CHAMPION", '#f2c14e', 'rgba(242,193,78,0.45)', champion, champLook, true);
+  panel(282, 'ENDLESS LEADER', '#c9a6ff', 'rgba(176,124,255,0.45)', endless, endlessLook, false);
+
+  // today's tally, when there is one
+  if (tally) {
+    const [a, b] = tallyLine(tally);
+    ctx.fillStyle = 'rgba(7,4,11,0.72)';
+    ctx.fillRect(0, 546, W, 50);
+    ctx.fillStyle = '#d23a46';
+    ctx.fillRect(0, 546, W, 3);
+    const line = `${a}  ·  ${b}`;
+    text(line, W / 2, 580, fit(line, W - 96, 24, 'Silkscreen'), '#f2c14e', 'center');
+  }
+  footer();
+}
