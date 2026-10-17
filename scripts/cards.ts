@@ -264,6 +264,8 @@ export const STORY_H = 1920;
 
 export interface StoryLeader {
   name: string;
+  /** For a daily champion: how many finished that daily. */
+  players?: number;
   floor: number;
   kills: number;
   relics?: string;
@@ -353,7 +355,7 @@ export function drawStory(
   };
   const champLook = champion ? heroLook({ ...champion, mode: 'daily' }) : null;
   const endlessLook = endless ? heroLook({ ...endless, mode: 'endless' }) : null;
-  panel(60, champion ? `CHAMPION OF DAILY #${champion.dailyNo}` : 'YESTERDAY\'S CHAMPION', '#f2c14e', 'rgba(242,193,78,0.45)', champion, champLook, true);
+  panel(60, champion ? championLabel(champion) : 'YESTERDAY\'S CHAMPION', '#f2c14e', 'rgba(242,193,78,0.45)', champion, champLook, true);
   panel(SW - 520, 'ENDLESS LEADER', '#c9a6ff', 'rgba(176,124,255,0.45)', endless, endlessLook, false);
 
   // call to action, above the reply bar; the gap below the title is for a link sticker
@@ -361,6 +363,11 @@ export function drawStory(
   text('CAN YOU TAKE THE CROWN?', SW / 2, 1500 + cta, '38px Silkscreen', '#e8dcc4', 'center');
   text('ONEMORECRYPT.COM', SW / 2, 1580 + cta, '58px Silkscreen', '#f2c14e', 'center', 'rgba(242,193,78,0.5)');
   text('PLAY FREE IN YOUR BROWSER', SW / 2, 1630 + cta, '24px Silkscreen', '#9a8fa8', 'center');
+}
+
+/** "CHAMPION OF DAILY #3 · 38 DESCENDED", leaving the count off when it isn't known. */
+function championLabel(c: StoryLeader & { dailyNo: number }): string {
+  return `CHAMPION OF DAILY #${c.dailyNo}${c.players ? ` · ${c.players} DESCENDED` : ''}`;
 }
 
 // ---------- one daily post ----------
@@ -426,7 +433,7 @@ export function drawDigest(
   };
   const champLook = champion ? heroLook({ ...champion, mode: 'daily' }) : null;
   const endlessLook = endless ? heroLook({ ...endless, mode: 'endless' }) : null;
-  panel(48, champion ? `CHAMPION OF DAILY #${champion.dailyNo}` : "YESTERDAY'S CHAMPION", '#f2c14e', 'rgba(242,193,78,0.45)', champion, champLook, true);
+  panel(48, champion ? championLabel(champion) : "YESTERDAY'S CHAMPION", '#f2c14e', 'rgba(242,193,78,0.45)', champion, champLook, true);
   panel(282, 'ENDLESS LEADER', '#c9a6ff', 'rgba(176,124,255,0.45)', endless, endlessLook, false);
 
   // today's tally, when there is one
