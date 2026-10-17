@@ -541,7 +541,11 @@ function statGrid(s: Stats): string {
 
 type Tab = 'today' | 'yesterday' | 'endless';
 
-export function showLeaderboard(back: () => void, tab: Tab = 'today') {
+/** Rows shown at first, and after tapping Show more. */
+const BOARD_FIRST = 25;
+const BOARD_MORE = 100;
+
+export function showLeaderboard(back: () => void, tab: Tab = 'today', limit = BOARD_FIRST) {
   const today = dailyNumber();
   const tabs: [Tab, string][] = [
     ['today', `Daily #${today}`],
@@ -569,22 +573,31 @@ export function showLeaderboard(back: () => void, tab: Tab = 'today') {
   on('#join', () => showLogin(() => showLeaderboard(back, tab)));
 
   const uid = session.account?.id ?? null;
-  const load: Promise<Board> =
-    tab === 'endless' ? endlessBoard(uid) : dailyBoard(tab === 'today' ? today : today - 1, uid);
-  load
-    .then((b) => {
-      if (screen !== 'board') return;
-      const body = document.getElementById('board-body');
-      if (!body) return;
-      body.innerHTML = boardHtml(b, uid, tab);
-      body.querySelectorAll<HTMLElement>('[data-hall]').forEach((li) =>
-        li.addEventListener('click', () => showPublicHall(li.dataset.hall!, () => showLeaderboard(back, tab))),
-      );
-    })
-    .catch((e) => {
-      const body = document.getElementById('board-body');
-      if (body) body.innerHTML = `<p class="sub">${esc((e as Error).message)}</p>`;
-    });
+  const fill = (n: number) => {
+    const load: Promise<Board> =
+      tab === 'endless' ? endlessBoard(uid, n) : dailyBoard(tab === 'today' ? today : today - 1, uid, n);
+    return load
+      .then((b) => {
+        if (screen !== 'board') return;
+        const body = document.getElementById('board-body');
+        if (!body) return;
+        body.innerHTML = boardHtml(b, uid, tab, n < BOARD_MORE);
+        body.querySelectorAll<HTMLElement>('[data-hall]').forEach((li) =>
+          li.addEventListener('click', () => showPublicHall(li.dataset.hall!, () => showLeaderboard(back, tab, n))),
+        );
+        const more = body.querySelector<HTMLButtonElement>('#board-more');
+        more?.addEventListener('click', () => {
+          more.disabled = true;
+          more.textContent = 'Summoning more…';
+          void fill(BOARD_MORE);
+        });
+      })
+      .catch((e) => {
+        const body = document.getElementById('board-body');
+        if (body) body.innerHTML = `<p class="sub">${esc((e as Error).message)}</p>`;
+      });
+  };
+  void fill(limit);
 }
 
 const portraits = new Map<string, string>();
@@ -603,7 +616,7 @@ function boardPortrait(r: BoardRow): string {
   return url;
 }
 
-function boardHtml(b: Board, uid: string | null, tab: Tab): string {
+function boardHtml(b: Board, uid: string | null, tab: Tab, canShowMore: boolean): string {
   if (!b.rows.length) {
     return `<p class="sub">${tab === 'endless' ? 'No endless runs yet.' : 'Nobody has fallen yet today. Be the first.'}</p>`;
   }
@@ -618,5 +631,6 @@ function boardHtml(b: Board, uid: string | null, tab: Tab): string {
   return `
     <p class="sub">${b.total} ${b.total === 1 ? 'soul' : 'souls'} ${tab === 'endless' ? 'ranked' : 'descended'}</p>
     <ol>${b.rows.map(row).join('')}</ol>
+    ${canShowMore && b.total > b.rows.length ? `<button class="btn" id="board-more">Show more<small>${b.total <= BOARD_MORE ? `See all ${b.total}` : `Top ${BOARD_MORE} of ${b.total}`}</small></button>` : ''}
     ${meOutside ? `<ol class="mine">${row(b.me!)}</ol>` : ''}`;
 }
