@@ -291,3 +291,88 @@ grant execute on function public.push_public_key() to anon, authenticated;
 grant execute on function public.save_push(text, text, text, text, boolean, boolean), public.drop_push(text) to authenticated;
 
 notify pgrst, 'reload schema';
+
+-- ---------- installed app (for the stats dashboard) ----------
+-- `app` marks a day the device opened the game as the installed app. `installs` records the
+-- browser's own "app installed" event, once per device. Same random device id, no personal data.
+
+alter table public.activity add column if not exists app boolean not null default false;
+
+create table if not exists public.installs (
+  device text primary key check (length(device) between 8 and 64),
+  at timestamptz not null default now()
+);
+alter table public.installs enable row level security;
+
+-- ping gains p_app. Replaced rather than overloaded, so older copies of the game still work.
+drop function if exists public.ping(text, boolean);
+create or replace function public.ping(p_device text, p_played boolean default false, p_app boolean default false)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  insert into public.activity (device, played, app)
+  values (p_device, coalesce(p_played, false), coalesce(p_app, false))
+  on conflict (device, day) do update
+    set last_seen = now(),
+        played = public.activity.played or excluded.played,
+        app = public.activity.app or excluded.app;
+$$;
+revoke all on function public.ping(text, boolean, boolean) from public;
+grant execute on function public.ping(text, boolean, boolean) to anon, authenticated;
+
+create or replace function public.note_install(p_device text)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  insert into public.installs (device) values (p_device) on conflict (device) do nothing;
+$$;
+revoke all on function public.note_install(text) from public;
+grant execute on function public.note_install(text) to anon, authenticated;
+
+-- The dashboard's numbers, now with the installed app.
+create or replace function public.crypt_stats()
+returns json
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  with today as (select (now() at time zone 'America/Chicago')::date as d)
+  select json_build_object(
+    'online_now', (select count(*) from activity where last_seen > now() - interval '2 minutes'),
+    'visitors_today', (select count(*) from activity, today where day = today.d),
+    'players_today', (select count(*) from activity, today where day = today.d and played),
+    'players_all', (select count(distinct device) from activity where played),
+    'visitors_all', (select count(distinct device) from activity),
+    'runs_today', (select count(*) from runs, today where created_at >= (today.d::timestamp at time zone 'America/Chicago')),
+    'runs_all', (select count(*) from runs),
+    'accounts', (select count(*) from profiles),
+    'tracking_since', (select min(first_seen) from activity),
+    'app', json_build_object(
+      'installs', (select count(*) from installs),
+      'installs_today', (select count(*) from installs, today where at >= (today.d::timestamp at time zone 'America/Chicago')),
+      'devices', (select count(distinct device) from activity where app),
+      'today', (select count(*) from activity, today where day = today.d and app),
+      'reminders', (select count(*) from push_subs),
+      'reminder_players', (select count(distinct user_id) from push_subs),
+      'since', (select min(at) from installs)
+    ),
+    'daily', coalesce((
+      select json_agg(json_build_object('day', day, 'players', players, 'visitors', visitors) order by day)
+      from (
+        select day, count(*) filter (where played) as players, count(*) as visitors
+        from activity, today
+        where day > today.d - 14
+        group by day
+      ) s
+    ), '[]'::json),
+    'as_of', now()
+  );
+$$;
+revoke all on function public.crypt_stats() from public, anon, authenticated;
+
+notify pgrst, 'reload schema';

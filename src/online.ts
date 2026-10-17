@@ -326,9 +326,31 @@ export async function pingActivity(played = false): Promise<void> {
   lastPing = Date.now();
   try {
     const sb = await client();
-    await sb.rpc('ping', { p_device: deviceId(), p_played: played });
+    const { error } = await sb.rpc('ping', { p_device: deviceId(), p_played: played, p_app: runningAsApp() });
+    // A server without the app column yet: count the visit anyway.
+    if (error) await sb.rpc('ping', { p_device: deviceId(), p_played: played });
   } catch {
     // Offline or not set up yet: the game doesn't care.
+  }
+}
+
+/** Opened from the home screen as the installed app, rather than in a browser tab. */
+function runningAsApp(): boolean {
+  try {
+    return matchMedia('(display-mode: standalone)').matches || (navigator as unknown as { standalone?: boolean }).standalone === true;
+  } catch {
+    return false;
+  }
+}
+
+/** The browser reports the game was installed as an app. */
+export async function noteInstall(): Promise<void> {
+  if (!ONLINE) return;
+  try {
+    const sb = await client();
+    await sb.rpc('note_install', { p_device: deviceId() });
+  } catch {
+    // Stats are best effort.
   }
 }
 
