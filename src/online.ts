@@ -208,6 +208,17 @@ export function dailyBoard(dailyNo: number, userId: string | null, limit = 50): 
   return board('leaderboard_daily', (q) => q.eq('daily_no', dailyNo), userId, limit);
 }
 
+/** Where a floor would place on a daily board: players on it, and how many finished lower. */
+export async function dailyStanding(dailyNo: number, floor: number): Promise<{ total: number; below: number }> {
+  const sb = await client();
+  const count = (q: any) => q.then((r: { count: number | null }) => r.count ?? 0);
+  const [total, below] = await Promise.all([
+    count(sb.from('leaderboard_daily').select('*', { count: 'exact', head: true }).eq('daily_no', dailyNo)),
+    count(sb.from('leaderboard_daily').select('*', { count: 'exact', head: true }).eq('daily_no', dailyNo).lt('floor', floor)),
+  ]);
+  return { total, below };
+}
+
 /** How many players finished strictly below this rank in a daily crypt (ties don't count). */
 export async function dailyBelow(dailyNo: number, rank: number): Promise<number> {
   const sb = await client();
@@ -227,6 +238,17 @@ export async function endlessBoard(userId: string | null, limit = 50, period: En
   if (a.error?.code === 'PGRST202') throw new OnlineError('This board is still being set up. Check All time for now.');
   if (a.error) throw friendly(a.error, 'Could not load the leaderboard.');
   return { rows: (a.data ?? []) as BoardRow[], me: (b?.data as BoardRow) ?? null, total: a.count ?? 0 };
+}
+
+/** A player's place on one week's Endless board (the week starting on Monday `week`), and how many ranked. */
+export async function endlessWeekPlace(week: string, userId: string): Promise<{ place: number; total: number }> {
+  const sb = await client();
+  const [mine, all] = await Promise.all([
+    sb.rpc('endless_week', { p_week: week }).eq('user_id', userId).maybeSingle(),
+    sb.rpc('endless_week', { p_week: week }, { count: 'exact', head: true }),
+  ]);
+  if (mine.error) throw friendly(mine.error, 'Could not load the weekly board.');
+  return { place: Number((mine.data as { rank?: number } | null)?.rank ?? 0), total: all.count ?? 0 };
 }
 
 /** Progress saved on the account, or null if there is none (or the column isn't set up yet). */
@@ -393,18 +415,15 @@ export interface PushSignup {
   tz: string;
   morning: boolean;
   evening: boolean;
+  rivals: boolean;
 }
 
 export async function savePush(s: PushSignup): Promise<void> {
   const sb = await client();
-  const { error } = await sb.rpc('save_push', {
-    p_endpoint: s.endpoint,
-    p_p256dh: s.p256dh,
-    p_auth: s.auth,
-    p_tz: s.tz,
-    p_morning: s.morning,
-    p_evening: s.evening,
-  });
+  const args = { p_endpoint: s.endpoint, p_p256dh: s.p256dh, p_auth: s.auth, p_tz: s.tz, p_morning: s.morning, p_evening: s.evening };
+  let { error } = await sb.rpc('save_push', { ...args, p_rivals: s.rivals });
+  // A server without rival alerts yet: save the rest.
+  if (error?.code === 'PGRST202') ({ error } = await sb.rpc('save_push', args));
   if (error) throw friendly(error, 'Could not turn on reminders.');
 }
 

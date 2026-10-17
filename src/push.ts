@@ -7,6 +7,8 @@ import { ONLINE, dropPush, pushPublicKey, savePush } from './online';
 export interface ReminderPrefs {
   morning: boolean;
   evening: boolean;
+  /** When someone passes you on today's daily or this week's Endless board. */
+  rivals: boolean;
 }
 
 const KEY = 'omc:reminders';
@@ -40,7 +42,8 @@ export function reminderPrefs(): ReminderPrefs | null {
   if (!remindersAvailable() || Notification.permission !== 'granted') return null;
   try {
     const p = JSON.parse(localStorage.getItem(KEY) ?? 'null') as ReminderPrefs | null;
-    return p && (p.morning || p.evening) ? { morning: Boolean(p.morning), evening: Boolean(p.evening) } : null;
+    // Saved before rival alerts existed: those are on unless turned off.
+    return p && (p.morning || p.evening || p.rivals) ? { morning: Boolean(p.morning), evening: Boolean(p.evening), rivals: p.rivals !== false } : null;
   } catch {
     return null;
   }
@@ -92,9 +95,9 @@ async function subscribe(prefs: ReminderPrefs): Promise<void> {
 }
 
 /** Turn reminders on (or change which ones). Must be called from a tap. */
-export async function enableReminders(prefs: ReminderPrefs = { morning: true, evening: true }): Promise<void> {
+export async function enableReminders(prefs: ReminderPrefs = { morning: true, evening: true, rivals: true }): Promise<void> {
   if (!remindersAvailable()) throw new Error('This browser cannot show reminders.');
-  if (!prefs.morning && !prefs.evening) return disableReminders();
+  if (!prefs.morning && !prefs.evening && !prefs.rivals) return disableReminders();
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') throw new Error('Notifications are blocked. Allow them for this site in your browser settings.');
   await subscribe(prefs);

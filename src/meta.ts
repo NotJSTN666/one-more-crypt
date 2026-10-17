@@ -58,6 +58,11 @@ export interface Meta {
   bought: string[];
   /** Daily play streak, shown in the Hall: the longest ever, and the run ending at `last`. */
   streak: { best: number; count: number; last: number };
+  /** Today's bounties: which three, progress toward each, and which have paid out. */
+  bounties: { day: number; ids: string[]; progress: number[]; done: boolean[] };
+  /** Week start (YYYY-MM-DD) -> place (1-3) on that week's Endless board, and the last week checked. */
+  weekly: Record<string, number>;
+  weeklyChecked: string;
 }
 
 export interface HeroStats {
@@ -91,6 +96,8 @@ function empty(): Meta {
     souls: 0, earned: 0, heroes: ['knight'], relics: [], achievements: {}, codex: {}, combos: {}, fusions: {}, elitesSlain: 0, hero: 'knight',
     bestiary: {}, bestiaryTier: {}, best: {}, title: '', look: '', looksSeen: [], rankSeen: 0, heroStats: {}, heroBackfill: 0, epitaphs: [], outfits: {}, headsSeen: [], heroUnlocks: {},
     podiums: {}, podiumChecked: 0, bought: [], streak: { best: 0, count: 0, last: 0 },
+    bounties: { day: 0, ids: [], progress: [], done: [] },
+    weekly: {}, weeklyChecked: '',
   };
 }
 
@@ -165,6 +172,21 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   }
   meta.podiumChecked = Math.max(meta.podiumChecked, other.podiumChecked ?? 0);
   meta.bought = [...new Set([...meta.bought, ...(Array.isArray(other.bought) ? other.bought.map(String) : [])])];
+  for (const [w, place] of Object.entries(other.weekly ?? {})) {
+    const p = Number(place);
+    if (p >= 1 && p <= 3) meta.weekly[w] = Math.min(meta.weekly[w] ?? 9, p);
+  }
+  if (typeof other.weeklyChecked === 'string' && other.weeklyChecked > meta.weeklyChecked) meta.weeklyChecked = other.weeklyChecked;
+  const ob = other.bounties;
+  if (ob && typeof ob === 'object' && Array.isArray(ob.ids) && ob.ids.length === 3) {
+    const day = Number(ob.day) || 0;
+    if (day > meta.bounties.day) {
+      meta.bounties = { day, ids: ob.ids.map(String), progress: [0, 1, 2].map((i) => Number(ob.progress?.[i]) || 0), done: [0, 1, 2].map((i) => Boolean(ob.done?.[i])) };
+    } else if (day === meta.bounties.day && ob.ids.join() === meta.bounties.ids.join()) {
+      meta.bounties.progress = [0, 1, 2].map((i) => Math.max(meta.bounties.progress[i] ?? 0, Number(ob.progress?.[i]) || 0));
+      meta.bounties.done = [0, 1, 2].map((i) => Boolean(meta.bounties.done[i] || ob.done?.[i]));
+    }
+  }
   const st = other.streak;
   if (st && typeof st === 'object') {
     meta.streak.best = Math.max(meta.streak.best, Number(st.best) || 0);
@@ -415,6 +437,7 @@ function unlockMet(u: Unlock): boolean {
   if ('costume' in u) return costumeUnlocked(u.costume);
   if ('podium' in u) return podiumCount(u.podium) > 0;
   if ('streak' in u) return meta.streak.best >= u.streak;
+  if ('weekly' in u) return Object.values(meta.weekly).includes(u.weekly);
   if ('cost' in u) return false;
   return (meta.bestiaryTier[u.beast] ?? 0) > u.tier;
 }
@@ -471,6 +494,17 @@ export function grantPodium(dailyNo: number, place: number, souls: number, head:
   meta.souls += souls;
   meta.earned += souls;
   if (!meta.headsSeen.includes(head)) meta.headsSeen.push(head);
+  saveMeta();
+  return true;
+}
+
+/** Record a top-3 finish on a week's Endless board and pay its Souls. False if already counted. */
+export function grantWeekly(week: string, place: number, souls: number, head: string): boolean {
+  if (meta.weekly[week]) return false;
+  meta.weekly[week] = place;
+  meta.souls += souls;
+  meta.earned += souls;
+  if (head && !meta.headsSeen.includes(head)) meta.headsSeen.push(head);
   saveMeta();
   return true;
 }

@@ -93,6 +93,13 @@ export const PODIUM = [
   { place: 3, medal: '🥉', name: 'Bronze Bones', souls: 75, head: 'bronzelaurel' },
 ];
 
+/** Weekly Endless prizes: the top 3 of each week's Endless board (Monday to Sunday, Central). */
+export const WEEKLY = [
+  { place: 1, medal: '♾️', name: 'Endless Champion', souls: 600, head: 'endlesscrown' },
+  { place: 2, medal: '🥈', name: 'Endless Runner-up', souls: 300, head: '' },
+  { place: 3, medal: '🥉', name: 'Endless Contender', souls: 150, head: '' },
+];
+
 export const TITLE_BY_ID = Object.fromEntries(TITLES.map((t) => [t.id, t])) as Record<string, TitleDef>;
 
 // ---------- cosmetic looks ----------
@@ -105,7 +112,7 @@ export interface LookDef {
   /** Colour of the drifting aura motes, if any. */
   aura: string | null;
   /** What unlocks it: an achievement, a Soul Rank (index) or a Bestiary tier. */
-  unlock: { feat: string } | { rank: number } | { beast: EnemyKind; tier: number } | { costume: string } | { podium: number } | { cost: number } | { streak: number };
+  unlock: { feat: string } | { rank: number } | { beast: EnemyKind; tier: number } | { costume: string } | { podium: number } | { cost: number } | { streak: number } | { weekly: number };
   how: string;
 }
 
@@ -249,6 +256,7 @@ export const HEADS: HeadDef[] = [
   // Shared by every hero.
   // Daily podium rewards: only ever won by finishing in the top 3 of a Daily Descent.
   { id: 'champcrown', name: "Champion's Crown", unlock: { podium: 1 }, how: 'Finish 1st in a Daily Descent.', pixels: [[3, 0, GOLD], [5, 0, '#fff2c0'], [6, 0, '#fff2c0'], [8, 0, GOLD], ...row(1, 3, 8, GOLD), ...row(2, 3, 8, '#a8781f'), [4, 2, RED], [5, 2, '#9fe8ff'], [6, 2, '#9fe8ff'], [7, 2, RED]] },
+  { id: 'endlesscrown', name: 'Crown of the Endless', unlock: { weekly: 1 }, how: 'Win a week on the Endless leaderboard.', pixels: [[3, 0, '#b07cff'], [5, 0, '#5fe3ff'], [6, 0, '#5fe3ff'], [8, 0, '#b07cff'], ...row(1, 3, 8, '#7b5cff'), ...row(2, 3, 8, '#311854'), [4, 2, '#5fe3ff'], [7, 2, '#5fe3ff']] },
   { id: 'silvercirclet', name: 'Silver Circlet', unlock: { podium: 2 }, how: 'Finish 2nd in a Daily Descent.', pixels: [...row(2, 3, 8, '#c9d1e0'), [5, 1, '#eef3fb'], [6, 1, '#eef3fb'], [5, 2, '#9fe8ff'], [6, 2, '#7fb4ff']] },
   // Sold in the Ossuary for Souls.
   { id: 'jester', name: 'Jester Cap', ...sold(400), pixels: [...row(2, 3, 8, '#5a1622'), [3, 1, RED], [2, 0, RED], [8, 1, '#2e8b57'], [9, 0, '#2e8b57'], [1, 0, GOLD], [10, 0, GOLD]] },

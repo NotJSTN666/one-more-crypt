@@ -422,3 +422,53 @@ $$;
 grant execute on function public.endless_board(text) to anon, authenticated;
 
 notify pgrst, 'reload schema';
+
+-- ---------- rival alerts and weekly Endless prizes ----------
+
+-- Rival alerts: on unless turned off, and what the reminder job last saw (ranks, alerts sent today).
+alter table public.push_subs add column if not exists rivals boolean not null default true;
+alter table public.push_subs add column if not exists rival jsonb not null default '{}'::jsonb;
+
+-- save_push gains p_rivals. Replaced rather than overloaded, so the call stays unambiguous.
+drop function if exists public.save_push(text, text, text, text, boolean, boolean);
+create or replace function public.save_push(p_endpoint text, p_p256dh text, p_auth text, p_tz text, p_morning boolean, p_evening boolean, p_rivals boolean default true)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then raise exception 'Not signed in.'; end if;
+  if p_endpoint !~ '^https://' then raise exception 'Not a push address.'; end if;
+  insert into public.push_subs (endpoint, user_id, p256dh, auth, tz, morning, evening, rivals)
+  values (p_endpoint, auth.uid(), p_p256dh, p_auth, coalesce(nullif(left(p_tz, 64), ''), 'America/Chicago'), p_morning, p_evening, coalesce(p_rivals, true))
+  on conflict (endpoint) do update set
+    user_id = excluded.user_id, p256dh = excluded.p256dh, auth = excluded.auth,
+    tz = excluded.tz, morning = excluded.morning, evening = excluded.evening, rivals = excluded.rivals;
+  -- At most 10 devices per player.
+  delete from public.push_subs where endpoint in (
+    select endpoint from public.push_subs where user_id = auth.uid() order by created_at desc offset 10
+  );
+end $$;
+revoke execute on function public.save_push(text, text, text, text, boolean, boolean, boolean) from public;
+grant execute on function public.save_push(text, text, text, text, boolean, boolean, boolean) to authenticated;
+
+-- One finished week of the Endless board (Monday to Sunday, Central Time), for the weekly prizes.
+create or replace function public.endless_week(p_week date)
+returns table (user_id uuid, name text, floor int, rank bigint)
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  with best as (
+    select distinct on (r.user_id) r.user_id, r.floor, r.kills, r.turns
+    from public.runs r
+    where r.mode = 'endless'
+      and r.created_at >= (p_week::timestamp at time zone 'America/Chicago')
+      and r.created_at < ((p_week + 7)::timestamp at time zone 'America/Chicago')
+    order by r.user_id, r.floor desc, r.kills desc, r.turns asc
+  )
+  select b.user_id, p.name, b.floor, rank() over (order by b.floor desc, b.kills desc, b.turns asc)
+  from best b
+  join public.profiles p on p.id = b.user_id
+$$;
+grant execute on function public.endless_week(date) to anon, authenticated;
+
+notify pgrst, 'reload schema';

@@ -1,7 +1,8 @@
 // Daily reminders, run every hour by .github/workflows/reminders.yml. Each player gets them
 // in their own time zone:
 //   8 AM - a new crypt is open (with yesterday's champion);
-//   7 PM - the crypt closes soon, only if they haven't descended into it yet.
+//   7 PM - the crypt closes soon, only if they haven't descended into it yet;
+//   rival alerts - someone passed them on today's daily or this week's Endless board.
 // Nobody is reminded about a crypt they've already played, and each reminder goes out at
 // most once per local day (GitHub can run the job late, so each has a few hours' window).
 //
@@ -118,7 +119,8 @@ async function send(sub, payload, ttlHours) {
     await webpush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, JSON.stringify(payload), {
       TTL: Math.round(ttlHours * 3600),
       urgency: 'normal',
-      topic: 'daily',
+      // An unread notification is replaced by a newer one of the same kind.
+      topic: payload.tag === 'rival' ? 'rival' : 'daily',
     });
     return true;
   } catch (e) {
@@ -150,7 +152,15 @@ if (TEST_NAME) {
 
 const now = Date.now();
 const today = dailyNumber(now);
-const subs = await rest('push_subs?select=endpoint,user_id,p256dh,auth,tz,morning,evening,last_morning,last_evening');
+// Rival alerts need two newer columns; without them, send the reminders alone.
+let subs;
+let rivalsReady = true;
+try {
+  subs = await rest('push_subs?select=endpoint,user_id,p256dh,auth,tz,morning,evening,last_morning,last_evening,rivals,rival');
+} catch {
+  rivalsReady = false;
+  subs = await rest('push_subs?select=endpoint,user_id,p256dh,auth,tz,morning,evening,last_morning,last_evening');
+}
 if (!subs.length) {
   console.log('Nobody has signed up for reminders yet.');
   process.exit(0);
@@ -160,10 +170,83 @@ const played = new Set((await rest(`runs?mode=eq.daily&daily_no=eq.${today}&sele
 const [champ] = await rest(`leaderboard_daily?daily_no=eq.${today - 1}&rank=eq.1&select=name,floor&order=name.asc&limit=1`);
 const hoursLeft = hoursUntilNextDaily(now);
 
+// ---------- rival alerts ----------
+// Someone passed you on today's daily or this week's Endless board, while you were in the
+// top 10. At most RIVAL_MAX a day per device, and only in waking hours: an alert held back
+// at night goes out in the morning, since the rank it compares against isn't updated.
+const RIVAL_TOP = 10;
+const RIVAL_MAX = 2;
+const RIVAL_HOURS = [9, 22];
+
+function weekStart(at) {
+  const day = new Date(`${localParts(at, ZONE).date}T00:00:00Z`);
+  day.setUTCDate(day.getUTCDate() - ((day.getUTCDay() + 6) % 7));
+  return day.toISOString().slice(0, 10);
+}
+
+const boards = rivalsReady
+  ? [
+      { key: 'd', id: String(today), rows: await rest(`leaderboard_daily?daily_no=eq.${today}&select=user_id,name,floor,rank&order=rank.asc,name.asc`) },
+      { key: 'w', id: weekStart(now), rows: await rest('rpc/endless_board?p_period=week&select=user_id,name,floor,rank&order=rank.asc,name.asc').catch(() => []) },
+    ]
+  : [];
+
+function rivalAlert(board, me, prev) {
+  const above = board.rows.filter((r) => r.rank < me.rank).at(-1);
+  const who = above?.name ?? 'Someone';
+  const floor = above ? `floor ${above.floor}` : 'deeper';
+  if (board.key === 'd') {
+    const total = board.rows.length;
+    return prev <= 3 && me.rank > 3
+      ? { title: 'Knocked off the podium 🥀', body: `${who} reached ${floor} in Daily #${today}. You're now #${me.rank} of ${total}. Tomorrow's crypt is your rematch.` }
+      : { title: `${who} passed you in Daily #${today}`, body: `They reached ${floor}. You're now #${me.rank} of ${total}.` };
+  }
+  return { title: `${who} passed you on the Endless board`, body: `They reached ${floor} this week. You're now #${me.rank}. Take your place back.` };
+}
+
 let sent = 0;
+let rivalsSent = 0;
 for (const sub of subs) {
-  if (played.has(sub.user_id)) continue;
   const local = localParts(now, validZone(sub.tz));
+
+  if (rivalsReady && sub.rivals !== false) {
+    const state = { ...(sub.rival && typeof sub.rival === 'object' ? sub.rival : {}) };
+    const before = JSON.stringify(state);
+    let sentToday = state.sentDay === local.date ? Number(state.sent) || 0 : 0;
+    let alerted = false;
+    for (const board of boards) {
+      const me = board.rows.find((r) => r.user_id === sub.user_id);
+      if (!me) continue;
+      const prev = state[`${board.key}id`] === board.id ? Number(state[board.key]) : NaN;
+      if (Number.isNaN(prev) || me.rank <= prev) {
+        state[`${board.key}id`] = board.id;
+        state[board.key] = me.rank;
+        continue;
+      }
+      // Dropped. Alert if they were near the top; otherwise just note the new rank.
+      if (prev > RIVAL_TOP) {
+        state[board.key] = me.rank;
+        continue;
+      }
+      const awake = local.hour >= RIVAL_HOURS[0] && local.hour < RIVAL_HOURS[1];
+      if (alerted || !awake || sentToday >= RIVAL_MAX) continue;
+      console.log(`rival alert (${board.key === 'd' ? 'daily' : 'endless week'}: #${prev} -> #${me.rank})`);
+      if (await send(sub, { ...rivalAlert(board, me, prev), url: SITE, tag: 'rival' }, 6)) {
+        alerted = true;
+        sentToday++;
+        rivalsSent++;
+      }
+      state[board.key] = me.rank;
+    }
+    state.sentDay = local.date;
+    state.sent = sentToday;
+    if (!DRY_RUN && JSON.stringify(state) !== before) {
+      await rest(`push_subs?endpoint=eq.${enc(sub.endpoint)}`, { method: 'PATCH', body: JSON.stringify({ rival: state }) });
+    }
+  }
+
+  // ---------- 8 AM and 7 PM reminders ----------
+  if (played.has(sub.user_id)) continue;
   let kind = null;
   if (sub.morning && local.hour >= MORNING[0] && local.hour < MORNING[1] && sub.last_morning !== local.date) kind = 'morning';
   else if (sub.evening && local.hour >= EVENING[0] && local.hour < EVENING[1] && sub.last_evening !== local.date && hoursLeft >= 1) kind = 'evening';
@@ -193,4 +276,4 @@ for (const sub of subs) {
     }
   }
 }
-console.log(`Sent ${sent} reminder(s) to ${subs.length} signed-up device(s).`);
+console.log(`Sent ${sent} reminder(s) and ${rivalsSent} rival alert(s) to ${subs.length} signed-up device(s).`);

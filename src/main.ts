@@ -9,7 +9,7 @@ import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
 import { hallFromLink, showHall, showPublicHall, soulRankHtml, titleName } from './hall';
-import { HEAD_BY_ID, PODIUM, STREAK_HELMS, rankFor } from './progression';
+import { HEAD_BY_ID, PODIUM, STREAK_HELMS, WEEKLY, rankFor } from './progression';
 import { Renderer } from './render';
 import { hashSeed } from './rng';
 import { ONLINE, dailyBoard, pingActivity, startActivityPings } from './online';
@@ -20,8 +20,9 @@ import { howToHtml, startHowTo } from './howto';
 import { RELIC_COACH, TUTORIAL } from './tutorial';
 import { copyText, descentStrip, followXHtml, playTime, shareText, siteUrl, xIntentUrl } from './share';
 import { installMode, onInstallChange, promptInstall, setupInstall } from './install';
+import { bountiesHtml, progressBounties } from './bounties';
 import { enableReminders, reminderPrefs, remindersAvailable, remindersNeedInstall } from './push';
-import { claimPodiums, type PodiumFinish } from './social';
+import { claimPodiums, claimWeekly, clearBeat, lastBeat, type PodiumFinish, type WeeklyFinish } from './social';
 import { endlessRecord, initSocial, needsName, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
 import { currentStreak, loadSave, recordDaily, streakStats, writeSave, type RunResult } from './storage';
 import { $, esc, hideOverlay, on, overlay, overlayShownAt, screen, showOverlay, toast } from './ui';
@@ -306,11 +307,16 @@ function finishRun(abandoned = false) {
     seconds: Math.round(runSeconds),
   };
   clearRun();
+  clearBeat();
   // Record the daily first, so today counts toward the streak and its rewards.
   if (game.mode === 'daily') recordDaily(save, game.dailyNo, result);
   const streak = streakStats(save, dailyNumber());
   noteStreak(streak);
   lastReward = finishRunMeta(game, streak.current);
+  const bounty = progressBounties(game, dailyNumber());
+  lastReward.souls += bounty.souls;
+  lastReward.lines.push(...bounty.lines);
+  lastReward.unlocks.push(...bounty.notes);
   let best = false;
   if (game.mode === 'daily') {
     lastLabel = `Daily #${game.dailyNo}`;
@@ -347,7 +353,7 @@ function finishRun(abandoned = false) {
   overlayTimer = window.setTimeout(() => {
     showDeath(result, best);
     void uploaded
-      .then((ok) => (ok ? rankLine(mode, dailyNo, result.floor) : ''))
+      .then((ok) => (ok || (mode === 'daily' && !signedIn()) ? rankLine(mode, dailyNo, result.floor) : ''))
       .then((line) => setRank(line))
       .catch(() => setRank('Saved. It will upload when you are back online.'));
   }, abandoned ? 0 : 1100);
@@ -728,6 +734,7 @@ function showTitle() {
     ${continueBlock}
     ${dailyBlock}
     ${endlessNext ? endlessBtn : ''}
+    ${bountiesHtml(today)}
     <button class="btn hollow-btn" id="hollow">🌙 Enter the Hollow<small>Walk the graveyard. Every door leads somewhere.</small></button>
     ${endlessNext ? '' : endlessBtn}
     <div class="row">
@@ -763,8 +770,11 @@ function showTitle() {
   tickCountdowns();
   // Finished on yesterday's podium? Celebrate once the result is in.
   if (signedIn()) {
-    void claimPodiums().then((won) => {
-      if (won.length && screen === 'title') showPodium(won, showTitle);
+    // Then a top 3 on last week's Endless board.
+    void claimPodiums().then(async (won) => {
+      if (won.length && screen === 'title') return showPodium(won, showTitle);
+      const weekly = await claimWeekly();
+      if (weekly.length && screen === 'title') showWeekly(weekly, showTitle);
     });
   }
 }
@@ -800,6 +810,39 @@ function showPodium(won: PodiumFinish[], back: () => void) {
   });
   on('#share-podium', () =>
     window.open(xIntentUrl(`${prize.medal} I placed ${ORDINAL[best.place]} of ${best.total} in One More Crypt Daily #${best.dailyNo}.\nOne crypt. One try a day. Can you take the crown?\n${siteUrl()}`), '_blank', 'noopener'),
+  );
+  on('#back', back);
+}
+
+/** The reward screen for a top 3 finish on a week's Endless board. */
+function showWeekly(won: WeeklyFinish[], back: () => void) {
+  const best = [...won].sort((a, b) => a.place - b.place)[0];
+  const prize = WEEKLY.find((p) => p.place === best.place)!;
+  const head = prize.head ? HEAD_BY_ID[prize.head] : null;
+  const souls = won.reduce((n, w) => n + (WEEKLY.find((p) => p.place === w.place)?.souls ?? 0), 0);
+  const when = new Date(`${best.week}T12:00:00Z`).toLocaleDateString([], { month: 'long', day: 'numeric', timeZone: 'UTC' });
+  sfx.relic();
+  showOverlay('podium', `
+    <div class="podium-medal">${prize.medal}</div>
+    <h2 class="podium-title">${esc(prize.name)}</h2>
+    <p class="sub">The Endless week of ${esc(when)} is over. You placed <b>${ORDINAL[best.place]}</b> of ${best.total}.</p>
+    ${head ? `<img class="hero-portrait" src="${heroPortrait(meta.hero, {}, [], 8, outfitFor(meta.hero).look, prize.head)}" alt="Your hero wearing the ${esc(head.name)}" width="96" height="96" />` : ''}
+    <ul class="podium-rewards">
+      ${head ? `<li>🎩 <b>${esc(head.name)}</b>: exclusive headwear for any hero, in the Wardrobe</li>` : ''}
+      <li>💀 <b>+${souls} Souls</b></li>
+      <li>♾️ A new week has begun. Defend your place.</li>
+    </ul>
+    ${head ? '<button class="btn primary" id="wear">Wear it now</button>' : ''}
+    <button class="btn x" id="share-weekly">Share on 𝕏</button>
+    <button class="btn ${head ? '' : 'primary'}" id="back">Continue</button>`);
+  on('#wear', () => {
+    if (!head) return;
+    equipOutfit(meta.hero, 'head', prize.head);
+    toast(`Your ${HERO_BY_ID[meta.hero].name} wears the ${head.name}`);
+    back();
+  });
+  on('#share-weekly', () =>
+    window.open(xIntentUrl(`${prize.medal} I placed ${ORDINAL[best.place]} of ${best.total} on the One More Crypt Endless board this week.\nHow deep can you go?\n${siteUrl()}`), '_blank', 'noopener'),
   );
   on('#back', back);
 }
@@ -1223,11 +1266,11 @@ function showDeath(r: RunResult, best: boolean) {
         : ''
     }
     ${soulRankHtml()}
-    ${ONLINE ? `<p class="rank-line ${daily ? 'daily-rank' : ''}" id="rank">${signedIn() ? 'Carving your name into the crypt…' : ''}</p>` : ''}
+    ${ONLINE ? `<p class="rank-line ${daily ? 'daily-rank' : ''}" id="rank">${signedIn() ? 'Carving your name into the crypt…' : daily ? 'Counting the fallen…' : ''}</p>` : ''}
     ${ONLINE && !signedIn() ? '<button class="btn" id="join">Claim a name for the leaderboard</button>' : ''}
     ${
       daily
-        ? `${streakTeaseHtml()}${ONLINE ? '<p class="podium-tease">🥇 Finish in the top 3 when the day ends to win exclusive headwear and Souls.</p>' : ''}
+        ? `${streakTeaseHtml()}${tomorrowHtml()}${reminderPromptHtml()}${ONLINE ? '<p class="podium-tease">🥇 Finish in the top 3 when the day ends to win exclusive headwear and Souls.</p>' : ''}
     <p class="endless-tease">${
             save.bestEndless
               ? `Daily done. Endless is open: beat your best of <b>floor ${save.bestEndless}</b>.`
@@ -1250,8 +1293,6 @@ function showDeath(r: RunResult, best: boolean) {
       <button class="btn" id="ossuary">🏛️ Ossuary</button>
       <button class="btn" id="title">Title</button>
     </div>
-    ${daily ? '<p class="sub">Next crypt opens in <span class="countdown">--:--:--</span></p>' : ''}
-    ${daily ? reminderPromptHtml() : ''}
     ${onlineCountHtml()}
     ${followXHtml}
   `);
@@ -1270,8 +1311,9 @@ function showDeath(r: RunResult, best: boolean) {
       }
     }),
   );
-  on('#share', () => share(r, lastLabel));
-  on('#copy', async () => toast((await copyText(shareText(r, lastLabel) + '\n' + siteUrl())) ? 'Copied!' : 'Copy failed'));
+  const beat = () => (daily ? lastBeat : null);
+  on('#share', () => share(r, lastLabel, beat()));
+  on('#copy', async () => toast((await copyText(shareText(r, lastLabel, beat()) + '\n' + siteUrl())) ? 'Copied!' : 'Copy failed'));
   on('#again', () => showHeroSelect(() => startRun('endless'), backHere));
   if (daily) showEndlessRecord();
   on('#ossuary', () => showOssuary(backHere));
@@ -1285,7 +1327,7 @@ function showDeath(r: RunResult, best: boolean) {
     btn.disabled = true;
     try {
       await enableReminders();
-      btn.outerHTML = '<p class="fine reminder-on">🔔 Reminders on: 8 AM when a new crypt opens, 7 PM if you haven\'t played. Change them in your profile.</p>';
+      btn.outerHTML = '<p class="fine reminder-on">🔔 Reminders on: 8 AM when a new crypt opens, 7 PM if you haven\'t played, and when a rival passes you. Change them in your profile.</p>';
     } catch (e) {
       btn.disabled = false;
       toast((e as Error).message);
@@ -1293,6 +1335,17 @@ function showDeath(r: RunResult, best: boolean) {
   });
   on('#remind-install', () => showInstallHelp(backHere));
   tickCountdowns();
+}
+
+/** After the daily: a look at tomorrow's crypt, to come back for. */
+function tomorrowHtml(): string {
+  const next = dailyNumber() + 1;
+  const hero = dailyHero(next);
+  const o = outfitFor(hero);
+  return `<div class="tomorrow">
+      <img src="${heroPortrait(hero, {}, [], 4, o.look, o.head)}" alt="" width="48" height="48" />
+      <div><b>Tomorrow: Daily #${next}</b><span>The ${esc(HERO_BY_ID[hero].name)} descends. A new crypt for everyone.</span><span>Opens in <span class="countdown">--:--:--</span></span></div>
+    </div>`;
 }
 
 /** After the daily: the streak, and how far off the next streak helm is. */
@@ -1324,8 +1377,8 @@ function showEndlessRecord() {
   });
 }
 
-function share(r: RunResult, label: string) {
-  window.open(xIntentUrl(shareText(r, label)), '_blank', 'noopener');
+function share(r: RunResult, label: string, beat: number | null = null) {
+  window.open(xIntentUrl(shareText(r, label, beat)), '_blank', 'noopener');
 }
 
 function tickCountdowns() {

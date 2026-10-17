@@ -31,11 +31,12 @@ export function descentStrip(floor: number, max = 12): string {
   return cells.join('');
 }
 
-export function shareText(r: RunResult, label: string): string {
+export function shareText(r: RunResult, label: string, beat: number | null = null): string {
   return [
     `${GAME_NAME} · ${label} 🕯️`,
     `${descentStrip(r.floor)}`,
     `Fell on floor ${r.floor}${r.hero ? ` as the ${r.hero}` : ''} to ${r.killedBy} · ${r.kills} kills`,
+    ...(beat != null ? [`Beat ${beat}% of today's delvers`] : []),
     r.relics ? `Relics: ${r.relics}` : 'No relics. Pure skill.',
     ...(r.combos ? [`Combos: ${r.combos}`] : []),
     `How deep can you go? @${X_HANDLE}`,

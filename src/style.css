@@ -2023,3 +2023,82 @@ body.tutorial #relic-bar {
 .reminder-on {
   color: var(--spectral);
 }
+
+/* After the daily: tomorrow's crypt, with its hero. */
+.tomorrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0 8px;
+  padding: 10px 12px;
+  border: 1px dashed var(--line);
+  background: var(--panel);
+  text-align: left;
+}
+
+.tomorrow img {
+  image-rendering: pixelated;
+  flex: none;
+}
+
+.tomorrow b {
+  display: block;
+  font-family: var(--pixel);
+  font-size: 12px;
+  font-weight: normal;
+  color: var(--spectral);
+}
+
+.tomorrow span {
+  display: block;
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.tomorrow .countdown {
+  display: inline;
+  font-family: var(--pixel);
+}
+
+/* Title screen: today's three bounties. */
+.bounties summary {
+  cursor: pointer;
+  font-family: var(--pixel);
+  font-size: 12px;
+  color: var(--gold);
+}
+
+.bounties ul {
+  list-style: none;
+  margin: 10px 0 4px;
+  padding: 0;
+  text-align: left;
+}
+
+.bounties li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--line);
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+}
+
+.bounties li:last-child {
+  border-bottom: 0;
+}
+
+.bounties li.done {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.bounty-n {
+  flex: none;
+  font-family: var(--pixel);
+  font-size: 11px;
+  color: var(--spectral);
+  text-decoration: none;
+}

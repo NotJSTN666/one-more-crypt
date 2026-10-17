@@ -3,13 +3,15 @@
 
 import { disableReminders, enableReminders, reminderPrefs, remindersAvailable, remindersNeedInstall, refreshReminders } from './push';
 import { playTime } from './share';
-import { dailyNumber } from './daily';
+import { dailyNumber, weekStart } from './daily';
 import {
   ONLINE,
   OnlineError,
   X_LOGIN,
   currentAccount,
   dailyBelow,
+  dailyStanding,
+  endlessWeekPlace,
   dailyBoard,
   endlessBoard,
   type EndlessPeriod,
@@ -35,10 +37,10 @@ import {
   type RunSubmission,
 } from './online';
 import { showPublicHall, titleName } from './hall';
-import { HEAD_BY_ID, LOOK_BY_ID, PODIUM, rankFor } from './progression';
+import { HEAD_BY_ID, LOOK_BY_ID, PODIUM, WEEKLY, rankFor } from './progression';
 import { HERO_BY_ID, dailyHero, type HeroId } from './content';
 import { heroPortrait } from './hero';
-import { BACKFILL_VERSION, backfillHeroes, grantPodium, meta, mergeMeta, noteStreak, onMetaChange, saveMeta, type Meta } from './meta';
+import { BACKFILL_VERSION, backfillHeroes, grantPodium, grantWeekly, meta, mergeMeta, noteStreak, onMetaChange, saveMeta, type Meta } from './meta';
 import { currentStreak, streakStats, writeSave, type Save } from './storage';
 import { esc, field, formStatus, on, onSubmit, screen, showOverlay, toast } from './ui';
 
@@ -277,6 +279,38 @@ export function claimPodiums(): Promise<PodiumFinish[]> {
   return podiumCheck;
 }
 
+export interface WeeklyFinish {
+  week: string;
+  place: number;
+  total: number;
+}
+
+let weeklyCheck: Promise<WeeklyFinish[]> | null = null;
+
+/** Top 3 on last week's Endless board (or the week before, for players who were away)? Pay out once. */
+export function claimWeekly(): Promise<WeeklyFinish[]> {
+  const acc = session.account;
+  if (!ONLINE || !acc) return Promise.resolve([]);
+  weeklyCheck ??= (async () => {
+    const won: WeeklyFinish[] = [];
+    try {
+      for (const week of [weekStart(2), weekStart(1)]) {
+        if (week <= meta.weeklyChecked || meta.weekly[week]) continue;
+        const { place, total } = await endlessWeekPlace(week, acc.id);
+        const prize = WEEKLY.find((p) => p.place === place);
+        if (prize && grantWeekly(week, place, prize.souls, prize.head)) won.push({ week, place, total });
+      }
+      meta.weeklyChecked = weekStart(1);
+      saveMeta();
+    } catch {
+      // Not set up yet or offline: try again next time.
+    }
+    weeklyCheck = null;
+    return won;
+  })();
+  return weeklyCheck;
+}
+
 const reigning = new Map<number, Promise<Set<string>>>();
 
 /** Who won yesterday's Daily Descent (ties share it): they wear a crown on the boards today. */
@@ -295,16 +329,30 @@ function reigningChampions(): Promise<Set<string>> {
 }
 
 /** One line for the results screen, e.g. "#3 of 41 today". */
+/** The share of today's players the last daily run beat, once known (for the share text). */
+export let lastBeat: number | null = null;
+
+export function clearBeat() {
+  lastBeat = null;
+}
+
 export async function rankLine(mode: 'daily' | 'endless', dailyNo: number, floor: number): Promise<string> {
   const acc = session.account;
-  if (!acc) return '';
+  if (!acc) {
+    // Not on the board, but they can still see how they compare.
+    if (mode !== 'daily') return '';
+    const { total, below } = await dailyStanding(dailyNo, floor);
+    if (!total) return "Nobody's on today's board yet. Claim a name to take #1";
+    lastBeat = Math.round((below / total) * 100);
+    return `You beat ${lastBeat}% of today's ${total} delvers. Claim a name to join them`;
+  }
   const board = mode === 'daily' ? await dailyBoard(dailyNo, acc.id, 1) : await endlessBoard(acc.id, 1);
   if (!board.me) return '';
   if (mode === 'daily') {
     if (board.total <= 1) return "Rank #1 of 1. You're the first to fall today";
     const below = await dailyBelow(dailyNo, board.me.rank);
-    const beat = Math.round((below / (board.total - 1)) * 100);
-    return `Rank #${board.me.rank} of ${board.total} · you beat ${beat}% of today's delvers`;
+    lastBeat = Math.round((below / (board.total - 1)) * 100);
+    return `You beat ${lastBeat}% of today's delvers · Rank #${board.me.rank} of ${board.total}`;
   }
   return board.me.floor > floor
     ? `Your best: floor ${board.me.floor} · #${board.me.rank} of ${board.total}`
@@ -477,6 +525,7 @@ function remindersCard(): string {
       <div>🔔 Daily reminders</div>
       <label class="check"><input type="checkbox" id="rem-morning" ${p?.morning ? 'checked' : ''} /> 8 AM: a new crypt is open</label>
       <label class="check"><input type="checkbox" id="rem-evening" ${p?.evening ? 'checked' : ''} /> 7 PM: if you haven't descended yet</label>
+      <label class="check"><input type="checkbox" id="rem-rivals" ${p?.rivals ? 'checked' : ''} /> Rivals: when someone passes you on a leaderboard</label>
       <p class="fine" id="rem-status" role="status">Your local time. Skipped on days you've already played.</p>
     </div>`;
 }
@@ -484,24 +533,26 @@ function remindersCard(): string {
 function wireReminders() {
   const morning = document.querySelector<HTMLInputElement>('#rem-morning');
   const evening = document.querySelector<HTMLInputElement>('#rem-evening');
+  const rivals = document.querySelector<HTMLInputElement>('#rem-rivals');
   const status = document.querySelector<HTMLElement>('#rem-status');
-  if (!morning || !evening || !status) return;
+  if (!morning || !evening || !rivals || !status) return;
+  const boxes = [morning, evening, rivals];
   const change = async () => {
-    morning.disabled = evening.disabled = true;
+    boxes.forEach((b) => (b.disabled = true));
     status.textContent = 'Saving…';
     try {
-      await enableReminders({ morning: morning.checked, evening: evening.checked });
-      status.textContent = morning.checked || evening.checked ? 'Reminders on. Your local time.' : 'Reminders off.';
+      await enableReminders({ morning: morning.checked, evening: evening.checked, rivals: rivals.checked });
+      status.textContent = boxes.some((b) => b.checked) ? 'Notifications on. Your local time.' : 'Notifications off.';
     } catch (e) {
       const p = reminderPrefs();
       morning.checked = Boolean(p?.morning);
       evening.checked = Boolean(p?.evening);
+      rivals.checked = Boolean(p?.rivals);
       status.textContent = (e as Error).message;
     }
-    morning.disabled = evening.disabled = false;
+    boxes.forEach((b) => (b.disabled = false));
   };
-  morning.addEventListener('change', change);
-  evening.addEventListener('change', change);
+  boxes.forEach((b) => b.addEventListener('change', change));
 }
 
 export function showProfile(back: () => void) {

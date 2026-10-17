@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dailyNumber, msUntilNextDaily } from './daily';
+import { dailyNumber, msUntilNextDaily, weekStart } from './daily';
 
 const t = (iso: string) => Date.parse(iso);
 
@@ -17,5 +17,14 @@ describe('daily numbering', () => {
     expect(dailyNumber(t('2026-11-03T06:00:00Z'))).toBe(dailyNumber(t('2026-11-02T12:00:00Z')) + 1);
     expect(msUntilNextDaily(t('2026-11-03T05:00:00Z'))).toBe(3600_000);
     expect(msUntilNextDaily(t('2026-11-01T05:00:00Z'))).toBe(25 * 3600_000);
+  });
+});
+
+describe('weeks', () => {
+  it('start on Monday, Central Time', () => {
+    expect(weekStart(0, t('2026-10-17T12:00:00Z'))).toBe('2026-10-12'); // Saturday
+    expect(weekStart(0, t('2026-10-19T04:59:59Z'))).toBe('2026-10-12'); // Sunday 23:59 CDT
+    expect(weekStart(0, t('2026-10-19T05:00:00Z'))).toBe('2026-10-19'); // Monday midnight CDT
+    expect(weekStart(1, t('2026-10-19T05:00:00Z'))).toBe('2026-10-12');
   });
 });

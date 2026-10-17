@@ -16,6 +16,14 @@ function centralDay(now: number): number {
   return Date.UTC(y, m - 1, d);
 }
 
+/** The Monday that starts a week in Central Time, as YYYY-MM-DD: this week, or `weeksAgo` before. */
+export function weekStart(weeksAgo = 0, now = Date.now()): string {
+  const day = new Date(centralDay(now));
+  const sinceMonday = (day.getUTCDay() + 6) % 7;
+  day.setUTCDate(day.getUTCDate() - sinceMonday - 7 * weeksAgo);
+  return day.toISOString().slice(0, 10);
+}
+
 export function dailyNumber(now = Date.now()): number {
   return Math.round((centralDay(now) - EPOCH) / DAY_MS) + 1;
 }

@@ -36,6 +36,8 @@ export interface HallData {
   podiums: [number, number, number];
   /** Decorations bought in the Ossuary. */
   decor: string[];
+  /** Weekly Endless top 3 finishes: how many 1st, 2nd and 3rd places. */
+  weekly: [number, number, number];
   /** Daily play streak: days in a row right now (0 once broken) and the longest ever. */
   streak: { current: number; best: number };
 }
@@ -77,6 +79,8 @@ export function hallData(name: string, m: Partial<Meta> | Record<string, unknown
   const places = Object.values(obj(raw.podiums)).map((p) => num(p, 9));
   const podiums: [number, number, number] = [1, 2, 3].map((p) => places.filter((x) => x === p).length) as [number, number, number];
   const decor = (Array.isArray(raw.bought) ? raw.bought : []).filter((id): id is string => typeof id === 'string' && Boolean(DECOR_BY_ID[id]));
+  const weekPlaces = Object.values(obj(raw.weekly)).map((p) => num(p, 9));
+  const weekly: [number, number, number] = [1, 2, 3].map((p) => weekPlaces.filter((x) => x === p).length) as [number, number, number];
   const st = obj(raw.streak);
   const today = dailyNumber();
   const count = num(st.count, 10000);
@@ -84,6 +88,7 @@ export function hallData(name: string, m: Partial<Meta> | Record<string, unknown
   return {
     name,
     podiums,
+    weekly,
     decor,
     streak,
     title: typeof raw.title === 'string' && TITLE_BY_ID[raw.title] ? raw.title : '',
@@ -483,11 +488,16 @@ function trophiesBody(d: HallData): string {
     gold + silver + bronze
       ? `<div class="podium-row" title="Daily Descent podium finishes">${gold ? `<span>🥇×${gold}</span>` : ''}${silver ? `<span>🥈×${silver}</span>` : ''}${bronze ? `<span>🥉×${bronze}</span>` : ''}<small>DAILY PODIUMS</small></div>`
       : '';
+  const [w1, w2, w3] = d.weekly;
+  const weeks =
+    w1 + w2 + w3
+      ? `<div class="podium-row" title="Weekly Endless top 3 finishes">${w1 ? `<span>♾️×${w1}</span>` : ''}${w2 ? `<span>🥈×${w2}</span>` : ''}${w3 ? `<span>🥉×${w3}</span>` : ''}<small>WEEKLY ENDLESS</small></div>`
+      : '';
   const { current, best } = d.streak;
   const streak = best
     ? `<div class="podium-row streak-row" title="Days in a row playing the Daily Descent"><span>🕯️ ${current}</span><small>DAY STREAK${best > current ? ` · BEST ${best}` : ''}</small></div>`
     : '';
-  return `${podium}${streak}<div class="stat-grid">
+  return `${podium}${weeks}${streak}<div class="stat-grid">
       ${cell(d.earned.toLocaleString(), 'SOULS EARNED')}
       ${cell(`${d.feats}/${ACHIEVEMENTS.length}`, 'ACHIEVEMENTS')}
       ${cell(`${d.combos}/${COMBOS.length}`, 'COMBOS')}
