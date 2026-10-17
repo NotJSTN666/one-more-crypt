@@ -13,15 +13,20 @@ export let overlayShownAt = 0;
 /** Screens shown during a run keep the board visible behind them; the rest are menus. */
 const RUN_SCREENS = ['choose', 'event', 'pause', 'fused'];
 
+/** Long screens get a small Back pinned at the top, so leaving doesn't mean scrolling to the end. */
+const TOP_BACK = ['hall', 'hall-public', 'help', 'heroes', 'ossuary', 'grimoire', 'profile', 'wardrobe'];
+
 export function showOverlay(name: string, html: string) {
   screen = name;
   overlayShownAt = performance.now();
   const menu = !RUN_SCREENS.includes(name);
   document.body.classList.toggle('menu', menu);
   overlay.classList.toggle('menu', menu);
-  overlay.innerHTML = `<div class="panel">${html}</div>`;
+  const topBack = TOP_BACK.includes(name) && html.includes('id="back"') && !html.includes('back-top');
+  overlay.innerHTML = `<div class="panel">${topBack ? '<button class="back-top" data-top-back aria-label="Back">← Back</button>' : ''}${html}</div>`;
   overlay.hidden = false;
   overlay.scrollTop = 0;
+  overlay.querySelector('[data-top-back]')?.addEventListener('click', () => overlay.querySelector<HTMLElement>('#back')?.click());
 }
 
 export function hideOverlay() {
