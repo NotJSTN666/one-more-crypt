@@ -1,7 +1,7 @@
 // Canvas renderer. Reads game state every frame and turns game events into
 // short-lived effects (damage numbers, particles, screen shake).
 
-import { ELITES } from './content';
+import { ELITES, type HeroId } from './content';
 import { ENEMY_INFO, Game, H, W, isBoss, type EnemyKind, type GameEvent, type Pos } from './game';
 import { hashSeed, mulberry32 } from './rng';
 import { heroSprite, relicColor } from './hero';
@@ -23,6 +23,8 @@ interface Corpse { kind: EnemyKind; x: number; y: number; t: number }
 interface Lunge { dx: number; dy: number; t: number }
 
 const PLAYER_ID = 0;
+/** The cosmetic companion that trails the hero outside the story. */
+const PET_ID = -1;
 
 const pixelCache = new Map<string, { x: number; y: number; c: string }[]>();
 
@@ -77,6 +79,10 @@ export class Renderer {
   private motes: Mote[] = [];
   /** The player's costume for this run: cloak look and headwear ('' for none). */
   outfit = { look: '', head: '' };
+  /** A companion that follows the hero in the daily and Endless: looks only, it never fights. */
+  pet = '';
+  private petAt: Pos | null = null;
+  private heroAt: Pos | null = null;
 
   /** Quiet renderers (background ghosts) skip text and screen shake. */
   constructor(private canvas: HTMLCanvasElement, private quiet = false) {
@@ -95,6 +101,8 @@ export class Renderer {
 
   setGame(game: Game) {
     this.game = game;
+    this.petAt = null;
+    this.heroAt = null;
     this.disp.clear();
     this.facing.clear();
     this.remain.clear();
@@ -450,6 +458,7 @@ export class Renderer {
       const d = this.smooth(e.id, e, k);
       this.drawEnemy(g, e, d, dt);
     }
+    if (g.phase !== 'dead') this.drawPet(g, k, dt);
     if (g.phase !== 'dead') {
       const pd = this.smooth(PLAYER_ID, g.player, k);
       // The rogue fades when the next step will go unseen.
@@ -550,6 +559,25 @@ export class Renderer {
     return { x, y };
   }
 
+  /** Outside the story, an earned companion trots one step behind the hero. Looks only. */
+  private drawPet(g: Game, k: number, dt: number) {
+    if (!this.pet || g.mode === 'story') return;
+    const here = { x: g.player.x, y: g.player.y };
+    if (!this.heroAt || this.heroAt.x !== here.x || this.heroAt.y !== here.y) {
+      // Follow into the tile the hero just left; a new floor starts it at their side.
+      const stepped = this.heroAt && Math.abs(this.heroAt.x - here.x) + Math.abs(this.heroAt.y - here.y) === 1;
+      this.petAt = stepped ? this.heroAt : { x: here.x + (here.x > 0 ? -1 : 1), y: here.y };
+      if (!stepped) this.disp.delete(PET_ID);
+      this.heroAt = here;
+    }
+    const at = this.petAt!;
+    // Never stand on a foe, a wall or the hero: just stay out of sight that turn.
+    if (!g.inBounds(at.x, at.y) || g.isWall(at.x, at.y) || g.unitAt(at.x, at.y) || (at.x === here.x && at.y === here.y)) return;
+    if (at.x !== here.x) this.facing.set(PET_ID, here.x > at.x ? 1 : -1);
+    const frames = enemyFrames('hound');
+    this.drawSprite(PET_ID, frames.idle[Math.floor(this.time * 2) % 2], this.smooth(PET_ID, at, k), dt, 0.95);
+  }
+
   private drawEnemy(g: Game, e: Game['enemies'][number], d: Pos, dt: number) {
     const ctx = this.ctx;
     // Foes turn to face the hero (thralls face whichever way they last walked).
@@ -561,12 +589,23 @@ export class Renderer {
     if (left > 0) this.strikes.set(e.id, left);
     else this.strikes.delete(e.id);
     const striking = left > 0;
-    const spr = striking ? frames.attack : frames.idle[Math.floor(this.time * rate + e.id * 0.37) % 2];
-    const flying = e.kind === 'bat' || e.kind === 'wraith';
-    const bob = flying ? Math.round(Math.sin(this.time * 6 + e.id) * 1.5) : 0;
+    // A summoned ghost is another player's hero, see-through and named.
+    const spr = e.ghost
+      ? heroSprite(e.ghost.hero as HeroId, {}, [], e.ghost.look, e.ghost.head)
+      : striking ? frames.attack : frames.idle[Math.floor(this.time * rate + e.id * 0.37) % 2];
+    const flying = e.kind === 'bat' || e.kind === 'wraith' || Boolean(e.ghost);
+    const bob = flying ? Math.round(Math.sin(this.time * (e.ghost ? 2 : 6) + e.id) * 1.5) : 0;
     const onWall = g.isWall(e.x, e.y);
-    const alpha = e.kind === 'wraith' ? (onWall ? 0.45 : 0.8) : 1;
+    const alpha = e.ghost ? 0.62 : e.kind === 'wraith' ? (onWall ? 0.45 : 0.8) : 1;
     const { x, y } = this.drawSprite(e.id, spr, d, dt, alpha, bob);
+    if (e.ghost) {
+      ctx.fillStyle = '#9fe8ff';
+      ctx.font = '5px Silkscreen, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(e.ghost.name.slice(0, 10), x + SPRITE_SIZE / 2, y - 2);
+      ctx.textAlign = 'left';
+      if (Math.random() < 0.15) this.particles.push({ x: x + 2 + Math.random() * 8, y: y + 10, vx: 0, vy: -8, color: '#9fe8ff', t: 0, life: 0.5, size: 1 });
+    }
     if (e.elite) {
       ctx.strokeStyle = ELITES[e.elite].color;
       ctx.globalAlpha = 0.55 + 0.35 * Math.sin(this.time * 6 + e.id);

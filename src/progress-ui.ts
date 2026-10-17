@@ -27,7 +27,7 @@ function heroRecord(hero: HeroId): string {
   return `<span class="record"><b>⛧ Floor ${floor}</b> deepest${st?.runs ? ` · <b>💀 ${st.souls.toLocaleString()}</b> Souls · ${st.runs} run${st.runs === 1 ? '' : 's'}` : ''}</span>`;
 }
 
-export function showHeroSelect(onPick: (hero: HeroId) => void, back: () => void) {
+export function showHeroSelect(onPick: (hero: HeroId) => void, back: () => void, sub = "Endless Descent · relics you've unlocked join the pool") {
   const cards = HEROES.map((h) => {
     const owned = heroUnlocked(h.id);
     return `<button class="hero-card ${owned ? '' : 'locked'} ${meta.hero === h.id ? 'selected' : ''}" data-hero="${h.id}" ${owned ? '' : 'disabled'}>
@@ -42,7 +42,7 @@ export function showHeroSelect(onPick: (hero: HeroId) => void, back: () => void)
   }).join('');
   showOverlay('heroes', `
     <h2>Choose your hero</h2>
-    <p class="sub">Endless Descent · relics you've unlocked join the pool</p>
+    <p class="sub">${sub}</p>
     <div class="hero-list">${cards}</div>
     <div class="row">
       <button class="btn" id="wardrobe">🎨 Wardrobe</button>
@@ -56,8 +56,8 @@ export function showHeroSelect(onPick: (hero: HeroId) => void, back: () => void)
       onPick(meta.hero);
     }),
   );
-  on('#ossuary', () => showOssuary(() => showHeroSelect(onPick, back)));
-  on('#wardrobe', () => showWardrobe(() => showHeroSelect(onPick, back), meta.hero));
+  on('#ossuary', () => showOssuary(() => showHeroSelect(onPick, back, sub)));
+  on('#wardrobe', () => showWardrobe(() => showHeroSelect(onPick, back, sub), meta.hero));
   on('#back', back);
 }
 

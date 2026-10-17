@@ -141,6 +141,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'combo', name: 'Synergy', desc: 'Complete a named combo.', souls: 20 },
   { id: 'combos-all', name: 'Arcanist', desc: 'Complete every named combo.', souls: 150 },
   { id: 'streak3', name: 'Devotee', desc: 'Play the daily crypt 3 days in a row.', souls: 30 },
+  { id: 'act1', name: 'Bell-Seeker', desc: 'Finish Act I of the story.', souls: 0 },
   { id: 'streak7', name: 'Faithful', desc: 'Play the daily crypt 7 days in a row.', souls: 100 },
   // Added after launch.
   { id: 'floor20', name: 'Hollow Depths', desc: 'Reach floor 20.', souls: 150 },

@@ -112,7 +112,7 @@ export interface LookDef {
   /** Colour of the drifting aura motes, if any. */
   aura: string | null;
   /** What unlocks it: an achievement, a Soul Rank (index) or a Bestiary tier. */
-  unlock: { feat: string } | { rank: number } | { beast: EnemyKind; tier: number } | { costume: string } | { podium: number } | { cost: number } | { streak: number } | { weekly: number };
+  unlock: { feat: string } | { rank: number } | { beast: EnemyKind; tier: number } | { costume: string } | { podium: number } | { cost: number } | { streak: number } | { weekly: number } | { story: number };
   how: string;
 }
 
@@ -130,6 +130,9 @@ export const LOOKS: LookDef[] = [
   { id: 'godforged', name: 'Godforged', cloak: { p: '#e8dcc4', P: '#a8894a' }, aura: '#fff2c0', unlock: { feat: 'ascend' }, how: 'Forge an ascended relic.' },
   { id: 'soulfire', name: 'Soulfire', cloak: { p: '#1d3b4a', P: '#0e1f28' }, aura: '#5fe3ff', unlock: { rank: 4 }, how: 'Reach the Lich Lord Soul Rank.' },
 ];
+
+// Earned in the story.
+LOOKS.push({ id: 'aldric', name: "Aldric's Mantle", cloak: { p: '#5f9fc0', P: '#2a5470' }, aura: '#9fe8ff', unlock: { story: 3 }, how: 'Finish Chapter 3 of the story.' });
 
 // Cloaks sold in the Ossuary for Souls. Looks only, so the daily crypt stays fair.
 const sold = (cost: number) => ({ unlock: { cost }, how: `Sold in the Ossuary for ${cost.toLocaleString()} Souls.` });
@@ -256,6 +259,7 @@ export const HEADS: HeadDef[] = [
   // Shared by every hero.
   // Daily podium rewards: only ever won by finishing in the top 3 of a Daily Descent.
   { id: 'champcrown', name: "Champion's Crown", unlock: { podium: 1 }, how: 'Finish 1st in a Daily Descent.', pixels: [[3, 0, GOLD], [5, 0, '#fff2c0'], [6, 0, '#fff2c0'], [8, 0, GOLD], ...row(1, 3, 8, GOLD), ...row(2, 3, 8, '#a8781f'), [4, 2, RED], [5, 2, '#9fe8ff'], [6, 2, '#9fe8ff'], [7, 2, RED]] },
+  { id: 'wardenkeys', name: "The Warden's Keys", unlock: { story: 5 }, how: 'Finish Act I of the story.', pixels: [...row(2, 3, 8, '#8a4a2a'), [3, 1, '#8a4a2a'], [8, 1, '#8a4a2a'], [4, 1, GOLD], [5, 0, GOLD], [6, 0, GOLD], [7, 1, GOLD], [4, 3, GOLD], [7, 3, GOLD]] },
   { id: 'endlesscrown', name: 'Crown of the Endless', unlock: { weekly: 1 }, how: 'Win a week on the Endless leaderboard.', pixels: [[3, 0, '#b07cff'], [5, 0, '#5fe3ff'], [6, 0, '#5fe3ff'], [8, 0, '#b07cff'], ...row(1, 3, 8, '#7b5cff'), ...row(2, 3, 8, '#311854'), [4, 2, '#5fe3ff'], [7, 2, '#5fe3ff']] },
   { id: 'silvercirclet', name: 'Silver Circlet', unlock: { podium: 2 }, how: 'Finish 2nd in a Daily Descent.', pixels: [...row(2, 3, 8, '#c9d1e0'), [5, 1, '#eef3fb'], [6, 1, '#eef3fb'], [5, 2, '#9fe8ff'], [6, 2, '#7fb4ff']] },
   // Sold in the Ossuary for Souls.

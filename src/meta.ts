@@ -63,6 +63,12 @@ export interface Meta {
   /** Week start (YYYY-MM-DD) -> place (1-3) on that week's Endless board, and the last week checked. */
   weekly: Record<string, number>;
   weeklyChecked: string;
+  /** Story progress: chapters finished, choices made, and floors cleared with the hound. */
+  story: { done: number[]; choices: Record<string, string>; bond: number };
+  /** The companion that trails your hero outside the story ('' for none). Looks only. */
+  pet: string;
+  /** When your ghost's summons were last counted. */
+  summonsSeen: string;
 }
 
 export interface HeroStats {
@@ -98,6 +104,7 @@ function empty(): Meta {
     podiums: {}, podiumChecked: 0, bought: [], streak: { best: 0, count: 0, last: 0 },
     bounties: { day: 0, ids: [], progress: [], done: [] },
     weekly: {}, weeklyChecked: '',
+    story: { done: [], choices: {}, bond: 0 }, pet: '', summonsSeen: '',
   };
 }
 
@@ -172,6 +179,14 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   }
   meta.podiumChecked = Math.max(meta.podiumChecked, other.podiumChecked ?? 0);
   meta.bought = [...new Set([...meta.bought, ...(Array.isArray(other.bought) ? other.bought.map(String) : [])])];
+  const os = other.story;
+  if (os && typeof os === 'object') {
+    meta.story.done = [...new Set([...meta.story.done, ...(Array.isArray(os.done) ? os.done.map(Number).filter((n) => n > 0 && n < 100) : [])])].sort((a, b) => a - b);
+    for (const [k, v] of Object.entries(os.choices ?? {})) if (!meta.story.choices[k] && typeof v === 'string') meta.story.choices[k] = v;
+    meta.story.bond = Math.max(meta.story.bond, Number(os.bond) || 0);
+  }
+  meta.pet ||= typeof other.pet === 'string' ? other.pet : '';
+  if (typeof other.summonsSeen === 'string' && other.summonsSeen > meta.summonsSeen) meta.summonsSeen = other.summonsSeen;
   for (const [w, place] of Object.entries(other.weekly ?? {})) {
     const p = Number(place);
     if (p >= 1 && p <= 3) meta.weekly[w] = Math.min(meta.weekly[w] ?? 9, p);
@@ -290,6 +305,8 @@ export function noteRelic(game: Game, id: RelicId): Unlocks {
 }
 
 /** Check mid-run achievements after each turn. */
+const DEPTH_FEATS = new Set(['floor5', 'floor10', 'floor15', 'floor20', 'floor30', 'floor50', 'swift', 'rogue8', 'knight10', 'necro10', 'mage10', 'barbarian-rage', 'hoarder']);
+
 export function checkRun(game: Game): AchievementDef[] {
   const s = game.stats;
   const conditions: [string, boolean][] = [
@@ -336,6 +353,8 @@ export function checkRun(game: Game): AchievementDef[] {
   ];
   const out: AchievementDef[] = [];
   for (const [id, ok] of conditions) {
+    // Story chapters start deeper with gift relics, so depth and speed feats aren't earned there.
+    if (game.mode === 'story' && DEPTH_FEATS.has(id)) continue;
     const got = ok && grant(id);
     if (got) out.push(got);
   }
@@ -438,6 +457,7 @@ function unlockMet(u: Unlock): boolean {
   if ('podium' in u) return podiumCount(u.podium) > 0;
   if ('streak' in u) return meta.streak.best >= u.streak;
   if ('weekly' in u) return Object.values(meta.weekly).includes(u.weekly);
+  if ('story' in u) return meta.story.done.includes(u.story);
   if ('cost' in u) return false;
   return (meta.bestiaryTier[u.beast] ?? 0) > u.tier;
 }
@@ -496,6 +516,41 @@ export function grantPodium(dailyNo: number, place: number, souls: number, head:
   if (!meta.headsSeen.includes(head)) meta.headsSeen.push(head);
   saveMeta();
   return true;
+}
+
+/** A story chapter is won: record it, and pay out the first time. Returns the Souls paid. */
+export function completeChapter(n: number, souls: number, floorsWithHound: number): { first: boolean; souls: number; act: AchievementDef | null } {
+  const first = !meta.story.done.includes(n);
+  meta.story.bond += floorsWithHound;
+  let act: AchievementDef | null = null;
+  if (first) {
+    meta.story.done = [...meta.story.done, n].sort((a, b) => a - b);
+    meta.souls += souls;
+    meta.earned += souls;
+    // The hound joins after Chapter 2 and trails you in every crypt from then on.
+    if (n === 2 && !meta.pet) meta.pet = 'hound';
+    if (n === 5) act = grant('act1');
+  }
+  saveMeta();
+  return { first, souls: first ? souls : 0, act };
+}
+
+/** Remember a story choice (the first answer sticks). */
+export function chooseStory(key: string, value: string) {
+  if (!meta.story.choices[key]) meta.story.choices[key] = value;
+  saveMeta();
+}
+
+/** Floors cleared with the hound count toward its bond even when the chapter is lost. */
+export function noteBond(floors: number) {
+  if (floors <= 0) return;
+  meta.story.bond += floors;
+  saveMeta();
+}
+
+export function setPet(id: string) {
+  meta.pet = id;
+  saveMeta();
 }
 
 /** Record a top-3 finish on a week's Endless board and pay its Souls. False if already counted. */
@@ -608,10 +663,12 @@ function progressUnlocks(game: Game): UnlockNote[] {
 
 /** Keep the deepest run for each hero, for their statue in the Hall. */
 function noteBestRun(game: Game) {
+  // Hall statues remember real runs, not story chapters.
+  if (game.mode === 'story') return;
   const run = {
     floor: game.floor,
     kills: game.kills,
-    mode: game.mode,
+    mode: game.mode === 'daily' ? ('daily' as const) : ('endless' as const),
     relics: { ...game.relics } as Record<string, number>,
     log: [...game.relicLog],
     ...outfitFor(game.hero),
@@ -679,7 +736,7 @@ export async function backfillHeroes(runs: PastRun[]): Promise<void> {
       floor = run.floor;
       souls = exact ? runSouls(g).reduce((sum, [, n]) => sum + n, 0) : Math.round(run.floor * 4 + run.kills + Math.floor(run.floor / 5) * 20);
       if (exact) meta.best[hero] = betterRun(meta.best[hero], {
-        floor: g.floor, kills: g.kills, mode: g.mode, relics: { ...g.relics } as Record<string, number>, log: [...g.relicLog], look: '', at: 0,
+        floor: g.floor, kills: g.kills, mode: g.mode === 'daily' ? 'daily' : 'endless', relics: { ...g.relics } as Record<string, number>, log: [...g.relicLog], look: '', at: 0,
       });
     } else {
       // The earliest daily runs were logged without a header: estimate from the result.

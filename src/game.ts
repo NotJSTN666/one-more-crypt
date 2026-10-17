@@ -16,7 +16,7 @@ export interface Pos {
   y: number;
 }
 
-export type EnemyKind = 'ghoul' | 'bat' | 'archer' | 'brute' | 'wraith' | 'boss' | 'abbot' | 'lich' | 'thrall';
+export type EnemyKind = 'ghoul' | 'bat' | 'archer' | 'brute' | 'wraith' | 'boss' | 'abbot' | 'lich' | 'thrall' | 'hound';
 
 export interface Enemy {
   id: number;
@@ -40,6 +40,16 @@ export interface Enemy {
   elite: EliteMod | null;
   /** Hits an elite can still block. */
   shield: number;
+  /** Story mode: another player's hero, summoned to fight alongside. */
+  ghost?: GhostInfo;
+}
+
+/** Who a summoned ghost is, and how they're dressed. */
+export interface GhostInfo {
+  name: string;
+  hero: HeroId;
+  look: string;
+  head: string;
 }
 
 export const ENEMY_INFO: Record<EnemyKind, { name: string; hp: number; dmg: number }> = {
@@ -52,6 +62,7 @@ export const ENEMY_INFO: Record<EnemyKind, { name: string; hp: number; dmg: numb
   abbot: { name: 'The Plague Abbot', hp: 16, dmg: 2 },
   lich: { name: 'The Lich King', hp: 22, dmg: 3 },
   thrall: { name: 'Thrall', hp: 2, dmg: 1 },
+  hound: { name: 'Crypt Hound', hp: 4, dmg: 1 },
 };
 
 export const BOSS_KINDS: EnemyKind[] = ['boss', 'abbot', 'lich'];
@@ -98,8 +109,9 @@ export type GameEvent =
   | { t: 'fuse'; id: FusedId; from: [RelicId, RelicId] }
   | { t: 'relic'; id: RelicId };
 
-export type Mode = 'daily' | 'endless';
-export type Phase = 'play' | 'choose' | 'event' | 'dead';
+export type Mode = 'daily' | 'endless' | 'story';
+/** `won` ends a story chapter: its last floor is cleared. */
+export type Phase = 'play' | 'choose' | 'event' | 'dead' | 'won';
 
 export interface Offer {
   relics: RelicDef[];
@@ -126,6 +138,18 @@ export interface RunConfig {
   forge?: boolean;
   /** Early-game tuning: a heal on clearing floors 1-5, gentler early Brutes and first boss (log version 5 and later). */
   mercy?: boolean;
+  /** A story chapter: which floors it spans, relics granted at the start, and who comes along. */
+  story?: StoryConfig;
+}
+
+export interface StoryConfig {
+  start: number;
+  end: number;
+  gifts: number;
+  /** The Crypt Hound, back on its feet at the start of every floor. */
+  pet?: { hp: number; dmg: number };
+  /** A friend's hero, summoned once at the start of the chapter. */
+  ghost?: GhostInfo;
 }
 
 /** Daily runs use every relic; Endless only the unlocked ones. */
@@ -245,7 +269,18 @@ export class Game {
     this.combat = mulberry32(hashSeed(seed, 'combat'));
     const hp = HERO_BY_ID[config.hero].hp;
     this.player.hp = this.player.maxHp = hp;
-    this.enterFloor(1);
+    const story = config.story;
+    if (story) {
+      // Mentors send you off with a few relics, so later chapters can start deeper.
+      for (let i = 0; i < story.gifts; i++) {
+        const gift = this.randomRelic(mulberry32(hashSeed(seed, 'gift', i)), (r) => r.rarity === 'common' || r.rarity === 'rare');
+        if (gift) this.addRelic(gift.id);
+      }
+      this.enterFloor(story.start);
+      if (story.ghost) this.summonGhost(story.ghost);
+    } else {
+      this.enterFloor(1);
+    }
   }
 
   // ---------- queries ----------
@@ -362,6 +397,7 @@ export class Game {
     this.player.x = START.x;
     this.player.y = START.y;
     this.placeThralls(thralls);
+    if (this.config.story?.pet && !thralls.some((t) => t.kind === 'hound')) this.callHound();
     this.stairsOpen = false;
     this.harvestBonus = 0;
     this.hurtThisFloor = false;
@@ -540,6 +576,29 @@ export class Game {
     };
     this.enemies.push(e);
     return e;
+  }
+
+  /** Story mode: the Crypt Hound bounds in beside you (again, if it was struck down). */
+  private callHound() {
+    const pet = this.config.story?.pet;
+    const spot = pet && this.nearestFree(START);
+    if (!pet || !spot) return;
+    const h = this.makeEnemy('hound', spot.x, spot.y);
+    h.ally = true;
+    h.maxHp = h.hp = pet.hp;
+    h.dmg = pet.dmg;
+  }
+
+  /** Story mode: a friend's hero answers the summons, and fights until struck down. */
+  private summonGhost(ghost: GhostInfo) {
+    const spot = this.nearestFree(START);
+    if (!spot) return;
+    const t = this.makeEnemy('thrall', spot.x, spot.y);
+    t.ally = true;
+    t.ghost = ghost;
+    t.maxHp = t.hp = 6 + this.floor;
+    t.dmg = 2 + Math.floor(this.floor / 3);
+    this.events.push({ t: 'raise', x: spot.x, y: spot.y });
   }
 
   private raiseThrall(x: number, y: number) {
@@ -752,6 +811,11 @@ export class Game {
   }
 
   private descend() {
+    // A story chapter ends on its last floor.
+    if (this.config.story && this.floor >= this.config.story.end) {
+      this.phase = 'won';
+      return;
+    }
     this.phase = 'choose';
     this.offer = this.makeOffer();
   }

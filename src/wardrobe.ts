@@ -5,9 +5,29 @@
 import { sfx } from './audio';
 import { HEROES, HERO_BY_ID, type HeroId } from './content';
 import { heroPortrait } from './hero';
-import { equipOutfit, headUnlocked, heroUnlocked, lookUnlocked, meta, outfitFor } from './meta';
+import { equipOutfit, headUnlocked, heroUnlocked, lookUnlocked, meta, outfitFor, setPet } from './meta';
+import { petName } from './story';
 import { HEADS, HERO_CLOAKS, LOOKS, LOOK_BY_ID, HEAD_BY_ID } from './progression';
 import { esc, on, overlay, showOverlay } from './ui';
+
+/** The story's Crypt Hound, once met: it trots behind your hero in every crypt. Looks only. */
+function companionHtml(): string {
+  if (!meta.story.done.includes(2)) {
+    return `<h3 class="shop-head">Companion</h3><p class="fine">🔒 Something is howling in the story's second chapter.</p>`;
+  }
+  const name = petName(meta.story.choices.hound);
+  const card = (id: string, label: string, desc: string) => `<button class="look-card ${meta.pet === id ? 'equipped' : ''}" data-pet="${id}">
+      <span class="name">${label}</span>
+      ${meta.pet === id ? '<span class="worn">✓ With you</span>' : ''}
+      <span class="desc">${desc}</span>
+    </button>`;
+  return `<h3 class="shop-head">Companion</h3>
+    <p class="fine">Trots behind your hero in the daily and Endless. Looks only: it fights only in the story.</p>
+    <div class="looks">
+      ${card('hound', `🐕 ${esc(name)}`, 'The Crypt Hound. A good dog, all things considered.')}
+      ${card('', 'None', 'Leave the hound by the fire.')}
+    </div>`;
+}
 
 export function showWardrobe(back: () => void, hero: HeroId = meta.hero, changed?: () => void) {
   const owned = HEROES.filter((h) => heroUnlocked(h.id));
@@ -66,8 +86,18 @@ export function showWardrobe(back: () => void, hero: HeroId = meta.hero, changed
       ${piece('look', '', 'Hero colours', 'Their own colours.', true)}
       ${allCloaks.map((l) => piece('look', l.id, l.name, l.how, lookUnlocked(l), 'hero' in l)).join('')}
     </div>
+    ${companionHtml()}
     <button class="btn primary" id="back">Back</button>`);
 
+  overlay.querySelectorAll<HTMLButtonElement>('[data-pet]').forEach((b) =>
+    b.addEventListener('click', () => {
+      setPet(b.dataset.pet ?? '');
+      sfx.relic();
+      const top = overlay.scrollTop;
+      showWardrobe(back, hero, changed);
+      overlay.scrollTop = top;
+    }),
+  );
   overlay.querySelectorAll<HTMLButtonElement>('.ward-hero').forEach((b) =>
     b.addEventListener('click', () => {
       sfx.step();

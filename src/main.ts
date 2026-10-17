@@ -1,18 +1,19 @@
 import './style.css';
 import { audioRunning, fusionSound, isMusicEnabled, isMuted, onAudioState, setMusicDepth, setMusicEnabled, setMusicMood, setMuted, sfx, unlockAudio } from './audio';
 import { dailyNumber, formatCountdown, msUntilNextDaily } from './daily';
-import { ELITES, FEATURES, HERO_BY_ID, dailyHero, type ComboDef } from './content';
+import { ELITES, FEATURES, HERO_BY_ID, dailyHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait } from './hero';
-import { ENEMY_INFO, Game, fullPool, isBoss, type GameEvent, type Mode } from './game';
-import { checkRun, equipOutfit, finishRunMeta, noteStreak, meta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, type RunReward } from './meta';
+import { ENEMY_INFO, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode } from './game';
+import { checkRun, chooseStory, completeChapter, equipOutfit, finishRunMeta, noteBond, noteStreak, meta, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
 import { hallFromLink, showHall, showPublicHall, soulRankHtml, titleName } from './hall';
-import { HEAD_BY_ID, PODIUM, STREAK_HELMS, WEEKLY, rankFor } from './progression';
+import { HEAD_BY_ID, LOOK_BY_ID, PODIUM, STREAK_HELMS, WEEKLY, rankFor } from './progression';
 import { Renderer } from './render';
 import { hashSeed } from './rng';
-import { ONLINE, dailyBoard, pingActivity, startActivityPings } from './online';
+import { ONLINE, dailyBoard, endlessBoard, mySummons, noteSummon, pingActivity, startActivityPings } from './online';
+import { ACT_TITLE, CHAPTERS, CHAPTER_BY_N, SPEAKERS, facePortrait, houndStats, petName, type Chapter, type Line } from './story';
 import { EPITAPHS, hollowKey, showHollow, type HollowPlace } from './hollow';
 import { showWardrobe } from './wardrobe';
 import { IMPACT, playFusion } from './fusefx';
@@ -73,6 +74,7 @@ function showGame(g: Game) {
   game = g;
   runCombos = [];
   renderer.outfit = outfitFor(game.hero);
+  renderer.pet = meta.pet;
   renderer.setGame(game);
   renderer.consume(game.events.splice(0));
   updateHud(true);
@@ -240,7 +242,8 @@ function savedSeconds(): number {
 }
 
 function saveRun() {
-  if (!game || game.phase === 'dead') return;
+  // Story chapters are short, and start over rather than resume.
+  if (!game || game.phase === 'dead' || game.mode === 'story') return;
   try {
     const run: SavedRun = { mode: game.mode, seed: game.seed, dailyNo: game.dailyNo, log: game.header() + game.log, seconds: Math.round(runSeconds) };
     localStorage.setItem(RUN_KEY, JSON.stringify(run));
@@ -335,7 +338,8 @@ function finishRun(abandoned = false) {
   celebrate(lastReward.achievements);
   celebrateNotes(lastReward.unlocks);
 
-  const mode = game.mode;
+  // Story chapters end in finishStory, so only daily and Endless runs get here.
+  const mode = game.mode === 'daily' ? 'daily' : 'endless';
   const dailyNo = game.dailyNo;
   const uploaded = recordRun({
     mode,
@@ -426,7 +430,11 @@ function processEvents() {
     overlayTimer = window.setTimeout(showEvent, 250);
   } else if (game.phase === 'dead') {
     setMusicMood('silent');
-    finishRun();
+    if (game.mode === 'story') finishStory(false);
+    else finishRun();
+    return;
+  } else if (game.phase === 'won') {
+    finishStory(true);
     return;
   }
   saveRun();
@@ -735,6 +743,7 @@ function showTitle() {
     ${dailyBlock}
     ${endlessNext ? endlessBtn : ''}
     ${bountiesHtml(today)}
+    ${storyButtonHtml()}
     <button class="btn hollow-btn" id="hollow">🌙 Enter the Hollow<small>Walk the graveyard. Every door leads somewhere.</small></button>
     ${endlessNext ? '' : endlessBtn}
     <div class="row">
@@ -758,6 +767,7 @@ function showTitle() {
   on('#grimoire', () => showGrimoire(showTitle));
   on('#hall', () => openHall(showTitle));
   on('#hollow', () => enterHollow());
+  on('#story', () => showStory());
   on('#help', () => showHelp(showTitle));
   on('#install', () => {
     if (installMode() === 'ios') return showInstallHelp(showTitle);
@@ -770,11 +780,12 @@ function showTitle() {
   tickCountdowns();
   // Finished on yesterday's podium? Celebrate once the result is in.
   if (signedIn()) {
-    // Then a top 3 on last week's Endless board.
+    // Then a top 3 on last week's Endless board, then thanks for answered summons.
     void claimPodiums().then(async (won) => {
       if (won.length && screen === 'title') return showPodium(won, showTitle);
       const weekly = await claimWeekly();
-      if (weekly.length && screen === 'title') showWeekly(weekly, showTitle);
+      if (weekly.length && screen === 'title') return showWeekly(weekly, showTitle);
+      await claimSummons();
     });
   }
 }
@@ -1205,14 +1216,15 @@ function pickRelic(i: number) {
 function showPause() {
   if (!game || game.phase !== 'play' || !overlay.hidden || tutorial || fusionPlaying) return;
   const daily = game.mode === 'daily';
+  const story = game.mode === 'story' && storyRun;
   showOverlay('pause', `
     <h2>Paused</h2>
-    <p class="sub">${daily ? `Daily #${game.dailyNo}` : 'Endless'} · Floor ${game.floor}</p>
+    <p class="sub">${daily ? `Daily #${game.dailyNo}` : story ? `Chapter ${story.chapter.n}: ${esc(story.chapter.title)}` : 'Endless'} · Floor ${game.floor}</p>
     ${onlineCountHtml()}
     <button class="btn primary" id="resume">Resume</button>
     <button class="btn" id="help">How to play</button>
     <button class="btn" id="music">🎵 Music: ${isMusicEnabled() ? 'On' : 'Off'}</button>
-    <button class="btn" id="abandon">Abandon run<small>${daily ? "Counts as today's attempt" : 'Back to the title'}</small></button>
+    <button class="btn" id="abandon">Abandon run<small>${daily ? "Counts as today's attempt" : story ? 'Back to the chapters' : 'Back to the title'}</small></button>
   `);
   on('#resume', hideOverlay);
   on('#music', () => {
@@ -1234,6 +1246,11 @@ function showPause() {
     if (daily) {
       game.phase = 'dead';
       finishRun(true);
+    } else if (story) {
+      storyRun = null;
+      hideOverlay();
+      newGame('endless');
+      showStory();
     } else {
       hideOverlay();
       newGame('endless');
@@ -1297,7 +1314,7 @@ function showDeath(r: RunResult, best: boolean) {
     ${followXHtml}
   `);
   const backHere = () => showDeath(r, best);
-  on('#leaderboard', () => showLeaderboard(backHere, game.mode === 'daily' ? 'today' : 'endless'));
+  on('#leaderboard', () => showLeaderboard(backHere, daily ? 'today' : 'endless'));
   on('#join', () =>
     showLogin(() => {
       backHere();
@@ -1305,7 +1322,7 @@ function showDeath(r: RunResult, best: boolean) {
       if (signedIn()) {
         setRank('Carving your name into the crypt…');
         void syncNow()
-          .then(() => rankLine(game.mode, game.dailyNo, r.floor))
+          .then(() => rankLine(daily ? 'daily' : 'endless', game.dailyNo, r.floor))
           .then(setRank)
           .catch(() => setRank(''));
       }
@@ -1386,6 +1403,307 @@ function tickCountdowns() {
   overlay.querySelectorAll('.countdown').forEach((el) => (el.textContent = text));
 }
 setInterval(tickCountdowns, 1000);
+
+// ---------- story mode ----------
+// Act I: chapters are short fixed-seed descents with talk before and after. They are never
+// saved mid-run or uploaded, and nothing in them touches the daily or the leaderboards.
+
+interface StoryRun {
+  chapter: Chapter;
+  /** The floor the chapter started on, for counting floors cleared with the hound. */
+  start: number;
+  hound: boolean;
+}
+let storyRun: StoryRun | null = null;
+
+function houndJoined(): boolean {
+  return meta.story.done.includes(2);
+}
+
+/** Fill in names in story text. Story text is ours, so only the substitutions need escaping. */
+function storyText(text: string): string {
+  return esc(text)
+    .replace(/\{pet\}/g, esc(petName(meta.story.choices.hound)))
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>');
+}
+
+function chapterUnlocked(n: number): boolean {
+  return n === 1 || meta.story.done.includes(n - 1);
+}
+
+function showStory(back: () => void = showTitle) {
+  const done = meta.story.done.filter((n) => CHAPTER_BY_N[n]).length;
+  const next = CHAPTERS.find((c) => !meta.story.done.includes(c.n));
+  const rows = CHAPTERS.map((c) => {
+    const won = meta.story.done.includes(c.n);
+    const open = chapterUnlocked(c.n);
+    return `<button class="chapter ${won ? 'won' : ''} ${c === next ? 'next' : ''}" data-chapter="${c.n}" ${open ? '' : 'disabled'}>
+      <span class="chapter-n">${won ? '✅' : open ? '▶' : '🔒'} ${c.n}</span>
+      <span class="chapter-info"><b>${esc(c.title)}</b><span>${open ? esc(c.blurb) : 'Finish the chapter before to continue.'}</span>
+      <small>Floors ${c.floors[0]}-${c.floors[1]} · ${won ? 'Replay any time' : `Reward: ${esc(c.reward)}`}</small></span>
+    </button>`;
+  }).join('');
+  showOverlay('story', `
+    <img class="hero-portrait story-face" src="${facePortrait('gravedigger')}" alt="" width="80" height="80" />
+    <h2>${esc(ACT_TITLE)}</h2>
+    <p class="sub">Who rings the bell beneath the crypt? ${done}/${CHAPTERS.length} chapters.</p>
+    ${houndJoined() ? `<p class="fine">🐕 ${esc(petName(meta.story.choices.hound))} fights beside you here · bond ${meta.story.bond}</p>` : ''}
+    <div class="chapters">${rows}</div>
+    <p class="fine">Story runs are separate from the daily and the leaderboards. Souls, bounties and unlocks still count.</p>
+    <button class="btn primary" id="back">Back</button>`);
+  overlay.querySelectorAll<HTMLButtonElement>('.chapter:not([disabled])').forEach((b) =>
+    b.addEventListener('click', () => beginChapter(CHAPTER_BY_N[Number(b.dataset.chapter)], () => showStory(back))),
+  );
+  on('#back', back);
+}
+
+/** Pick a hero, hear the intro, maybe summon a ghost, then descend. */
+function beginChapter(ch: Chapter, back: () => void) {
+  showHeroSelect(
+    () => talk(ch.intro, () => (ch.summon && ONLINE ? showSummon(ch, back) : startStory(ch, null)), `Chapter ${ch.n}: ${ch.title}`),
+    back,
+    `Chapter ${ch.n} · ${esc(ch.title)} · any hero you own`,
+  );
+}
+
+function storyButtonHtml(): string {
+  const done = meta.story.done.filter((n) => CHAPTER_BY_N[n]).length;
+  const next = CHAPTERS.find((c) => !meta.story.done.includes(c.n));
+  return `<button class="btn story-btn" id="story">📖 Story: The Bell Beneath<small>${
+    next ? (done ? `Chapter ${next.n}: ${esc(next.title)} · ${done}/${CHAPTERS.length} done` : 'Act I · Who rings the bell beneath the crypt?') : 'Act I complete · Act II is coming'
+  }</small></button>`;
+}
+
+/** A conversation, one line at a time. Choices are remembered in the story. */
+function talk(lines: Line[], done: () => void, heading = '') {
+  let i = 0;
+  const next = () => {
+    const line = lines[i++];
+    if (!line) return done();
+    if ('key' in line) {
+      const picked = meta.story.choices[line.key];
+      // Replays skip a choice already made, but still play out its result.
+      const chosen = picked ? line.options.find((o) => o.value === picked) : undefined;
+      if (chosen) {
+        lines = [...lines.slice(0, i), ...chosen.then, ...lines.slice(i)];
+        return next();
+      }
+      showOverlay('talk', `
+        ${heading ? `<p class="talk-head">${esc(heading)}</p>` : ''}
+        <p class="talk-prompt">${storyText(line.prompt)}</p>
+        ${line.options.map((o, k) => `<button class="btn ${k === 0 ? 'primary' : ''}" data-opt="${k}">${esc(o.label)}</button>`).join('')}`);
+      overlay.querySelectorAll<HTMLButtonElement>('[data-opt]').forEach((b) =>
+        b.addEventListener('click', () => {
+          const o = line.options[Number(b.dataset.opt)];
+          chooseStory(line.key, o.value);
+          lines = [...lines.slice(0, i), ...o.then, ...lines.slice(i)];
+          sfx.relic();
+          next();
+        }),
+      );
+      return;
+    }
+    const face =
+      line.who === 'hero'
+        ? heroPortrait(meta.hero, {}, [], 6, outfitFor(meta.hero).look, outfitFor(meta.hero).head)
+        : facePortrait(line.who);
+    const name = line.who === 'hero' ? HERO_BY_ID[meta.hero].name : storyText(SPEAKERS[line.who]);
+    showOverlay('talk', `
+      ${heading ? `<p class="talk-head">${esc(heading)}</p>` : ''}
+      <div class="talk ${line.who === 'narrator' ? 'narrator' : ''}">
+        ${face ? `<img src="${face}" alt="" width="72" height="72" />` : ''}
+        <div>
+          ${name ? `<b>${name}</b>` : ''}
+          <p>${storyText(line.text)}</p>
+        </div>
+      </div>
+      <button class="btn primary" id="next">${i < lines.length ? 'Next ▸' : 'Continue ▸'}</button>
+      <button class="link-btn" id="skip">Skip</button>`);
+    on('#next', () => {
+      sfx.step();
+      next();
+    });
+    on('#skip', () => {
+      // Skipping still makes any choice ahead: jump to it, or to the end.
+      const k = lines.findIndex((l, j) => j >= i && 'key' in l && !meta.story.choices[l.key]);
+      i = k >= 0 ? k : lines.length;
+      next();
+    });
+  };
+  next();
+}
+
+/** Before a chapter: call on another player's ghost from the Endless board, or go alone. */
+function showSummon(ch: Chapter, back: () => void) {
+  showOverlay('summon', `
+    <img class="hero-portrait story-face" src="${facePortrait('aldric')}" alt="" width="80" height="80" />
+    <h2>Summon a shade</h2>
+    <p class="sub">A fallen delver will fight beside you this chapter. They hear about it, and are thanked in Souls.</p>
+    <div id="shades" class="shades"><p class="sub">Listening to the stones…</p></div>
+    <button class="btn" id="alone">Go alone</button>
+    <button class="link-btn" id="back">Back</button>`);
+  on('#alone', () => startStory(ch, null));
+  on('#back', back);
+  const uid = session.account?.id ?? null;
+  void endlessBoard(uid, 25)
+    .then((b) => {
+      if (screen !== 'summon') return;
+      const shades = b.rows.filter((r) => r.user_id !== uid && r.hero && HERO_BY_ID[r.hero as HeroId]).slice(0, 8);
+      const box = document.getElementById('shades');
+      if (!box) return;
+      box.innerHTML = shades.length
+        ? shades
+            .map((r, k) => {
+              const look = r.outfit_look && LOOK_BY_ID[r.outfit_look] ? r.outfit_look : '';
+              const head = r.outfit_head && HEAD_BY_ID[r.outfit_head] ? r.outfit_head : '';
+              return `<button class="shade" data-k="${k}">
+                <img src="${heroPortrait(r.hero as HeroId, {}, [], 4, look, head)}" alt="" width="48" height="48" />
+                <span><b>${esc(r.name)}</b><small>${esc(HERO_BY_ID[r.hero as HeroId].name)} · Endless floor ${r.floor}</small></span>
+              </button>`;
+            })
+            .join('')
+        : '<p class="sub">No shades answer today. You go alone.</p>';
+      box.querySelectorAll<HTMLButtonElement>('.shade').forEach((el) =>
+        el.addEventListener('click', () => {
+          const r = shades[Number(el.dataset.k)];
+          const ghost: GhostInfo = {
+            name: r.name,
+            hero: r.hero as HeroId,
+            look: r.outfit_look && LOOK_BY_ID[r.outfit_look] ? r.outfit_look : '',
+            head: r.outfit_head && HEAD_BY_ID[r.outfit_head] ? r.outfit_head : '',
+          };
+          if (signedIn()) void noteSummon(r.name, ch.n);
+          toast(`${r.name}'s ${HERO_BY_ID[ghost.hero].name} answers the summons`);
+          startStory(ch, ghost);
+        }),
+      );
+    })
+    .catch(() => {
+      const box = document.getElementById('shades');
+      if (box) box.innerHTML = '<p class="sub">The shades are quiet (no connection). You go alone.</p>';
+    });
+}
+
+function startStory(ch: Chapter, ghost: GhostInfo | null) {
+  unlockAudio();
+  const hound = houndJoined();
+  const g = new Game('story', hashSeed('story-act1', ch.n), 0, {
+    hero: meta.hero,
+    pool: fullPool(),
+    forge: true,
+    mercy: true,
+    story: {
+      start: ch.floors[0],
+      end: ch.floors[1],
+      gifts: ch.gifts,
+      pet: hound ? houndStats(meta.story.bond) : undefined,
+      ghost: ghost ?? undefined,
+    },
+  });
+  storyRun = { chapter: ch, start: ch.floors[0], hound };
+  clearRun();
+  showGame(g);
+  startClock();
+  setMusicDepth(g.floor);
+  setMusicMood(g.isBossFloor() ? 'boss' : 'crypt');
+  hideOverlay();
+  sfx.stairs();
+  renderer.banner(`CHAPTER ${ch.n}`, '#9fe8ff');
+}
+
+/** A chapter ends: won (its last floor cleared) or lost. */
+function finishStory(won: boolean) {
+  const run = storyRun;
+  if (!run) return showTitle();
+  storyRun = null;
+  const ch = run.chapter;
+  const cleared = Math.max(0, game.floor - run.start + (won ? 1 : 0));
+  const streak = streakStats(save, dailyNumber());
+  const reward = finishRunMeta(game, streak.current);
+  const bounty = progressBounties(game, dailyNumber());
+  reward.souls += bounty.souls;
+  reward.lines.push(...bounty.lines);
+  reward.unlocks.push(...bounty.notes);
+  celebrate(reward.achievements);
+  celebrateNotes(reward.unlocks);
+  window.clearTimeout(overlayTimer);
+  if (!won) {
+    if (run.hound) noteBond(cleared);
+    overlayTimer = window.setTimeout(() => {
+      setMusicMood('fallen');
+      showOverlay('story-fallen', `
+        <img class="hero-portrait" src="${heroPortrait(game.hero, game.relics, game.relicLog, 8, outfitFor(game.hero).look, outfitFor(game.hero).head)}" alt="" width="96" height="96" />
+        <h2 class="dead">The crypt claims you</h2>
+        <p class="sub">Chapter ${ch.n}: ${esc(ch.title)} · floor ${game.floor} · slain by ${esc(game.killedBy)}</p>
+        <div class="souls-earned"><b>+${reward.souls} Souls</b><span>💀 ${meta.souls} to spend in the Ossuary</span></div>
+        <p class="talk-quip">${storyText(DEATH_QUIPS[(game.turns + ch.n) % DEATH_QUIPS.length])}</p>
+        <button class="btn primary" id="retry">Try again<small>Same chapter, same crypt</small></button>
+        <button class="btn" id="story">Chapters</button>
+        <button class="btn" id="title">Title</button>`);
+      on('#retry', () => beginChapter(ch, () => showStory()));
+      on('#story', () => showStory());
+      on('#title', () => showTitle());
+    }, 1100);
+    return;
+  }
+  const result = completeChapter(ch.n, ch.souls, run.hound ? cleared : 0);
+  if (result.act) celebrate([result.act]);
+  setMusicMood('crypt');
+  overlayTimer = window.setTimeout(() =>
+    talk(ch.outro, () => {
+      const unlocked =
+        ch.n === 2 && result.first ? `🐕 ${esc(petName(meta.story.choices.hound))} the Crypt Hound joins you. It trots behind you in every crypt (looks only, outside the story).`
+        : ch.n === 3 && result.first ? "🎨 Aldric's Mantle: a new cloak in the Wardrobe."
+        : ch.n === 5 && result.first ? "🎩 The Warden's Keys: new headwear. 📜 New title: Bell-Seeker."
+        : '';
+      const nextCh = CHAPTER_BY_N[ch.n + 1];
+      sfx.relic();
+      showOverlay('story-won', `
+        <div class="podium-medal">🔔</div>
+        <h2 class="podium-title">Chapter ${ch.n} complete</h2>
+        <p class="sub">${esc(ch.title)}</p>
+        <div class="souls-earned"><b>+${reward.souls + result.souls} Souls</b><span>${result.first ? `Chapter reward +${result.souls} · ` : ''}run +${reward.souls}</span><span>💀 ${meta.souls} to spend in the Ossuary</span></div>
+        ${unlocked ? `<p class="talk-quip">${unlocked}</p>` : ''}
+        ${nextCh ? `<button class="btn primary" id="next-chapter">Chapter ${nextCh.n}: ${esc(nextCh.title)}</button>` : '<p class="talk-quip">Act II: The Plague Abbot is coming. The bell is waiting.</p>'}
+        <button class="btn ${nextCh ? '' : 'primary'}" id="story">Chapters</button>
+        <button class="btn" id="title">Title</button>`);
+      on('#next-chapter', () => nextCh && beginChapter(nextCh, () => showStory()));
+      on('#story', () => showStory());
+      on('#title', () => showTitle());
+    }, `Chapter ${ch.n}: ${ch.title}`),
+  900);
+}
+
+const DEATH_QUIPS = [
+  'Mortimer, from far above: "I\'ll fetch a bigger shovel. Kidding! Mostly."',
+  '{pet} licks your face until you get up. It is very persistent.',
+  'Sir Aldric: "I fell in that exact spot. It is a popular spot."',
+  'Mortimer: "Dying builds character. Or so I tell the characters I bury."',
+];
+
+/** On the title screen: your ghost answered summons while you were away. Thank you, in Souls. */
+const SOULS_PER_SUMMONS = 15;
+async function claimSummons() {
+  if (!ONLINE || !signedIn()) return;
+  const since = meta.summonsSeen;
+  const now = new Date().toISOString();
+  try {
+    const n = await mySummons(since);
+    meta.summonsSeen = now;
+    if (n > 0) {
+      const souls = n * SOULS_PER_SUMMONS;
+      meta.souls += souls;
+      meta.earned += souls;
+      saveMeta();
+      toast(`👻 Your ghost answered ${n} summons while you were away. +${souls} Souls`);
+      if (screen === 'title') showTitle();
+    } else {
+      saveMeta();
+    }
+  } catch {
+    // Not set up yet, or offline.
+  }
+}
 
 // ---------- main loop ----------
 

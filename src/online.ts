@@ -431,3 +431,23 @@ export async function dropPush(endpoint: string): Promise<void> {
   const sb = await client();
   await sb.rpc('drop_push', { p_endpoint: endpoint });
 }
+
+// ---------- story: summoning other players' ghosts ----------
+
+/** Tell the crypt you summoned this player's ghost, so they hear about it. Best effort. */
+export async function noteSummon(name: string, chapter: number): Promise<void> {
+  try {
+    const sb = await client();
+    await sb.rpc('note_summon', { p_name: name, p_chapter: chapter });
+  } catch {
+    // The summons still happened in the game; only the thank-you is lost.
+  }
+}
+
+/** How many times your ghost was summoned since a moment (ISO time). */
+export async function mySummons(since: string): Promise<number> {
+  const sb = await client();
+  const { data, error } = await sb.rpc('my_summons', { p_since: since || '1970-01-01T00:00:00Z' });
+  if (error) throw friendly(error, 'Could not count your summons.');
+  return Number(data) || 0;
+}

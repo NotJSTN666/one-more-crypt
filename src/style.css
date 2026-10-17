@@ -2102,3 +2102,173 @@ body.tutorial #relic-bar {
   color: var(--spectral);
   text-decoration: none;
 }
+
+/* ---------- story mode ---------- */
+
+.btn.story-btn {
+  border-color: #3e8db5;
+  box-shadow: 0 0 16px rgba(159, 232, 255, 0.2);
+}
+
+.story-face {
+  image-rendering: pixelated;
+}
+
+.chapters {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.chapter {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--line);
+  text-align: left;
+}
+
+.chapter.next {
+  border-left-color: var(--spectral);
+  box-shadow: 0 0 12px rgba(159, 232, 255, 0.15);
+}
+
+.chapter.won {
+  border-left-color: var(--gold);
+}
+
+.chapter[disabled] {
+  opacity: 0.5;
+}
+
+.chapter-n {
+  font-family: var(--pixel);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.chapter-info b {
+  display: block;
+  font-family: var(--gothic);
+  font-size: 22px;
+  font-weight: normal;
+  color: var(--text);
+}
+
+.chapter-info span,
+.chapter-info small {
+  display: block;
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.chapter-info small {
+  font-size: 11px;
+  margin-top: 2px;
+  color: var(--spectral);
+}
+
+.talk-head {
+  font-family: var(--pixel);
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--spectral);
+  margin: 0 0 12px;
+}
+
+.talk {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  margin: 0 0 16px;
+  padding: 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  text-align: left;
+}
+
+.talk img {
+  image-rendering: pixelated;
+  flex: none;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+}
+
+.talk b {
+  display: block;
+  font-family: var(--gothic);
+  font-size: 22px;
+  font-weight: normal;
+  color: var(--gold);
+}
+
+.talk p {
+  margin: 4px 0 0;
+  font-family: system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.talk.narrator {
+  border-style: dashed;
+}
+
+.talk.narrator p {
+  font-style: italic;
+  color: var(--muted);
+}
+
+.talk-prompt,
+.talk-quip {
+  font-family: system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text);
+  margin: 8px 0 14px;
+}
+
+.talk-quip {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.shades {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0;
+}
+
+.shade {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  text-align: left;
+}
+
+.shade img {
+  image-rendering: pixelated;
+  opacity: 0.8;
+}
+
+.shade b {
+  display: block;
+  color: var(--spectral);
+  font-weight: normal;
+  font-family: var(--pixel);
+  font-size: 12px;
+}
+
+.shade small {
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+  color: var(--muted);
+}

@@ -472,3 +472,38 @@ $$;
 grant execute on function public.endless_week(date) to anon, authenticated;
 
 notify pgrst, 'reload schema';
+
+-- ---------- story: summoned ghosts ----------
+-- One row each time a player summons another player's ghost; the summoned player is thanked in Souls.
+create table if not exists public.summons (
+  id bigint generated always as identity primary key,
+  summoned uuid not null references auth.users (id) on delete cascade,
+  by_user uuid not null references auth.users (id) on delete cascade,
+  chapter int not null check (chapter between 1 and 100),
+  at timestamptz not null default now()
+);
+alter table public.summons enable row level security;
+create index if not exists summons_summoned on public.summons (summoned, at);
+revoke all on public.summons from anon, authenticated;
+
+create or replace function public.note_summon(p_name text, p_chapter int)
+returns void language plpgsql security definer set search_path = public as $$
+declare target uuid;
+begin
+  if auth.uid() is null then return; end if;
+  select id into target from public.profiles where name = p_name;
+  if target is null or target = auth.uid() then return; end if;
+  if exists (select 1 from public.summons where by_user = auth.uid() and summoned = target and at > now() - interval '10 minutes') then return; end if;
+  insert into public.summons (summoned, by_user, chapter) values (target, auth.uid(), least(greatest(p_chapter, 1), 100));
+end $$;
+revoke execute on function public.note_summon(text, int) from public;
+grant execute on function public.note_summon(text, int) to authenticated;
+
+create or replace function public.my_summons(p_since timestamptz)
+returns int language sql stable security definer set search_path = public as $$
+  select count(*)::int from public.summons where summoned = auth.uid() and at > p_since
+$$;
+revoke execute on function public.my_summons(timestamptz) from public;
+grant execute on function public.my_summons(timestamptz) to authenticated;
+
+notify pgrst, 'reload schema';
