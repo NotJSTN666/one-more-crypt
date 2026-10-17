@@ -549,6 +549,7 @@ export function showLeaderboard(back: () => void, tab: Tab = 'today') {
     ['endless', 'Endless'],
   ];
   showOverlay('board', `
+    <button class="back-top" id="back-top" aria-label="Back">← Back</button>
     <h2>Leaderboard</h2>
     <div class="tabs" role="tablist">
       ${tabs
@@ -564,6 +565,7 @@ export function showLeaderboard(back: () => void, tab: Tab = 'today') {
     b.addEventListener('click', () => showLeaderboard(back, b.dataset.tab as Tab)),
   );
   on('#back', back);
+  on('#back-top', back);
   on('#join', () => showLogin(() => showLeaderboard(back, tab)));
 
   const uid = session.account?.id ?? null;
