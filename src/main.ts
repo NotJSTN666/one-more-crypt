@@ -4,12 +4,12 @@ import { dailyNumber, formatCountdown, msUntilNextDaily } from './daily';
 import { ELITES, FEATURES, HERO_BY_ID, dailyHero, type ComboDef } from './content';
 import { heroPortrait } from './hero';
 import { ENEMY_INFO, Game, fullPool, isBoss, type GameEvent, type Mode } from './game';
-import { checkRun, equipOutfit, finishRunMeta, meta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, type RunReward } from './meta';
+import { checkRun, equipOutfit, finishRunMeta, noteStreak, meta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
 import { hallFromLink, showHall, showPublicHall, soulRankHtml, titleName } from './hall';
-import { HEAD_BY_ID, PODIUM, rankFor } from './progression';
+import { HEAD_BY_ID, PODIUM, STREAK_HELMS, rankFor } from './progression';
 import { Renderer } from './render';
 import { hashSeed } from './rng';
 import { ONLINE, dailyBoard, pingActivity, startActivityPings } from './online';
@@ -23,12 +23,14 @@ import { installMode, onInstallChange, promptInstall, setupInstall } from './ins
 import { enableReminders, reminderPrefs, remindersAvailable, remindersNeedInstall } from './push';
 import { claimPodiums, type PodiumFinish } from './social';
 import { endlessRecord, initSocial, needsName, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
-import { currentStreak, loadSave, recordDaily, writeSave, type RunResult } from './storage';
+import { currentStreak, loadSave, recordDaily, streakStats, writeSave, type RunResult } from './storage';
 import { $, esc, hideOverlay, on, overlay, overlayShownAt, screen, showOverlay, toast } from './ui';
 
 const canvas = $<HTMLCanvasElement>('board');
 const renderer = new Renderer(canvas);
 const save = loadSave();
+// Fill in the Hall's streak from the dailies already played (saves from before streaks were tracked).
+noteStreak(streakStats(save, dailyNumber()));
 setMuted(save.muted);
 setMusicEnabled(!save.musicOff);
 
@@ -304,10 +306,13 @@ function finishRun(abandoned = false) {
     seconds: Math.round(runSeconds),
   };
   clearRun();
-  lastReward = finishRunMeta(game, currentStreak(save, dailyNumber()));
+  // Record the daily first, so today counts toward the streak and its rewards.
+  if (game.mode === 'daily') recordDaily(save, game.dailyNo, result);
+  const streak = streakStats(save, dailyNumber());
+  noteStreak(streak);
+  lastReward = finishRunMeta(game, streak.current);
   let best = false;
   if (game.mode === 'daily') {
-    recordDaily(save, game.dailyNo, result);
     lastLabel = `Daily #${game.dailyNo}`;
   } else {
     if (result.floor > save.bestEndless) {
@@ -1222,7 +1227,7 @@ function showDeath(r: RunResult, best: boolean) {
     ${ONLINE && !signedIn() ? '<button class="btn" id="join">Claim a name for the leaderboard</button>' : ''}
     ${
       daily
-        ? `${ONLINE ? '<p class="podium-tease">🥇 Finish in the top 3 when the day ends to win exclusive headwear and Souls.</p>' : ''}
+        ? `${streakTeaseHtml()}${ONLINE ? '<p class="podium-tease">🥇 Finish in the top 3 when the day ends to win exclusive headwear and Souls.</p>' : ''}
     <p class="endless-tease">${
             save.bestEndless
               ? `Daily done. Endless is open: beat your best of <b>floor ${save.bestEndless}</b>.`
@@ -1288,6 +1293,17 @@ function showDeath(r: RunResult, best: boolean) {
   });
   on('#remind-install', () => showInstallHelp(backHere));
   tickCountdowns();
+}
+
+/** After the daily: the streak, and how far off the next streak helm is. */
+function streakTeaseHtml(): string {
+  const { current } = streakStats(save, dailyNumber());
+  const next = STREAK_HELMS.find(([n]) => n > meta.streak.best);
+  const days = current === 1 ? 'Day 1 of your streak.' : `🕯️ ${current}-day streak.`;
+  if (!next) return `<p class="streak">${days} Every streak helm is yours.</p>`;
+  const [n, , name] = next;
+  const left = n - current;
+  return `<p class="streak">${days} ${left} more day${left === 1 ? '' : 's'} in a row for the <b>${esc(name)}</b>.</p>`;
 }
 
 /** After the daily: offer a reminder for tomorrow's crypt (signed-in players only). */

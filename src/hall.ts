@@ -6,6 +6,7 @@
 import { sfx } from './audio';
 import { ACHIEVEMENTS, ACHIEVEMENT_BY_ID, COMBOS, HEROES, HERO_BY_ID, type HeroId } from './content';
 import { ENEMY_INFO, type EnemyKind } from './game';
+import { dailyNumber } from './daily';
 import { heroSprite } from './hero';
 import { equipTitle, meta, titleUnlocked, type Meta } from './meta';
 import { showWardrobe } from './wardrobe';
@@ -35,6 +36,8 @@ export interface HallData {
   podiums: [number, number, number];
   /** Decorations bought in the Ossuary. */
   decor: string[];
+  /** Daily play streak: days in a row right now (0 once broken) and the longest ever. */
+  streak: { current: number; best: number };
 }
 
 const BOSS_FEAT: Partial<Record<EnemyKind, string>> = { boss: 'warden', abbot: 'abbot', lich: 'lich' };
@@ -74,10 +77,15 @@ export function hallData(name: string, m: Partial<Meta> | Record<string, unknown
   const places = Object.values(obj(raw.podiums)).map((p) => num(p, 9));
   const podiums: [number, number, number] = [1, 2, 3].map((p) => places.filter((x) => x === p).length) as [number, number, number];
   const decor = (Array.isArray(raw.bought) ? raw.bought : []).filter((id): id is string => typeof id === 'string' && Boolean(DECOR_BY_ID[id]));
+  const st = obj(raw.streak);
+  const today = dailyNumber();
+  const count = num(st.count, 10000);
+  const streak = { current: num(st.last, 1e6) >= today - 1 ? count : 0, best: Math.max(num(st.best, 10000), count) };
   return {
     name,
     podiums,
     decor,
+    streak,
     title: typeof raw.title === 'string' && TITLE_BY_ID[raw.title] ? raw.title : '',
     earned: num(raw.earned),
     feats: Object.keys(achievements).filter((id) => ACHIEVEMENT_BY_ID[id]).length,
@@ -399,6 +407,11 @@ export function drawHall(ctx: CanvasRenderingContext2D, d: HallData, t = 0) {
   const title = titleName(d.title);
   if (title) fitText(ctx, `« ${title.toUpperCase()} »`, W / 2, 110, 20, FONT_PIXEL, '#f2c14e', 880);
   text(ctx, `${rank.name.toUpperCase()} · ${d.earned.toLocaleString()} SOULS`, W / 2, title ? 138 : 120, `17px ${FONT_PIXEL}`, rank.color);
+  if (d.streak.best > 1) {
+    const { current, best } = d.streak;
+    const line = current > 1 ? `${current}-DAY STREAK${best > current ? ` · BEST ${best}` : ''}` : `BEST STREAK ${best} DAYS`;
+    fitText(ctx, line, W / 2, title ? 162 : 144, 15, FONT_PIXEL, current > 1 ? '#ff8a2a' : '#9a8fa8', 600);
+  }
 
   // trophies, torches and banners
   banner(ctx, 66, d.feats, ACHIEVEMENTS.length, 'ACHIEVEMENTS', '#5a1622', '#c99a2e');
@@ -470,7 +483,11 @@ function trophiesBody(d: HallData): string {
     gold + silver + bronze
       ? `<div class="podium-row" title="Daily Descent podium finishes">${gold ? `<span>🥇×${gold}</span>` : ''}${silver ? `<span>🥈×${silver}</span>` : ''}${bronze ? `<span>🥉×${bronze}</span>` : ''}<small>DAILY PODIUMS</small></div>`
       : '';
-  return `${podium}<div class="stat-grid">
+  const { current, best } = d.streak;
+  const streak = best
+    ? `<div class="podium-row streak-row" title="Days in a row playing the Daily Descent"><span>🕯️ ${current}</span><small>DAY STREAK${best > current ? ` · BEST ${best}` : ''}</small></div>`
+    : '';
+  return `${podium}${streak}<div class="stat-grid">
       ${cell(d.earned.toLocaleString(), 'SOULS EARNED')}
       ${cell(`${d.feats}/${ACHIEVEMENTS.length}`, 'ACHIEVEMENTS')}
       ${cell(`${d.combos}/${COMBOS.length}`, 'COMBOS')}

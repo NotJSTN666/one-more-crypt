@@ -105,7 +105,7 @@ export interface LookDef {
   /** Colour of the drifting aura motes, if any. */
   aura: string | null;
   /** What unlocks it: an achievement, a Soul Rank (index) or a Bestiary tier. */
-  unlock: { feat: string } | { rank: number } | { beast: EnemyKind; tier: number } | { costume: string } | { podium: number } | { cost: number };
+  unlock: { feat: string } | { rank: number } | { beast: EnemyKind; tier: number } | { costume: string } | { podium: number } | { cost: number } | { streak: number };
   how: string;
 }
 
@@ -235,6 +235,16 @@ const GOLD = '#f2c14e';
 const RED = '#d23a46';
 const DARK = '#1a1520';
 
+/** Streak milestones and their helms: [days, id, name, pixels]. */
+export const STREAK_HELMS: [number, string, string, HeadDef['pixels']][] = [
+  [5, 'pilgrim', "Pilgrim's Cap", [...row(1, 4, 7, '#8a5a28'), ...row(2, 3, 8, '#b07a3c'), [3, 3, '#8a5a28'], [8, 3, '#8a5a28'], [5, 0, '#cd8f4a'], [6, 0, '#cd8f4a']]],
+  [10, 'vigil', 'Vigil Helm', [...row(1, 3, 8, STEEL), ...row(2, 3, 8, '#9aa3b5'), [3, 3, '#9aa3b5'], [8, 3, '#9aa3b5'], [5, 0, BONE], [6, 0, '#ff8a2a']]],
+  [20, 'devoted', 'Helm of the Devoted', [...row(0, 4, 7, '#c9d1e0'), ...row(1, 3, 8, '#eef3fb'), ...row(2, 3, 8, '#c9d1e0'), [3, 3, '#c9d1e0'], [8, 3, '#c9d1e0'], [3, 4, '#c9d1e0'], [8, 4, '#c9d1e0'], [5, 1, '#5fe3ff'], [6, 1, '#5fe3ff']]],
+  [30, 'moonsworn', 'Moonsworn Helm', [...row(1, 3, 8, '#2a1640'), ...row(2, 3, 8, '#3b2060'), [3, 3, '#2a1640'], [8, 3, '#2a1640'], [4, 0, GOLD], [5, 0, '#fff2c0'], [6, 0, '#fff2c0'], [7, 0, GOLD], [5, 2, '#d3b0ff'], [6, 2, '#d3b0ff']]],
+  [50, 'eternal', 'Eternal Helm', [...row(1, 4, 7, GOLD), ...row(2, 3, 8, '#a8781f'), [3, 3, '#a8781f'], [8, 3, '#a8781f'], [5, 0, RED], [6, 0, RED], [1, 1, '#ffffff'], [2, 1, '#ffffff'], [2, 2, '#e8dcc4'], [10, 1, '#ffffff'], [9, 1, '#ffffff'], [9, 2, '#e8dcc4']]],
+  [100, 'undying', 'Crown of the Undying', [...row(1, 3, 8, '#0b0710'), ...row(2, 3, 8, '#701826'), [3, 0, RED], [5, 0, '#ff8a2a'], [6, 0, GOLD], [8, 0, RED], [5, 2, '#ff4d5a'], [6, 2, '#ff4d5a'], [2, 1, '#701826'], [9, 1, '#701826']]],
+];
+
 export const HEADS: HeadDef[] = [
   // Shared by every hero.
   // Daily podium rewards: only ever won by finishing in the top 3 of a Daily Descent.
@@ -252,6 +262,8 @@ export const HEADS: HeadDef[] = [
   // Legendary: skulls circle your head in the crypt.
   { id: 'skullhalo', name: 'Halo of Skulls', ...sold(10000), pixels: [...row(0, 3, 8, '#fff2c0'), [2, 1, GOLD], [9, 1, GOLD]] },
   { id: 'bronzelaurel', name: 'Bronze Laurel', unlock: { podium: 3 }, how: 'Finish 3rd in a Daily Descent.', pixels: [[2, 3, '#8a5a28'], [2, 2, '#b07a3c'], [3, 1, '#cd8f4a'], [4, 1, '#b07a3c'], [9, 3, '#8a5a28'], [9, 2, '#b07a3c'], [8, 1, '#cd8f4a'], [7, 1, '#b07a3c']] },
+  // Daily streak helms: play the Daily Descent this many days in a row. Kept for good once earned.
+  ...STREAK_HELMS.map(([n, id, name, pixels]) => ({ id, name, unlock: { streak: n }, how: `Play the daily ${n} days in a row.`, pixels })),
   { id: 'tophat', name: "Gravedigger's Hat", unlock: { feat: 'gravekeeper' }, how: 'Read every epitaph in the Hollow.', pixels: [...row(0, 4, 7, DARK), ...row(1, 4, 7, RED), ...row(2, 2, 9, DARK)] },
   { id: 'forgehelm', name: 'Forged Helm', unlock: { feat: 'forge' }, how: 'Fuse two relics at the Soul Forge.', pixels: [...row(1, 3, 8, '#5d667a'), ...row(2, 3, 8, '#5d667a'), [3, 3, '#5d667a'], [8, 3, '#5d667a'], ...row(0, 5, 6, '#5fe3ff')] },
 

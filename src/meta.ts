@@ -56,6 +56,8 @@ export interface Meta {
   podiumChecked: number;
   /** Cosmetics and Hall decorations bought in the Ossuary. */
   bought: string[];
+  /** Daily play streak, shown in the Hall: the longest ever, and the run ending at `last`. */
+  streak: { best: number; count: number; last: number };
 }
 
 export interface HeroStats {
@@ -88,7 +90,7 @@ function empty(): Meta {
   return {
     souls: 0, earned: 0, heroes: ['knight'], relics: [], achievements: {}, codex: {}, combos: {}, fusions: {}, elitesSlain: 0, hero: 'knight',
     bestiary: {}, bestiaryTier: {}, best: {}, title: '', look: '', looksSeen: [], rankSeen: 0, heroStats: {}, heroBackfill: 0, epitaphs: [], outfits: {}, headsSeen: [], heroUnlocks: {},
-    podiums: {}, podiumChecked: 0, bought: [],
+    podiums: {}, podiumChecked: 0, bought: [], streak: { best: 0, count: 0, last: 0 },
   };
 }
 
@@ -163,6 +165,15 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   }
   meta.podiumChecked = Math.max(meta.podiumChecked, other.podiumChecked ?? 0);
   meta.bought = [...new Set([...meta.bought, ...(Array.isArray(other.bought) ? other.bought.map(String) : [])])];
+  const st = other.streak;
+  if (st && typeof st === 'object') {
+    meta.streak.best = Math.max(meta.streak.best, Number(st.best) || 0);
+    const last = Number(st.last) || 0;
+    if (last > meta.streak.last || (last === meta.streak.last && (Number(st.count) || 0) > meta.streak.count)) {
+      meta.streak.last = last;
+      meta.streak.count = Number(st.count) || 0;
+    }
+  }
   const changed = JSON.stringify(meta) !== before;
   if (changed) saveMeta();
   return changed;
@@ -341,6 +352,19 @@ export function runSouls(game: Game): [string, number][] {
   return lines;
 }
 
+/** Keep the Hall's streak in step with the dailies played. Returns true if it changed. */
+export function noteStreak(s: { best: number; count: number; last: number }): boolean {
+  const before = JSON.stringify(meta.streak);
+  meta.streak = {
+    best: Math.max(meta.streak.best, s.best),
+    count: s.last >= meta.streak.last ? s.count : meta.streak.count,
+    last: Math.max(meta.streak.last, s.last),
+  };
+  if (JSON.stringify(meta.streak) === before) return false;
+  saveMeta();
+  return true;
+}
+
 /** Pay out Souls at the end of a run. */
 export function finishRunMeta(game: Game, streak: number): RunReward {
   const lines = runSouls(game);
@@ -390,6 +414,7 @@ function unlockMet(u: Unlock): boolean {
   if ('rank' in u) return rankIndex(meta.earned) >= u.rank;
   if ('costume' in u) return costumeUnlocked(u.costume);
   if ('podium' in u) return podiumCount(u.podium) > 0;
+  if ('streak' in u) return meta.streak.best >= u.streak;
   if ('cost' in u) return false;
   return (meta.bestiaryTier[u.beast] ?? 0) > u.tier;
 }

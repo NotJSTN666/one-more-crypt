@@ -83,6 +83,36 @@ export function recordDaily(save: Save, dailyNo: number, result: RunResult) {
   save.streak.last = dailyNo;
 }
 
+export interface StreakStats {
+  /** Days in a row ending today, or yesterday if today isn't played yet. 0 once broken. */
+  current: number;
+  /** The longest run of days in a row ever. */
+  best: number;
+  /** The last daily played, and the run of days ending there. */
+  last: number;
+  count: number;
+}
+
+/** Play streak from the dailies on record (on a signed-in account, from every device). */
+export function streakStats(save: Save, today: number): StreakStats {
+  const days = Object.keys(save.daily).map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+  let best = 0;
+  let count = 0;
+  let last = 0;
+  for (const d of days) {
+    count = d === last + 1 ? count + 1 : 1;
+    last = d;
+    best = Math.max(best, count);
+  }
+  // Older saves kept only a counter.
+  if (save.streak.last > last || (save.streak.last === last && save.streak.count > count)) {
+    last = save.streak.last;
+    count = save.streak.count;
+  }
+  best = Math.max(best, count);
+  return { current: last >= today - 1 ? count : 0, best, last, count };
+}
+
 export function currentStreak(save: Save, today: number): number {
-  return save.streak.last >= today - 1 ? save.streak.count : 0;
+  return streakStats(save, today).current;
 }

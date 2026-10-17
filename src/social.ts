@@ -37,8 +37,8 @@ import { showPublicHall, titleName } from './hall';
 import { HEAD_BY_ID, LOOK_BY_ID, PODIUM, rankFor } from './progression';
 import { HERO_BY_ID, dailyHero, type HeroId } from './content';
 import { heroPortrait } from './hero';
-import { BACKFILL_VERSION, backfillHeroes, grantPodium, meta, mergeMeta, onMetaChange, saveMeta, type Meta } from './meta';
-import { currentStreak, writeSave, type Save } from './storage';
+import { BACKFILL_VERSION, backfillHeroes, grantPodium, meta, mergeMeta, noteStreak, onMetaChange, saveMeta, type Meta } from './meta';
+import { currentStreak, streakStats, writeSave, type Save } from './storage';
 import { esc, field, formStatus, on, onSubmit, screen, showOverlay, toast } from './ui';
 
 export const session: { account: Account | null; ready: boolean } = { account: null, ready: !ONLINE };
@@ -169,6 +169,8 @@ async function syncFromServer() {
         changed = true;
       }
     }
+    // Dailies played on other devices count toward the streak too.
+    if (noteStreak(streakStats(save, dailyNumber()))) changed = true;
     if (changed) {
       writeSave(save);
       onChange();
