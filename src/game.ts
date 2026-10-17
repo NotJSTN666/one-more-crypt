@@ -150,6 +150,8 @@ export interface StoryConfig {
   pet?: { hp: number; dmg: number };
   /** A friend's hero, summoned once at the start of the chapter. */
   ghost?: GhostInfo;
+  /** The one boss floor in this story dungeon, and who waits there. Without it there are none. */
+  boss?: { floor: number; kind: EnemyKind };
 }
 
 /** Daily runs use every relic; Endless only the unlocked ones. */
@@ -354,6 +356,8 @@ export class Game {
   }
 
   isBossFloor(f = this.floor): boolean {
+    const story = this.config.story;
+    if (story) return story.boss?.floor === f;
     return f % 5 === 0;
   }
 
@@ -485,14 +489,16 @@ export class Game {
   private spawnEnemies(rng: Rng) {
     const f = this.floor;
     if (this.isBossFloor()) {
-      const tier = f / 5;
-      const kind: EnemyKind = (['boss', 'abbot', 'lich'] as EnemyKind[])[(tier - 1) % 3];
-      const cycle = Math.floor((tier - 1) / 3);
+      const story = this.config.story;
+      // Story bosses can wait on any floor; they grow a little tougher the deeper it is.
+      const tier = story ? Math.max(1, Math.round(f / 5)) : f / 5;
+      const kind: EnemyKind = story?.boss?.kind ?? (['boss', 'abbot', 'lich'] as EnemyKind[])[(tier - 1) % 3];
+      const cycle = story ? 0 : Math.floor((tier - 1) / 3);
       const spot = { x: 3, y: 1 };
       this.walls[spot.y * W + spot.x] = false;
       const boss = this.makeEnemy(kind, spot.x, spot.y);
-      boss.maxHp = boss.hp = ENEMY_INFO[kind].hp + 12 * cycle + 4 * cycle * cycle;
-      boss.dmg = ENEMY_INFO[kind].dmg + cycle;
+      boss.maxHp = boss.hp = ENEMY_INFO[kind].hp + 12 * cycle + 4 * cycle * cycle + (story ? 2 * Math.max(0, f - 5) : 0);
+      boss.dmg = ENEMY_INFO[kind].dmg + cycle + (story ? Math.floor(Math.max(0, f - 5) / 3) : 0);
       for (let i = 0; i < Math.min(tier, 4); i++) {
         const s = this.randomFreeTile(rng, 3);
         if (s) this.makeEnemy(i % 2 ? 'archer' : 'ghoul', s.x, s.y);

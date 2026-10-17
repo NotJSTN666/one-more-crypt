@@ -13,7 +13,7 @@ import { esc, on, overlay, showOverlay } from './ui';
 /** The story's Crypt Hound, once met: it trots behind your hero in every crypt. Looks only. */
 function companionHtml(): string {
   if (!meta.story.done.includes(2)) {
-    return `<h3 class="shop-head">Companion</h3><p class="fine">🔒 Something is howling in the story's second chapter.</p>`;
+    return `<h3 class="shop-head">Companion</h3><p class="fine">🔒 Something is howling in the old kennels, in the story.</p>`;
   }
   const name = petName(meta.story.choices.hound);
   const card = (id: string, label: string, desc: string) => `<button class="look-card ${meta.pet === id ? 'equipped' : ''}" data-pet="${id}">

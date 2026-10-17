@@ -2277,3 +2277,47 @@ body.tutorial #relic-bar {
   opacity: 0.6;
   box-shadow: none;
 }
+
+/* The quest log and journal. */
+.quests {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 12px;
+  text-align: left;
+}
+
+.quest {
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--spectral);
+}
+
+.quest.done {
+  border-left-color: var(--gold);
+  opacity: 0.8;
+}
+
+.quest.available {
+  border-left-color: var(--gold);
+}
+
+.quest.lore {
+  border-left-color: var(--line);
+}
+
+.quest b {
+  display: block;
+  font-family: var(--gothic);
+  font-size: 20px;
+  font-weight: normal;
+  color: var(--text);
+}
+
+.quest span {
+  display: block;
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}

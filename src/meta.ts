@@ -64,12 +64,27 @@ export interface Meta {
   weekly: Record<string, number>;
   weeklyChecked: string;
   /** Story progress: chapters finished, choices made, and floors cleared with the hound. */
-  story: { done: number[]; choices: Record<string, string>; bond: number };
+  story: StoryProgress;
   /** The companion that trails your hero outside the story ('' for none). Looks only. */
   pet: string;
   /** When your ghost's summons were last counted. */
   summonsSeen: string;
 }
+
+/** Story progress: quests taken, cleared (dungeon done) and finished, choices, the hound's bond, lore read. */
+export interface StoryProgress {
+  /** 2: the open-world Act I. Progress from the earlier chapter version starts over. */
+  v: number;
+  done: number[];
+  active: number[];
+  cleared: number[];
+  choices: Record<string, string>;
+  bond: number;
+  journal: string[];
+}
+
+const STORY_V = 2;
+const emptyStory = (): StoryProgress => ({ v: STORY_V, done: [], active: [], cleared: [], choices: {}, bond: 0, journal: [] });
 
 export interface HeroStats {
   floor: number;
@@ -104,14 +119,18 @@ function empty(): Meta {
     podiums: {}, podiumChecked: 0, bought: [], streak: { best: 0, count: 0, last: 0 },
     bounties: { day: 0, ids: [], progress: [], done: [] },
     weekly: {}, weeklyChecked: '',
-    story: { done: [], choices: {}, bond: 0 }, pet: '', summonsSeen: '',
+    story: emptyStory(), pet: '', summonsSeen: '',
   };
 }
 
 function load(): Meta {
   try {
     const raw = localStorage.getItem(KEY);
-    return raw ? { ...empty(), ...JSON.parse(raw) } : empty();
+    if (!raw) return empty();
+    const m: Meta = { ...empty(), ...JSON.parse(raw) };
+    // The story moved into the open world: earlier chapter progress starts over (the hound stays).
+    m.story = m.story?.v === STORY_V ? { ...emptyStory(), ...m.story } : { ...emptyStory(), choices: m.story?.choices ?? {}, bond: m.story?.bond ?? 0 };
+    return m;
   } catch {
     return empty();
   }
@@ -181,7 +200,15 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   meta.bought = [...new Set([...meta.bought, ...(Array.isArray(other.bought) ? other.bought.map(String) : [])])];
   const os = other.story;
   if (os && typeof os === 'object') {
-    meta.story.done = [...new Set([...meta.story.done, ...(Array.isArray(os.done) ? os.done.map(Number).filter((n) => n > 0 && n < 100) : [])])].sort((a, b) => a - b);
+    const nums = (v: unknown) => (Array.isArray(v) ? v.map(Number).filter((n) => n > 0 && n < 100) : []);
+    const union = (a: number[], b: unknown) => [...new Set([...a, ...nums(b)])].sort((x, y) => x - y);
+    // Quest progress from the earlier chapter version doesn't carry over.
+    if (os.v === STORY_V) {
+      meta.story.done = union(meta.story.done, os.done);
+      meta.story.active = union(meta.story.active, os.active);
+      meta.story.cleared = union(meta.story.cleared, os.cleared);
+      meta.story.journal = [...new Set([...meta.story.journal, ...(Array.isArray(os.journal) ? os.journal.map(String) : [])])];
+    }
     for (const [k, v] of Object.entries(os.choices ?? {})) if (!meta.story.choices[k] && typeof v === 'string') meta.story.choices[k] = v;
     meta.story.bond = Math.max(meta.story.bond, Number(os.bond) || 0);
   }
@@ -518,21 +545,43 @@ export function grantPodium(dailyNo: number, place: number, souls: number, head:
   return true;
 }
 
-/** A story chapter is won: record it, and pay out the first time. Returns the Souls paid. */
-export function completeChapter(n: number, souls: number, floorsWithHound: number): { first: boolean; souls: number; act: AchievementDef | null } {
+/** Take on a quest. */
+export function acceptQuest(n: number) {
+  if (!meta.story.active.includes(n)) meta.story.active = [...meta.story.active, n];
+  saveMeta();
+}
+
+/** A quest's dungeon is cleared: the giver is waiting to hear about it. */
+export function clearQuest(n: number) {
+  if (!meta.story.cleared.includes(n) && !meta.story.done.includes(n)) meta.story.cleared = [...meta.story.cleared, n];
+  saveMeta();
+}
+
+/** A quest is finished: record it, and pay out the first time. */
+export function completeQuest(n: number, souls: number): { first: boolean; souls: number; feat: AchievementDef | null } {
   const first = !meta.story.done.includes(n);
-  meta.story.bond += floorsWithHound;
-  let act: AchievementDef | null = null;
+  let feat: AchievementDef | null = null;
+  meta.story.active = meta.story.active.filter((q) => q !== n);
+  meta.story.cleared = meta.story.cleared.filter((q) => q !== n);
   if (first) {
     meta.story.done = [...meta.story.done, n].sort((a, b) => a - b);
     meta.souls += souls;
     meta.earned += souls;
-    // The hound joins after Chapter 2 and trails you in every crypt from then on.
+    // The hound joins in the kennel quest and trails you everywhere from then on.
     if (n === 2 && !meta.pet) meta.pet = 'hound';
-    if (n === 5) act = grant('act1');
+    if (n === 4) feat = grant('act1');
+    if (n === 13) feat = grant('regular');
   }
   saveMeta();
-  return { first, souls: first ? souls : 0, act };
+  return { first, souls: first ? souls : 0, feat };
+}
+
+/** Something looked at in the world, kept in the journal. True the first time. */
+export function readLore(id: string): boolean {
+  if (meta.story.journal.includes(id)) return false;
+  meta.story.journal = [...meta.story.journal, id];
+  saveMeta();
+  return true;
 }
 
 /** Remember a story choice (the first answer sticks). */

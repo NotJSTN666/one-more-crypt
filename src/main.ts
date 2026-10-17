@@ -4,7 +4,7 @@ import { dailyNumber, formatCountdown, msUntilNextDaily } from './daily';
 import { ELITES, FEATURES, HERO_BY_ID, dailyHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait } from './hero';
 import { ENEMY_INFO, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode } from './game';
-import { checkRun, chooseStory, completeChapter, equipOutfit, finishRunMeta, noteBond, noteStreak, meta, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, type RunReward } from './meta';
+import { acceptQuest, checkRun, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, noteBond, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
@@ -13,8 +13,11 @@ import { HEAD_BY_ID, LOOK_BY_ID, PODIUM, STREAK_HELMS, WEEKLY, rankFor } from '.
 import { Renderer } from './render';
 import { hashSeed } from './rng';
 import { ONLINE, dailyBoard, endlessBoard, mySummons, noteSummon, pingActivity, startActivityPings } from './online';
-import { ACT_TITLE, CHAPTERS, CHAPTER_BY_N, SPEAKERS, facePortrait, houndStats, petName, type Chapter, type Line } from './story';
-import { EPITAPHS, hollowKey, showHollow, type HollowPlace } from './hollow';
+import {
+  ACT_TITLE, LORE, LORE_COUNT, MAIN_QUESTS, QUESTS, QUEST_BY_N, SPEAKERS, conversation, facePortrait, houndStats, npcMarker, npcPresent, petName, questStatus,
+  type Line, type NpcId, type Quest, type StoryState,
+} from './story';
+import { EPITAPHS, hollowKey, setHollowSpot, showHollow, type HollowPlace } from './hollow';
 import { showWardrobe } from './wardrobe';
 import { IMPACT, playFusion } from './fusefx';
 import { howToHtml, startHowTo } from './howto';
@@ -404,6 +407,7 @@ function processEvents() {
   if (events.some((e) => e.t === 'floor')) {
     setMusicDepth(game.floor);
     setMusicMood(game.isBossFloor() ? 'boss' : 'crypt');
+    if (game.mode === 'story') storyFloor();
   }
   // Progress: codex entries, combos, fusions and achievements.
   for (const ev of events) {
@@ -767,7 +771,7 @@ function showTitle() {
   on('#grimoire', () => showGrimoire(showTitle));
   on('#hall', () => openHall(showTitle));
   on('#hollow', () => enterHollow());
-  on('#story', () => (storyOpen() ? showStory() : toast('🔔 Act I: The Bell Beneath is coming soon.')));
+  on('#story', () => (storyOpen() ? playStory() : toast('🔔 Act I: The Bell Beneath is coming soon.')));
   on('#help', () => showHelp(showTitle));
   on('#install', () => {
     if (installMode() === 'ios') return showInstallHelp(showTitle);
@@ -899,6 +903,20 @@ function enterHollow() {
       const board = await dailyBoard(dailyNumber(), null, 5);
       return board.rows.map((r) => r.name).filter((n) => n !== playerName());
     },
+    storyOpen,
+    npcPresent: (id) => npcPresent(id, storyState()),
+    npcMarker: (id) => npcMarker(id, storyState()),
+    talk: talkTo,
+    dungeon: dungeonDoor,
+    enterDungeon: (n) => QUEST_BY_N[n] && beginDungeon(QUEST_BY_N[n]),
+    gate: (n) => ['active', 'cleared', 'done'].includes(questStatus(QUEST_BY_N[n], storyState())),
+    lore: (id) => LORE[id] ?? null,
+    readLore: (id) => {
+      if (readLore(id)) sfx.relic();
+    },
+    loreRead: (id) => meta.story.journal.includes(id),
+    pet: () => storyOpen() && meta.pet === 'hound' && houndJoined(),
+    quests: () => showQuests(),
   });
 }
 
@@ -1219,12 +1237,12 @@ function showPause() {
   const story = game.mode === 'story' && storyRun;
   showOverlay('pause', `
     <h2>Paused</h2>
-    <p class="sub">${daily ? `Daily #${game.dailyNo}` : story ? `Chapter ${story.chapter.n}: ${esc(story.chapter.title)}` : 'Endless'} · Floor ${game.floor}</p>
+    <p class="sub">${daily ? `Daily #${game.dailyNo}` : story ? esc(story.quest.dungeon.name) : 'Endless'} · Floor ${game.floor}</p>
     ${onlineCountHtml()}
     <button class="btn primary" id="resume">Resume</button>
     <button class="btn" id="help">How to play</button>
     <button class="btn" id="music">🎵 Music: ${isMusicEnabled() ? 'On' : 'Off'}</button>
-    <button class="btn" id="abandon">Abandon run<small>${daily ? "Counts as today's attempt" : story ? 'Back to the chapters' : 'Back to the title'}</small></button>
+    <button class="btn" id="abandon">Abandon run<small>${daily ? "Counts as today's attempt" : story ? 'Back to Gravesend' : 'Back to the title'}</small></button>
   `);
   on('#resume', hideOverlay);
   on('#music', () => {
@@ -1250,7 +1268,7 @@ function showPause() {
       storyRun = null;
       hideOverlay();
       newGame('endless');
-      showStory();
+      enterHollow();
     } else {
       hideOverlay();
       newGame('endless');
@@ -1405,12 +1423,13 @@ function tickCountdowns() {
 setInterval(tickCountdowns, 1000);
 
 // ---------- story mode ----------
-// Act I: chapters are short fixed-seed descents with talk before and after. They are never
-// saved mid-run or uploaded, and nothing in them touches the daily or the leaderboards.
+// Act I is played out in the world: walk Gravesend, talk to people in their homes, take
+// their quests, and descend into the dungeons under it. Story runs are never saved
+// mid-run or uploaded, and nothing in them touches the daily or the leaderboards.
 
 interface StoryRun {
-  chapter: Chapter;
-  /** The floor the chapter started on, for counting floors cleared with the hound. */
+  quest: Quest;
+  /** The floor the dungeon started on, for counting floors cleared with the hound. */
   start: number;
   hound: boolean;
 }
@@ -1427,49 +1446,12 @@ function storyText(text: string): string {
     .replace(/\*([^*]+)\*/g, '<em>$1</em>');
 }
 
-function chapterUnlocked(n: number): boolean {
-  return n === 1 || meta.story.done.includes(n - 1);
-}
-
-function showStory(back: () => void = showTitle) {
-  const done = meta.story.done.filter((n) => CHAPTER_BY_N[n]).length;
-  const next = CHAPTERS.find((c) => !meta.story.done.includes(c.n));
-  const rows = CHAPTERS.map((c) => {
-    const won = meta.story.done.includes(c.n);
-    const open = chapterUnlocked(c.n);
-    return `<button class="chapter ${won ? 'won' : ''} ${c === next ? 'next' : ''}" data-chapter="${c.n}" ${open ? '' : 'disabled'}>
-      <span class="chapter-n">${won ? '✅' : open ? '▶' : '🔒'} ${c.n}</span>
-      <span class="chapter-info"><b>${esc(c.title)}</b><span>${open ? esc(c.blurb) : 'Finish the chapter before to continue.'}</span>
-      <small>Floors ${c.floors[0]}-${c.floors[1]} · ${won ? 'Replay any time' : `Reward: ${esc(c.reward)}`}</small></span>
-    </button>`;
-  }).join('');
-  showOverlay('story', `
-    <img class="hero-portrait story-face" src="${facePortrait('gravedigger')}" alt="" width="80" height="80" />
-    <h2>${esc(ACT_TITLE)}</h2>
-    <p class="sub">Who rings the bell beneath the crypt? ${done}/${CHAPTERS.length} chapters.</p>
-    ${houndJoined() ? `<p class="fine">🐕 ${esc(petName(meta.story.choices.hound))} fights beside you here · bond ${meta.story.bond}</p>` : ''}
-    <div class="chapters">${rows}</div>
-    <p class="fine">Story runs are separate from the daily and the leaderboards. Souls, bounties and unlocks still count.</p>
-    <button class="btn primary" id="back">Back</button>`);
-  overlay.querySelectorAll<HTMLButtonElement>('.chapter:not([disabled])').forEach((b) =>
-    b.addEventListener('click', () => beginChapter(CHAPTER_BY_N[Number(b.dataset.chapter)], () => showStory(back))),
-  );
-  on('#back', back);
-}
-
-/** Pick a hero, hear the intro, maybe summon a ghost, then descend. */
-function beginChapter(ch: Chapter, back: () => void) {
-  showHeroSelect(
-    () => talk(ch.intro, () => (ch.summon && ONLINE ? showSummon(ch, back) : startStory(ch, null)), `Chapter ${ch.n}: ${ch.title}`),
-    back,
-    `Chapter ${ch.n} · ${esc(ch.title)} · any hero you own`,
-  );
-}
-
 // Story mode is still being tested: it shows as coming soon to everyone but its tester (JSTN).
 const STORY_TESTERS = ['ad5d6ad6-bd7b-4952-a0cb-9917d15909fd'];
 
 function storyOpen(): boolean {
+  // Local development only (never in a real build): a switch for testing the story.
+  if (import.meta.env.DEV && localStorage.getItem('omc:story-test')) return true;
   return Boolean(session.account && STORY_TESTERS.includes(session.account.id));
 }
 
@@ -1477,14 +1459,112 @@ function storyButtonHtml(): string {
   if (!storyOpen()) {
     return `<button class="btn story-btn soon" id="story">📖 Story: The Bell Beneath<small>Coming soon · Who rings the bell beneath the crypt?</small></button>`;
   }
-  const done = meta.story.done.filter((n) => CHAPTER_BY_N[n]).length;
-  const next = CHAPTERS.find((c) => !meta.story.done.includes(c.n));
+  const main = MAIN_QUESTS.filter((q) => meta.story.done.includes(q.n)).length;
+  const next = MAIN_QUESTS.find((q) => !meta.story.done.includes(q.n));
   return `<button class="btn story-btn" id="story">📖 Story: The Bell Beneath<small>${
-    next ? (done ? `Chapter ${next.n}: ${esc(next.title)} · ${done}/${CHAPTERS.length} done` : 'Act I · Who rings the bell beneath the crypt?') : 'Act I complete · Act II is coming'
+    !next ? 'Act I complete · Act II is coming' : main ? `${main}/${MAIN_QUESTS.length} · ${esc(next.title)}` : "Act I · Knock on Mortimer's door in the Hollow"
   }</small></button>`;
 }
 
-/** A conversation, one line at a time. Choices are remembered in the story. */
+/** Into the world for the story: straight to Mortimer's door the first time. */
+function playStory() {
+  if (!meta.story.active.length && !meta.story.done.length) placeAtCottage();
+  enterHollow();
+}
+
+function storyState(): StoryState {
+  return meta.story;
+}
+
+/** Talking to someone in the world: hand in, take on, be reminded, or just chat. */
+function talkTo(npc: NpcId) {
+  const c = conversation(npc, storyState());
+  talk(c.lines, () => {
+    if (c.accept) {
+      acceptQuest(c.accept);
+      sfx.relic();
+      toast(`📜 New quest: ${QUEST_BY_N[c.accept].title}`);
+    }
+    if (c.turnIn) return finishQuest(QUEST_BY_N[c.turnIn], enterHollow);
+    enterHollow();
+  });
+}
+
+/** A quest is over: pay out, and say what was unlocked. */
+function finishQuest(q: Quest, then: () => void) {
+  const result = completeQuest(q.n, q.souls);
+  if (result.feat) celebrate([result.feat]);
+  if (!result.first) return then();
+  const unlocked =
+    q.n === 2 ? `🐕 ${esc(petName(meta.story.choices.hound))} the Crypt Hound joins you. It trots behind you everywhere (it only fights in the story).`
+    : q.n === 3 ? "🎨 Aldric's Mantle: a new cloak in the Wardrobe."
+    : q.n === 4 ? "🎩 The Warden's Keys: new headwear. 📜 New title: Bell-Seeker."
+    : q.n === 11 ? "🎨 The Widow's Shawl: a new cloak in the Wardrobe."
+    : q.n === 12 ? "🎩 Smith's Goggles: new headwear."
+    : q.n === 13 ? '📜 New title: Tavern Regular.'
+    : '';
+  sfx.relic();
+  showOverlay('story-won', `
+    <div class="podium-medal">${q.side ? '📜' : '🔔'}</div>
+    <h2 class="podium-title">${esc(q.title)}</h2>
+    <p class="sub">${q.side ? 'Side quest complete' : 'Quest complete'}</p>
+    <div class="souls-earned"><b>+${result.souls} Souls</b><span>💀 ${meta.souls} to spend in the Ossuary</span></div>
+    ${unlocked ? `<p class="talk-quip">${unlocked}</p>` : ''}
+    ${q.n === 4 ? '<p class="talk-quip">Act II: The Plague Abbot is coming. The bell is waiting.</p>' : ''}
+    <button class="btn primary" id="back">Continue</button>`);
+  on('#back', then);
+}
+
+/** A dungeon's door in the world: open once its quest is taken, barred until then. */
+function dungeonDoor(n: number): { open: boolean; title: string; text: string } {
+  const q = QUEST_BY_N[n];
+  if (!q) return { open: false, title: 'Sealed', text: 'Nothing but stone.' };
+  const status = questStatus(q, storyState());
+  if (status === 'locked' || status === 'available') return { open: false, title: q.dungeon.name, text: q.barred };
+  const [a, b] = q.dungeon.floors;
+  const done = status === 'done' || status === 'cleared';
+  return {
+    open: true,
+    title: q.dungeon.name,
+    text: `${done ? 'You have been down here before. The way is still open, if you want the Souls.' : `Quest: ${q.title}.`} Floors ${a}-${b}${q.dungeon.boss ? ', and something waiting at the bottom' : ''}.`,
+  };
+}
+
+/** Pick a hero, maybe summon a ghost, then descend. */
+function beginDungeon(q: Quest) {
+  showHeroSelect(
+    () => (q.dungeon.summon && ONLINE ? showSummon(q, enterHollow) : startStory(q, null)),
+    enterHollow,
+    `${esc(q.dungeon.name)} · any hero you own`,
+  );
+}
+
+/** The quest log: what you're on, where to go, and the journal of things you've found. */
+function showQuests(back: () => void = enterHollow) {
+  const s = storyState();
+  const row = (q: Quest) => {
+    const st = questStatus(q, s);
+    const where = st === 'cleared' && q.turnIn ? `Report back to ${SPEAKERS[q.giver]}.` : st === 'done' ? `Done · ${q.reward}` : q.hint;
+    return `<div class="quest ${st}"><b>${st === 'done' ? '✅' : st === 'cleared' ? '❔' : '📜'} ${esc(q.title)}</b><span>${esc(where)}</span></div>`;
+  };
+  const current = QUESTS.filter((q) => ['active', 'cleared'].includes(questStatus(q, s)));
+  const open = QUESTS.filter((q) => questStatus(q, s) === 'available');
+  const done = QUESTS.filter((q) => questStatus(q, s) === 'done');
+  const lore = meta.story.journal.filter((id) => LORE[id]);
+  showOverlay('quests', `
+    <h2>${esc(ACT_TITLE)}</h2>
+    <p class="sub">Main story ${MAIN_QUESTS.filter((q) => s.done.includes(q.n)).length}/${MAIN_QUESTS.length} · side quests ${QUESTS.filter((q) => q.side && s.done.includes(q.n)).length}/${QUESTS.filter((q) => q.side).length}</p>
+    ${houndJoined() ? `<p class="fine">🐕 ${esc(petName(meta.story.choices.hound))} fights beside you in the story · bond ${meta.story.bond}</p>` : ''}
+    <h3 class="shop-head">On the go</h3>
+    <div class="quests">${current.length ? current.map(row).join('') : '<p class="fine">Nothing yet. Look for a ! over someone\'s head.</p>'}</div>
+    ${open.length ? `<h3 class="shop-head">Someone needs help</h3><div class="quests">${open.map((q) => `<div class="quest available"><b>❗ ${esc(q.title)}</b><span>Talk to ${esc(SPEAKERS[q.giver])}.</span></div>`).join('')}</div>` : ''}
+    ${done.length ? `<h3 class="shop-head">Done</h3><div class="quests">${done.map(row).join('')}</div>` : ''}
+    <h3 class="shop-head">Journal <small>${lore.length}/${LORE_COUNT}</small></h3>
+    <div class="quests">${lore.length ? lore.map((id) => `<div class="quest lore"><b>${esc(LORE[id].title)}</b><span>${esc(LORE[id].text)}</span></div>`).join('') : '<p class="fine">Look closer at things that glow in people\'s homes.</p>'}</div>
+    <button class="btn primary" id="back">Back</button>`);
+  on('#back', back);
+}
+
 function talk(lines: Line[], done: () => void, heading = '') {
   let i = 0;
   const next = () => {
@@ -1543,16 +1623,16 @@ function talk(lines: Line[], done: () => void, heading = '') {
   next();
 }
 
-/** Before a chapter: call on another player's ghost from the Endless board, or go alone. */
-function showSummon(ch: Chapter, back: () => void) {
+/** Before a dungeon: call on another player's ghost from the Endless board, or go alone. */
+function showSummon(q: Quest, back: () => void) {
   showOverlay('summon', `
     <img class="hero-portrait story-face" src="${facePortrait('aldric')}" alt="" width="80" height="80" />
     <h2>Summon a shade</h2>
-    <p class="sub">A fallen delver will fight beside you this chapter. They hear about it, and are thanked in Souls.</p>
+    <p class="sub">A fallen delver will fight beside you down there. They hear about it, and are thanked in Souls.</p>
     <div id="shades" class="shades"><p class="sub">Listening to the stones…</p></div>
     <button class="btn" id="alone">Go alone</button>
     <button class="link-btn" id="back">Back</button>`);
-  on('#alone', () => startStory(ch, null));
+  on('#alone', () => startStory(q, null));
   on('#back', back);
   const uid = session.account?.id ?? null;
   void endlessBoard(uid, 25)
@@ -1582,9 +1662,9 @@ function showSummon(ch: Chapter, back: () => void) {
             look: r.outfit_look && LOOK_BY_ID[r.outfit_look] ? r.outfit_look : '',
             head: r.outfit_head && HEAD_BY_ID[r.outfit_head] ? r.outfit_head : '',
           };
-          if (signedIn()) void noteSummon(r.name, ch.n);
+          if (signedIn()) void noteSummon(r.name, q.n);
           toast(`${r.name}'s ${HERO_BY_ID[ghost.hero].name} answers the summons`);
-          startStory(ch, ghost);
+          startStory(q, ghost);
         }),
       );
     })
@@ -1594,23 +1674,25 @@ function showSummon(ch: Chapter, back: () => void) {
     });
 }
 
-function startStory(ch: Chapter, ghost: GhostInfo | null) {
+function startStory(q: Quest, ghost: GhostInfo | null) {
   unlockAudio();
   const hound = houndJoined();
-  const g = new Game('story', hashSeed('story-act1', ch.n), 0, {
+  const d = q.dungeon;
+  const g = new Game('story', hashSeed('story-act1', q.n), 0, {
     hero: meta.hero,
     pool: fullPool(),
     forge: true,
     mercy: true,
     story: {
-      start: ch.floors[0],
-      end: ch.floors[1],
-      gifts: ch.gifts,
+      start: d.floors[0],
+      end: d.floors[1],
+      gifts: d.gifts,
       pet: hound ? houndStats(meta.story.bond) : undefined,
       ghost: ghost ?? undefined,
+      boss: d.boss,
     },
   });
-  storyRun = { chapter: ch, start: ch.floors[0], hound };
+  storyRun = { quest: q, start: d.floors[0], hound };
   clearRun();
   showGame(g);
   startClock();
@@ -1618,16 +1700,26 @@ function startStory(ch: Chapter, ghost: GhostInfo | null) {
   setMusicMood(g.isBossFloor() ? 'boss' : 'crypt');
   hideOverlay();
   sfx.stairs();
-  renderer.banner(`CHAPTER ${ch.n}`, '#9fe8ff');
+  renderer.banner(d.name.toUpperCase(), '#9fe8ff');
 }
 
-/** A chapter ends: won (its last floor cleared) or lost. */
+/** Story dungeons can have words waiting on the boss floor. */
+function storyFloor() {
+  const run = storyRun;
+  const d = run?.quest.dungeon;
+  if (!run || !d?.boss || !d.bossLines || game.floor !== d.boss.floor) return;
+  window.clearTimeout(overlayTimer);
+  overlayTimer = window.setTimeout(() => talk(d.bossLines!, () => hideOverlay(), d.name), 700);
+}
+
+/** A dungeon ends: cleared (its last floor) or lost. */
 function finishStory(won: boolean) {
   const run = storyRun;
   if (!run) return showTitle();
   storyRun = null;
-  const ch = run.chapter;
+  const q = run.quest;
   const cleared = Math.max(0, game.floor - run.start + (won ? 1 : 0));
+  if (run.hound) noteBond(cleared);
   const streak = streakStats(save, dailyNumber());
   const reward = finishRunMeta(game, streak.current);
   const bounty = progressBounties(game, dailyNumber());
@@ -1638,50 +1730,44 @@ function finishStory(won: boolean) {
   celebrateNotes(reward.unlocks);
   window.clearTimeout(overlayTimer);
   if (!won) {
-    if (run.hound) noteBond(cleared);
     overlayTimer = window.setTimeout(() => {
       setMusicMood('fallen');
       showOverlay('story-fallen', `
         <img class="hero-portrait" src="${heroPortrait(game.hero, game.relics, game.relicLog, 8, outfitFor(game.hero).look, outfitFor(game.hero).head)}" alt="" width="96" height="96" />
         <h2 class="dead">The crypt claims you</h2>
-        <p class="sub">Chapter ${ch.n}: ${esc(ch.title)} · floor ${game.floor} · slain by ${esc(game.killedBy)}</p>
+        <p class="sub">${esc(q.dungeon.name)} · floor ${game.floor} · slain by ${esc(game.killedBy)}</p>
         <div class="souls-earned"><b>+${reward.souls} Souls</b><span>💀 ${meta.souls} to spend in the Ossuary</span></div>
-        <p class="talk-quip">${storyText(DEATH_QUIPS[(game.turns + ch.n) % DEATH_QUIPS.length])}</p>
-        <button class="btn primary" id="retry">Try again<small>Same chapter, same crypt</small></button>
-        <button class="btn" id="story">Chapters</button>
-        <button class="btn" id="title">Title</button>`);
-      on('#retry', () => beginChapter(ch, () => showStory()));
-      on('#story', () => showStory());
-      on('#title', () => showTitle());
+        <p class="talk-quip">${storyText(DEATH_QUIPS[(game.turns + q.n) % DEATH_QUIPS.length])}</p>
+        <button class="btn primary" id="retry">Try again<small>Same dungeon, same crypt</small></button>
+        <button class="btn" id="world">Back to Gravesend</button>`);
+      on('#retry', () => beginDungeon(q));
+      on('#world', () => enterHollow());
     }, 1100);
     return;
   }
-  const result = completeChapter(ch.n, ch.souls, run.hound ? cleared : 0);
-  if (result.act) celebrate([result.act]);
+  const status = questStatus(q, storyState());
+  const first = status === 'active';
   setMusicMood('crypt');
-  overlayTimer = window.setTimeout(() =>
-    talk(ch.outro, () => {
-      const unlocked =
-        ch.n === 2 && result.first ? `🐕 ${esc(petName(meta.story.choices.hound))} the Crypt Hound joins you. It trots behind you in every crypt (looks only, outside the story).`
-        : ch.n === 3 && result.first ? "🎨 Aldric's Mantle: a new cloak in the Wardrobe."
-        : ch.n === 5 && result.first ? "🎩 The Warden's Keys: new headwear. 📜 New title: Bell-Seeker."
-        : '';
-      const nextCh = CHAPTER_BY_N[ch.n + 1];
-      sfx.relic();
-      showOverlay('story-won', `
-        <div class="podium-medal">🔔</div>
-        <h2 class="podium-title">Chapter ${ch.n} complete</h2>
-        <p class="sub">${esc(ch.title)}</p>
-        <div class="souls-earned"><b>+${reward.souls + result.souls} Souls</b><span>${result.first ? `Chapter reward +${result.souls} · ` : ''}run +${reward.souls}</span><span>💀 ${meta.souls} to spend in the Ossuary</span></div>
-        ${unlocked ? `<p class="talk-quip">${unlocked}</p>` : ''}
-        ${nextCh ? `<button class="btn primary" id="next-chapter">Chapter ${nextCh.n}: ${esc(nextCh.title)}</button>` : '<p class="talk-quip">Act II: The Plague Abbot is coming. The bell is waiting.</p>'}
-        <button class="btn ${nextCh ? '' : 'primary'}" id="story">Chapters</button>
-        <button class="btn" id="title">Title</button>`);
-      on('#next-chapter', () => nextCh && beginChapter(nextCh, () => showStory()));
-      on('#story', () => showStory());
-      on('#title', () => showTitle());
-    }, `Chapter ${ch.n}: ${ch.title}`),
-  900);
+  overlayTimer = window.setTimeout(() => {
+    // A replay just pays the run; the first clear plays out the story.
+    if (!first) {
+      toast(`${q.dungeon.name} cleared again. +${reward.souls} Souls`);
+      return enterHollow();
+    }
+    talk(q.cleared, () => {
+      if (q.turnIn) {
+        clearQuest(q.n);
+        toast(`📜 ${q.title}: report back to ${SPEAKERS[q.giver]}`);
+        return enterHollow();
+      }
+      finishQuest(q, enterHollow);
+    }, q.dungeon.name);
+  }, 900);
+}
+
+/** The first visit: start the story at Mortimer's door. */
+function placeAtCottage() {
+  setHollowSpot('graveyard', 17, 4);
 }
 
 const DEATH_QUIPS = [
