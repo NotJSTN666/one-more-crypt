@@ -1,6 +1,7 @@
 // Lets the game install as an app and open offline. Always tries the network first so
 // players get new versions straight away; the cache is only a fallback.
-const CACHE = 'omc-v2';
+const CACHE = 'omc-v3';
+const VERSION = 3; // shown on test notifications, to check which version a phone runs
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
@@ -31,11 +32,12 @@ self.addEventListener('push', (e) => {
   } catch {
     data = { body: e.data ? e.data.text() : '' };
   }
+  const at = (path) => new URL(path, self.registration.scope).href;
   e.waitUntil(
     self.registration.showNotification(data.title || 'One More Crypt', {
-      body: data.body || 'A new crypt is open.',
-      icon: './icons/icon-192.png',
-      badge: './icons/badge-96.png',
+      body: (data.body || 'A new crypt is open.') + (data.test ? ` (app v${VERSION})` : ''),
+      icon: at('icons/icon-192.png'),
+      badge: at('icons/badge-96.png'),
       tag: data.tag || 'daily',
       renotify: true,
       data: { url: data.url || './' },

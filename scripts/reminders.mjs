@@ -143,7 +143,7 @@ if (TEST_NAME) {
   const subs = await rest(`push_subs?user_id=eq.${profile.id}&select=endpoint,p256dh,auth`);
   console.log(`${TEST_NAME} has ${subs.length} device(s) signed up.`);
   for (const sub of subs) {
-    await send(sub, { title: 'One More Crypt 🕯️', body: 'Test reminder: notifications are working.', url: SITE }, 1);
+    await send(sub, { title: 'One More Crypt 🕯️', body: 'Test reminder: notifications are working.', url: SITE, test: true }, 1);
   }
   process.exit(0);
 }
