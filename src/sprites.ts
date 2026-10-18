@@ -38,6 +38,13 @@ const PALETTE: Record<string, string> = {
   f: '#8f5cc0', // robe highlight
   j: '#c9c36a', // plague smoke
   Y: '#a8781f', // gold shade
+  // depth-zone residents
+  O: '#ff8a2a', // ember
+  z: '#ffd27a', // flame core
+  t: '#2f6b5a', // pond weed
+  i: '#5fe3ff', // water glint
+  E: '#e0b8ff', // void glow
+  A: '#2a1640', // void dark
 };
 
 type SpriteName = 'player' | EnemyKind | 'potion';

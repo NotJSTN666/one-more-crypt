@@ -7,6 +7,7 @@ import {
   ASCEND_FLOOR, ENDLESS_RELICS, FUSIONS, LEGACY_RELICS, RELICS, RELIC_BY_ID, RARITY_WEIGHT, UNLOCKABLE_RELICS, type FusedId, type FusionDef, type RelicDef, type RelicId, withFusions,
 } from './relics';
 import { hashSeed, mulberry32, randInt, weightedPick, type Rng } from './rng';
+import { zoneAt, type ZoneAt } from './zones';
 
 export const W = 7;
 export const H = 7;
@@ -16,7 +17,10 @@ export interface Pos {
   y: number;
 }
 
-export type EnemyKind = 'ghoul' | 'bat' | 'archer' | 'brute' | 'wraith' | 'boss' | 'abbot' | 'lich' | 'thrall' | 'hound';
+export type EnemyKind =
+  | 'ghoul' | 'bat' | 'archer' | 'brute' | 'wraith' | 'boss' | 'abbot' | 'lich' | 'thrall' | 'hound'
+  // Depth-zone residents (log version 6 and later).
+  | 'drowned' | 'boneknight' | 'imp' | 'voideye';
 
 export interface Enemy {
   id: number;
@@ -63,12 +67,16 @@ export const ENEMY_INFO: Record<EnemyKind, { name: string; hp: number; dmg: numb
   lich: { name: 'The Lich King', hp: 22, dmg: 3 },
   thrall: { name: 'Thrall', hp: 2, dmg: 1 },
   hound: { name: 'Crypt Hound', hp: 4, dmg: 1 },
+  drowned: { name: 'The Drowned', hp: 3, dmg: 1 },
+  boneknight: { name: 'Bone Knight', hp: 3, dmg: 2 },
+  imp: { name: 'Ember Imp', hp: 2, dmg: 1 },
+  voideye: { name: 'Void Eye', hp: 2, dmg: 2 },
 };
 
 export const BOSS_KINDS: EnemyKind[] = ['boss', 'abbot', 'lich'];
 /** The risen dead: the Paladin and the Saint's Rosary hit them harder. */
-export const UNDEAD: EnemyKind[] = ['ghoul', 'archer', 'brute', 'wraith', 'boss', 'lich'];
-const FLYING: EnemyKind[] = ['bat', 'wraith'];
+export const UNDEAD: EnemyKind[] = ['ghoul', 'archer', 'brute', 'wraith', 'boss', 'lich', 'drowned', 'boneknight'];
+export const FLYING: EnemyKind[] = ['bat', 'wraith', 'imp', 'voideye'];
 
 export function isBoss(e: { kind: EnemyKind }): boolean {
   return BOSS_KINDS.includes(e.kind);
@@ -107,7 +115,12 @@ export type GameEvent =
   | { t: 'timestop' }
   | { t: 'toll' }
   | { t: 'fuse'; id: FusedId; from: [RelicId, RelicId] }
-  | { t: 'relic'; id: RelicId };
+  | { t: 'relic'; id: RelicId }
+  /** A bone pile smashed, or a cracked wall struck (`open` once it gives way). */
+  | { t: 'crumble'; x: number; y: number; what: 'bones' | 'crack'; open?: boolean }
+  /** The hidden vault behind a cracked wall, emptied. */
+  | { t: 'vault'; x: number; y: number }
+  | { t: 'lava'; x: number; y: number };
 
 export type Mode = 'daily' | 'endless' | 'story';
 /** `won` ends a story chapter: its last floor is cleared. */
@@ -140,6 +153,8 @@ export interface RunConfig {
   mercy?: boolean;
   /** A story chapter: which floors it spans, relics granted at the start, and who comes along. */
   story?: StoryConfig;
+  /** Depth zones and secret vaults (log version 6 and later). */
+  depths?: boolean;
 }
 
 export interface StoryConfig {
@@ -189,6 +204,8 @@ export interface RunStats {
   dodges: number;
   raised: number;
   lowHpKills: number;
+  /** Secret vaults found behind cracked walls. */
+  vaults: number;
 }
 
 const DIRS: Pos[] = [
@@ -212,6 +229,8 @@ const LOG_VERSION = 3;
 const FORGE_LOG_VERSION = 4;
 /** Runs with the early-game tuning. */
 const MERCY_LOG_VERSION = 5;
+/** Runs with depth zones and secret vaults. */
+const DEPTHS_LOG_VERSION = 6;
 /** One input character per Soul Forge option. */
 const FORGE_KEYS = 'bcdefghijklm';
 const BOW_RANGE = 3;
@@ -225,6 +244,16 @@ export class Game {
   floor = 0;
   walls: boolean[] = [];
   spikes: boolean[] = [];
+  /** Depth-zone ground: shallow water, lava, and bone piles (which block like walls). */
+  water: boolean[] = [];
+  lava: boolean[] = [];
+  bones: boolean[] = [];
+  /** A cracked wall with a vault behind it, and how many more blows it takes. */
+  secret: (Pos & { hp: number }) | null = null;
+  /** The opened vault's treasure, waiting to be picked up. */
+  vault: Pos | null = null;
+  /** Bumped whenever the ground changes mid-floor, so the board is redrawn. */
+  terrain = 0;
   stairs: Pos = { x: 3, y: 0 };
   stairsOpen = false;
   potion: Pos | null = null;
@@ -242,7 +271,7 @@ export class Game {
   killedBy = '';
   stats: RunStats = {
     elites: 0, bosses: {}, spikeKills: 0, maxKillsInTurn: 0, maxHit: 0, cleanFloors: 0, maxAllies: 0, bossAtOneHp: false,
-    arrowKills: 0, revived: false, turnsTo5: 0, kinds: {}, fusions: 0, shadowSteps: 0, dodges: 0, raised: 0, lowHpKills: 0,
+    arrowKills: 0, revived: false, turnsTo5: 0, kinds: {}, fusions: 0, shadowSteps: 0, dodges: 0, raised: 0, lowHpKills: 0, vaults: 0,
   };
   /**
    * Every input, in order: U/D/L/R moves, W waits, 0-3 relic picks, r rests,
@@ -320,7 +349,20 @@ export class Game {
   }
 
   isWall(x: number, y: number): boolean {
-    return this.walls[y * W + x];
+    return this.walls[y * W + x] || this.bones[y * W + x] === true;
+  }
+
+  isWater(x: number, y: number): boolean {
+    return this.water[y * W + x] === true;
+  }
+
+  isLava(x: number, y: number): boolean {
+    return this.lava[y * W + x] === true;
+  }
+
+  /** The depth zone this floor belongs to (always, for the look; its rules need `config.depths`). */
+  get zone(): ZoneAt {
+    return zoneAt(this.floor);
   }
 
   isSpike(x: number, y: number): boolean {
@@ -365,7 +407,7 @@ export class Game {
   header(): string {
     const unlocked = UNLOCKABLE_RELICS.filter((id) => this.config.pool.includes(id));
     // Pools without any post-launch relic are logged as version 2 so they replay with the launch set.
-    const version = this.config.mercy ? MERCY_LOG_VERSION : this.config.forge ? FORGE_LOG_VERSION : this.config.pool.some((id) => !LEGACY_RELICS.includes(id)) ? LOG_VERSION : 2;
+    const version = this.config.depths ? DEPTHS_LOG_VERSION : this.config.mercy ? MERCY_LOG_VERSION : this.config.forge ? FORGE_LOG_VERSION : this.config.pool.some((id) => !LEGACY_RELICS.includes(id)) ? LOG_VERSION : 2;
     return `#${version}|${this.config.hero}|${unlocked.join(',')}|`;
   }
 
@@ -381,6 +423,11 @@ export class Game {
     this.potion = null;
     this.feature = null;
     this.warnings = [];
+    this.water = [];
+    this.lava = [];
+    this.bones = [];
+    this.secret = null;
+    this.vault = null;
     this.spawnEnemies(rng);
     this.placeTraps(rng);
     if (!this.isBossFloor() && floor > 1 && rng() < 0.4) {
@@ -397,6 +444,11 @@ export class Game {
       this.feature = null;
       const spot = this.randomFreeTile(mulberry32(hashSeed(this.seed, 'forge', floor)), 2);
       if (spot) this.feature = { ...spot, kind: 'forge', used: false };
+    }
+    // Zone ground and secret vaults draw on their own seeds, so the rest of the floor is as it was.
+    if (this.config.depths) {
+      this.placeZoneGround();
+      this.placeSecret();
     }
     this.player.x = START.x;
     this.player.y = START.y;
@@ -441,6 +493,11 @@ export class Game {
     this.walls = new Array(W * H).fill(false);
     for (const w of scene.walls ?? []) this.walls[w.y * W + w.x] = true;
     this.spikes = new Array(W * H).fill(false);
+    this.water = [];
+    this.lava = [];
+    this.bones = [];
+    this.secret = null;
+    this.vault = null;
     this.potion = scene.potion ?? null;
     this.feature = null;
     this.warnings = [];
@@ -481,7 +538,7 @@ export class Game {
   private allFloorConnected(): boolean {
     const dist = this.distanceMap(START, false);
     for (let i = 0; i < W * H; i++) {
-      if (!this.walls[i] && dist[i] < 0) return false;
+      if (!this.walls[i] && !this.bones[i] && dist[i] < 0) return false;
     }
     return true;
   }
@@ -512,6 +569,12 @@ export class Game {
       { kind: 'brute', from: this.config.mercy ? 4 : 3, w: 4 },
       { kind: 'wraith', from: 4, w: 5 },
     ];
+    // Each deep zone has a resident.
+    if (this.config.depths) {
+      const resident: Partial<Record<string, EnemyKind>> = { flooded: 'drowned', ossuary: 'boneknight', burning: 'imp', abyss: 'voideye' };
+      const kind = resident[this.zone.def.id];
+      if (kind) roster.push({ kind, from: 11, w: 8 });
+    }
     const pool = roster.filter((p) => f >= p.from);
     const count = Math.min(MAX_ENEMIES - 1, 2 + Math.floor(f / 2));
     const eliteChance = f >= 3 ? Math.min(0.35, 0.06 + 0.025 * f) : 0;
@@ -538,6 +601,114 @@ export class Game {
       const spot = this.randomFreeTile(rng, 2);
       if (spot) this.spikes[spot.y * W + spot.x] = true;
     }
+  }
+
+  /** Open ground for zone tiles: not the start, the stairs, a unit, a pickup or a trap. */
+  private groundFree(x: number, y: number, nearStart = 2): boolean {
+    if (this.isWall(x, y) || this.isSpike(x, y) || this.isWater(x, y) || this.isLava(x, y)) return false;
+    if (Math.abs(x - START.x) + Math.abs(y - START.y) < nearStart) return false;
+    if (Math.abs(x - this.stairs.x) + Math.abs(y - this.stairs.y) < 1) return false;
+    if (this.unitAt(x, y)) return false;
+    if (this.potion && this.potion.x === x && this.potion.y === y) return false;
+    if (this.feature && this.feature.x === x && this.feature.y === y) return false;
+    return true;
+  }
+
+  /** Water pools, bone piles or lava, by zone. The Crypt and the Abyss keep plain ground. */
+  private placeZoneGround() {
+    const zone = this.zone;
+    if (this.isBossFloor() && zone.def.id !== 'flooded') return;
+    const rng = mulberry32(hashSeed(this.seed, 'zone', this.floor));
+    const tiles: Pos[] = [];
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) tiles.push({ x, y });
+    const pick = (ok: (p: Pos) => boolean) => {
+      const options = tiles.filter(ok);
+      return options.length ? options[Math.floor(rng() * options.length)] : null;
+    };
+    if (zone.def.id === 'flooded') {
+      // One or two pools that spread out a few tiles.
+      const pools = randInt(rng, 1, 2);
+      for (let p = 0; p < pools; p++) {
+        let at = pick((t) => this.groundFree(t.x, t.y, 1));
+        for (let n = randInt(rng, 3, 5); at && n > 0; n--) {
+          this.water[at.y * W + at.x] = true;
+          const from: Pos = at;
+          at = pick((t) => Math.abs(t.x - from.x) + Math.abs(t.y - from.y) === 1 && this.groundFree(t.x, t.y, 1));
+        }
+      }
+    } else if (zone.def.id === 'ossuary') {
+      // Bone piles stand like walls, but never cut the floor in two.
+      for (let n = randInt(rng, 2, 4); n > 0; n--) {
+        const at = pick((t) => this.groundFree(t.x, t.y, 2));
+        if (!at) break;
+        this.bones[at.y * W + at.x] = true;
+        if (!this.allFloorConnected()) this.bones[at.y * W + at.x] = false;
+      }
+    } else if (zone.def.id === 'burning') {
+      for (let n = randInt(rng, 2, 4); n > 0; n--) {
+        const at = pick((t) => this.groundFree(t.x, t.y, 3));
+        if (at) this.lava[at.y * W + at.x] = true;
+      }
+    }
+  }
+
+  /** Now and then one wall is cracked, with a vault behind it. */
+  private placeSecret() {
+    if (this.floor < 2 || this.isBossFloor() || this.config.story) return;
+    const rng = mulberry32(hashSeed(this.seed, 'secret', this.floor));
+    if (rng() >= 0.3) return;
+    const spots: Pos[] = [];
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (!this.walls[y * W + x]) continue;
+        if (DIRS.some((d) => this.inBounds(x + d.x, y + d.y) && !this.isWall(x + d.x, y + d.y))) spots.push({ x, y });
+      }
+    }
+    if (!spots.length) return;
+    const at = spots[Math.floor(rng() * spots.length)];
+    this.secret = { ...at, hp: 2 };
+  }
+
+  /** Strike a bone pile or cracked wall. True if there was one to strike. */
+  private strikeGround(x: number, y: number): boolean {
+    if (!this.config.depths) return false;
+    const i = y * W + x;
+    if (this.bones[i]) {
+      this.bones[i] = false;
+      this.terrain++;
+      this.events.push({ t: 'crumble', x, y, what: 'bones' });
+      // Some piles hide a potion.
+      if (!this.potion && mulberry32(hashSeed(this.seed, 'bones', this.floor, i))() < 0.3) this.potion = { x, y };
+      return true;
+    }
+    const s = this.secret;
+    if (s && s.x === x && s.y === y) {
+      s.hp--;
+      if (s.hp > 0) {
+        this.events.push({ t: 'crumble', x, y, what: 'crack' });
+        return true;
+      }
+      this.walls[i] = false;
+      this.secret = null;
+      this.vault = { x, y };
+      this.terrain++;
+      this.events.push({ t: 'crumble', x, y, what: 'crack', open: true });
+      return true;
+    }
+    return false;
+  }
+
+  /** The vault's treasure: a rare relic if one is left, and a little healing. */
+  private openVault() {
+    const v = this.vault;
+    if (!v) return;
+    this.vault = null;
+    this.events.push({ t: 'vault', x: v.x, y: v.y });
+    const rng = mulberry32(hashSeed(this.seed, 'vault', this.floor));
+    const relic = this.randomRelic(rng, (r) => r.rarity === 'rare') ?? this.randomRelic(rng, (r) => r.rarity === 'common');
+    if (relic) this.addRelic(relic.id);
+    this.heal(POTION_HEAL);
+    this.stats.vaults++;
   }
 
   private placeThralls(thralls: Enemy[]) {
@@ -578,7 +749,8 @@ export class Game {
       dead: false,
       ally: false,
       elite: null,
-      shield: 0,
+      // A Bone Knight's shield turns the first blow.
+      shield: kind === 'boneknight' ? 1 : 0,
     };
     this.enemies.push(e);
     return e;
@@ -706,7 +878,12 @@ export class Game {
       this.endTurn();
       return true;
     }
-    if (this.isWall(tx, ty)) return false;
+    if (this.isWall(tx, ty)) {
+      if (!this.strikeGround(tx, ty)) return false;
+      this.events.push({ t: 'pattack', dir: { x: dx, y: dy } });
+      this.endTurn();
+      return true;
+    }
 
     // Step past a thrall by swapping places with it.
     const thrall = this.unitAt(tx, ty);
@@ -723,6 +900,7 @@ export class Game {
       this.events.push({ t: 'potion' });
       this.heal(POTION_HEAL + 2 * this.r('flask') + this.r('chalice'));
     }
+    if (this.vault && this.vault.x === tx && this.vault.y === ty) this.openVault();
     if (this.stairsOpen && tx === this.stairs.x && ty === this.stairs.y) {
       this.turns++;
       this.descend();
@@ -749,10 +927,27 @@ export class Game {
       this.events.push({ t: 'spike', x, y });
       this.hurtPlayer(1, null, 'the spikes');
     }
+    if (this.isLava(x, y) && !this.isOver()) {
+      this.events.push({ t: 'lava', x, y });
+      this.hurtPlayer(this.lavaDamage(), null, 'the lava');
+    }
+  }
+
+  /** Lava hurts more the deeper it runs. */
+  private lavaDamage(): number {
+    return 2 + Math.floor(this.floor / 15);
   }
 
   private unitEnters(e: Enemy) {
-    if (!this.isSpike(e.x, e.y) || e.ally || FLYING.includes(e.kind)) return;
+    if (e.ally || FLYING.includes(e.kind)) return;
+    if (this.isLava(e.x, e.y)) {
+      this.events.push({ t: 'lava', x: e.x, y: e.y });
+      e.burn = Math.max(e.burn, 2);
+      e.burnDmg = Math.max(e.burnDmg, 1 + Math.floor(this.floor / 15));
+      this.damageEnemy(e, this.lavaDamage(), 'burn');
+      if (e.dead) return;
+    }
+    if (!this.isSpike(e.x, e.y)) return;
     this.events.push({ t: 'spike', x: e.x, y: e.y });
     this.damageEnemy(e, 2 + 2 * this.r('caltrops'), 'spike');
     if (e.dead) this.stats.spikeKills++;
@@ -990,6 +1185,11 @@ export class Game {
     e.dead = true;
     e.hp = 0;
     this.events.push({ t: 'kill', id: e.id, x: e.x, y: e.y, kind: e.kind, ally: e.ally, elite: e.elite });
+    // An Ember Imp bursts into a pool of lava.
+    if (e.kind === 'imp' && !this.isWall(e.x, e.y) && !(e.x === this.stairs.x && e.y === this.stairs.y)) {
+      this.lava[e.y * W + e.x] = true;
+      this.terrain++;
+    }
     if (e.ally) return;
 
     this.kills++;
@@ -1266,6 +1466,12 @@ export class Game {
 
   private enemyAct(e: Enemy, dist: number[]) {
     e.turns++;
+    if (this.isWater(e.x, e.y) && !FLYING.includes(e.kind)) {
+      // The Drowned are at home in it; everything else wades, losing every other turn.
+      if (e.kind === 'drowned') {
+        if (e.hp < e.maxHp) e.hp++;
+      } else if (!isBoss(e) && e.turns % 2 === 0) return;
+    }
     switch (e.kind) {
       case 'ghoul':
         this.meleeOrMove(e, dist, false);
@@ -1299,6 +1505,18 @@ export class Game {
         this.lichAct(e, dist);
         break;
       case 'thrall':
+        break;
+      case 'drowned':
+      case 'boneknight':
+        this.meleeOrMove(e, dist, false);
+        break;
+      case 'imp':
+        if (this.adjacentToPlayer(e)) this.attackPlayer(e);
+        else if (this.combat() < 0.35) this.stepRandom(e);
+        else this.stepToward(e, dist, false);
+        break;
+      case 'voideye':
+        this.archerAct(e, dist);
         break;
     }
   }
@@ -1511,7 +1729,8 @@ export class Game {
     const legacy = Number(m[1]) < 3;
     const forge = Number(m[1]) >= FORGE_LOG_VERSION;
     const mercy = Number(m[1]) >= MERCY_LOG_VERSION;
-    return { config: { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy }, inputs: full.slice(m[0].length) };
+    const depths = Number(m[1]) >= DEPTHS_LOG_VERSION;
+    return { config: { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy, ...(depths ? { depths } : {}) }, inputs: full.slice(m[0].length) };
   }
 
   /** Re-simulate a run from its full input log. Used to verify scores and resume runs. */

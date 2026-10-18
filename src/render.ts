@@ -8,6 +8,7 @@ import { heroSprite, relicColor } from './hero';
 import { LOOK_BY_ID } from './progression';
 import { RELIC_BY_ID, type RelicId } from './relics';
 import { SPRITE_SIZE, enemyFrames, sprites } from './sprites';
+import { zoneAt } from './zones';
 
 export const TILE = 16;
 const BOARD_W = W * TILE;
@@ -52,7 +53,7 @@ export class Renderer {
   private scale = 1;
   private game: Game | null = null;
   private bg: HTMLCanvasElement | null = null;
-  private bgFloor = -1;
+  private bgKey = '';
   private disp = new Map<number, Pos>();
   private flashes = new Map<number, number>();
   private lunges = new Map<number, Lunge>();
@@ -112,7 +113,7 @@ export class Renderer {
     this.particles = [];
     this.lines = [];
     this.corpses = [];
-    this.bgFloor = -1;
+    this.bgKey = '';
   }
 
   /** Map a client point to a board tile. */
@@ -142,10 +143,32 @@ export class Renderer {
             const boss = g.enemies.find((e) => isBoss(e));
             const title = boss ? ENEMY_INFO[boss.kind].name.replace(/^The /, '').toUpperCase() : `FLOOR ${ev.floor}`;
             this.floaters.push(this.floater(3, 3, title, '#f2c14e', 1.6));
+            // Crossing into a new depth zone gets its name across the board.
+            const zone = zoneAt(ev.floor);
+            if (zone.start === ev.floor && ev.floor > 1) {
+              this.bannerText = { text: zone.title.toUpperCase(), color: zone.def.color, t: -0.35 };
+            }
           }
           break;
         case 'pattack':
           this.lunges.set(PLAYER_ID, { dx: ev.dir.x, dy: ev.dir.y, t: 0 });
+          break;
+        case 'crumble':
+          this.shake = Math.max(this.shake, ev.open ? 6 : 3);
+          this.burstParticles(ev.x, ev.y, ev.what === 'bones' ? '#e8dcc4' : '#8a7f9a', ev.open ? 22 : 10, 1.2);
+          if (ev.what === 'crack' && !ev.open) this.floaters.push(this.floater(ev.x, ev.y, 'CRACK', '#c9b99a', 0.8));
+          if (ev.open) {
+            this.banner('SECRET VAULT!', '#f2c14e');
+            this.burstParticles(ev.x, ev.y, '#f2c14e', 16, 1.4);
+          }
+          break;
+        case 'vault':
+          this.burstParticles(ev.x, ev.y, '#f2c14e', 24, 1.6);
+          this.burstParticles(ev.x, ev.y, '#fff2c0', 10, 1);
+          break;
+        case 'lava':
+          this.burstParticles(ev.x, ev.y, '#ff8a2a', 10, 1);
+          this.burstParticles(ev.x, ev.y, '#ffd27a', 4, 0.6);
           break;
         case 'eattack':
           this.lunges.set(ev.id, { dx: ev.dir.x, dy: ev.dir.y, t: 0 });
@@ -280,17 +303,21 @@ export class Renderer {
       this.bannerText = null;
       return;
     }
+    // A banner can wait a beat before it shows (zone names follow the floor's opening).
+    if (b.t < 0) return;
     const ctx = this.ctx;
     const grow = Math.min(1, b.t / 0.18);
     const fade = b.t > life - 0.4 ? (life - b.t) / 0.4 : 1;
     ctx.save();
     ctx.globalAlpha = fade;
     ctx.translate(BOARD_W / 2, 28);
-    ctx.scale(0.6 + 0.4 * grow, 0.6 + 0.4 * grow);
-    ctx.textAlign = 'center';
     ctx.font = '20px "Pirata One", serif';
+    // Long names shrink to fit the board.
+    const fit = Math.min(1, (BOARD_W - 6) / ctx.measureText(b.text).width);
+    ctx.scale((0.6 + 0.4 * grow) * fit, (0.6 + 0.4 * grow) * fit);
+    ctx.textAlign = 'center';
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
-    ctx.fillRect(-BOARD_W / 2, -15, BOARD_W, 22);
+    ctx.fillRect(-BOARD_W / 2 / fit, -15, BOARD_W / fit, 22);
     ctx.fillStyle = '#000';
     ctx.fillText(b.text, 1, 3);
     ctx.fillStyle = b.color;
@@ -403,9 +430,10 @@ export class Renderer {
     const dt = this.hitStop > 0 ? 0 : realDt;
     this.hitStop = Math.max(0, this.hitStop - realDt);
     this.time += dt;
-    if (this.bgFloor !== g.floor) {
+    const bgKey = `${g.seed}:${g.floor}:${g.terrain}`;
+    if (this.bgKey !== bgKey) {
       this.bg = this.buildBackground(g);
-      this.bgFloor = g.floor;
+      this.bgKey = bgKey;
     }
 
     const ctx = this.ctx;
@@ -423,6 +451,7 @@ export class Renderer {
     this.drawCandles();
     this.drawStairs(g);
     this.drawSpikes(g);
+    this.drawZoneGround(g);
     this.drawFeature(g);
     if (g.potion) {
       // A pulsing red glow and rising motes so potions read as magic, not fruit.
@@ -584,7 +613,7 @@ export class Renderer {
     if (!e.ally && g.player.x !== e.x) this.facing.set(e.id, g.player.x < e.x ? -1 : 1);
     // Animation: an idle loop (bats beat their wings fast), and the attack pose while striking.
     const frames = enemyFrames(e.kind);
-    const rate = e.kind === 'bat' ? 7 : e.kind === 'wraith' ? 2.2 : isBoss(e) ? 1.6 : 2;
+    const rate = e.kind === 'bat' || e.kind === 'imp' ? 7 : e.kind === 'wraith' || e.kind === 'voideye' ? 2.2 : isBoss(e) ? 1.6 : 2;
     const left = (this.strikes.get(e.id) ?? 0) - dt;
     if (left > 0) this.strikes.set(e.id, left);
     else this.strikes.delete(e.id);
@@ -593,7 +622,7 @@ export class Renderer {
     const spr = e.ghost
       ? heroSprite(e.ghost.hero as HeroId, {}, [], e.ghost.look, e.ghost.head)
       : striking ? frames.attack : frames.idle[Math.floor(this.time * rate + e.id * 0.37) % 2];
-    const flying = e.kind === 'bat' || e.kind === 'wraith' || Boolean(e.ghost);
+    const flying = e.kind === 'bat' || e.kind === 'wraith' || e.kind === 'imp' || e.kind === 'voideye' || Boolean(e.ghost);
     const bob = flying ? Math.round(Math.sin(this.time * (e.ghost ? 2 : 6) + e.id) * 1.5) : 0;
     const onWall = g.isWall(e.x, e.y);
     const alpha = e.ghost ? 0.62 : e.kind === 'wraith' ? (onWall ? 0.45 : 0.8) : 1;
@@ -914,7 +943,7 @@ export class Renderer {
       this.motes.push({ x: Math.random() * BOARD_W, y: Math.random() * BOARD_H, vx: (Math.random() - 0.5) * 3, vy: -1 - Math.random() * 2, t: 0, life: 4 + Math.random() * 4 });
     }
     this.motes = this.motes.filter((m) => (m.t += dt) < m.life);
-    ctx.fillStyle = '#e8dcc4';
+    ctx.fillStyle = this.game ? this.game.zone.def.mote : '#e8dcc4';
     for (const m of this.motes) {
       m.x += (m.vx + Math.sin(this.time + m.life) * 1.5) * dt;
       m.y += m.vy * dt;
@@ -955,10 +984,15 @@ export class Renderer {
     const flicker = Math.sin(this.time * 9) * 1.5 + Math.sin(this.time * 23) * 0.8;
     // Candles and lanterns push the darkness back.
     const light = Math.min(5, g.r('candle') + g.r('lantern'));
-    const grad = ctx.createRadialGradient(cx, cy, 18 + light * 4 + flicker, cx, cy, 95 + light * 14 + flicker * 2);
-    grad.addColorStop(0, 'rgba(255, 170, 80, 0.06)');
-    grad.addColorStop(0.35, 'rgba(10, 4, 16, 0)');
-    grad.addColorStop(1, 'rgba(6, 2, 10, 0.62)');
+    const zone = g.zone.def;
+    // In the Abyss the dark closes right in; candles and lanterns push it back.
+    const dark = zone.id === 'abyss';
+    const inner = dark ? 8 + light * 6 + flicker : 18 + light * 4 + flicker;
+    const outer = dark ? 40 + light * 12 + flicker * 2 : 95 + light * 14 + flicker * 2;
+    const grad = ctx.createRadialGradient(cx, cy, inner, cx, cy, outer);
+    grad.addColorStop(0, zone.light[0]);
+    grad.addColorStop(dark ? 0.2 : 0.35, 'rgba(10, 4, 16, 0)');
+    grad.addColorStop(1, dark ? 'rgba(3, 1, 8, 0.9)' : zone.light[1]);
     ctx.fillStyle = grad;
     ctx.fillRect(-10, -10, BOARD_W + 20, BOARD_H + 20);
     if (this.healFlash > 0) {
@@ -977,13 +1011,17 @@ export class Renderer {
     const rng = mulberry32(hashSeed(g.seed, 'decor', g.floor));
     this.candles = [];
     const boss = g.isBossFloor();
-    const floorTones = boss ? ['#2a1418', '#2f171c', '#261216'] : ['#1d1824', '#211b29', '#1a1520'];
+    const zone = g.zone.def;
+    const floorTones = boss ? zone.bossFloor : zone.floor;
+    const wall = zone.wall;
+    // Real walls only: bone piles block like walls but are drawn as heaps.
+    const wallAt = (x: number, y: number) => g.walls[y * W + x];
 
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
         const px = x * TILE;
         const py = y * TILE;
-        if (g.isWall(x, y)) continue;
+        if (wallAt(x, y)) continue;
         ctx.fillStyle = floorTones[Math.floor(rng() * floorTones.length)];
         ctx.fillRect(px, py, TILE, TILE);
         ctx.fillStyle = 'rgba(0,0,0,0.35)';
@@ -1002,6 +1040,8 @@ export class Renderer {
             cx += rng() < 0.5 ? 1 : -1;
             cy += 1;
           }
+        } else if (r < 0.18 && zone.id !== 'crypt') {
+          this.zoneDecor(ctx, zone.id, px, py, rng);
         } else if (r < 0.18) {
           // scattered bones
           ctx.fillStyle = '#6d6455';
@@ -1023,10 +1063,10 @@ export class Renderer {
     // walls drawn after floor so their drop shadows fall onto it
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
-        if (!g.isWall(x, y)) continue;
+        if (!wallAt(x, y)) continue;
         const px = x * TILE;
         const py = y * TILE;
-        const open = y + 1 < H && !g.isWall(x, y + 1);
+        const open = y + 1 < H && !wallAt(x, y + 1);
         // drop shadow onto the floor below, fading out
         if (open) {
           ctx.fillStyle = 'rgba(0,0,0,0.55)';
@@ -1034,21 +1074,21 @@ export class Renderer {
           ctx.fillStyle = 'rgba(0,0,0,0.25)';
           ctx.fillRect(px, py + TILE + 2, TILE, 2);
         }
-        ctx.fillStyle = '#3a3346';
+        ctx.fillStyle = wall.base;
         ctx.fillRect(px, py, TILE, TILE);
         // lit top edge, and a darker front face where the wall meets open floor
-        ctx.fillStyle = '#5a5070';
+        ctx.fillStyle = wall.top;
         ctx.fillRect(px, py, TILE, 1);
-        ctx.fillStyle = '#4b4259';
+        ctx.fillStyle = wall.face;
         ctx.fillRect(px, py + 1, TILE, 2);
         if (open) {
-          ctx.fillStyle = '#2a2433';
+          ctx.fillStyle = wall.front;
           ctx.fillRect(px, py + TILE - 4, TILE, 4);
-          ctx.fillStyle = '#1d1824';
+          ctx.fillStyle = wall.edge;
           ctx.fillRect(px, py + TILE - 1, TILE, 1);
         }
         // bricks
-        ctx.fillStyle = '#28222f';
+        ctx.fillStyle = wall.brick;
         for (let row = 0; row < 3; row++) {
           const by = py + 4 + row * 4;
           ctx.fillRect(px, by + 3, TILE, 1);
@@ -1056,7 +1096,7 @@ export class Renderer {
           for (let bx = px + off; bx < px + TILE; bx += 8) ctx.fillRect(bx, by, 1, 3);
         }
         if (rng() < 0.25) {
-          ctx.fillStyle = '#3f5a3a';
+          ctx.fillStyle = wall.moss;
           ctx.fillRect(px + 2 + Math.floor(rng() * 10), py + 3, 3, 2);
         }
         if (rng() < 0.15) {
@@ -1070,6 +1110,191 @@ export class Renderer {
         }
       }
     }
+    this.drawStaticGround(ctx, g);
     return c;
+  }
+
+  /** A little zone flavour on the odd floor tile. */
+  private zoneDecor(ctx: CanvasRenderingContext2D, zone: string, px: number, py: number, rng: () => number) {
+    const ox = px + 3 + Math.floor(rng() * 7);
+    const oy = py + 4 + Math.floor(rng() * 7);
+    if (zone === 'flooded') {
+      // a shallow puddle catching the light
+      ctx.fillStyle = 'rgba(95, 227, 255, 0.12)';
+      ctx.fillRect(ox - 1, oy, 6, 2);
+      ctx.fillStyle = 'rgba(160, 235, 255, 0.25)';
+      ctx.fillRect(ox, oy, 2, 1);
+    } else if (zone === 'ossuary') {
+      // a skull
+      ctx.fillStyle = '#c9b99a';
+      ctx.fillRect(ox, oy, 4, 3);
+      ctx.fillRect(ox + 1, oy + 3, 2, 1);
+      ctx.fillStyle = '#201c18';
+      ctx.fillRect(ox + 1, oy + 1, 1, 1);
+      ctx.fillRect(ox + 3, oy + 1, 1, 1);
+    } else if (zone === 'burning') {
+      // a seam of embers
+      ctx.fillStyle = 'rgba(255, 110, 40, 0.55)';
+      let cx = ox;
+      for (let i = 0; i < 5; i++) {
+        ctx.fillRect(cx, oy + i, 1, 1);
+        cx += rng() < 0.5 ? 1 : -1;
+      }
+    } else {
+      // pinpricks of violet, like stars in a well
+      ctx.fillStyle = 'rgba(176, 124, 255, 0.5)';
+      ctx.fillRect(ox, oy, 1, 1);
+      ctx.fillRect(ox + 3, oy + 2, 1, 1);
+    }
+  }
+
+  /** Water, lava beds, bone piles and the cracked wall, baked into the background. */
+  private drawStaticGround(ctx: CanvasRenderingContext2D, g: Game) {
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const px = x * TILE;
+        const py = y * TILE;
+        const n = (dx: number, dy: number, test: (x: number, y: number) => boolean) => g.inBounds(x + dx, y + dy) && test(x + dx, y + dy);
+        if (g.isWater(x, y)) {
+          const wet = (a: number, b: number) => g.isWater(a, b);
+          ctx.fillStyle = '#12384a';
+          ctx.fillRect(px, py, TILE, TILE);
+          ctx.fillStyle = '#185068';
+          ctx.fillRect(px + 1, py + 2, TILE - 2, TILE - 4);
+          // a lip of wet stone where the pool ends
+          ctx.fillStyle = 'rgba(160, 235, 255, 0.35)';
+          if (!n(0, -1, wet)) ctx.fillRect(px, py, TILE, 1);
+          if (!n(-1, 0, wet)) ctx.fillRect(px, py, 1, TILE);
+          if (!n(1, 0, wet)) ctx.fillRect(px + TILE - 1, py, 1, TILE);
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+          if (!n(0, 1, wet)) ctx.fillRect(px, py + TILE - 1, TILE, 1);
+        }
+        if (g.isLava(x, y)) {
+          ctx.fillStyle = '#3a0d06';
+          ctx.fillRect(px, py, TILE, TILE);
+          ctx.fillStyle = '#7a1e08';
+          ctx.fillRect(px + 1, py + 1, TILE - 2, TILE - 2);
+          ctx.fillStyle = '#c2410c';
+          ctx.fillRect(px + 3, py + 3, TILE - 6, TILE - 6);
+          // a cooled crust
+          ctx.fillStyle = '#2a0a05';
+          ctx.fillRect(px + 2, py + 6, 4, 1);
+          ctx.fillRect(px + 9, py + 10, 4, 1);
+          ctx.fillRect(px + 10, py + 3, 2, 1);
+        }
+        if (g.bones[y * W + x]) {
+          // a heap of bones and skulls
+          ctx.fillStyle = 'rgba(0,0,0,0.45)';
+          ctx.fillRect(px + 1, py + 12, TILE - 2, 3);
+          ctx.fillStyle = '#8a7d63';
+          ctx.fillRect(px + 2, py + 8, 12, 5);
+          ctx.fillRect(px + 4, py + 5, 8, 3);
+          ctx.fillStyle = '#c9b99a';
+          ctx.fillRect(px + 3, py + 9, 4, 1);
+          ctx.fillRect(px + 9, py + 7, 4, 1);
+          ctx.fillRect(px + 5, py + 11, 6, 1);
+          ctx.fillStyle = '#e8dcc4';
+          ctx.fillRect(px + 6, py + 4, 4, 3);
+          ctx.fillRect(px + 2, py + 7, 3, 2);
+          ctx.fillStyle = '#201c18';
+          ctx.fillRect(px + 7, py + 5, 1, 1);
+          ctx.fillRect(px + 9, py + 5, 1, 1);
+          ctx.fillRect(px + 3, py + 8, 1, 1);
+        }
+        const sec = g.secret;
+        if (sec && sec.x === x && sec.y === y) {
+          // the crack that gives the vault away
+          // pale chipped edges, then the dark split
+          const cx = px + 7;
+          ctx.fillStyle = 'rgba(255, 240, 210, 0.25)';
+          ctx.fillRect(cx - 1, py + 2, 1, 7);
+          ctx.fillRect(cx + 2, py + 5, 1, 4);
+          ctx.fillStyle = '#0d0812';
+          ctx.fillRect(cx, py + 2, 1, 3);
+          ctx.fillRect(cx + 1, py + 5, 1, 2);
+          ctx.fillRect(cx, py + 7, 1, 2);
+          ctx.fillRect(cx - 1, py + 9, 1, 3);
+          ctx.fillRect(cx + 2, py + 6, 2, 1);
+          ctx.fillRect(cx - 3, py + 10, 2, 1);
+          if (sec.hp < 2) {
+            ctx.fillRect(cx + 3, py + 3, 1, 3);
+            ctx.fillRect(cx - 4, py + 6, 2, 1);
+            ctx.fillRect(cx + 1, py + 11, 3, 1);
+          }
+        }
+      }
+    }
+  }
+
+  /** The live layer of zone ground: shimmering water, seething lava, a draught at the crack, and the vault's prize. */
+  private drawZoneGround(g: Game) {
+    const ctx = this.ctx;
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const px = x * TILE;
+        const py = y * TILE;
+        if (g.isWater(x, y)) {
+          const t = this.time * 1.6 + x * 0.9 + y * 1.3;
+          ctx.fillStyle = 'rgba(160, 235, 255, 0.35)';
+          ctx.fillRect(px + 2 + Math.round((Math.sin(t) + 1) * 3), py + 5, 4, 1);
+          ctx.fillRect(px + 7 + Math.round((Math.cos(t * 0.8) + 1) * 2), py + 10, 3, 1);
+        }
+        if (g.isLava(x, y)) {
+          const pulse = 0.35 + 0.25 * Math.sin(this.time * 3 + x + y * 2);
+          ctx.globalCompositeOperation = 'lighter';
+          const glow = ctx.createRadialGradient(px + 8, py + 8, 1, px + 8, py + 8, TILE);
+          glow.addColorStop(0, `rgba(255, 140, 40, ${pulse})`);
+          glow.addColorStop(1, 'rgba(255, 80, 20, 0)');
+          ctx.fillStyle = glow;
+          ctx.fillRect(px - 8, py - 8, TILE * 2, TILE * 2);
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.fillStyle = '#ffb35a';
+          ctx.fillRect(px + 5 + Math.round(Math.sin(this.time * 2 + x) * 2), py + 8, 2, 1);
+          if (!this.quiet && Math.random() < 0.03) {
+            this.particles.push({ x: px + 4 + Math.random() * 8, y: py + 6 + Math.random() * 6, vx: (Math.random() - 0.5) * 4, vy: -12 - Math.random() * 8, color: Math.random() < 0.5 ? '#ff8a2a' : '#ffd27a', t: 0, life: 0.6, size: 1, grav: -0.2 });
+          }
+        }
+      }
+    }
+    const sec = g.secret;
+    if (sec) {
+      // Light from the vault seeps through the crack.
+      const px = sec.x * TILE + 7;
+      const py = sec.y * TILE;
+      ctx.globalAlpha = 0.35 + 0.35 * Math.sin(this.time * 2.4);
+      ctx.fillStyle = '#f2c14e';
+      ctx.fillRect(px, py + 2, 1, 3);
+      ctx.fillRect(px + 1, py + 5, 1, 2);
+      ctx.fillRect(px, py + 7, 1, 2);
+      ctx.fillRect(px - 1, py + 9, 1, 3);
+      ctx.globalAlpha = 1;
+    }
+    if (sec && !this.quiet && Math.random() < 0.04) {
+      // dust sighing out of the crack
+      this.particles.push({ x: sec.x * TILE + 8, y: sec.y * TILE + 4 + Math.random() * 8, vx: (Math.random() - 0.5) * 6, vy: 4 + Math.random() * 4, color: '#8a7f9a', t: 0, life: 0.8, size: 1, grav: -0.3 });
+    }
+    const v = g.vault;
+    if (v) {
+      const px = v.x * TILE;
+      const py = v.y * TILE;
+      const pulse = 0.4 + 0.25 * Math.sin(this.time * 4);
+      const glow = ctx.createRadialGradient(px + 8, py + 8, 1, px + 8, py + 8, TILE);
+      glow.addColorStop(0, `rgba(242, 193, 78, ${pulse})`);
+      glow.addColorStop(1, 'rgba(242, 193, 78, 0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(px - 8, py - 8, TILE * 2, TILE * 2);
+      // a gilded reliquary
+      const bob = Math.round(Math.sin(this.time * 3));
+      ctx.fillStyle = '#7a5532';
+      ctx.fillRect(px + 3, py + 7 + bob, 10, 6);
+      ctx.fillStyle = '#f2c14e';
+      ctx.fillRect(px + 3, py + 6 + bob, 10, 2);
+      ctx.fillRect(px + 7, py + 8 + bob, 2, 3);
+      ctx.fillStyle = '#fff2c0';
+      ctx.fillRect(px + 4, py + 6 + bob, 2, 1);
+      if (!this.quiet && Math.random() < 0.08) {
+        this.particles.push({ x: px + 3 + Math.random() * 10, y: py + 6, vx: (Math.random() - 0.5) * 3, vy: -10, color: '#f2c14e', t: 0, life: 0.7, size: 1, grav: -0.1 });
+      }
+    }
   }
 }

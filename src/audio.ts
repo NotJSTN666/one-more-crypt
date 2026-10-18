@@ -1,5 +1,7 @@
 // Tiny synthesized sound effects, so there are no audio files to download.
 
+import { zoneAt } from './zones';
+
 let ctx: AudioContext | null = null;
 let muted = false;
 
@@ -141,6 +143,8 @@ const MUSIC_VOLUME = 0.32;
 let musicEnabled = true;
 let mood: Mood = 'crypt';
 let depth = 0; // floor number; 0 means menus
+let zoneKey = 0; // semitones for the current depth zone
+let key = 0; // the key actually playing, changes on bar lines
 let level = 0; // intensity actually playing, changes on bar lines
 let bus: { out: GainNode; wet: GainNode; dry: GainNode; bass: AudioNode } | null = null;
 let noiseBuf: AudioBuffer | null = null;
@@ -171,9 +175,10 @@ export function setMusicMood(next: Mood) {
   applyMusicVolume();
 }
 
-/** Tell the music how deep the hero is (0 for menus) so it can build up. */
+/** Tell the music how deep the hero is (0 for menus) so it can build up, and shift key in each depth zone. */
 export function setMusicDepth(floor: number) {
   depth = floor;
+  zoneKey = floor > 0 ? zoneAt(floor).def.key : 0;
 }
 
 function targetLevel(): number {
@@ -268,7 +273,8 @@ function playStep(i: number, t: number) {
   const s = i % 16;
   const bar = Math.floor(i / 16);
   const chords = CHORDS[mood === 'boss' ? 'boss' : mood === 'fallen' ? 'fallen' : 'crypt'];
-  const chord = chords[bar % chords.length];
+  if (s === 0) key = mood === 'fallen' ? 0 : zoneKey;
+  const chord = chords[bar % chords.length].map((n) => n + key);
   const s16 = 60 / tempo() / 4;
   const L = level;
 

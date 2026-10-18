@@ -5,7 +5,7 @@ import { ACHIEVEMENT_BY_ID, COMBOS, HEROES, HERO_BY_ID, dailyHero, type Achievem
 import { Game, UNDEAD, basePool, fullPool, type Mode, type RunConfig } from './game';
 import { FUSIONS, RELICS, UNLOCKABLE_RELICS, type FusedId, type RelicId } from './relics';
 import {
-  BESTIARY_KINDS, BESTIARY_TITLES, HEADS, HEAD_BY_ID, HERO_CLOAKS, HERO_COSTUMES, LOOKS, LOOK_BY_ID, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_TIER, betterRun, bestiaryTiers, rankIndex,
+  BESTIARY_KINDS, BESTIARY_TITLES, beastPlural, HEADS, HEAD_BY_ID, HERO_CLOAKS, HERO_COSTUMES, LOOKS, LOOK_BY_ID, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_TIER, betterRun, bestiaryTiers, rankIndex,
   type BestRuns, type HeadDef, type LookDef, type Outfit, type RunGoal, type Unlock,
 } from './progression';
 import type { EnemyKind } from './game';
@@ -270,14 +270,20 @@ export function buyRelic(id: RelicId): boolean {
 export const FORGE_DAILY = 2;
 /** Early-game tuning (gentler first floors) starts with Daily #4. */
 export const MERCY_DAILY = 4;
+/** Depth zones and secret vaults reach the daily crypt with Daily #6. */
+export const DEPTHS_DAILY = 6;
 
 /** The daily crypt is identical for everyone; Endless uses your hero and unlocks. */
 export function runConfig(mode: Mode, dailyNo: number): RunConfig {
   // Daily #1 ran with the launch relic set; new relics join from Daily #2.
   // The Soul Forge opens with Daily #2, so everyone in a daily crypt plays the same rules.
-  if (mode === 'daily') return { hero: dailyHero(dailyNo), pool: fullPool(dailyNo <= 1), forge: dailyNo >= FORGE_DAILY, mercy: dailyNo >= MERCY_DAILY };
+  if (mode === 'daily') {
+    const config: RunConfig = { hero: dailyHero(dailyNo), pool: fullPool(dailyNo <= 1), forge: dailyNo >= FORGE_DAILY, mercy: dailyNo >= MERCY_DAILY };
+    if (dailyNo >= DEPTHS_DAILY) config.depths = true;
+    return config;
+  }
   const hero = heroUnlocked(meta.hero) ? meta.hero : 'knight';
-  return { hero, pool: basePool(meta.relics.filter((id) => UNLOCKABLE_RELICS.includes(id))), forge: true, mercy: true };
+  return { hero, pool: basePool(meta.relics.filter((id) => UNLOCKABLE_RELICS.includes(id))), forge: true, mercy: true, depths: true };
 }
 
 // ---------- achievements ----------
@@ -679,7 +685,7 @@ function progressUnlocks(game: Game): UnlockNote[] {
       meta.souls += souls;
       meta.earned += souls;
       const title = paid === TITLE_TIER ? ` · title: ${BESTIARY_TITLES[kind]}` : '';
-      notes.push({ icon: '📜', title: `Bestiary: ${tiers[paid]} ${kind === 'boss' ? 'Bone Wardens' : kind === 'abbot' ? 'Plague Abbots' : kind === 'lich' ? 'Lich Kings' : `${kind}s`}`, detail: `+${souls} Souls${title}` });
+      notes.push({ icon: '📜', title: `Bestiary: ${tiers[paid]} ${beastPlural(kind)}`, detail: `+${souls} Souls${title}` });
       paid++;
     }
     meta.bestiaryTier[kind] = paid;

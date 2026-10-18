@@ -43,7 +43,16 @@ export function rankProgress(earned: number): { next: SoulRank | null; fraction:
 
 // ---------- the Bestiary ----------
 
-export const BESTIARY_KINDS: EnemyKind[] = ['ghoul', 'bat', 'archer', 'brute', 'wraith', 'boss', 'abbot', 'lich'];
+export const BESTIARY_KINDS: EnemyKind[] = ['ghoul', 'bat', 'archer', 'brute', 'wraith', 'drowned', 'boneknight', 'imp', 'voideye', 'boss', 'abbot', 'lich'];
+
+const PLURALS: Partial<Record<EnemyKind, string>> = {
+  boss: 'Bone Wardens', abbot: 'Plague Abbots', lich: 'Lich Kings', drowned: 'Drowned', boneknight: 'Bone Knights', imp: 'Ember Imps', voideye: 'Void Eyes',
+};
+
+/** "ghouls", "Bone Knights": how a Bestiary milestone names a crowd of them. */
+export function beastPlural(kind: EnemyKind): string {
+  return PLURALS[kind] ?? `${kind}s`;
+}
 const BOSSES: EnemyKind[] = ['boss', 'abbot', 'lich'];
 
 /** Kill counts for each milestone tier; bosses are rarer, so their tiers are lower. */
@@ -60,6 +69,10 @@ export const BESTIARY_TITLES: Partial<Record<EnemyKind, string>> = {
   archer: 'Bonebreaker',
   brute: 'Giantslayer',
   wraith: 'Spirit Hunter',
+  drowned: 'Tidebreaker',
+  boneknight: 'Shieldbreaker',
+  imp: 'Flamesnuffer',
+  voideye: 'Voidseer',
   boss: 'Wardenbane',
   abbot: 'Plaguebreaker',
   lich: 'Kingslayer',
@@ -80,7 +93,7 @@ export const TITLES: TitleDef[] = [
   ...BESTIARY_KINDS.map((k) => ({
     id: `beast:${k}`,
     name: BESTIARY_TITLES[k]!,
-    how: `Slay ${bestiaryTiers(k)[TITLE_TIER]} ${k === 'boss' ? 'Bone Wardens' : k === 'abbot' ? 'Plague Abbots' : k === 'lich' ? 'Lich Kings' : `${k}s`}.`,
+    how: `Slay ${bestiaryTiers(k)[TITLE_TIER]} ${beastPlural(k)}.`,
   })),
   ...SOUL_RANKS.slice(1).map((r) => ({ id: `rank:${r.name}`, name: r.name, how: `Earn ${r.souls.toLocaleString()} Souls in total.` })),
   { id: 'podium:1', name: 'Crypt Champion', how: 'Finish 1st in a Daily Descent.' },

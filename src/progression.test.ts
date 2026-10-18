@@ -99,7 +99,7 @@ describe('the Wardrobe', () => {
 describe('enemy art', () => {
   it('every frame is 12x12 and uses known colours', async () => {
     const { ENEMY_ART } = await import('./enemy-art');
-    const known = new Set('.kbBrRgGpPsSywcCnvVoLlDhemqxuNafjY'.split(''));
+    const known = new Set('.kbBrRgGpPsSywcCnvVoLlDhemqxuNafjYOztiEA'.split(''));
     for (const [kind, art] of Object.entries(ENEMY_ART)) {
       for (const frame of [...art.idle, art.attack]) {
         expect(frame, kind).toHaveLength(12);

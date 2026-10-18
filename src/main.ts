@@ -460,7 +460,13 @@ function playSounds(events: GameEvent[]) {
   if (has('stairs')) sfx.stairs();
   if (has('raise') || has('teleport')) sfx.zap();
   if (has('warn')) sfx.block();
-  if (has('spike') || has('eblock')) sfx.hit();
+  if (has('spike') || has('eblock') || has('lava')) sfx.hit();
+  const crumble = events.find((e) => e.t === 'crumble');
+  if (crumble) {
+    sfx.crit();
+    if (crumble.t === 'crumble' && crumble.open) sfx.relic();
+  }
+  if (has('vault')) sfx.relic();
   if (!events.some((e) => e.t !== 'floor')) sfx.step();
 }
 
@@ -693,6 +699,9 @@ function updateTip() {
   else if (game.shadowReady) tip.innerHTML = '<b>Shadowstep:</b> your next step goes unseen. Foes won\'t act.';
   else if (elite) tip.innerHTML = `Glowing foes are elites. <b>${ELITES[elite.elite!].name}:</b> ${ELITES[elite.elite!].desc}`;
   else if (feature) tip.innerHTML = `Step onto the <b>${FEATURES[feature.kind].name}</b> to use it.`;
+  else if (game.vault) tip.innerHTML = 'A <b>secret vault</b> lies open. Step in to claim its treasure.';
+  else if (game.secret) tip.innerHTML = 'That <b>cracked wall</b> sounds hollow. Bump it twice to break through.';
+  else if (game.config.depths && zoneTip(game)) tip.innerHTML = zoneTip(game);
   else if (game.spikes.some(Boolean) && game.turns < 4) tip.innerHTML = '<b>Spikes</b> hurt anything that walks on them. Lure foes across.';
   else if (game.hero === 'ranger' && game.floor <= 2 && game.turns < 8)
     tip.innerHTML = '<b>Longbow:</b> move toward a foe 2-3 tiles away in a straight line to shoot it.';
@@ -705,6 +714,13 @@ function updateTip() {
   else if (game.relicLog.length && game.floor === 2 && game.turns < 40)
     tip.textContent = 'Tap a relic below to read it. Relics stack.';
   else tip.textContent = 'Slay every foe to unseal the stairs.';
+}
+
+/** The current zone's rule, on its first two floors (or while its ground is underfoot). */
+function zoneTip(g: Game): string {
+  const zone = g.zone;
+  if (!zone.def.hint) return '';
+  return g.floor - zone.start < 2 || g.turns % 40 < 6 ? zone.def.hint : '';
 }
 
 // ---------- overlays ----------
@@ -988,6 +1004,8 @@ function showHelp(back: () => void) {
     <ul class="help">
       <li>Shrines, chests and fountains offer <b>deals</b>. Step on them to choose.</li>
       <li>After each boss, a <b>Soul Forge</b> waits on the next floor. Fuse two of your relics into a stronger one.</li>
+      <li>Every 10 floors the crypt becomes somewhere new: the <b>Flooded Catacombs</b>, the <b>Charnel Halls</b>, the <b>Burning Depths</b> and the <b>Abyss</b>, each with its own ground and foes.</li>
+      <li>Some walls are <b>cracked</b>. Bump one twice to find a secret vault.</li>
       <li><b>Spikes</b> hurt anything that steps on them, foes included.</li>
       <li>Every run earns <b>Souls</b>. Spend them in the <b>Ossuary</b> on new heroes and relics.</li>
       <li>The <b>Daily Descent</b> is the same crypt and hero for everyone, once a day. Share your depth.</li>
