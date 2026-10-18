@@ -3,6 +3,7 @@
 // send you down into dungeons. Story runs never touch the daily or the leaderboards.
 
 import type { EnemyKind } from './game';
+import type { ZoneId } from './zones';
 
 export type Speaker = 'gravedigger' | 'aldric' | 'warden' | 'hound' | 'bess' | 'agnes' | 'pip' | 'hero' | 'narrator';
 /** People you can talk to in the world. */
@@ -29,6 +30,8 @@ export interface Dungeon {
   gifts: number;
   summon?: boolean;
   boss?: { floor: number; kind: EnemyKind };
+  /** What the place looks like down there (and the ground it brings). */
+  look?: ZoneId;
   /** Said when the boss floor opens. */
   bossLines?: Line[];
 }
@@ -113,7 +116,7 @@ export const QUESTS: Quest[] = [
     title: 'The Kennel',
     giver: 'gravedigger',
     needs: 1,
-    dungeon: { name: 'The Kennel Cellar', floors: [2, 8], gifts: 1 },
+    dungeon: { name: 'The Kennel Cellar', floors: [2, 8], gifts: 1, look: 'kennel' },
     souls: 200,
     reward: 'A companion',
     hint: 'The old kennels are north of the village. Go down into the Kennel Cellar.',
@@ -153,7 +156,7 @@ export const QUESTS: Quest[] = [
     title: 'The Hollow Knight',
     giver: 'aldric',
     needs: 2,
-    dungeon: { name: 'The Flooded Crypt', floors: [3, 9], gifts: 2 },
+    dungeon: { name: 'The Flooded Crypt', floors: [3, 9], gifts: 2, look: 'flooded' },
     souls: 250,
     reward: "Aldric's Mantle, a cloak",
     hint: 'Sir Aldric haunts the ruined chapel, east of the village. The Flooded Crypt lies beneath it.',
@@ -183,6 +186,7 @@ export const QUESTS: Quest[] = [
     dungeon: {
       name: "The Warden's Stair",
       floors: [4, 10],
+      look: 'ossuary',
       gifts: 3,
       summon: true,
       boss: { floor: 10, kind: 'boss' },
@@ -222,7 +226,7 @@ export const QUESTS: Quest[] = [
     side: true,
     giver: 'agnes',
     needs: 1,
-    dungeon: { name: 'The Village Well', floors: [1, 4], gifts: 0 },
+    dungeon: { name: 'The Village Well', floors: [1, 4], gifts: 0, look: 'well' },
     souls: 150,
     reward: "The Widow's Shawl, a cloak",
     hint: 'Climb down the village well and find Agnes\'s ring.',
@@ -250,7 +254,7 @@ export const QUESTS: Quest[] = [
     side: true,
     giver: 'pip',
     needs: 1,
-    dungeon: { name: 'The Old Mine', floors: [3, 7], gifts: 1 },
+    dungeon: { name: 'The Old Mine', floors: [3, 7], gifts: 1, look: 'mine' },
     souls: 200,
     reward: "Smith's Goggles, headwear",
     hint: 'The Old Mine is in the woods by the kennels. Bring Pip some blue coal.',
@@ -276,7 +280,7 @@ export const QUESTS: Quest[] = [
     side: true,
     giver: 'bess',
     needs: 1,
-    dungeon: { name: 'The Tavern Cellar', floors: [2, 6], gifts: 1 },
+    dungeon: { name: 'The Tavern Cellar', floors: [2, 6], gifts: 1, look: 'cellar' },
     souls: 150,
     reward: 'The Tavern Regular title',
     hint: "Go down Bess's cellar stairs, behind the bar of the tavern.",

@@ -1024,11 +1024,26 @@ export class Renderer {
         if (wallAt(x, y)) continue;
         ctx.fillStyle = floorTones[Math.floor(rng() * floorTones.length)];
         ctx.fillRect(px, py, TILE, TILE);
-        ctx.fillStyle = 'rgba(0,0,0,0.35)';
-        ctx.fillRect(px, py + TILE - 1, TILE, 1);
-        ctx.fillRect(px + TILE - 1, py, 1, TILE);
-        ctx.fillStyle = 'rgba(255,255,255,0.03)';
-        ctx.fillRect(px, py, TILE, 1);
+        if (zone.floorStyle === 'dirt') {
+          // packed earth: no flagstones, just grit
+          for (let k = 0; k < 5; k++) {
+            ctx.fillStyle = rng() < 0.5 ? 'rgba(0,0,0,0.25)' : 'rgba(255,240,210,0.05)';
+            ctx.fillRect(px + Math.floor(rng() * 15), py + Math.floor(rng() * 15), 1, 1);
+          }
+        } else if (zone.floorStyle === 'boards') {
+          // floorboards, with staggered joints
+          ctx.fillStyle = 'rgba(0,0,0,0.35)';
+          for (let b = 3; b < TILE; b += 4) ctx.fillRect(px, py + b, TILE, 1);
+          for (let b = 0; b < 4; b++) ctx.fillRect(px + ((x * 5 + y * 3 + b * 7) % 13) + 1, py + b * 4, 1, 3);
+          ctx.fillStyle = 'rgba(255,220,170,0.04)';
+          ctx.fillRect(px, py, TILE, 1);
+        } else {
+          ctx.fillStyle = 'rgba(0,0,0,0.35)';
+          ctx.fillRect(px, py + TILE - 1, TILE, 1);
+          ctx.fillRect(px + TILE - 1, py, 1, TILE);
+          ctx.fillStyle = 'rgba(255,255,255,0.03)';
+          ctx.fillRect(px, py, TILE, 1);
+        }
         const r = rng();
         if (r < 0.12) {
           // crack
@@ -1087,13 +1102,26 @@ export class Renderer {
           ctx.fillStyle = wall.edge;
           ctx.fillRect(px, py + TILE - 1, TILE, 1);
         }
-        // bricks
         ctx.fillStyle = wall.brick;
-        for (let row = 0; row < 3; row++) {
-          const by = py + 4 + row * 4;
-          ctx.fillRect(px, by + 3, TILE, 1);
-          const off = row % 2 ? 4 : 0;
-          for (let bx = px + off; bx < px + TILE; bx += 8) ctx.fillRect(bx, by, 1, 3);
+        if (zone.wallStyle === 'plank') {
+          // upright boards with a nail or two
+          for (let bx = px + 3; bx < px + TILE; bx += 4) ctx.fillRect(bx, py + 3, 1, open ? 9 : 13);
+          ctx.fillStyle = '#a89a80';
+          ctx.fillRect(px + 1 + (x % 2) * 4, py + 5, 1, 1);
+          ctx.fillRect(px + 9 + (y % 2) * 4, py + 10, 1, 1);
+        } else if (zone.wallStyle === 'rock') {
+          // rough-hewn rock, no courses
+          for (let k = 0; k < 4; k++) ctx.fillRect(px + Math.floor(rng() * 12), py + 4 + Math.floor(rng() * 8), 2 + Math.floor(rng() * 3), 1 + Math.floor(rng() * 2));
+          ctx.fillStyle = wall.top;
+          ctx.fillRect(px + 2 + Math.floor(rng() * 10), py + 4 + Math.floor(rng() * 6), 2, 1);
+        } else {
+          // bricks
+          for (let row = 0; row < 3; row++) {
+            const by = py + 4 + row * 4;
+            ctx.fillRect(px, by + 3, TILE, 1);
+            const off = row % 2 ? 4 : 0;
+            for (let bx = px + off; bx < px + TILE; bx += 8) ctx.fillRect(bx, by, 1, 3);
+          }
         }
         if (rng() < 0.25) {
           ctx.fillStyle = wall.moss;
@@ -1132,6 +1160,44 @@ export class Renderer {
       ctx.fillStyle = '#201c18';
       ctx.fillRect(ox + 1, oy + 1, 1, 1);
       ctx.fillRect(ox + 3, oy + 1, 1, 1);
+    } else if (zone === 'kennel') {
+      // straw, and a paw print
+      ctx.fillStyle = '#b8964a';
+      ctx.fillRect(ox - 1, oy + 1, 4, 1);
+      ctx.fillRect(ox + 2, oy, 3, 1);
+      ctx.fillRect(ox, oy + 2, 2, 1);
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.fillRect(ox + 5, oy + 3, 2, 2);
+      ctx.fillRect(ox + 4, oy + 2, 1, 1);
+      ctx.fillRect(ox + 7, oy + 2, 1, 1);
+    } else if (zone === 'well') {
+      // moss, and a drip pooling
+      ctx.fillStyle = '#3f7a4a';
+      ctx.fillRect(ox, oy, 3, 2);
+      ctx.fillRect(ox + 1, oy - 1, 2, 1);
+      ctx.fillStyle = 'rgba(150, 240, 210, 0.2)';
+      ctx.fillRect(ox + 4, oy + 3, 3, 1);
+    } else if (zone === 'mine') {
+      // loose rubble, and now and then a lump of blue coal
+      ctx.fillStyle = '#4a423b';
+      ctx.fillRect(ox, oy + 2, 2, 2);
+      ctx.fillRect(ox + 3, oy + 3, 1, 1);
+      if (rng() < 0.4) {
+        ctx.fillStyle = '#1f4a63';
+        ctx.fillRect(ox + 4, oy, 3, 2);
+        ctx.fillStyle = '#5fe3ff';
+        ctx.fillRect(ox + 5, oy, 1, 1);
+      }
+    } else if (zone === 'cellar') {
+      // a spilt-ale stain, or a lost cork
+      if (rng() < 0.5) {
+        ctx.fillStyle = 'rgba(168, 120, 31, 0.35)';
+        ctx.fillRect(ox - 1, oy, 5, 2);
+        ctx.fillRect(ox, oy - 1, 3, 4);
+      } else {
+        ctx.fillStyle = '#7a5532';
+        ctx.fillRect(ox, oy, 2, 2);
+      }
     } else if (zone === 'burning') {
       // a seam of embers
       ctx.fillStyle = 'rgba(255, 110, 40, 0.55)';

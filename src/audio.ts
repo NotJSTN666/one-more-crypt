@@ -176,9 +176,9 @@ export function setMusicMood(next: Mood) {
 }
 
 /** Tell the music how deep the hero is (0 for menus) so it can build up, and shift key in each depth zone. */
-export function setMusicDepth(floor: number) {
+export function setMusicDepth(floor: number, key = floor > 0 ? zoneAt(floor).def.key : 0) {
   depth = floor;
-  zoneKey = floor > 0 ? zoneAt(floor).def.key : 0;
+  zoneKey = key;
 }
 
 function targetLevel(): number {

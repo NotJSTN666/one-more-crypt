@@ -89,7 +89,7 @@ function startRun(mode: Mode) {
   newGame(mode);
   startClock();
   saveRun();
-  setMusicDepth(game.floor);
+  setMusicDepth(game.floor, game.zone.def.key);
   setMusicMood(game.isBossFloor() ? 'boss' : 'crypt');
   hideOverlay();
   sfx.stairs();
@@ -289,7 +289,7 @@ function resumeRun(g: Game) {
   unlockAudio();
   startClock(savedSeconds());
   showGame(g);
-  setMusicDepth(g.floor);
+  setMusicDepth(g.floor, g.zone.def.key);
   setMusicMood(g.isBossFloor() ? 'boss' : 'crypt');
   hideOverlay();
   sfx.stairs();
@@ -405,7 +405,7 @@ function processEvents() {
   playSounds(events);
   if (tutorial) return tutorialEvents(events);
   if (events.some((e) => e.t === 'floor')) {
-    setMusicDepth(game.floor);
+    setMusicDepth(game.floor, game.zone.def.key);
     setMusicMood(game.isBossFloor() ? 'boss' : 'crypt');
     if (game.mode === 'story') storyFloor();
   }
@@ -701,7 +701,7 @@ function updateTip() {
   else if (feature) tip.innerHTML = `Step onto the <b>${FEATURES[feature.kind].name}</b> to use it.`;
   else if (game.vault) tip.innerHTML = 'A <b>secret vault</b> lies open. Step in to claim its treasure.';
   else if (game.secret) tip.innerHTML = 'That <b>cracked wall</b> sounds hollow. Bump it twice to break through.';
-  else if (game.config.depths && zoneTip(game)) tip.innerHTML = zoneTip(game);
+  else if ((game.config.depths || game.config.story?.look) && zoneTip(game)) tip.innerHTML = zoneTip(game);
   else if (game.spikes.some(Boolean) && game.turns < 4) tip.innerHTML = '<b>Spikes</b> hurt anything that walks on them. Lure foes across.';
   else if (game.hero === 'ranger' && game.floor <= 2 && game.turns < 8)
     tip.innerHTML = '<b>Longbow:</b> move toward a foe 2-3 tiles away in a straight line to shoot it.';
@@ -1708,13 +1708,14 @@ function startStory(q: Quest, ghost: GhostInfo | null) {
       pet: hound ? houndStats(meta.story.bond) : undefined,
       ghost: ghost ?? undefined,
       boss: d.boss,
+      look: d.look,
     },
   });
   storyRun = { quest: q, start: d.floors[0], hound };
   clearRun();
   showGame(g);
   startClock();
-  setMusicDepth(g.floor);
+  setMusicDepth(g.floor, g.zone.def.key);
   setMusicMood(g.isBossFloor() ? 'boss' : 'crypt');
   hideOverlay();
   sfx.stairs();

@@ -7,7 +7,7 @@ import {
   ASCEND_FLOOR, ENDLESS_RELICS, FUSIONS, LEGACY_RELICS, RELICS, RELIC_BY_ID, RARITY_WEIGHT, UNLOCKABLE_RELICS, type FusedId, type FusionDef, type RelicDef, type RelicId, withFusions,
 } from './relics';
 import { hashSeed, mulberry32, randInt, weightedPick, type Rng } from './rng';
-import { zoneAt, type ZoneAt } from './zones';
+import { ZONES, zoneAt, type ZoneAt, type ZoneId } from './zones';
 
 export const W = 7;
 export const H = 7;
@@ -167,6 +167,8 @@ export interface StoryConfig {
   ghost?: GhostInfo;
   /** The one boss floor in this story dungeon, and who waits there. Without it there are none. */
   boss?: { floor: number; kind: EnemyKind };
+  /** The place this dungeon is: its look, and ground such as water or bone piles. */
+  look?: ZoneId;
 }
 
 /** Daily runs use every relic; Endless only the unlocked ones. */
@@ -362,6 +364,8 @@ export class Game {
 
   /** The depth zone this floor belongs to (always, for the look; its rules need `config.depths`). */
   get zone(): ZoneAt {
+    const look = this.config.story?.look;
+    if (look) return { def: ZONES[look], tier: 1, start: this.config.story!.start, title: ZONES[look].name };
     return zoneAt(this.floor);
   }
 
@@ -446,10 +450,8 @@ export class Game {
       if (spot) this.feature = { ...spot, kind: 'forge', used: false };
     }
     // Zone ground and secret vaults draw on their own seeds, so the rest of the floor is as it was.
-    if (this.config.depths) {
-      this.placeZoneGround();
-      this.placeSecret();
-    }
+    if (this.config.depths || this.config.story?.look) this.placeZoneGround();
+    if (this.config.depths) this.placeSecret();
     this.player.x = START.x;
     this.player.y = START.y;
     this.placeThralls(thralls);
@@ -625,7 +627,7 @@ export class Game {
       const options = tiles.filter(ok);
       return options.length ? options[Math.floor(rng() * options.length)] : null;
     };
-    if (zone.def.id === 'flooded') {
+    if (zone.def.id === 'flooded' || zone.def.id === 'well') {
       // One or two pools that spread out a few tiles.
       const pools = randInt(rng, 1, 2);
       for (let p = 0; p < pools; p++) {
@@ -671,7 +673,6 @@ export class Game {
 
   /** Strike a bone pile or cracked wall. True if there was one to strike. */
   private strikeGround(x: number, y: number): boolean {
-    if (!this.config.depths) return false;
     const i = y * W + x;
     if (this.bones[i]) {
       this.bones[i] = false;

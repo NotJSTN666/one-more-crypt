@@ -2,7 +2,10 @@
 // music key, hazard and resident foe. Past floor 100 the four deep zones come round
 // again, harder, with a numeral on the name.
 
-export type ZoneId = 'crypt' | 'flooded' | 'ossuary' | 'burning' | 'abyss';
+export type ZoneId =
+  | 'crypt' | 'flooded' | 'ossuary' | 'burning' | 'abyss'
+  // Story dungeons that are somewhere in particular.
+  | 'kennel' | 'well' | 'mine' | 'cellar';
 
 export interface ZoneDef {
   id: ZoneId;
@@ -20,6 +23,9 @@ export interface ZoneDef {
   light: [string, string];
   /** Drifting motes. */
   mote: string;
+  /** How the ground and walls are built (dressed stone unless said). */
+  floorStyle?: 'stone' | 'dirt' | 'boards';
+  wallStyle?: 'brick' | 'plank' | 'rock';
 }
 
 export const ZONES: Record<ZoneId, ZoneDef> = {
@@ -82,6 +88,59 @@ export const ZONES: Record<ZoneId, ZoneDef> = {
     wall: { base: '#2a2140', top: '#4a3a6e', face: '#382c55', front: '#1c1530', edge: '#0f0b18', brick: '#221a35', moss: '#4a2a6e' },
     light: ['rgba(176, 124, 255, 0.07)', 'rgba(3, 1, 8, 0.72)'],
     mote: '#b07cff',
+  },
+  kennel: {
+    id: 'kennel',
+    name: 'The Kennel Cellar',
+    color: '#e0a85a',
+    hint: '',
+    key: 2,
+    floor: ['#2a2016', '#2e2318', '#261c13'],
+    bossFloor: ['#2e1a14', '#331d16', '#2a1712'],
+    wall: { base: '#4a3420', top: '#7a5a36', face: '#5e4228', front: '#332314', edge: '#1e140b', brick: '#2e1f12', moss: '#8a7a3a' },
+    light: ['rgba(255, 190, 110, 0.09)', 'rgba(10, 6, 2, 0.6)'],
+    mote: '#d8b878',
+    floorStyle: 'dirt',
+    wallStyle: 'plank',
+  },
+  well: {
+    id: 'well',
+    name: 'The Village Well',
+    color: '#8fe0c0',
+    hint: 'Foes wading through <b>water</b> lose every other turn.',
+    key: -3,
+    floor: ['#1a2422', '#1d2826', '#16201e'],
+    bossFloor: ['#1a2422', '#1d2826', '#16201e'],
+    wall: { base: '#34443e', top: '#566e64', face: '#42564e', front: '#24302c', edge: '#121a18', brick: '#2a3632', moss: '#3f7a4a' },
+    light: ['rgba(150, 240, 210, 0.06)', 'rgba(2, 8, 8, 0.68)'],
+    mote: '#a8e8d0',
+  },
+  mine: {
+    id: 'mine',
+    name: 'The Old Mine',
+    color: '#5fe3ff',
+    hint: '',
+    key: -5,
+    floor: ['#221e1c', '#26211e', '#1e1a18'],
+    bossFloor: ['#2a1c1a', '#2e1f1c', '#261917'],
+    wall: { base: '#3c3530', top: '#5e544a', face: '#4a423b', front: '#2a2420', edge: '#151210', brick: '#2e2824', moss: '#5fe3ff' },
+    light: ['rgba(255, 200, 120, 0.08)', 'rgba(6, 4, 2, 0.66)'],
+    mote: '#c9b99a',
+    floorStyle: 'dirt',
+    wallStyle: 'rock',
+  },
+  cellar: {
+    id: 'cellar',
+    name: 'The Tavern Cellar',
+    color: '#f2c14e',
+    hint: '',
+    key: 4,
+    floor: ['#2e2016', '#33231a', '#2a1d14'],
+    bossFloor: ['#331c16', '#381f18', '#2e1913'],
+    wall: { base: '#4a2a22', top: '#7a463a', face: '#5e362c', front: '#33201a', edge: '#1e120e', brick: '#2e1a14', moss: '#5a4a2a' },
+    light: ['rgba(255, 180, 90, 0.1)', 'rgba(10, 5, 2, 0.58)'],
+    mote: '#e8c890',
+    floorStyle: 'boards',
   },
 };
 

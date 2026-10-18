@@ -112,4 +112,22 @@ describe('depth zones', () => {
       }
     }
   });
+
+  it('dresses story dungeons as the places they are', () => {
+    const story = (look?: 'well' | 'ossuary' | 'mine', seed = 5) =>
+      new Game('story', seed, 0, { hero: 'knight', pool: fullPool(), story: { start: 3, end: 6, gifts: 0, ...(look ? { look } : {}) } });
+    let water = 0;
+    let bones = 0;
+    for (let seed = 1; seed <= 20; seed++) {
+      water += story('well', seed).water.filter(Boolean).length;
+      bones += story('ossuary', seed).bones.filter(Boolean).length;
+      const plain = story(undefined, seed);
+      expect(plain.water.length + plain.bones.length + plain.lava.length).toBe(0);
+      expect(story('mine', seed).secret).toBeNull();
+    }
+    expect(water).toBeGreaterThan(20);
+    expect(bones).toBeGreaterThan(20);
+    expect(story('mine').zone.def.name).toBe('The Old Mine');
+    expect(story().zone.def.id).toBe('crypt');
+  });
 });
