@@ -4,10 +4,12 @@
 
 import { HERO_BY_ID, dailyHero, type HeroId } from '../src/content';
 import { dailyNumber } from '../src/daily';
-import { Game, type Mode } from '../src/game';
+import { Game, type EnemyKind, type Mode } from '../src/game';
 import { heroSprite } from '../src/hero';
 import { FUSED_RELICS, RELICS, type RelicId } from '../src/relics';
+import { hashSeed, mulberry32 } from '../src/rng';
 import { sprites } from '../src/sprites';
+import { ZONES, type ZoneDef, type ZoneId } from '../src/zones';
 
 export const W = 1200;
 export const H = 675;
@@ -61,21 +63,135 @@ function pixels(rows: string[], cols: Record<string, string>, x: number, y: numb
   });
 }
 
+// ---------- the day's look ----------
+
+/** Every place the crypt can look like, in the game and in the story. */
+const LOOKS: ZoneId[] = ['crypt', 'flooded', 'ossuary', 'burning', 'abyss', 'kennel', 'well', 'mine', 'cellar'];
+
+/** Who lurks in each look, front to back. */
+const FOES: Record<ZoneId, EnemyKind[]> = {
+  crypt: ['ghoul', 'archer', 'wraith', 'brute', 'bat'],
+  flooded: ['drowned', 'ghoul', 'wraith', 'drowned', 'bat'],
+  ossuary: ['boneknight', 'archer', 'ghoul', 'boneknight', 'bat'],
+  burning: ['ghoul', 'imp', 'brute', 'archer', 'imp'],
+  abyss: ['wraith', 'voideye', 'ghoul', 'brute', 'voideye'],
+  kennel: ['hound', 'ghoul', 'hound', 'brute', 'bat'],
+  well: ['drowned', 'ghoul', 'drowned', 'wraith', 'bat'],
+  mine: ['ghoul', 'archer', 'brute', 'ghoul', 'bat'],
+  cellar: ['ghoul', 'bat', 'brute', 'archer', 'bat'],
+};
+
+/**
+ * Each day's cards wear one of the crypt's looks: the same all day, a new one tomorrow.
+ * The looks are shuffled in runs of nine days, so every one comes round and none repeats
+ * within a run.
+ */
+export function cardLook(dailyNo: number): ZoneDef {
+  const run = Math.floor((dailyNo - 1) / LOOKS.length);
+  const rng = mulberry32(hashSeed('card-look', run));
+  const order = [...LOOKS];
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  return ZONES[order[(dailyNo - 1) % LOOKS.length]];
+}
+
+let look: ZoneDef = ZONES.crypt;
+
+/** The look's headline colour: the brand's blood red in the plain crypt, the place's own colour elsewhere. */
+const accent = () => (look.id === 'crypt' ? '#d23a46' : look.color);
+
+/** A colour at some opacity, for glows. */
+function rgba(hex: string, a: number) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${n >> 16}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+}
+
+/** The look's ground: flagstones, packed earth or floorboards, with a touch of what's on it. */
+function floorBand(top: number, bottom: number, width: number, tile: number) {
+  for (let x = 0; x < width; x += tile) {
+    for (let y = top; y < bottom; y += tile) {
+      const i = x / tile + (y - top) / tile;
+      ctx.fillStyle = look.floor[i % look.floor.length];
+      ctx.fillRect(x, y, tile, tile);
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      if (look.floorStyle === 'boards') {
+        for (let b = tile / 4 - 3; b < tile; b += tile / 4) ctx.fillRect(x, y + b, tile, 3);
+      } else if (look.floorStyle !== 'dirt') {
+        ctx.fillRect(x, y + tile - 4, tile, 4);
+        ctx.fillRect(x + tile - 4, y, 4, tile);
+      }
+    }
+  }
+  // something underfoot
+  let r = 17;
+  const rand = () => ((r = (r * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  for (let k = 0; k < width / 160; k++) {
+    const x = Math.floor(rand() * width);
+    const y = top + 10 + Math.floor(rand() * (bottom - top - 30));
+    if (look.id === 'flooded' || look.id === 'well') {
+      ctx.fillStyle = rgba('#5fe3ff', 0.18);
+      ctx.fillRect(x, y, 70, 10);
+      ctx.fillStyle = rgba('#a0ebff', 0.3);
+      ctx.fillRect(x + 10, y, 24, 3);
+    } else if (look.id === 'burning') {
+      ctx.fillStyle = rgba('#ff6a28', 0.55);
+      for (let i = 0; i < 6; i++) ctx.fillRect(x + i * 5 + (i % 2) * 3, y + i * 4, 5, 4);
+    } else if (look.id === 'ossuary') {
+      ctx.fillStyle = '#c9b99a';
+      ctx.fillRect(x, y, 16, 12);
+      ctx.fillRect(x + 4, y + 12, 8, 4);
+      ctx.fillStyle = '#201c18';
+      ctx.fillRect(x + 4, y + 4, 3, 3);
+      ctx.fillRect(x + 10, y + 4, 3, 3);
+    } else if (look.id === 'kennel') {
+      ctx.fillStyle = '#b8964a';
+      ctx.fillRect(x, y, 26, 3);
+      ctx.fillRect(x + 8, y - 4, 20, 3);
+    } else if (look.id === 'mine') {
+      ctx.fillStyle = '#1f4a63';
+      ctx.fillRect(x, y, 14, 9);
+      ctx.fillStyle = '#5fe3ff';
+      ctx.fillRect(x + 3, y, 4, 3);
+    } else if (look.id === 'cellar') {
+      ctx.fillStyle = rgba('#a8781f', 0.35);
+      ctx.fillRect(x, y, 34, 10);
+    } else if (look.id === 'abyss') {
+      ctx.fillStyle = rgba('#b07cff', 0.6);
+      ctx.fillRect(x, y, 4, 4);
+    }
+  }
+}
+
+/** A band of the look's wall: brick courses, upright planks or rough rock. */
+function wallBand(top: number, bottom: number, width: number) {
+  ctx.fillStyle = look.wall.base;
+  ctx.fillRect(0, top, width, bottom - top);
+  ctx.fillStyle = look.wall.brick;
+  if (look.wallStyle === 'plank') {
+    for (let x = 22; x < width; x += 26) ctx.fillRect(x, top, 4, bottom - top);
+  } else if (look.wallStyle === 'rock') {
+    let r = 23;
+    const rand = () => ((r = (r * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+    for (let k = 0; k < (width * (bottom - top)) / 2400; k++) ctx.fillRect(Math.floor(rand() * width), top + Math.floor(rand() * (bottom - top)), 12 + Math.floor(rand() * 18), 6 + Math.floor(rand() * 8));
+  } else {
+    for (let y = top + 22, row = 0; y < bottom; y += 26, row++) {
+      ctx.fillRect(0, y, width, 4);
+      for (let x = row % 2 ? 26 : 0; x < width; x += 52) ctx.fillRect(x, y - 22, 4, 22);
+    }
+  }
+  ctx.fillStyle = look.wall.top;
+  ctx.fillRect(0, bottom - 6, width, 6);
+}
+
 function backdrop(glow: string) {
   const bg = ctx.createRadialGradient(W * 0.3, H * 0.45, 30, W * 0.5, H * 0.5, 820);
   bg.addColorStop(0, glow);
   bg.addColorStop(1, '#07040b');
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
-  for (let x = 0; x < W; x += 60) {
-    for (let y = 540; y < H; y += 60) {
-      ctx.fillStyle = (x / 60 + y / 60) % 2 ? '#1d1824' : '#211b29';
-      ctx.fillRect(x, y, 60, 60);
-      ctx.fillStyle = 'rgba(0,0,0,0.4)';
-      ctx.fillRect(x, y + 56, 60, 4);
-      ctx.fillRect(x + 56, y, 4, 60);
-    }
-  }
+  floorBand(540, H, W, 60);
 }
 
 function motes(color: string, n: number, seed: number) {
@@ -171,6 +287,7 @@ export function drawChampion(canvas: HTMLCanvasElement, { name, mode = 'daily', 
   const g = heroLook({ mode, dailyNo, floor, relics, seed, log });
   const hero = HERO_BY_ID[g.hero];
   const endless = mode === 'endless';
+  look = cardLook(dailyNumber());
   backdrop(endless ? '#2a1640' : '#3a2a10');
   motes(endless ? '#b07cff' : '#f2c14e', 70, 11);
   // spotlight
@@ -226,22 +343,24 @@ function tallyLine(t: DailyTally): [string, string] {
 /** Announce the new crypt and today's hero, with today's tally when there is one. */
 export function drawDaily(canvas: HTMLCanvasElement, { dailyNo, heroId, tally }: { dailyNo: number; heroId: HeroId; tally?: DailyTally }) {
   use(canvas);
+  look = cardLook(dailyNo);
   const hero = HERO_BY_ID[heroId];
-  backdrop('#2a1328');
-  motes('#ff8a2a', 40, 3);
+  backdrop(rgba(accent(), 0.22));
+  motes(look.mote, 40, 3);
   const s = sprites();
   const foe = (name: keyof ReturnType<typeof sprites>, x: number, y: number, k: number) => ctx.drawImage(s[name].normal, x, y, 12 * k, 12 * k);
-  foe('ghoul', 640, 446, 8);
-  foe('archer', 760, 440, 8);
-  foe('wraith', 880, 446, 8);
-  foe('brute', 990, 420, 10);
-  foe('bat', 1090, 380, 6);
-  ctx.shadowColor = 'rgba(210,58,70,0.8)';
+  const [a, b, c, d, e] = FOES[look.id];
+  foe(a, 640, 446, 8);
+  foe(b, 760, 440, 8);
+  foe(c, 880, 446, 8);
+  foe(d, 990, 420, 10);
+  foe(e, 1090, 380, 6);
+  ctx.shadowColor = rgba(accent(), 0.8);
   ctx.shadowBlur = 36;
   ctx.drawImage(heroSprite(hero.id, {}, []).normal, 300, 300, 240, 240);
   ctx.shadowBlur = 0;
   vignette();
-  text(`DAILY #${dailyNo}`, W / 2, 170, '140px "Pirata One"', '#d23a46', 'center', 'rgba(210,58,70,0.7)');
+  text(`DAILY #${dailyNo}`, W / 2, 170, '140px "Pirata One"', accent(), 'center', rgba(accent(), 0.7));
   text('THE CRYPT IS OPEN', W / 2, 228, '30px Silkscreen', '#e8dcc4', 'center');
   text(`TODAY'S HERO: THE ${hero.name.toUpperCase()}`, 600, 330, '28px Silkscreen', '#f2c14e');
   text(`${hero.hp} HP · ${hero.perk}`, 600, 375, '22px Silkscreen', '#9a8fa8');
@@ -249,7 +368,7 @@ export function drawDaily(canvas: HTMLCanvasElement, { dailyNo, heroId, tally }:
     const [a, b] = tallyLine(tally);
     ctx.fillStyle = 'rgba(7,4,11,0.72)';
     ctx.fillRect(0, 560, W, 52);
-    ctx.fillStyle = '#d23a46';
+    ctx.fillStyle = accent();
     ctx.fillRect(0, 560, W, 3);
     const line = `${a}  ·  ${b}`;
     text(line, W / 2, 596, fit(line, W - 96, 26, 'Silkscreen'), '#f2c14e', 'center');
@@ -289,27 +408,54 @@ export function drawStory(
   ctx.imageSmoothingEnabled = false;
   const SW = STORY_W;
   const hero = HERO_BY_ID[heroId];
+  look = cardLook(dailyNo);
 
   const bg = ctx.createRadialGradient(SW / 2, 620, 40, SW / 2, 900, 1300);
-  bg.addColorStop(0, '#3a1530');
+  bg.addColorStop(0, rgba(accent(), 0.24));
   bg.addColorStop(0.55, '#14091a');
   bg.addColorStop(1, '#07040b');
   ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, SW, STORY_H);
+  // the place: its wall along the top and its floor along the bottom, under Instagram's bars
+  wallBand(0, 230, SW);
+  floorBand(1700, STORY_H, SW, 72);
+  const shade = ctx.createLinearGradient(0, 0, 0, STORY_H);
+  shade.addColorStop(0, 'rgba(7,4,11,0.35)');
+  shade.addColorStop(0.13, 'rgba(7,4,11,0.9)');
+  shade.addColorStop(0.86, 'rgba(7,4,11,0.9)');
+  shade.addColorStop(1, 'rgba(7,4,11,0.35)');
+  ctx.fillStyle = shade;
+  ctx.fillRect(0, 0, SW, STORY_H);
+  const glow = ctx.createRadialGradient(SW / 2, 620, 40, SW / 2, 800, 1000);
+  glow.addColorStop(0, rgba(accent(), 0.22));
+  glow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = glow;
   ctx.fillRect(0, 0, SW, STORY_H);
   let r = 7;
   const rand = () => ((r = (r * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
   for (let i = 0; i < 90; i++) {
     ctx.globalAlpha = 0.25 + rand() * 0.45;
-    ctx.fillStyle = rand() < 0.6 ? '#ff8a2a' : '#f2c14e';
+    ctx.fillStyle = rand() < 0.6 ? look.mote : '#f2c14e';
     const sz = rand() < 0.3 ? 8 : 5;
     ctx.fillRect(Math.floor(rand() * SW), Math.floor(rand() * STORY_H), sz, sz);
   }
   ctx.globalAlpha = 1;
 
   // today's crypt
-  text(`DAILY #${dailyNo}`, SW / 2, 380, '150px "Pirata One"', '#d23a46', 'center', 'rgba(210,58,70,0.75)');
+  text(`DAILY #${dailyNo}`, SW / 2, 380, '150px "Pirata One"', accent(), 'center', rgba(accent(), 0.75));
   text('THE CRYPT IS OPEN', SW / 2, 445, '36px Silkscreen', '#e8dcc4', 'center');
-  ctx.shadowColor = 'rgba(210,58,70,0.8)';
+  // two of the place's residents flank the hero
+  const s = sprites();
+  const [left, , , right] = FOES[look.id];
+  ctx.globalAlpha = 0.9;
+  ctx.drawImage(s[left].normal, 120, 520, 156, 156);
+  ctx.save();
+  ctx.translate(SW - 120, 520);
+  ctx.scale(-1, 1);
+  ctx.drawImage(s[right].normal, 0, 0, 156, 156);
+  ctx.restore();
+  ctx.globalAlpha = 1;
+  ctx.shadowColor = rgba(accent(), 0.8);
   ctx.shadowBlur = 36;
   ctx.drawImage(heroSprite(hero.id, {}, []).normal, SW / 2 - 110, 480, 220, 220);
   ctx.shadowBlur = 0;
@@ -382,15 +528,25 @@ export function drawDigest(
   { dailyNo, heroId, champion, endless, tally }: { dailyNo: number; heroId: HeroId; champion?: StoryLeader & { dailyNo: number }; endless?: StoryLeader; tally?: DailyTally },
 ) {
   use(canvas);
+  look = cardLook(dailyNo);
   const hero = HERO_BY_ID[heroId];
-  backdrop('#2a1328');
-  motes('#ff8a2a', 34, 5);
+  backdrop(rgba(accent(), 0.22));
+  motes(look.mote, 34, 5);
+  // two of the place's residents either side of the hero
+  const s = sprites();
+  const [left, , , right] = FOES[look.id];
+  ctx.drawImage(s[left].normal, 60, 300, 120, 120);
+  ctx.save();
+  ctx.translate(540, 300);
+  ctx.scale(-1, 1);
+  ctx.drawImage(s[right].normal, 0, 0, 120, 120);
+  ctx.restore();
   vignette();
 
   // today's crypt
-  text(`DAILY #${dailyNo}`, 300, 128, '108px "Pirata One"', '#d23a46', 'center', 'rgba(210,58,70,0.7)');
+  text(`DAILY #${dailyNo}`, 300, 128, '108px "Pirata One"', accent(), 'center', rgba(accent(), 0.7));
   text('THE CRYPT IS OPEN', 300, 176, '24px Silkscreen', '#e8dcc4', 'center');
-  ctx.shadowColor = 'rgba(210,58,70,0.8)';
+  ctx.shadowColor = rgba(accent(), 0.8);
   ctx.shadowBlur = 32;
   ctx.drawImage(heroSprite(hero.id, {}, []).normal, 200, 205, 200, 200);
   ctx.shadowBlur = 0;
@@ -441,7 +597,7 @@ export function drawDigest(
     const [a, b] = tallyLine(tally);
     ctx.fillStyle = 'rgba(7,4,11,0.72)';
     ctx.fillRect(0, 546, W, 50);
-    ctx.fillStyle = '#d23a46';
+    ctx.fillStyle = accent();
     ctx.fillRect(0, 546, W, 3);
     const line = `${a}  ·  ${b}`;
     text(line, W / 2, 580, fit(line, W - 96, 24, 'Silkscreen'), '#f2c14e', 'center');
