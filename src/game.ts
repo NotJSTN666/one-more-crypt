@@ -573,7 +573,7 @@ export class Game {
     if (this.config.depths) {
       const resident: Partial<Record<string, EnemyKind>> = { flooded: 'drowned', ossuary: 'boneknight', burning: 'imp', abyss: 'voideye' };
       const kind = resident[this.zone.def.id];
-      if (kind) roster.push({ kind, from: 11, w: 8 });
+      if (kind) roster.push({ kind, from: 1, w: 8 });
     }
     const pool = roster.filter((p) => f >= p.from);
     const count = Math.min(MAX_ENEMIES - 1, 2 + Math.floor(f / 2));

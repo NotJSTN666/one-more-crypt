@@ -1,5 +1,5 @@
-// Depth zones: every ten floors the crypt becomes somewhere new, with its own look,
-// music key, hazard and resident foe. Past floor 50 the four deep zones come round
+// Depth zones: every twenty floors the crypt becomes somewhere new, with its own look,
+// music key, hazard and resident foe. Past floor 100 the four deep zones come round
 // again, harder, with a numeral on the name.
 
 export type ZoneId = 'crypt' | 'flooded' | 'ossuary' | 'burning' | 'abyss';
@@ -97,12 +97,15 @@ export interface ZoneAt {
   title: string;
 }
 
+/** Floors in each zone. */
+export const ZONE_SPAN = 20;
+
 const NUMERALS = ['', '', ' II', ' III', ' IV', ' V', ' VI', ' VII', ' VIII', ' IX', ' X'];
 
 export function zoneAt(floor: number): ZoneAt {
-  if (floor <= 10) return { def: ZONES.crypt, tier: 1, start: 1, title: ZONES.crypt.name };
-  const k = Math.floor((floor - 11) / 10);
+  if (floor <= ZONE_SPAN) return { def: ZONES.crypt, tier: 1, start: 1, title: ZONES.crypt.name };
+  const k = Math.floor((floor - ZONE_SPAN - 1) / ZONE_SPAN);
   const def = ZONES[DEEP[k % DEEP.length]];
   const tier = Math.floor(k / DEEP.length) + 1;
-  return { def, tier, start: 11 + k * 10, title: def.name + (NUMERALS[tier] ?? ` ${tier}`) };
+  return { def, tier, start: ZONE_SPAN + 1 + k * ZONE_SPAN, title: def.name + (NUMERALS[tier] ?? ` ${tier}`) };
 }

@@ -11,23 +11,23 @@ function onFloor(seed: number, floor: number, depths = true): Game {
 }
 
 describe('depth zones', () => {
-  it('names a zone for every stretch of ten floors, cycling past 50', () => {
+  it('names a zone for every stretch of twenty floors, cycling past 100', () => {
     expect(zoneAt(1).def.id).toBe('crypt');
-    expect(zoneAt(10).def.id).toBe('crypt');
-    expect(zoneAt(11).def.id).toBe('flooded');
-    expect(zoneAt(21).def.id).toBe('ossuary');
-    expect(zoneAt(31).def.id).toBe('burning');
-    expect(zoneAt(41).def.id).toBe('abyss');
-    expect(zoneAt(50).def.id).toBe('abyss');
-    expect(zoneAt(51).def.id).toBe('flooded');
-    expect(zoneAt(51).title).toBe('The Flooded Catacombs II');
-    expect(zoneAt(51).start).toBe(51);
-    expect(zoneAt(95).tier).toBe(3);
+    expect(zoneAt(20).def.id).toBe('crypt');
+    expect(zoneAt(21).def.id).toBe('flooded');
+    expect(zoneAt(41).def.id).toBe('ossuary');
+    expect(zoneAt(61).def.id).toBe('burning');
+    expect(zoneAt(81).def.id).toBe('abyss');
+    expect(zoneAt(100).def.id).toBe('abyss');
+    expect(zoneAt(101).def.id).toBe('flooded');
+    expect(zoneAt(101).title).toBe('The Flooded Catacombs II');
+    expect(zoneAt(101).start).toBe(101);
+    expect(zoneAt(190).tier).toBe(3);
   });
 
   it('keeps every floor whole: the stairs reachable, nothing laid on the start or the stairs', () => {
     for (let seed = 1; seed <= 40; seed++) {
-      for (let f = 2; f <= 60; f++) {
+      for (let f = 2; f <= 120; f++) {
         const g = onFloor(seed, f);
         const dist = g.distanceMap(START, false);
         expect(dist[g.stairs.y * W + g.stairs.x], `seed ${seed} floor ${f}`).toBeGreaterThan(0);
@@ -48,15 +48,15 @@ describe('depth zones', () => {
       for (let seed = 1; seed <= 20; seed++) n += onFloor(seed, f)[key].filter(Boolean).length;
       return n;
     };
-    expect(count(12, 'water')).toBeGreaterThan(20);
-    expect(count(22, 'bones')).toBeGreaterThan(20);
-    expect(count(32, 'lava')).toBeGreaterThan(20);
+    expect(count(22, 'water')).toBeGreaterThan(20);
+    expect(count(42, 'bones')).toBeGreaterThan(20);
+    expect(count(62, 'lava')).toBeGreaterThan(20);
     expect(count(3, 'water') + count(3, 'lava') + count(3, 'bones')).toBe(0);
   });
 
   it('changes nothing for runs from before the zones', () => {
     for (let seed = 1; seed <= 20; seed++) {
-      const g = onFloor(seed, 33, false);
+      const g = onFloor(seed, 63, false);
       expect(g.water.length + g.lava.length + g.bones.length).toBe(0);
       expect(g.secret).toBeNull();
     }
@@ -64,7 +64,7 @@ describe('depth zones', () => {
 
   it('brings each deep zone its resident', () => {
     const seen = new Set<EnemyKind>();
-    for (let seed = 1; seed <= 30; seed++) for (const f of [12, 23, 34, 46]) for (const e of onFloor(seed, f).enemies) seen.add(e.kind);
+    for (let seed = 1; seed <= 30; seed++) for (const f of [22, 43, 64, 86]) for (const e of onFloor(seed, f).enemies) seen.add(e.kind);
     for (const k of ['drowned', 'boneknight', 'imp', 'voideye'] as EnemyKind[]) expect(seen.has(k), k).toBe(true);
   });
 
@@ -97,7 +97,7 @@ describe('depth zones', () => {
 
   it('survives long stretches of play in every zone', () => {
     for (let seed = 1; seed <= 12; seed++) {
-      for (const f of [11, 21, 31, 41, 51]) {
+      for (const f of [21, 41, 61, 81, 101]) {
         const g = onFloor(seed, f);
         g.player.hp = g.player.maxHp = 99;
         for (let s = 0; s < 400 && g.phase !== 'dead'; s++) {

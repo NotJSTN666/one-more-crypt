@@ -1004,7 +1004,7 @@ function showHelp(back: () => void) {
     <ul class="help">
       <li>Shrines, chests and fountains offer <b>deals</b>. Step on them to choose.</li>
       <li>After each boss, a <b>Soul Forge</b> waits on the next floor. Fuse two of your relics into a stronger one.</li>
-      <li>Every 10 floors the crypt becomes somewhere new: the <b>Flooded Catacombs</b>, the <b>Charnel Halls</b>, the <b>Burning Depths</b> and the <b>Abyss</b>, each with its own ground and foes.</li>
+      <li>Every 20 floors the crypt becomes somewhere new: the <b>Flooded Catacombs</b>, the <b>Charnel Halls</b>, the <b>Burning Depths</b> and the <b>Abyss</b>, each with its own ground and foes.</li>
       <li>Some walls are <b>cracked</b>. Bump one twice to find a secret vault.</li>
       <li><b>Spikes</b> hurt anything that steps on them, foes included.</li>
       <li>Every run earns <b>Souls</b>. Spend them in the <b>Ossuary</b> on new heroes and relics.</li>
