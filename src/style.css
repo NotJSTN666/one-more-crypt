@@ -1598,6 +1598,13 @@ body.tutorial #relic-bar {
   color: var(--gold);
 }
 
+/* Fixed height whatever the area; shorter rooms sit in the middle of it. */
+.hollow-stage {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
 #hollow-canvas {
   display: block;
   width: 100%;

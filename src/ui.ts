@@ -16,6 +16,29 @@ const RUN_SCREENS = ['choose', 'event', 'pause', 'fused'];
 /** Long screens get a small Back pinned at the top, so leaving doesn't mean scrolling to the end. */
 const TOP_BACK = ['hall', 'hall-public', 'help', 'heroes', 'ossuary', 'grimoire', 'profile', 'wardrobe'];
 
+/** When the last finger or mouse button went down. */
+let lastPointerDownAt = 0;
+window.addEventListener('pointerdown', () => (lastPointerDownAt = performance.now()), true);
+
+/**
+ * A tap that began before this screen appeared. On phones, holding an arrow can open a
+ * conversation, and lifting that same finger would otherwise press whatever button now
+ * sits under it.
+ */
+export function staleTap(e: Event, shownAt: number): boolean {
+  return e instanceof MouseEvent && e.detail > 0 && lastPointerDownAt < shownAt;
+}
+
+overlay.addEventListener(
+  'click',
+  (e) => {
+    if (!staleTap(e, overlayShownAt)) return;
+    e.stopPropagation();
+    e.preventDefault();
+  },
+  true,
+);
+
 export function showOverlay(name: string, html: string) {
   screen = name;
   overlayShownAt = performance.now();

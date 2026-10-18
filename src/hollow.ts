@@ -11,7 +11,7 @@ import { meta, outfitFor } from './meta';
 import { LOOK_BY_ID } from './progression';
 import { enemyFrames } from './sprites';
 import { npcFigure, type NpcId } from './story';
-import { esc, overlay, screen, showOverlay } from './ui';
+import { esc, overlay, screen, showOverlay, staleTap } from './ui';
 
 export type HollowPlace = 'daily' | 'endless' | 'forge' | 'ossuary' | 'hall' | 'grimoire' | 'wardrobe' | 'ranks';
 
@@ -105,7 +105,7 @@ const TAVERN_MAP = [
   '#.........#',
   '#.tc...tc.#',
   '#.........#',
-  '#z..tc..r.#',
+  '#z.tc...r.#',
   '#####x#####',
 ];
 const SMITHY_MAP = [
@@ -369,6 +369,12 @@ interface Ghost {
 const area = () => AREAS[areaId];
 const cols = () => area().map[0].length;
 const rows = () => area().map.length;
+/**
+ * Every area is drawn in a box as tall as the tallest outdoor map, so the on-screen
+ * arrows never jump when a door swaps in a shorter room (and a held thumb doesn't
+ * land on the opposite arrow).
+ */
+const STAGE_ROWS = Math.max(...Object.values(AREAS).map((a) => a.map.length));
 const at = (x: number, y: number) => (x < 0 || y < 0 || x >= cols() || y >= rows() ? '#' : area().map[y][x]);
 const isBuilding = (c: string) => Boolean(area().buildings?.some((b) => b.letter === c));
 const doorAt = (x: number, y: number): Door | undefined => area().doors[at(x, y)];
@@ -432,7 +438,9 @@ function open() {
         <span class="hollow-title">${esc(area().name)}</span>
         ${story ? '<button class="btn" id="hollow-quests">📜 Quests</button>' : `<span class="souls-chip">💀 <b>${meta.souls}</b></span>`}
       </div>
-      <canvas id="hollow-canvas" width="${viewCols * TILE * SCALE}" height="${rows() * TILE * SCALE}" aria-label="${esc(area().name)}, a place to explore"></canvas>
+      <div class="hollow-stage" style="aspect-ratio: ${window.innerWidth < 600 ? 11 : 17} / ${STAGE_ROWS}">
+        <canvas id="hollow-canvas" width="${viewCols * TILE * SCALE}" height="${rows() * TILE * SCALE}" aria-label="${esc(area().name)}, a place to explore"></canvas>
+      </div>
       <div class="hollow-dialog" id="hollow-dialog" hidden></div>
       ${touch ? `<div class="hollow-dpad" aria-label="Move">
         <button type="button" data-d="0,-1" aria-label="Up">▲</button>
@@ -456,6 +464,8 @@ function open() {
     walkTo(tx, ty);
   });
   overlay.querySelector('#hollow-dialog')?.addEventListener('click', (e) => {
+    // The finger that walked into a sign or door shouldn't also dismiss what it opened.
+    if (staleTap(e, dialogShownAt)) return;
     const choice = (e.target as HTMLElement).closest<HTMLElement>('[data-choice]')?.dataset.choice;
     if (pending) {
       if (choice === 'go') confirmGo();
@@ -816,9 +826,12 @@ function openDialog(id: string) {
   hooks.epitaph(id);
 }
 
+let dialogShownAt = 0;
+
 function showDialog(html: string) {
   const el = document.getElementById('hollow-dialog');
   if (!el) return;
+  dialogShownAt = performance.now();
   el.innerHTML = `${html}<small>Tap or press any key</small>`;
   el.hidden = false;
 }
