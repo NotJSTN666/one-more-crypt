@@ -598,17 +598,29 @@ document.querySelectorAll<HTMLButtonElement>('#dpad button').forEach((btn) => {
   });
 });
 
-$('mute').addEventListener('click', () => {
+function toggleMute() {
   unlockAudio();
   setMuted(!isMuted());
   save.muted = isMuted();
   writeSave(save);
   updateMuteIcon();
+}
+
+$('mute').addEventListener('click', toggleMute);
+// The title screen's mute button, beside your name (the screen redraws, so listen on the page).
+document.addEventListener('click', (e) => {
+  if (!(e.target as HTMLElement).closest?.('#title-mute')) return;
+  toggleMute();
 });
 $('menu-btn').addEventListener('click', () => showPause());
 
 function updateMuteIcon() {
   $('mute').textContent = isMuted() ? '🔇' : '🔊';
+  const chip = document.getElementById('title-mute');
+  if (chip) {
+    chip.textContent = isMuted() ? '🔇' : '🔊';
+    chip.setAttribute('aria-label', isMuted() ? 'Sound off. Turn it on' : 'Sound on. Mute');
+  }
 }
 
 // ---------- HUD ----------
@@ -898,10 +910,11 @@ function showInstallHelp(back: () => void) {
 }
 
 function accountChip(): string {
-  if (ONLINE && !session.ready) return '<div class="account-row"></div>';
+  const mute = `<button class="account-chip mute-chip" id="title-mute" aria-label="${isMuted() ? 'Sound off. Turn it on' : 'Sound on. Mute'}">${isMuted() ? '🔇' : '🔊'}</button>`;
+  if (ONLINE && !session.ready) return `<div class="account-row">${mute}</div>`;
   const name = playerName();
   const title = titleName(meta.title);
-  return `<div class="account-row"><button class="account-chip" id="account">👤 ${name ? esc(name) : 'Sign in'}${name && title ? ` <small>${esc(title)}</small>` : ''}</button></div>`;
+  return `<div class="account-row">${mute}<button class="account-chip" id="account">👤 ${name ? esc(name) : 'Sign in'}${name && title ? ` <small>${esc(title)}</small>` : ''}</button></div>`;
 }
 
 // ---------- the Hollow ----------

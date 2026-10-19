@@ -579,8 +579,18 @@ h2.dead {
 .account-row {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
   min-height: 32px;
   margin-bottom: 8px;
+}
+
+.account-chip.mute-chip {
+  align-self: stretch;
+  flex: none;
+  padding: 4px 8px;
+  font-size: 14px;
+  line-height: 1;
 }
 
 .account-chip {
