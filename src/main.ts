@@ -1027,12 +1027,16 @@ function showHelp(back: () => void) {
     <ul class="help">
       <li>Shrines, chests and fountains offer <b>deals</b>. Step on them to choose.</li>
       <li>After each boss, a <b>Soul Forge</b> waits on the next floor. Fuse two of your relics into a stronger one.</li>
-      <li>Every 20 floors the crypt becomes somewhere new: the <b>Flooded Catacombs</b>, the <b>Charnel Halls</b>, the <b>Burning Depths</b> and the <b>Abyss</b>, each with its own ground and foes.</li>
+      <li>Every 20 floors the crypt becomes somewhere new, with its own ground and foes. In the <b>Flooded Catacombs</b>, foes wading through water lose every other turn. In the <b>Charnel Halls</b>, bone piles block the way: bump one to smash it, and some hide a potion. In the <b>Burning Depths</b>, lava burns anything that walks in, so lure foes into it. The <b>Abyss</b> is dark: you only see what's near you.</li>
+      <li><b>Glowing foes</b> are elites, with a trait of their own (the tip under the map says which). They're worth extra Souls.</li>
       <li>Some walls are <b>cracked</b>. Bump one twice to find a secret vault.</li>
       <li><b>Spikes</b> hurt anything that steps on them, foes included.</li>
-      <li>Every run earns <b>Souls</b>. Spend them in the <b>Ossuary</b> on new heroes and relics.</li>
+      <li>Every run earns <b>Souls</b>. Spend them in the <b>Ossuary</b> on new heroes, relics and cosmetics.</li>
+      <li><b>Enter the Hollow</b> to walk the graveyard: every building is a way in (the daily, Endless, the Ossuary, your Hall, the Wardrobe), and the old graves hold stories.</li>
       <li>Take the road west out of the graveyard to <b>your isle</b>. Spend Souls on trees, lights and houses (walk in to furnish them), and on buildings that help in Endless and the story.</li>
-      <li>The <b>Daily Descent</b> is the same crypt and hero for everyone, once a day. Share your depth.</li>
+      <li>The <b>Daily Descent</b> is the same crypt and hero for everyone, once a day. Share your depth. Finish in the <b>top 3</b> for exclusive headwear and Souls, and keep a <b>streak</b> going for streak helms.</li>
+      <li><b>Daily bounties</b> pay Souls for goals in any mode, and the <b>top 3 on each week's Endless board</b> win prizes too.</li>
+      <li>Your <b>Crypt Hall</b> holds your trophies, statues and titles. Dress your heroes in the <b>Wardrobe</b>: outfits show in runs and on the leaderboards.</li>
       <li>One More Crypt is free, with no ads. If you'd like to help keep it running, you can <a href="${KOFI_URL}" target="_blank" rel="noopener">leave a tip on Ko-fi</a> ☕</li>
     </ul>
     <div class="foes card">
@@ -1051,9 +1055,13 @@ function showHelp(back: () => void) {
       <div><b>Skeleton Archer</b>Aims, then fires down a line. Red tiles = danger.</div>
       <div><b>Grave Brute</b>Slow, hits for 3. Strike while it rests.</div>
       <div><b>Wraith</b>Drifts through walls.</div>
-      <div><b>Bone Warden</b>Floor 5. Summons ghouls.</div>
-      <div><b>Plague Abbot</b>Floor 10. Rains plague, calls bats.</div>
-      <div><b>Lich King</b>Floor 15. Teleports, fires bolts.</div>
+      <div><b>The Drowned</b>Flooded Catacombs. Heals while standing in water.</div>
+      <div><b>Bone Knight</b>Charnel Halls. Its shield turns the first blow.</div>
+      <div><b>Ember Imp</b>Burning Depths. Flies, and leaves lava where it dies.</div>
+      <div><b>Void Eye</b>The Abyss. Flies, aims, then fires down a line.</div>
+      <div><b>Bone Warden</b>Floor 5, then every 15. Summons ghouls.</div>
+      <div><b>Plague Abbot</b>Floor 10, then every 15. Rains plague, calls bats.</div>
+      <div><b>Lich King</b>Floor 15, then every 15. Teleports, fires bolts.</div>
     </div>
     <button class="btn primary" id="back">Back</button>
   `);
