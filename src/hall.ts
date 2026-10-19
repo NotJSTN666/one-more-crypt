@@ -510,13 +510,13 @@ function trophiesBody(d: HallData): string {
 
 function titlesBody(): string {
   const owned = TITLES.filter((t) => titleUnlocked(t.id));
-  const locked = TITLES.filter((t) => !titleUnlocked(t.id));
+  const locked = TITLES.filter((t) => !t.secret && !titleUnlocked(t.id));
   const item = (id: string, name: string, desc: string, has: boolean) => `
     <button class="codex-item pick ${meta.title === id ? 'equipped' : ''}" data-title="${esc(id)}" ${has ? '' : 'disabled'}>
       <span class="shop-emoji">${has ? (meta.title === id ? '✅' : '📜') : '🔒'}</span>
       <span class="shop-info"><span class="name">${esc(name)}</span><span class="desc">${esc(desc)}</span></span>
     </button>`;
-  return `<p class="fine">Your title shows under your name on the leaderboards and in your Hall. ${owned.length}/${TITLES.length} earned.</p>
+  return `<p class="fine">Your title shows under your name on the leaderboards and in your Hall. ${owned.filter((t) => !t.secret).length}/${TITLES.filter((t) => !t.secret).length} earned.</p>
     <div class="codex">
       ${item('', 'No title', 'Just your name.', true)}
       ${owned.map((t) => item(t.id, t.name, t.how, true)).join('')}

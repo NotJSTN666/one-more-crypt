@@ -29,6 +29,7 @@ import {
   validName,
   verifyEmailCode,
   watchPlayerCount,
+  isPatron,
   loadRemoteMeta,
   saveRemoteMeta,
   type Account,
@@ -40,7 +41,7 @@ import { showPublicHall, titleName } from './hall';
 import { HEAD_BY_ID, LOOK_BY_ID, PODIUM, WEEKLY, rankFor } from './progression';
 import { HERO_BY_ID, dailyHero, type HeroId } from './content';
 import { heroPortrait } from './hero';
-import { BACKFILL_VERSION, backfillHeroes, grantPodium, grantWeekly, meta, mergeMeta, noteStreak, onMetaChange, saveMeta, type Meta } from './meta';
+import { BACKFILL_VERSION, backfillHeroes, grantPatron, grantPodium, grantWeekly, meta, mergeMeta, noteStreak, onMetaChange, saveMeta, type Meta } from './meta';
 import { currentStreak, streakStats, writeSave, type Save } from './storage';
 import { esc, field, formStatus, on, onSubmit, screen, showOverlay, toast } from './ui';
 
@@ -137,6 +138,9 @@ async function syncMeta() {
   try {
     const remote = await loadRemoteMeta(acc.id);
     if (remote) mergeMeta(remote as Partial<Meta>);
+    if (!meta.patron && (await isPatron(acc.id)) && grantPatron()) {
+      toast('☕ Thank you for keeping the crypt open! The Patron of the Crypt title is yours in the Hall.');
+    }
     await saveRemoteMeta(acc.id, meta);
     onChange();
   } catch {

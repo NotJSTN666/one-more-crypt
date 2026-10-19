@@ -1156,6 +1156,7 @@ body.menu #app {
 #overlay.menu .fine,
 #overlay.menu .streak,
 #overlay.menu .follow-x,
+#overlay.menu .tip-note,
 #overlay.menu .online-count {
   text-shadow: 0 1px 3px #000, 0 0 10px #000;
 }
@@ -1180,6 +1181,24 @@ body.menu #app {
 .follow-x:focus-visible {
   color: var(--gold);
   opacity: 1;
+}
+
+.foot-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0 14px;
+}
+
+.help a,
+.tip-note a {
+  color: var(--gold);
+  white-space: nowrap;
+}
+
+.tip-note {
+  margin-top: 14px;
+  opacity: 0.85;
 }
 
 /* ---------- How to play demos ---------- */

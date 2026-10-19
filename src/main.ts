@@ -4,7 +4,7 @@ import { dailyNumber, formatCountdown, msUntilNextDaily } from './daily';
 import { ELITES, FEATURES, HERO_BY_ID, dailyHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait } from './hero';
 import { ENEMY_INFO, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode } from './game';
-import { acceptQuest, checkRun, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, noteBond, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, type RunReward } from './meta';
+import { acceptQuest, checkRun, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, noteBond, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
@@ -22,7 +22,7 @@ import { showWardrobe } from './wardrobe';
 import { IMPACT, playFusion } from './fusefx';
 import { howToHtml, startHowTo } from './howto';
 import { RELIC_COACH, TUTORIAL } from './tutorial';
-import { copyText, descentStrip, followXHtml, playTime, shareText, siteUrl, xIntentUrl } from './share';
+import { KOFI_URL, copyText, descentStrip, followXHtml, kofiHtml, playTime, shareText, siteUrl, xIntentUrl } from './share';
 import { installMode, onInstallChange, promptInstall, setupInstall } from './install';
 import { bountiesHtml, progressBounties } from './bounties';
 import { enableReminders, reminderPrefs, remindersAvailable, remindersNeedInstall } from './push';
@@ -779,7 +779,7 @@ function showTitle() {
     <button class="btn" id="help">How to play</button>
     ${installMode() ? '<button class="btn install-btn" id="install">📲 Install the app<small>Play from your home screen, full screen</small></button>' : ''}
     ${streak > 1 ? `<div class="streak">🕯️ ${streak}-day streak</div>` : ''}
-    ${followXHtml}
+    <div class="foot-links">${followXHtml}${kofiHtml}</div>
   `);
   on('#account', () => showProfile(showTitle));
   on('#leaderboard', () => showLeaderboard(showTitle));
@@ -1013,6 +1013,7 @@ function showHelp(back: () => void) {
       <li><b>Spikes</b> hurt anything that steps on them, foes included.</li>
       <li>Every run earns <b>Souls</b>. Spend them in the <b>Ossuary</b> on new heroes and relics.</li>
       <li>The <b>Daily Descent</b> is the same crypt and hero for everyone, once a day. Share your depth.</li>
+      <li>One More Crypt is free, with no ads. If you'd like to help keep it running, you can <a href="${KOFI_URL}" target="_blank" rel="noopener">leave a tip on Ko-fi</a> ☕</li>
     </ul>
     <div class="foes card">
       <div><b>Knight</b>10 HP. Heals 1 on every new floor.</div>
@@ -1352,6 +1353,7 @@ function showDeath(r: RunResult, best: boolean) {
       <button class="btn" id="title">Title</button>
     </div>
     ${onlineCountHtml()}
+    ${tipNoteHtml()}
     ${followXHtml}
   `);
   const backHere = () => showDeath(r, best);
@@ -1393,6 +1395,13 @@ function showDeath(r: RunResult, best: boolean) {
   });
   on('#remind-install', () => showInstallHelp(backHere));
   tickCountdowns();
+}
+
+/** Now and then after a run (the 5th, then every 10th), a quiet thank-you with the tip jar. Never for patrons. */
+function tipNoteHtml(): string {
+  const runs = runsPlayed();
+  if (meta.patron || runs < 5 || runs % 10 !== 5) return '';
+  return `<p class="fine tip-note">Thanks for playing. One More Crypt is free with no ads; if you're enjoying it, a <a href="${KOFI_URL}" target="_blank" rel="noopener">☕ tip on Ko-fi</a> keeps the crypt open.</p>`;
 }
 
 /** After the daily: a look at tomorrow's crypt, to come back for. */

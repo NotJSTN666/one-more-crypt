@@ -259,6 +259,13 @@ export async function loadRemoteMeta(userId: string): Promise<Record<string, unk
   return (data.meta as Record<string, unknown>) ?? null;
 }
 
+/** Is this account on the patrons list (supporters, added by hand)? */
+export async function isPatron(userId: string): Promise<boolean> {
+  const sb = await client();
+  const { data, error } = await sb.from('patrons').select('user_id').eq('user_id', userId).maybeSingle();
+  return !error && Boolean(data);
+}
+
 /** Another player's name and saved progress, for visiting their Crypt Hall. */
 export async function loadHall(name: string): Promise<{ name: string; meta: Record<string, unknown> } | null> {
   const sb = await client();

@@ -595,3 +595,15 @@ $$;
 revoke all on function public.crypt_funnel() from public, anon, authenticated;
 
 notify pgrst, 'reload schema';
+
+-- ---------- patrons ----------
+-- Supporters on Ko-fi, added by hand. Each player can only see their own row; signing in
+-- with a row here unlocks the "Patron of the Crypt" title.
+-- To add one: insert into public.patrons (user_id) select id from public.profiles where name = 'TheirName';
+create table if not exists public.patrons (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  added_at timestamptz not null default now()
+);
+alter table public.patrons enable row level security;
+drop policy if exists "patrons read own" on public.patrons;
+create policy "patrons read own" on public.patrons for select using (auth.uid() = user_id);

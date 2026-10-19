@@ -69,6 +69,8 @@ export interface Meta {
   pet: string;
   /** When your ghost's summons were last counted. */
   summonsSeen: string;
+  /** A supporter on Ko-fi (set from the patrons table): the Patron title is theirs. */
+  patron: boolean;
 }
 
 /** Story progress: quests taken, cleared (dungeon done) and finished, choices, the hound's bond, lore read. */
@@ -119,7 +121,7 @@ function empty(): Meta {
     podiums: {}, podiumChecked: 0, bought: [], streak: { best: 0, count: 0, last: 0 },
     bounties: { day: 0, ids: [], progress: [], done: [] },
     weekly: {}, weeklyChecked: '',
-    story: emptyStory(), pet: '', summonsSeen: '',
+    story: emptyStory(), pet: '', summonsSeen: '', patron: false,
   };
 }
 
@@ -178,6 +180,7 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   for (const [h, run] of Object.entries(other.best ?? {})) {
     meta.best[h as HeroId] = betterRun(meta.best[h as HeroId], run);
   }
+  meta.patron ||= other.patron === true;
   meta.title ||= other.title ?? '';
   meta.look ||= other.look ?? '';
   meta.looksSeen = [...new Set([...meta.looksSeen, ...(other.looksSeen ?? [])])];
@@ -619,9 +622,23 @@ export function grantWeekly(week: string, place: number, souls: number, head: st
   return true;
 }
 
+/** Total runs finished, every hero counted. */
+export function runsPlayed(): number {
+  return Object.values(meta.heroStats).reduce((n, s) => n + (s?.runs ?? 0), 0);
+}
+
+/** Mark this player a supporter. True the first time. */
+export function grantPatron(): boolean {
+  if (meta.patron) return false;
+  meta.patron = true;
+  saveMeta();
+  return true;
+}
+
 export function titleUnlocked(id: string): boolean {
   const [kind, key] = id.split(':');
   if (kind === 'podium') return podiumCount(Number(key)) > 0;
+  if (kind === 'patron') return meta.patron;
   if (kind === 'feat') return Boolean(meta.achievements[key]);
   if (kind === 'beast') return (meta.bestiaryTier[key as EnemyKind] ?? 0) > TITLE_TIER;
   if (kind === 'rank') return meta.earned >= (SOUL_RANKS.find((r) => r.name === key)?.souls ?? Infinity);

@@ -86,6 +86,8 @@ export interface TitleDef {
   name: string;
   /** How to earn it, for locked titles. */
   how: string;
+  /** Not listed or counted until it is yours. */
+  secret?: boolean;
 }
 
 export const TITLES: TitleDef[] = [
@@ -97,6 +99,8 @@ export const TITLES: TitleDef[] = [
   })),
   ...SOUL_RANKS.slice(1).map((r) => ({ id: `rank:${r.name}`, name: r.name, how: `Earn ${r.souls.toLocaleString()} Souls in total.` })),
   { id: 'podium:1', name: 'Crypt Champion', how: 'Finish 1st in a Daily Descent.' },
+  // Given by hand to supporters (the patrons table), never sold in the game.
+  { id: 'patron:1', name: 'Patron of the Crypt', how: 'Helped keep the crypt open. Thank you.', secret: true },
 ];
 
 /** Rewards for the top 3 of each Daily Descent, given once the day is over. */

@@ -48,6 +48,11 @@ export const X_HANDLE = 'OneMoreCrypt';
 /** "Follow us on X" link for the title and results screens. */
 export const followXHtml = `<a class="follow-x" href="https://x.com/${X_HANDLE}" target="_blank" rel="noopener">𝕏 Follow @${X_HANDLE}</a>`;
 
+export const KOFI_URL = 'https://ko-fi.com/onemorecrypt';
+
+/** The tip jar: free, no ads, tips keep the domain and servers running. */
+export const kofiHtml = `<a class="follow-x kofi" href="${KOFI_URL}" target="_blank" rel="noopener">☕ Keep the crypt open</a>`;
+
 export function xIntentUrl(text: string): string {
   // Everything goes in `text`, the link included. X's app ignores `via` and handles a
   // separate `url` field its own way, which left a gap at the top of the post.
