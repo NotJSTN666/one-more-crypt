@@ -346,6 +346,27 @@ export async function watchPlayerCount(onCount: (n: number) => void): Promise<vo
 
 // ---------- anonymous activity, for the stats dashboard ----------
 
+export type FunnelEvent = 'start' | 'end' | 'quit' | 'tap' | 'tutorial';
+
+/**
+ * One step of the run funnel (title tapped, run started, left mid-run on some floor, run
+ * ended), per device and day, with no personal data. Sent with keepalive so a step taken
+ * as the page closes still arrives. Best effort: failures are ignored.
+ */
+export function noteRun(mode: 'daily' | 'endless' | 'title', event: FunnelEvent, floor?: number, signed?: boolean) {
+  if (!ONLINE) return;
+  try {
+    void fetch(`${URL}/rest/v1/rpc/note_run`, {
+      method: 'POST',
+      keepalive: true,
+      headers: { apikey: KEY, Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p_device: deviceId(), p_mode: mode, p_event: event, p_floor: floor ?? null, p_signed: Boolean(signed) }),
+    }).catch(() => undefined);
+  } catch {
+    // Stats are best effort.
+  }
+}
+
 let lastPing = 0;
 
 /**

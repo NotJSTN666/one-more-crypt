@@ -507,3 +507,91 @@ revoke execute on function public.my_summons(timestamptz) from public;
 grant execute on function public.my_summons(timestamptz) to authenticated;
 
 notify pgrst, 'reload schema';
+
+-- ---------- run funnel (anonymous, per device) ----------
+-- Where players drop off: who taps the title screen, who starts a run, the floor they
+-- were on when they left mid-run, and who finished without an account (so their run
+-- never reached a leaderboard). One row per device, day and mode; no names.
+create table if not exists public.run_funnel (
+  device text not null check (length(device) between 8 and 64),
+  day date not null default ((now() at time zone 'America/Chicago')::date),
+  mode text not null check (mode in ('daily', 'endless', 'title')),
+  started boolean not null default false,
+  ended boolean not null default false,
+  signed boolean not null default false,
+  quit_floor int,
+  end_floor int,
+  tapped boolean not null default false,
+  tutorial boolean not null default false,
+  first_seen timestamptz not null default now(),
+  last_seen timestamptz not null default now(),
+  primary key (device, day, mode)
+);
+alter table public.run_funnel enable row level security;
+create index if not exists run_funnel_day on public.run_funnel (day);
+
+create or replace function public.note_run(p_device text, p_mode text, p_event text, p_floor int default null, p_signed boolean default false)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  insert into public.run_funnel (device, mode, started, ended, signed, quit_floor, end_floor, tapped, tutorial)
+  select p_device, p_mode, p_event = 'start', p_event = 'end', p_event = 'end' and coalesce(p_signed, false),
+    case when p_event = 'quit' then least(greatest(p_floor, 0), 100000) end,
+    case when p_event = 'end' then least(greatest(p_floor, 0), 100000) end,
+    p_event = 'tap', p_event = 'tutorial'
+  where p_event in ('start', 'end', 'quit', 'tap', 'tutorial')
+  on conflict (device, day, mode) do update set
+    last_seen = now(),
+    started = public.run_funnel.started or excluded.started,
+    ended = public.run_funnel.ended or excluded.ended,
+    signed = public.run_funnel.signed or excluded.signed,
+    quit_floor = coalesce(excluded.quit_floor, public.run_funnel.quit_floor),
+    end_floor = greatest(public.run_funnel.end_floor, excluded.end_floor),
+    tapped = public.run_funnel.tapped or excluded.tapped,
+    tutorial = public.run_funnel.tutorial or excluded.tutorial;
+$$;
+revoke all on function public.note_run(text, text, text, int, boolean) from public;
+grant execute on function public.note_run(text, text, text, int, boolean) to anon, authenticated;
+
+-- The funnel for the dashboard: the last 7 days, and where unfinished runs stopped.
+create or replace function public.crypt_funnel()
+returns json
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  with t as (select (now() at time zone 'America/Chicago')::date as d),
+  days as (select (t.d - g)::date as day from t, generate_series(0, 6) g),
+  f as (select * from public.run_funnel, t where day > t.d - 7)
+  select json_build_object(
+    'days', (select json_agg(json_build_object(
+      'day', days.day,
+      'visitors', (select count(*) from public.activity a where a.day = days.day),
+      'tapped', (select count(*) from f where f.day = days.day and f.mode = 'title' and f.tapped),
+      'tutorial', (select count(*) from f where f.day = days.day and f.mode = 'title' and f.tutorial),
+      'daily_started', (select count(*) from f where f.day = days.day and f.mode = 'daily' and f.started),
+      'daily_ended', (select count(*) from f where f.day = days.day and f.mode = 'daily' and f.started and f.ended),
+      'daily_signed', (select count(*) from f where f.day = days.day and f.mode = 'daily' and f.started and f.ended and f.signed),
+      'endless_started', (select count(*) from f where f.day = days.day and f.mode = 'endless' and f.started),
+      'endless_ended', (select count(*) from f where f.day = days.day and f.mode = 'endless' and f.started and f.ended)
+    ) order by days.day desc) from days),
+    'quit_floors', (select json_object_agg(mode, b) from (
+      select mode, json_build_object(
+        '1-2', count(*) filter (where quit_floor between 0 and 2),
+        '3-5', count(*) filter (where quit_floor between 3 and 5),
+        '6-10', count(*) filter (where quit_floor between 6 and 10),
+        '11-20', count(*) filter (where quit_floor between 11 and 20),
+        '21+', count(*) filter (where quit_floor > 20),
+        'unknown', count(*) filter (where quit_floor is null)
+      ) as b
+      from f where mode in ('daily', 'endless') and started and not ended group by mode
+    ) s),
+    'since', (select min(first_seen) from public.run_funnel)
+  );
+$$;
+revoke all on function public.crypt_funnel() from public, anon, authenticated;
+
+notify pgrst, 'reload schema';

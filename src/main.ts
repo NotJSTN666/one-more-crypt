@@ -12,7 +12,7 @@ import { hallFromLink, showHall, showPublicHall, soulRankHtml, titleName } from 
 import { HEAD_BY_ID, LOOK_BY_ID, PODIUM, STREAK_HELMS, WEEKLY, rankFor } from './progression';
 import { Renderer } from './render';
 import { hashSeed } from './rng';
-import { ONLINE, dailyBoard, endlessBoard, mySummons, noteSummon, pingActivity, startActivityPings } from './online';
+import { ONLINE, dailyBoard, endlessBoard, mySummons, noteRun, noteSummon, pingActivity, startActivityPings } from './online';
 import {
   ACT_TITLE, LORE, LORE_COUNT, MAIN_QUESTS, QUESTS, QUEST_BY_N, SPEAKERS, conversation, facePortrait, houndStats, npcMarker, npcPresent, petName, questStatus,
   type Line, type NpcId, type Quest, type StoryState,
@@ -87,6 +87,7 @@ function startRun(mode: Mode) {
   unlockAudio();
   void pingActivity(true);
   newGame(mode);
+  if (mode === 'daily' || mode === 'endless') noteRun(mode, 'start');
   startClock();
   saveRun();
   setMusicDepth(game.floor, game.zone.def.key);
@@ -99,6 +100,7 @@ function startRun(mode: Mode) {
 
 function startTutorial(then: () => void, label = 'Enter the crypt') {
   unlockAudio();
+  noteRun('title', 'tutorial');
   tutorial = { step: 0, busy: false, then, label };
   game = new Game('endless', 7, 0, { hero: 'knight', pool: fullPool() });
   runCombos = [];
@@ -289,6 +291,7 @@ function resumeRun(g: Game) {
   unlockAudio();
   startClock(savedSeconds());
   showGame(g);
+  if (g.mode === 'daily' || g.mode === 'endless') noteRun(g.mode, 'start');
   setMusicDepth(g.floor, g.zone.def.key);
   setMusicMood(g.isBossFloor() ? 'boss' : 'crypt');
   hideOverlay();
@@ -314,6 +317,7 @@ function finishRun(abandoned = false) {
   };
   clearRun();
   clearBeat();
+  if (game.mode === 'daily' || game.mode === 'endless') noteRun(game.mode, 'end', game.floor, signedIn());
   // Record the daily first, so today counts toward the streak and its rewards.
   if (game.mode === 'daily') recordDaily(save, game.dailyNo, result);
   const streak = streakStats(save, dailyNumber());
@@ -1288,6 +1292,7 @@ function showPause() {
       newGame('endless');
       enterHollow();
     } else {
+      noteRun('endless', 'quit', game.floor);
       hideOverlay();
       newGame('endless');
       showTitle();
@@ -1830,6 +1835,22 @@ function loop(now: number) {
   drawGhosts(dt);
   requestAnimationFrame(loop);
 }
+
+// The run funnel: whether a visitor touches anything at all (the first screen may be the
+// title or the sign-in), and the floor a run was left on when the page goes away (a run
+// picked up and finished later is counted as finished).
+let touched = false;
+const firstTouch = () => {
+  if (touched) return;
+  touched = true;
+  noteRun('title', 'tap');
+};
+window.addEventListener('pointerdown', firstTouch, true);
+window.addEventListener('keydown', firstTouch, true);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden || !game || tutorial) return;
+  if ((game.mode === 'daily' || game.mode === 'endless') && game.phase !== 'dead') noteRun(game.mode, 'quit', game.floor);
+});
 
 // Expose for automated play-testing.
 (window as unknown as { cryptfall: unknown }).cryptfall = {
