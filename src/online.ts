@@ -2,6 +2,7 @@
 // demand so the game itself still opens instantly; with no config the game runs
 // fully offline and these features stay hidden.
 
+import { trafficSource } from './source';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import type { Mode } from './game';
 import { siteUrl } from './share';
@@ -414,10 +415,30 @@ export async function noteInstall(): Promise<void> {
   }
 }
 
+/** Record where this visit came from, once per browser session. */
+async function noteSource(): Promise<void> {
+  try {
+    if (sessionStorage.getItem('omc:source')) return;
+    sessionStorage.setItem('omc:source', '1');
+    const { source, host } = trafficSource(location.href, document.referrer, { itch: import.meta.env.MODE === 'itch', app: runningAsApp() });
+    // Tidy the tag out of the address bar, so shared links don't carry it on.
+    const u = new globalThis.URL(location.href);
+    if (u.searchParams.has('ref') || [...u.searchParams.keys()].some((k) => k.startsWith('utm_'))) {
+      u.searchParams.delete('ref');
+      for (const k of [...u.searchParams.keys()]) if (k.startsWith('utm_')) u.searchParams.delete(k);
+      history.replaceState(history.state, '', u.toString());
+    }
+    const sb = await client();
+    await sb.rpc('note_source', { p_device: deviceId(), p_source: source, p_host: host });
+  } catch {
+    // Stats are best effort.
+  }
+}
+
 /** Check in now and then about once a minute while the game is visible. */
 export function startActivityPings() {
   if (!ONLINE) return;
-  void pingActivity();
+  void pingActivity().then(() => noteSource());
   window.setInterval(() => {
     if (!document.hidden) void pingActivity();
   }, 60_000);

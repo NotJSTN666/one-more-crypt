@@ -607,3 +607,70 @@ create table if not exists public.patrons (
 alter table public.patrons enable row level security;
 drop policy if exists "patrons read own" on public.patrons;
 create policy "patrons read own" on public.patrons for select using (auth.uid() = user_id);
+
+-- ---------- traffic sources (for the stats dashboard) ----------
+-- Where visits come from: a tagged link (?ref=reddit), the referring site's name, itch,
+-- the installed app, or direct. One row per device per day per source; `first_visit`
+-- marks the source a device first arrived from. Same random device id, no personal data.
+create table if not exists public.visit_sources (
+  device text not null check (length(device) between 8 and 64),
+  day date not null default ((now() at time zone 'America/Chicago')::date),
+  source text not null check (source ~ '^[a-z0-9._-]{1,40}$'),
+  host text not null default '',
+  first_visit boolean not null default false,
+  at timestamptz not null default now(),
+  primary key (device, day, source)
+);
+alter table public.visit_sources enable row level security;
+
+create or replace function public.note_source(p_device text, p_source text, p_host text default '')
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  insert into public.visit_sources (device, source, host, first_visit)
+  select p_device,
+    case when lower(p_source) ~ '^[a-z0-9._-]{1,40}$' then lower(p_source) else 'other' end,
+    left(regexp_replace(lower(coalesce(p_host, '')), '[^a-z0-9._-]', '', 'g'), 60),
+    not exists (select 1 from public.visit_sources v where v.device = p_device)
+  where length(p_device) between 8 and 64
+  on conflict (device, day, source) do nothing;
+$$;
+revoke all on function public.note_source(text, text, text) from public;
+grant execute on function public.note_source(text, text, text) to anon, authenticated;
+
+-- For the dashboard: visitors and players by source today and this week, where new
+-- players first came from (and how many came back another day), and the top referring sites.
+create or replace function public.crypt_sources()
+returns json
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  with t as (select (now() at time zone 'America/Chicago')::date as d),
+  v as (
+    select s.*, coalesce(a.played, false) as played
+    from public.visit_sources s left join public.activity a on a.device = s.device and a.day = s.day
+  )
+  select json_build_object(
+    'today', (select json_agg(r order by r.visitors desc) from (
+      select source, count(*) as visitors, count(*) filter (where played) as players
+      from v, t where v.day = t.d group by source) r),
+    'week', (select json_agg(r order by r.visitors desc) from (
+      select source, count(distinct device) as visitors, count(distinct device) filter (where played) as players
+      from v, t where v.day > t.d - 7 group by source) r),
+    'first', (select json_agg(r order by r.visitors desc) from (
+      select f.source, count(*) as visitors,
+        count(*) filter (where exists (select 1 from public.activity a where a.device = f.device and a.played)) as players,
+        count(*) filter (where (select count(distinct a.day) from public.activity a where a.device = f.device) > 1) as returned
+      from public.visit_sources f where f.first_visit group by f.source) r),
+    'hosts', (select json_agg(r order by r.visits desc) from (
+      select host, count(*) as visits from v, t where v.day > t.d - 7 and host <> '' group by host order by count(*) desc limit 12) r),
+    'since', (select min(at) from public.visit_sources)
+  );
+$$;
+revoke all on function public.crypt_sources() from public, anon, authenticated;
+
+notify pgrst, 'reload schema';
