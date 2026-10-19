@@ -8,7 +8,7 @@ import { acceptQuest, checkRun, chooseStory, clearQuest, completeQuest, equipOut
 import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
-import { hallFromLink, showHall, showPublicHall, soulRankHtml, titleName } from './hall';
+import { hallFromLink, onVisitIsle, showHall, showPublicHall, soulRankHtml, titleName } from './hall';
 import { HEAD_BY_ID, LOOK_BY_ID, PODIUM, STREAK_HELMS, WEEKLY, rankFor } from './progression';
 import { Renderer } from './render';
 import { hashSeed } from './rng';
@@ -17,7 +17,8 @@ import {
   ACT_TITLE, LORE, LORE_COUNT, MAIN_QUESTS, QUESTS, QUEST_BY_N, SPEAKERS, conversation, facePortrait, houndStats, npcMarker, npcPresent, petName, questStatus,
   type Line, type NpcId, type Quest, type StoryState,
 } from './story';
-import { EPITAPHS, hollowKey, setHollowSpot, showHollow, type HollowPlace } from './hollow';
+import { EPITAPHS, hollowKey, setHollowSpot, showHollow, showIsleVisit, type HollowHooks, type HollowPlace } from './hollow';
+import { islePerks, type IsleState } from './isle';
 import { showWardrobe } from './wardrobe';
 import { IMPACT, playFusion } from './fusefx';
 import { howToHtml, startHowTo } from './howto';
@@ -768,7 +769,7 @@ function showTitle() {
     ${endlessNext ? endlessBtn : ''}
     ${bountiesHtml(today)}
     ${storyButtonHtml()}
-    <button class="btn hollow-btn" id="hollow">🌙 Enter the Hollow<small>Walk the graveyard. Every door leads somewhere.</small></button>
+    <button class="btn hollow-btn" id="hollow">🌙 Enter the Hollow<small>Walk the graveyard. Ferry out to build your own isle.</small></button>
     ${endlessNext ? '' : endlessBtn}
     <div class="row">
       <button class="btn" id="ossuary">🏛️ Ossuary<small>💀 ${meta.souls} Souls</small></button>
@@ -908,7 +909,19 @@ function accountChip(): string {
 function enterHollow() {
   setMusicDepth(0);
   setMusicMood('crypt');
-  showHollow({
+  showHollow(hollowHooks());
+}
+
+/** Someone else's isle, from their Hall. */
+function visitIsle(name: string, isle: IsleState, back: () => void) {
+  setMusicDepth(0);
+  setMusicMood('crypt');
+  showIsleVisit(hollowHooks(), name, isle, back);
+}
+onVisitIsle(visitIsle);
+
+function hollowHooks(): HollowHooks {
+  return {
     enter: enterPlace,
     describe: describePlace,
     visit: (name) => showPublicHall(name, enterHollow),
@@ -937,7 +950,13 @@ function enterHollow() {
     loreRead: (id) => meta.story.journal.includes(id),
     pet: () => storyOpen() && meta.pet === 'hound' && houndJoined(),
     quests: () => showQuests(),
-  });
+    built: (what) => {
+      if (what === 'place') sfx.relic();
+      else if (what === 'pickup') sfx.step();
+      else if (what === 'land') sfx.fuse();
+      else sfx.bump();
+    },
+  };
 }
 
 function describePlace(place: HollowPlace): string {
@@ -1012,6 +1031,7 @@ function showHelp(back: () => void) {
       <li>Some walls are <b>cracked</b>. Bump one twice to find a secret vault.</li>
       <li><b>Spikes</b> hurt anything that steps on them, foes included.</li>
       <li>Every run earns <b>Souls</b>. Spend them in the <b>Ossuary</b> on new heroes and relics.</li>
+      <li>Take the road west out of the graveyard to <b>your isle</b>. Spend Souls on trees, lights and houses, and on buildings that help in Endless and the story.</li>
       <li>The <b>Daily Descent</b> is the same crypt and hero for everyone, once a day. Share your depth.</li>
       <li>One More Crypt is free, with no ads. If you'd like to help keep it running, you can <a href="${KOFI_URL}" target="_blank" rel="noopener">leave a tip on Ko-fi</a> ☕</li>
     </ul>
@@ -1724,6 +1744,8 @@ function startStory(q: Quest, ghost: GhostInfo | null) {
       boss: d.boss,
       look: d.look,
     },
+    // The isle's buildings help in the story too.
+    ...(islePerks(meta.isle).vigor ? { vigor: islePerks(meta.isle).vigor } : {}),
   });
   storyRun = { quest: q, start: d.floors[0], hound };
   clearRun();

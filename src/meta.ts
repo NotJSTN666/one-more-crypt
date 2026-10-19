@@ -3,6 +3,7 @@
 
 import { ACHIEVEMENT_BY_ID, COMBOS, HEROES, HERO_BY_ID, dailyHero, type AchievementDef, type ComboDef, type HeroId } from './content';
 import { Game, UNDEAD, basePool, fullPool, type Mode, type RunConfig } from './game';
+import { ISLE_ITEM, LAND, cleanIsle, emptyIsle, fits, islePerks, itemAt, owned, type IsleState } from './isle';
 import { FUSIONS, RELICS, UNLOCKABLE_RELICS, type FusedId, type RelicId } from './relics';
 import {
   BESTIARY_KINDS, BESTIARY_TITLES, beastPlural, HEADS, HEAD_BY_ID, HERO_CLOAKS, HERO_COSTUMES, LOOKS, LOOK_BY_ID, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_TIER, betterRun, bestiaryTiers, rankIndex,
@@ -71,6 +72,8 @@ export interface Meta {
   summonsSeen: string;
   /** A supporter on Ko-fi (set from the patrons table): the Patron title is theirs. */
   patron: boolean;
+  /** Your Isle: land cleared and everything built on it. */
+  isle: IsleState;
 }
 
 /** Story progress: quests taken, cleared (dungeon done) and finished, choices, the hound's bond, lore read. */
@@ -121,7 +124,7 @@ function empty(): Meta {
     podiums: {}, podiumChecked: 0, bought: [], streak: { best: 0, count: 0, last: 0 },
     bounties: { day: 0, ids: [], progress: [], done: [] },
     weekly: {}, weeklyChecked: '',
-    story: emptyStory(), pet: '', summonsSeen: '', patron: false,
+    story: emptyStory(), pet: '', summonsSeen: '', patron: false, isle: emptyIsle(),
   };
 }
 
@@ -131,6 +134,7 @@ function load(): Meta {
     if (!raw) return empty();
     const m: Meta = { ...empty(), ...JSON.parse(raw) };
     // The story moved into the open world: earlier chapter progress starts over (the hound stays).
+    m.isle = cleanIsle(m.isle);
     m.story = m.story?.v === STORY_V ? { ...emptyStory(), ...m.story } : { ...emptyStory(), choices: m.story?.choices ?? {}, bond: m.story?.bond ?? 0 };
     return m;
   } catch {
@@ -181,6 +185,8 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
     meta.best[h as HeroId] = betterRun(meta.best[h as HeroId], run);
   }
   meta.patron ||= other.patron === true;
+  // The isle is one layout: whichever device changed it last wins.
+  if (other.isle && (Number(other.isle.at) || 0) > meta.isle.at) meta.isle = cleanIsle(other.isle);
   meta.title ||= other.title ?? '';
   meta.look ||= other.look ?? '';
   meta.looksSeen = [...new Set([...meta.looksSeen, ...(other.looksSeen ?? [])])];
@@ -286,7 +292,11 @@ export function runConfig(mode: Mode, dailyNo: number): RunConfig {
     return config;
   }
   const hero = heroUnlocked(meta.hero) ? meta.hero : 'knight';
-  return { hero, pool: basePool(meta.relics.filter((id) => UNLOCKABLE_RELICS.includes(id))), forge: true, mercy: true, depths: true };
+  const config: RunConfig = { hero, pool: basePool(meta.relics.filter((id) => UNLOCKABLE_RELICS.includes(id))), forge: true, mercy: true, depths: true };
+  // The isle's buildings help in Endless (never the Daily).
+  const { vigor } = islePerks(meta.isle);
+  if (vigor) config.vigor = vigor;
+  return config;
 }
 
 // ---------- achievements ----------
@@ -445,6 +455,8 @@ export function noteStreak(s: { best: number; count: number; last: number }): bo
 /** Pay out Souls at the end of a run. */
 export function finishRunMeta(game: Game, streak: number): RunReward {
   const lines = runSouls(game);
+  const bonus = game.mode === 'daily' ? 0 : islePerks(meta.isle).souls;
+  if (bonus) lines.push(['Soul Well', Math.round(lines.reduce((sum, [, n]) => sum + n, 0) * bonus)]);
   const souls = lines.reduce((sum, [, n]) => sum + n, 0);
   const st = meta.heroStats[game.hero] ?? { floor: 0, souls: 0, runs: 0 };
   meta.heroStats[game.hero] = { floor: Math.max(st.floor, game.floor), souls: st.souls + souls, runs: st.runs + 1 };
@@ -618,6 +630,49 @@ export function grantWeekly(week: string, place: number, souls: number, head: st
   meta.souls += souls;
   meta.earned += souls;
   if (head && !meta.headsSeen.includes(head)) meta.headsSeen.push(head);
+  saveMeta();
+  return true;
+}
+
+// ---------- your isle ----------
+
+export type BuildResult = 'ok' | 'souls' | 'blocked' | 'max';
+
+/** Set a thing down: from storage if there's one waiting, otherwise bought with Souls. */
+export function placeIsleItem(id: string, x: number, y: number): BuildResult {
+  const it = ISLE_ITEM[id];
+  if (!it || !fits(meta.isle, id, x, y)) return 'blocked';
+  const stored = meta.isle.stored[id] ?? 0;
+  if (!stored) {
+    if (it.max && owned(meta.isle, id) >= it.max) return 'max';
+    if (meta.souls < it.cost) return 'souls';
+    meta.souls -= it.cost;
+  } else if (stored > 1) meta.isle.stored[id] = stored - 1;
+  else delete meta.isle.stored[id];
+  meta.isle.placed.push([id, x, y]);
+  meta.isle.at = Date.now();
+  saveMeta();
+  return 'ok';
+}
+
+/** Pick up whatever is on this tile and keep it in storage. Returns its id. */
+export function pickUpIsleItem(x: number, y: number): string | null {
+  const i = itemAt(meta.isle, x, y);
+  if (i < 0) return null;
+  const [id] = meta.isle.placed.splice(i, 1)[0];
+  meta.isle.stored[id] = (meta.isle.stored[id] ?? 0) + 1;
+  meta.isle.at = Date.now();
+  saveMeta();
+  return id;
+}
+
+/** Clear the next stretch of land. */
+export function buyLand(): boolean {
+  const next = LAND[meta.isle.land];
+  if (!next || meta.souls < next.cost) return false;
+  meta.souls -= next.cost;
+  meta.isle.land++;
+  meta.isle.at = Date.now();
   saveMeta();
   return true;
 }

@@ -155,6 +155,8 @@ export interface RunConfig {
   story?: StoryConfig;
   /** Depth zones and secret vaults (log version 6 and later). */
   depths?: boolean;
+  /** Extra max HP from buildings on the player's isle (Endless and story only; log version 7). */
+  vigor?: number;
 }
 
 export interface StoryConfig {
@@ -233,6 +235,8 @@ const FORGE_LOG_VERSION = 4;
 const MERCY_LOG_VERSION = 5;
 /** Runs with depth zones and secret vaults. */
 const DEPTHS_LOG_VERSION = 6;
+/** Runs with isle perks: the header carries the extra max HP. */
+const ISLE_LOG_VERSION = 7;
 /** One input character per Soul Forge option. */
 const FORGE_KEYS = 'bcdefghijklm';
 const BOW_RANGE = 3;
@@ -300,7 +304,7 @@ export class Game {
     this.dailyNo = dailyNo;
     this.config = config;
     this.combat = mulberry32(hashSeed(seed, 'combat'));
-    const hp = HERO_BY_ID[config.hero].hp;
+    const hp = HERO_BY_ID[config.hero].hp + (config.vigor ?? 0);
     this.player.hp = this.player.maxHp = hp;
     const story = config.story;
     if (story) {
@@ -411,6 +415,7 @@ export class Game {
   header(): string {
     const unlocked = UNLOCKABLE_RELICS.filter((id) => this.config.pool.includes(id));
     // Pools without any post-launch relic are logged as version 2 so they replay with the launch set.
+    if (this.config.vigor) return `#${ISLE_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor}|`;
     const version = this.config.depths ? DEPTHS_LOG_VERSION : this.config.mercy ? MERCY_LOG_VERSION : this.config.forge ? FORGE_LOG_VERSION : this.config.pool.some((id) => !LEGACY_RELICS.includes(id)) ? LOG_VERSION : 2;
     return `#${version}|${this.config.hero}|${unlocked.join(',')}|`;
   }
@@ -1731,7 +1736,15 @@ export class Game {
     const forge = Number(m[1]) >= FORGE_LOG_VERSION;
     const mercy = Number(m[1]) >= MERCY_LOG_VERSION;
     const depths = Number(m[1]) >= DEPTHS_LOG_VERSION;
-    return { config: { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy, ...(depths ? { depths } : {}) }, inputs: full.slice(m[0].length) };
+    const config: RunConfig = { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy, ...(depths ? { depths } : {}) };
+    let rest = full.slice(m[0].length);
+    // Version 7 adds one field: the isle's extra max HP.
+    const isle = Number(m[1]) >= ISLE_LOG_VERSION ? /^(\d+)\|/.exec(rest) : null;
+    if (isle) {
+      config.vigor = Number(isle[1]);
+      rest = rest.slice(isle[0].length);
+    }
+    return { config, inputs: rest };
   }
 
   /** Re-simulate a run from its full input log. Used to verify scores and resume runs. */

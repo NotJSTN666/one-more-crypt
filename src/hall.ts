@@ -3,6 +3,7 @@
 // tabs to wear titles and looks and to read the Bestiary. Anyone can visit another
 // player's Hall from the leaderboard or a shared link.
 
+import { cleanIsle, type IsleState } from './isle';
 import { sfx } from './audio';
 import { ACHIEVEMENTS, ACHIEVEMENT_BY_ID, COMBOS, HEROES, HERO_BY_ID, type HeroId } from './content';
 import { ENEMY_INFO, type EnemyKind } from './game';
@@ -23,6 +24,8 @@ import { esc, on, overlay, screen, showOverlay, toast } from './ui';
 /** What a Hall shows: your own progress, or a cleaned-up copy of someone else's. */
 export interface HallData {
   name: string;
+  /** Their isle, to visit. */
+  isle: IsleState;
   title: string;
   earned: number;
   feats: number;
@@ -87,6 +90,7 @@ export function hallData(name: string, m: Partial<Meta> | Record<string, unknown
   const streak = { current: num(st.last, 1e6) >= today - 1 ? count : 0, best: Math.max(num(st.best, 10000), count) };
   return {
     name,
+    isle: cleanIsle(raw.isle),
     podiums,
     weekly,
     decor,
@@ -634,6 +638,13 @@ export function showHall(name: string, back: () => void, tab: HallTab = 'trophie
 }
 
 /** Someone else's Hall, from the leaderboard or a shared link. */
+let isleVisitor: ((name: string, isle: IsleState, back: () => void) => void) | null = null;
+
+/** How to show someone's isle (set up by the game, which owns the world). */
+export function onVisitIsle(fn: (name: string, isle: IsleState, back: () => void) => void) {
+  isleVisitor = fn;
+}
+
 export function showPublicHall(name: string, back: () => void, tab: 'trophies' | 'bestiary' = 'trophies', loaded?: HallData) {
   if (!loaded) {
     showOverlay('hall-public', `<h2>The Crypt Hall</h2><p class="sub">Opening ${esc(name)}'s Hall…</p><button class="btn primary" id="back">Back</button>`);
@@ -666,9 +677,11 @@ export function showPublicHall(name: string, back: () => void, tab: 'trophies' |
     ${rankBar(d.earned)}
     <div class="tabs" role="tablist">${tabs.map(([t, label]) => `<button role="tab" data-tab="${t}" aria-selected="${t === tab}">${label}</button>`).join('')}</div>
     ${tab === 'bestiary' ? bestiaryBody(d) : trophiesBody(d)}
+    ${isleVisitor && (d.isle.placed.length || d.isle.land) ? `<button class="btn" id="hall-isle">🏝️ Visit ${esc(d.name)}'s Isle</button>` : ''}
     <button class="btn" id="hall-image">🖼️ Save image</button>
     <button class="btn primary" id="back">Back</button>`);
   startCanvas(d);
+  on('#hall-isle', () => isleVisitor?.(d.name, d.isle, () => showPublicHall(d.name, back, tab, d)));
   overlay.querySelectorAll<HTMLButtonElement>('.tabs button').forEach((b) =>
     b.addEventListener('click', () => showPublicHall(d.name, back, b.dataset.tab as typeof tab, d)),
   );

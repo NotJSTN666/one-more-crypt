@@ -5,13 +5,17 @@
 // homes to walk into, people to talk to, and quests that send you down into dungeons.
 
 import { dailyHero } from './content';
+import {
+  ISLE_CATS, ISLE_DOCK, ISLE_ITEM, ISLE_ITEMS, ISLE_MAP, LAND, drawIsleGround, drawIsleItem, drawIsleItems, fits, isleIcon, isleSolid, itemAt,
+  type IsleCat, type IsleState,
+} from './isle';
 import { dailyNumber } from './daily';
 import { heroSprite } from './hero';
-import { meta, outfitFor } from './meta';
+import { buyLand, meta, outfitFor, pickUpIsleItem, placeIsleItem } from './meta';
 import { LOOK_BY_ID } from './progression';
 import { enemyFrames } from './sprites';
 import { npcFigure, type NpcId } from './story';
-import { esc, overlay, screen, showOverlay, staleTap } from './ui';
+import { esc, overlay, screen, showOverlay, staleTap, toast } from './ui';
 
 export type HollowPlace = 'daily' | 'endless' | 'forge' | 'ossuary' | 'hall' | 'grimoire' | 'wardrobe' | 'ranks';
 
@@ -35,7 +39,7 @@ const GRAVEYARD_MAP = [
   '#.EEE.DDDDD.FFF.MMM.#',
   '#.EEE.DDDDD.FFF.MMM.#',
   '#..n...:d:...f...m..#',
-  '#:::::::::::::::::::>',
+  '<:::::::::::::::::::>',
   '#OOO.+..:..1.HHH.CC.#',
   '#OOO.+..:..+.HHH.CC.#',
   '#.o.:::::::::.h..c..#',
@@ -182,6 +186,8 @@ interface Area {
   lore?: Record<string, { id: string; look: LoreLook }>;
   /** Interiors: the colour of the floorboards. */
   floor?: string;
+  /** Your Isle: the ground and what stands on it come from the save. */
+  isle?: boolean;
 }
 
 const AREAS: Record<string, Area> = {
@@ -204,7 +210,14 @@ const AREAS: Record<string, Area> = {
       h: { place: 'hall' }, g: { place: 'grimoire' }, r: { place: 'wardrobe' },
       m: { interior: 'cottage' }, c: { dungeon: 1 },
     },
-    exits: { '>': { to: 'village', x: 1, y: 4 } },
+    exits: { '>': { to: 'village', x: 1, y: 4 }, '<': { to: 'isle', x: ISLE_DOCK.x, y: ISLE_DOCK.y } },
+  },
+  isle: {
+    name: 'Your Isle',
+    map: ISLE_MAP,
+    isle: true,
+    doors: {},
+    exits: { '<': { to: 'graveyard', x: 1, y: 4 } },
   },
   village: {
     name: 'Gravesend',
@@ -312,6 +325,8 @@ export interface HollowHooks {
   /** The Crypt Hound trots along behind. */
   pet: () => boolean;
   quests: () => void;
+  /** Something built, picked up or bought on the isle. */
+  built?: (what: 'place' | 'pickup' | 'land' | 'fail') => void;
 }
 
 const PLACE_NAMES: Record<HollowPlace, string> = {
@@ -345,6 +360,12 @@ let raf = 0;
 let facing = 1;
 /** The on-screen arrow being held down, stepping again every so often. */
 let hold = 0;
+/** Build mode on your isle: the thing being set down (or picking up), and the shop tab. */
+let build: { item: string | null; pickup: boolean; cat: IsleCat | 'land' } | null = null;
+/** The tile under the pointer (or last tapped) while building, for the preview. */
+let cursor: { x: number; y: number } | null = null;
+/** Looking round someone else's isle: theirs to draw, and where to go back to. */
+let visiting: { name: string; isle: IsleState; back: () => void; home: { area: string; x: number; y: number; outside: { area: string; x: number; y: number } | null } } | null = null;
 
 function stopHold() {
   window.clearInterval(hold);
@@ -367,6 +388,8 @@ interface Ghost {
 }
 
 const area = () => AREAS[areaId];
+/** The isle being shown: yours, or the one you're visiting. */
+const isleData = () => visiting?.isle ?? meta.isle;
 const cols = () => area().map[0].length;
 const rows = () => area().map.length;
 /**
@@ -375,6 +398,8 @@ const rows = () => area().map.length;
  * land on the opposite arrow).
  */
 const STAGE_ROWS = Math.max(...Object.values(AREAS).map((a) => a.map.length));
+/** Roads that are always open, story or not: the ferry to your isle and back. */
+const openRoad = (to: string) => to === 'isle' || areaId === 'isle';
 const at = (x: number, y: number) => (x < 0 || y < 0 || x >= cols() || y >= rows() ? '#' : area().map[y][x]);
 const isBuilding = (c: string) => Boolean(area().buildings?.some((b) => b.letter === c));
 const doorAt = (x: number, y: number): Door | undefined => area().doors[at(x, y)];
@@ -382,6 +407,7 @@ const npcAt = (x: number, y: number) => area().npcs?.find((n) => n.x === x && n.
 
 function walkable(x: number, y: number): boolean {
   const c = at(x, y);
+  if (area().isle) return !isleSolid(isleData(), x, y);
   if (isBuilding(c)) return false;
   if (area().interior) return !INDOOR_SOLID.has(c);
   if (areaId === 'graveyard' && EPITAPHS[c]) return false;
@@ -405,7 +431,9 @@ export function setHollowSpot(to: string, x: number, y: number) {
 export function showHollow(h: HollowHooks) {
   hooks = h;
   // The world past the graveyard is the story's; without it, start back in the graveyard.
-  if (areaId !== 'graveyard' && !hooks.storyOpen()) {
+  visiting = null;
+  build = null;
+  if (areaId !== 'graveyard' && areaId !== 'isle' && !hooks.storyOpen()) {
     areaId = 'graveyard';
     outside = null;
     pos.x = SPAWN.x;
@@ -428,31 +456,56 @@ function open() {
   dialog = null;
   pending = null;
   const touch = matchMedia('(pointer: coarse)').matches;
-  viewCols = Math.min(cols(), window.innerWidth < 600 ? 11 : 17);
+  // Building shows the whole isle at once; walking follows the hero.
+  viewCols = build ? cols() : Math.min(cols(), window.innerWidth < 600 ? 11 : 17);
   camX = cameraTarget();
   const story = hooks.storyOpen();
+  const isle = Boolean(area().isle);
+  const title = visiting ? `${visiting.name}'s Isle` : area().name;
+  const right = visiting
+    ? '<span></span>'
+    : isle
+      ? `<button class="btn ${build ? 'on' : ''}" id="isle-build">${build ? '✓ Done' : '🔨 Build'}</button>`
+      : story
+        ? '<button class="btn" id="hollow-quests">📜 Quests</button>'
+        : `<span class="souls-chip">💀 <b>${meta.souls}</b></span>`;
   showOverlay('hollow', `
     <div class="hollow-wrap">
       <div class="hollow-top">
-        <button class="btn" id="hollow-menu">☰ Menu</button>
-        <span class="hollow-title">${esc(area().name)}</span>
-        ${story ? '<button class="btn" id="hollow-quests">📜 Quests</button>' : `<span class="souls-chip">💀 <b>${meta.souls}</b></span>`}
+        ${visiting ? '<button class="btn" id="hollow-back">← Back</button>' : '<button class="btn" id="hollow-menu">☰ Menu</button>'}
+        <span class="hollow-title">${esc(title)}</span>
+        ${right}
       </div>
-      <div class="hollow-stage" style="aspect-ratio: ${window.innerWidth < 600 ? 11 : 17} / ${STAGE_ROWS}">
+      <div class="hollow-stage" style="aspect-ratio: ${build ? cols() : window.innerWidth < 600 ? 11 : 17} / ${STAGE_ROWS}">
         <canvas id="hollow-canvas" width="${viewCols * TILE * SCALE}" height="${rows() * TILE * SCALE}" aria-label="${esc(area().name)}, a place to explore"></canvas>
       </div>
       <div class="hollow-dialog" id="hollow-dialog" hidden></div>
-      ${touch ? `<div class="hollow-dpad" aria-label="Move">
+      ${build ? '<div class="isle-panel" id="isle-panel"></div>' : ''}
+      ${touch && !build ? `<div class="hollow-dpad" aria-label="Move">
         <button type="button" data-d="0,-1" aria-label="Up">▲</button>
         <button type="button" data-d="-1,0" aria-label="Left">◀</button>
         <button type="button" data-d="1,0" aria-label="Right">▶</button>
         <button type="button" data-d="0,1" aria-label="Down">▼</button>
       </div>` : ''}
-      <p class="fine hollow-hint">${touch ? 'Use the arrows or tap a spot to walk.' : 'Arrows or WASD to walk, or click a spot.'} ${
-        area().interior ? 'Walk into people to talk. Look closer at anything that glows.' : story ? 'Walk into doors and people. Roads at the edges lead on.' : 'Step through a door to enter. Read the old graves.'
-      }</p>
+      ${build ? '' : `<p class="fine hollow-hint">${touch ? 'Use the arrows or tap a spot to walk.' : 'Arrows or WASD to walk, or click a spot.'} ${
+        visiting
+          ? 'Have a look round. The jetty takes you back.'
+          : isle
+            ? 'Tap 🔨 Build to spend Souls on your land.'
+            : area().interior
+              ? 'Walk into people to talk. Look closer at anything that glows.'
+              : story
+                ? 'Walk into doors and people. Roads at the edges lead on.'
+                : 'Step through a door to enter. Read the old graves. The road west leads to your isle.'
+      }</p>`}
     </div>`);
   overlay.querySelector('#hollow-menu')?.addEventListener('click', () => hooks.menu());
+  overlay.querySelector('#hollow-back')?.addEventListener('click', () => leaveVisit());
+  overlay.querySelector('#isle-build')?.addEventListener('click', () => {
+    build = build ? null : { item: null, pickup: false, cat: 'nature' };
+    cursor = null;
+    open();
+  });
   overlay.querySelector('#hollow-quests')?.addEventListener('click', () => hooks.quests());
   const canvas = overlay.querySelector<HTMLCanvasElement>('#hollow-canvas')!;
   canvas.addEventListener('pointerdown', (e) => {
@@ -461,8 +514,21 @@ function open() {
     const tx = Math.floor(((e.clientX - r.left) / r.width) * viewCols + camX / TILE);
     const ty = Math.floor(((e.clientY - r.top) / r.height) * rows());
     if (dialog) return closeDialog();
+    if (build) return buildTap(tx, ty);
     walkTo(tx, ty);
   });
+  canvas.addEventListener('pointermove', (e) => {
+    if (!build || e.pointerType === 'touch') return;
+    const r = canvas.getBoundingClientRect();
+    cursor = {
+      x: Math.floor(((e.clientX - r.left) / r.width) * viewCols + camX / TILE),
+      y: Math.floor(((e.clientY - r.top) / r.height) * rows()),
+    };
+  });
+  canvas.addEventListener('pointerleave', () => {
+    if (build && !matchMedia('(pointer: coarse)').matches) cursor = null;
+  });
+  if (build) renderPanel();
   overlay.querySelector('#hollow-dialog')?.addEventListener('click', (e) => {
     // The finger that walked into a sign or door shouldn't also dismiss what it opened.
     if (staleTap(e, dialogShownAt)) return;
@@ -506,6 +572,12 @@ function open() {
       })
       .catch(() => undefined);
   }
+  if (isle && !visiting && !build && !meta.isle.placed.length && !meta.isle.land) {
+    dialog = 'intro';
+    showDialog(
+      '<b>Your Isle</b>The ferryman rows you over to a scrap of land in the black water. It\'s yours. Spend the Souls from every run on it: trees, lights, houses. Tap 🔨 Build to start. A few buildings even help you in Endless and the story.',
+    );
+  }
   cancelAnimationFrame(raf);
   const ctx = canvas.getContext('2d')!;
   let last = performance.now();
@@ -546,6 +618,201 @@ function travel(to: string, x: number, y: number) {
   open();
 }
 
+// ---------- your isle ----------
+
+const icons = new Map<string, string>();
+const icon = (id: string) => {
+  if (!icons.has(id)) icons.set(id, isleIcon(id));
+  return icons.get(id)!;
+};
+
+/** Where a thing's corner goes when you tap a tile: the tile is its bottom middle. */
+function anchor(id: string, tx: number, ty: number) {
+  const it = ISLE_ITEM[id];
+  return { x: tx - Math.floor(((it.w ?? 1) - 1) / 2), y: ty - ((it.h ?? 1) - 1) };
+}
+
+/** The shop under the map while building: tabs, things to buy, and what tapping will do. */
+function renderPanel() {
+  const el = document.getElementById('isle-panel');
+  if (!el || !build) return;
+  const b = build;
+  const tabs = [...ISLE_CATS, { id: 'land' as const, name: '🗺️ Land' }]
+    .map((c) => `<button type="button" class="isle-tab ${b.cat === c.id ? 'on' : ''}" data-cat="${c.id}">${c.name}</button>`)
+    .join('');
+  let items = '';
+  if (b.cat === 'land') {
+    const next = LAND[meta.isle.land];
+    items = next
+      ? `<div class="isle-land"><b>${esc(next.name)}</b><span>${esc(next.desc)}</span>
+          <button type="button" class="btn primary" id="isle-land" ${meta.souls < next.cost ? 'disabled' : ''}>Clear it · 💀 ${next.cost.toLocaleString()}</button></div>`
+      : '<div class="isle-land"><b>The whole isle is yours</b><span>Every bramble is gone, right down to the water.</span></div>';
+  } else {
+    items = ISLE_ITEMS.filter((it) => it.cat === b.cat)
+      .map((it) => {
+        const stored = meta.isle.stored[it.id] ?? 0;
+        const have = meta.isle.placed.filter((p) => p[0] === it.id).length + stored;
+        const maxed = Boolean(it.max && have >= it.max && !stored);
+        const price = stored ? `${stored} stored` : maxed ? 'Built' : `💀 ${it.cost.toLocaleString()}`;
+        const poor = !stored && !maxed && meta.souls < it.cost;
+        return `<button type="button" class="isle-item ${b.item === it.id ? 'on' : ''} ${poor || maxed ? 'dim' : ''}" data-item="${it.id}">
+            <img src="${icon(it.id)}" alt="" width="32" height="32" /><span>${esc(it.name)}</span><small>${price}</small>
+          </button>`;
+      })
+      .join('');
+  }
+  const sel = b.item ? ISLE_ITEM[b.item] : null;
+  const hint = b.pickup
+    ? 'Tap anything to pick it up. It waits in storage and goes back down free.'
+    : sel
+      ? `Tap the map to set down a <b>${esc(sel.name)}</b>${meta.isle.stored[sel.id] ? ' (from storage)' : ` for ${sel.cost.toLocaleString()} Souls`}.${sel.perk ? ` <b class="isle-perk">${esc(sel.perk)}</b>` : ''}`
+      : b.cat === 'land'
+        ? 'Clear more land to build further out.'
+        : 'Choose something, then tap the map to set it down.';
+  el.innerHTML = `<div class="isle-panel-top">
+      <span class="souls-chip">💀 <b>${meta.souls.toLocaleString()}</b></span>
+      <button type="button" class="btn ${b.pickup ? 'on' : ''}" id="isle-pickup">🧹 Pick up</button>
+    </div>
+    <div class="isle-tabs">${tabs}</div>
+    <div class="isle-items">${items}</div>
+    <p class="fine isle-hint">${hint}</p>`;
+  el.querySelectorAll<HTMLElement>('[data-cat]').forEach((t) =>
+    t.addEventListener('click', () => {
+      b.cat = t.dataset.cat as IsleCat | 'land';
+      renderPanel();
+    }),
+  );
+  el.querySelectorAll<HTMLElement>('[data-item]').forEach((t) =>
+    t.addEventListener('click', () => {
+      b.item = b.item === t.dataset.item ? null : t.dataset.item!;
+      b.pickup = false;
+      renderPanel();
+    }),
+  );
+  el.querySelector('#isle-pickup')?.addEventListener('click', () => {
+    b.pickup = !b.pickup;
+    if (b.pickup) b.item = null;
+    renderPanel();
+  });
+  el.querySelector('#isle-land')?.addEventListener('click', () => {
+    if (buyLand()) {
+      hooks.built?.('land');
+      toast(`🗺️ ${LAND[meta.isle.land - 1].name}: done. More room to build.`);
+    } else hooks.built?.('fail');
+    renderPanel();
+  });
+}
+
+/** A tap on the map while building: set the chosen thing down, or pick something up. */
+function buildTap(tx: number, ty: number) {
+  if (!build) return;
+  cursor = { x: tx, y: ty };
+  if (build.pickup) {
+    const id = pickUpIsleItem(tx, ty);
+    if (id) {
+      hooks.built?.('pickup');
+      renderPanel();
+    }
+    return;
+  }
+  if (!build.item) {
+    if (itemAt(meta.isle, tx, ty) >= 0) toast('Use 🧹 Pick up to move things.');
+    return;
+  }
+  const it = ISLE_ITEM[build.item];
+  const { x, y } = anchor(build.item, tx, ty);
+  const onYou = pos.x >= x && pos.y >= y && pos.x < x + (it.w ?? 1) && pos.y < y + (it.h ?? 1);
+  if (onYou && !it.walk) {
+    hooks.built?.('fail');
+    return toast('Step out of the way first.');
+  }
+  const result = placeIsleItem(build.item, x, y);
+  if (result === 'ok') {
+    hooks.built?.('place');
+    if (it.max) build.item = null;
+    renderPanel();
+    return;
+  }
+  hooks.built?.('fail');
+  if (result === 'souls') toast(`Not enough Souls: a ${it.name} costs ${it.cost.toLocaleString()}.`);
+  else if (result === 'max') toast(`One ${it.name} is all an isle can hold.`);
+  else toast(meta.isle.land < LAND.length ? "It doesn't fit there. Clear more land in the Land tab." : "It doesn't fit there.");
+}
+
+/** Look round someone else's isle. `back` runs when they leave. */
+export function showIsleVisit(h: HollowHooks, name: string, isle: IsleState, back: () => void) {
+  hooks = h;
+  build = null;
+  visiting = { name, isle, back, home: { area: areaId, x: pos.x, y: pos.y, outside } };
+  areaId = 'isle';
+  outside = null;
+  pos.x = ISLE_DOCK.x;
+  pos.y = ISLE_DOCK.y;
+  open();
+}
+
+function leaveVisit() {
+  const v = visiting;
+  if (!v) return;
+  visiting = null;
+  areaId = v.home.area;
+  pos.x = v.home.x;
+  pos.y = v.home.y;
+  outside = v.home.outside;
+  v.back();
+}
+
+/** The isle: its ground, what's built, the ferry, and while building a preview of what a tap will do. */
+function renderIsle(ctx: CanvasRenderingContext2D, px: Px, t: number) {
+  const isle = isleData();
+  drawIsleGround(ctx, px, isle, t);
+  // the ferry, tied up at the end of the jetty
+  const fy = 7 * TILE + 1 + Math.round(Math.sin(t * 1.5));
+  px(2, fy, 26, 5, '#3a2818');
+  px(4, fy + 5, 22, 3, '#2a1c12');
+  px(13, fy - 8, 2, 8, '#2a2018');
+  ctx.globalAlpha = 0.6 + 0.3 * Math.sin(t * 4);
+  px(12, fy - 11, 4, 3, '#f2c14e');
+  ctx.globalAlpha = 1;
+  if (build) {
+    // a faint grid over land you can build on
+    ctx.globalAlpha = 0.12;
+    for (let y = 0; y < rows(); y++) {
+      for (let x = 0; x < cols(); x++) {
+        const g = ISLE_MAP[y][x];
+        if (g >= '0' && g <= '2' && Number(g) <= isle.land) {
+          px(x * TILE, y * TILE, TILE, 1, '#e8dcc4');
+          px(x * TILE, y * TILE, 1, TILE, '#e8dcc4');
+        }
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+  drawIsleItems(ctx, px, isle, t);
+  if (build && cursor) {
+    if (build.pickup) {
+      const i = itemAt(isle, cursor.x, cursor.y);
+      if (i >= 0) {
+        const [id, x, y] = isle.placed[i];
+        const it = ISLE_ITEM[id];
+        ctx.globalAlpha = 0.3 + 0.15 * Math.sin(t * 6);
+        px(x * TILE, y * TILE, (it.w ?? 1) * TILE, (it.h ?? 1) * TILE, '#d23a46');
+        ctx.globalAlpha = 1;
+      }
+    } else if (build.item) {
+      const it = ISLE_ITEM[build.item];
+      const { x, y } = anchor(build.item, cursor.x, cursor.y);
+      const ok = fits(isle, build.item, x, y);
+      ctx.globalAlpha = 0.25;
+      px(x * TILE, y * TILE, (it.w ?? 1) * TILE, (it.h ?? 1) * TILE, ok ? '#5fd36a' : '#d23a46');
+      ctx.globalAlpha = ok ? 0.75 : 0.35;
+      drawIsleItem(ctx, px, build.item, x * TILE, y * TILE, t);
+      ctx.globalAlpha = 1;
+    }
+  }
+  sign(ctx, visiting ? 'BACK' : 'GRAVEYARD', 3 * TILE, 6 * TILE - 2, '#c9c3b2');
+}
+
 // ---------- moving ----------
 
 /** Arrow keys and WASD walk; Escape opens the menu. Returns true if the key was used. */
@@ -572,7 +839,11 @@ export function hollowKey(e: KeyboardEvent): boolean {
     return true;
   }
   if (e.key === 'Escape') {
-    hooks.menu();
+    if (build) {
+      build = null;
+      open();
+    } else if (visiting) leaveVisit();
+    else hooks.menu();
     return true;
   }
   const d = dirs[e.key];
@@ -635,10 +906,12 @@ function step(dx: number, dy: number) {
   const exit = area().exits?.[tile];
   if (exit) {
     path = [];
-    if (!story) {
+    if (visiting) return leaveVisit();
+    if (!story && !openRoad(exit.to)) {
       dialog = 'soon';
       return showDialog(SOON);
     }
+    build = null;
     return travel(exit.to, exit.x, exit.y);
   }
   if (!walkable(x, y)) return;
@@ -854,6 +1127,7 @@ function render(ctx: CanvasRenderingContext2D, t: number) {
     ctx.fillRect(x, y, w, h);
   };
   if (area().interior) renderInside(ctx, px, t);
+  else if (area().isle) renderIsle(ctx, px, t);
   else renderOutside(ctx, px, t);
 
   // people, with a mark over anyone who has a quest for you (!) or is waiting to hear back (?)
@@ -1248,6 +1522,7 @@ function graveyardDetails(ctx: CanvasRenderingContext2D, px: Px, t: number) {
   px(L.X + 7, L.Y + 8, 2, 10, '#f2c14e');
   ctx.globalAlpha = 1;
   sign(ctx, 'RANKS', L.X + L.W / 2, L.Y - 1, '#f2c14e');
+  sign(ctx, 'ISLE', 1.5 * TILE, 4 * TILE - 1, '#9fe8ff');
 }
 
 function renderInside(ctx: CanvasRenderingContext2D, px: Px, t: number) {
