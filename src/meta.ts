@@ -3,7 +3,7 @@
 
 import { ACHIEVEMENT_BY_ID, COMBOS, HEROES, HERO_BY_ID, dailyHero, type AchievementDef, type ComboDef, type HeroId } from './content';
 import { Game, UNDEAD, basePool, fullPool, type Mode, type RunConfig } from './game';
-import { ISLE_ITEM, LAND, cleanIsle, emptyIsle, fits, islePerks, itemAt, owned, type IsleState } from './isle';
+import { ISLE_ITEM, LAND, cleanIsle, emptyIsle, fits, homeKey, homeOf, islePerks, itemAt, layout, owned, type IsleState } from './isle';
 import { FUSIONS, RELICS, UNLOCKABLE_RELICS, type FusedId, type RelicId } from './relics';
 import {
   BESTIARY_KINDS, BESTIARY_TITLES, beastPlural, HEADS, HEAD_BY_ID, HERO_CLOAKS, HERO_COSTUMES, LOOKS, LOOK_BY_ID, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_TIER, betterRun, bestiaryTiers, rankIndex,
@@ -638,10 +638,10 @@ export function grantWeekly(week: string, place: number, souls: number, head: st
 
 export type BuildResult = 'ok' | 'souls' | 'blocked' | 'max';
 
-/** Set a thing down: from storage if there's one waiting, otherwise bought with Souls. */
-export function placeIsleItem(id: string, x: number, y: number): BuildResult {
+/** Set a thing down (outside, or in a house's `room`): from storage if there's one waiting, otherwise bought with Souls. */
+export function placeIsleItem(id: string, x: number, y: number, room?: string): BuildResult {
   const it = ISLE_ITEM[id];
-  if (!it || !fits(meta.isle, id, x, y)) return 'blocked';
+  if (!it || (room && !homeOf(meta.isle, room)) || !fits(meta.isle, id, x, y, room)) return 'blocked';
   const stored = meta.isle.stored[id] ?? 0;
   if (!stored) {
     if (it.max && owned(meta.isle, id) >= it.max) return 'max';
@@ -649,18 +649,24 @@ export function placeIsleItem(id: string, x: number, y: number): BuildResult {
     meta.souls -= it.cost;
   } else if (stored > 1) meta.isle.stored[id] = stored - 1;
   else delete meta.isle.stored[id];
-  meta.isle.placed.push([id, x, y]);
+  layout(meta.isle, room).push([id, x, y]);
   meta.isle.at = Date.now();
   saveMeta();
   return 'ok';
 }
 
-/** Pick up whatever is on this tile and keep it in storage. Returns its id. */
-export function pickUpIsleItem(x: number, y: number): string | null {
-  const i = itemAt(meta.isle, x, y);
+/** Pick up whatever is on this tile and keep it in storage. Returns its id. A house takes its furniture with it. */
+export function pickUpIsleItem(x: number, y: number, room?: string): string | null {
+  const i = itemAt(meta.isle, x, y, room);
   if (i < 0) return null;
-  const [id] = meta.isle.placed.splice(i, 1)[0];
-  meta.isle.stored[id] = (meta.isle.stored[id] ?? 0) + 1;
+  const taken = layout(meta.isle, room).splice(i, 1)[0];
+  const store = (id: string) => (meta.isle.stored[id] = (meta.isle.stored[id] ?? 0) + 1);
+  const [id] = taken;
+  store(id);
+  if (!room && ISLE_ITEM[id].home) {
+    for (const [f] of meta.isle.rooms[homeKey(taken)] ?? []) store(f);
+    delete meta.isle.rooms[homeKey(taken)];
+  }
   meta.isle.at = Date.now();
   saveMeta();
   return id;

@@ -6,8 +6,8 @@
 
 import { dailyHero } from './content';
 import {
-  ISLE_CATS, ISLE_DOCK, ISLE_ITEM, ISLE_ITEMS, ISLE_MAP, LAND, drawIsleGround, drawIsleItem, drawIsleItems, fits, isleIcon, isleSolid, itemAt,
-  type IsleCat, type IsleState,
+  HOME_CATS, ISLE_CATS, ISLE_DOCK, ISLE_ITEM, ISLE_ITEMS, ISLE_MAP, LAND, ROOM_ENTRY, ROOM_H, ROOM_MAP, ROOM_W, drawIsleGround, drawIsleItem, drawIsleItems, fits,
+  homeKey, homeOf, isleIcon, isleSolid, itemAt, roomSolid, type IsleCat, type IsleState,
 } from './isle';
 import { dailyNumber } from './daily';
 import { heroSprite } from './hero';
@@ -219,6 +219,8 @@ const AREAS: Record<string, Area> = {
     doors: {},
     exits: { '<': { to: 'graveyard', x: 1, y: 4 } },
   },
+  // Inside one of the houses on your isle (which one is `room`).
+  home: { name: 'Home', interior: true, map: ROOM_MAP, floor: '#4a3020', doors: { x: { out: true } } },
   village: {
     name: 'Gravesend',
     map: VILLAGE_MAP,
@@ -364,8 +366,14 @@ let hold = 0;
 let build: { item: string | null; pickup: boolean; cat: IsleCat | 'land' } | null = null;
 /** The tile under the pointer (or last tapped) while building, for the preview. */
 let cursor: { x: number; y: number } | null = null;
+/** The house on the isle you're inside (its room key), when in 'home'. */
+let room: string | null = null;
+/** Each house's floorboards. */
+const HOME_FLOORS: Record<string, string> = {
+  shack: '#3a2818', cottage: '#4a3020', hut: '#2e3424', tower: '#2a2433', windmill: '#4a3a24', mausoleum: '#2a2a38',
+};
 /** Looking round someone else's isle: theirs to draw, and where to go back to. */
-let visiting: { name: string; isle: IsleState; back: () => void; home: { area: string; x: number; y: number; outside: { area: string; x: number; y: number } | null } } | null = null;
+let visiting: { name: string; isle: IsleState; back: () => void; home: { area: string; x: number; y: number; outside: { area: string; x: number; y: number } | null; room: string | null } } | null = null;
 
 function stopHold() {
   window.clearInterval(hold);
@@ -408,6 +416,7 @@ const npcAt = (x: number, y: number) => area().npcs?.find((n) => n.x === x && n.
 function walkable(x: number, y: number): boolean {
   const c = at(x, y);
   if (area().isle) return !isleSolid(isleData(), x, y);
+  if (areaId === 'home') return Boolean(room) && !roomSolid(isleData(), room!, x, y);
   if (isBuilding(c)) return false;
   if (area().interior) return !INDOOR_SOLID.has(c);
   if (areaId === 'graveyard' && EPITAPHS[c]) return false;
@@ -433,7 +442,14 @@ export function showHollow(h: HollowHooks) {
   // The world past the graveyard is the story's; without it, start back in the graveyard.
   visiting = null;
   build = null;
-  if (areaId !== 'graveyard' && areaId !== 'isle' && !hooks.storyOpen()) {
+  // A house that's no longer there (moved on another device): back out to the jetty.
+  if (areaId === 'home' && (!room || !homeOf(meta.isle, room))) {
+    areaId = 'isle';
+    room = null;
+    pos.x = ISLE_DOCK.x;
+    pos.y = ISLE_DOCK.y;
+  }
+  if (areaId !== 'graveyard' && areaId !== 'isle' && areaId !== 'home' && !hooks.storyOpen()) {
     areaId = 'graveyard';
     outside = null;
     pos.x = SPAWN.x;
@@ -460,8 +476,8 @@ function open() {
   viewCols = build ? cols() : Math.min(cols(), window.innerWidth < 600 ? 11 : 17);
   camX = cameraTarget();
   const story = hooks.storyOpen();
-  const isle = Boolean(area().isle);
-  const title = visiting ? `${visiting.name}'s Isle` : area().name;
+  const isle = Boolean(area().isle) || areaId === 'home';
+  const title = visiting && areaId !== 'home' ? `${visiting.name}'s Isle` : area().name;
   const right = visiting
     ? '<span></span>'
     : isle
@@ -489,10 +505,14 @@ function open() {
       </div>` : ''}
       ${build ? '' : `<p class="fine hollow-hint">${touch ? 'Use the arrows or tap a spot to walk.' : 'Arrows or WASD to walk, or click a spot.'} ${
         visiting
-          ? 'Have a look round. The jetty takes you back.'
-          : isle
-            ? 'Tap 🔨 Build to spend Souls on your land.'
-            : area().interior
+          ? areaId === 'home'
+            ? 'Have a look round. The door takes you back out.'
+            : 'Have a look round. Walk into a house to go inside. The jetty takes you back.'
+          : areaId === 'home'
+            ? 'Tap 🔨 Build to furnish it. The door takes you back out.'
+            : isle
+              ? 'Tap 🔨 Build to spend Souls on your land. Walk into a house to go inside.'
+              : area().interior
               ? 'Walk into people to talk. Look closer at anything that glows.'
               : story
                 ? 'Walk into doors and people. Roads at the edges lead on.'
@@ -502,7 +522,7 @@ function open() {
   overlay.querySelector('#hollow-menu')?.addEventListener('click', () => hooks.menu());
   overlay.querySelector('#hollow-back')?.addEventListener('click', () => leaveVisit());
   overlay.querySelector('#isle-build')?.addEventListener('click', () => {
-    build = build ? null : { item: null, pickup: false, cat: 'nature' };
+    build = build ? null : { item: null, pickup: false, cat: areaId === 'home' ? 'furniture' : 'nature' };
     cursor = null;
     open();
   });
@@ -575,7 +595,7 @@ function open() {
   if (isle && !visiting && !build && !meta.isle.placed.length && !meta.isle.land) {
     dialog = 'intro';
     showDialog(
-      '<b>Your Isle</b>The ferryman rows you over to a scrap of land in the black water. It\'s yours. Spend the Souls from every run on it: trees, lights, houses. Tap 🔨 Build to start. A few buildings even help you in Endless and the story.',
+      '<b>Your Isle</b>The ferryman rows you over to a scrap of land in the black water. It\'s yours. Spend the Souls from every run on it: trees, lights, houses you can walk into and furnish. Tap 🔨 Build to start. A few buildings even help you in Endless and the story.',
     );
   }
   cancelAnimationFrame(raf);
@@ -637,7 +657,7 @@ function renderPanel() {
   const el = document.getElementById('isle-panel');
   if (!el || !build) return;
   const b = build;
-  const tabs = [...ISLE_CATS, { id: 'land' as const, name: '🗺️ Land' }]
+  const tabs = (areaId === 'home' ? HOME_CATS : [...ISLE_CATS, { id: 'land' as const, name: '🗺️ Land' }])
     .map((c) => `<button type="button" class="isle-tab ${b.cat === c.id ? 'on' : ''}" data-cat="${c.id}">${c.name}</button>`)
     .join('');
   let items = '';
@@ -668,7 +688,9 @@ function renderPanel() {
       ? `Tap the map to set down a <b>${esc(sel.name)}</b>${meta.isle.stored[sel.id] ? ' (from storage)' : ` for ${sel.cost.toLocaleString()} Souls`}.${sel.perk ? ` <b class="isle-perk">${esc(sel.perk)}</b>` : ''}`
       : b.cat === 'land'
         ? 'Clear more land to build further out.'
-        : 'Choose something, then tap the map to set it down.';
+        : b.cat === 'wall'
+          ? 'Wall things hang on the back wall: choose one, then tap the wall.'
+          : 'Choose something, then tap the map to set it down.';
   el.innerHTML = `<div class="isle-panel-top">
       <span class="souls-chip">💀 <b>${meta.souls.toLocaleString()}</b></span>
       <button type="button" class="btn ${b.pickup ? 'on' : ''}" id="isle-pickup">🧹 Pick up</button>
@@ -708,15 +730,16 @@ function buildTap(tx: number, ty: number) {
   if (!build) return;
   cursor = { x: tx, y: ty };
   if (build.pickup) {
-    const id = pickUpIsleItem(tx, ty);
+    const id = pickUpIsleItem(tx, ty, room ?? undefined);
     if (id) {
+      if (!room && ISLE_ITEM[id].home) toast(`${ISLE_ITEM[id].name} picked up, with everything inside it. It all waits in storage.`);
       hooks.built?.('pickup');
       renderPanel();
     }
     return;
   }
   if (!build.item) {
-    if (itemAt(meta.isle, tx, ty) >= 0) toast('Use 🧹 Pick up to move things.');
+    if (itemAt(meta.isle, tx, ty, room ?? undefined) >= 0) toast('Use 🧹 Pick up to move things.');
     return;
   }
   const it = ISLE_ITEM[build.item];
@@ -726,7 +749,7 @@ function buildTap(tx: number, ty: number) {
     hooks.built?.('fail');
     return toast('Step out of the way first.');
   }
-  const result = placeIsleItem(build.item, x, y);
+  const result = placeIsleItem(build.item, x, y, room ?? undefined);
   if (result === 'ok') {
     hooks.built?.('place');
     if (it.max) build.item = null;
@@ -736,14 +759,29 @@ function buildTap(tx: number, ty: number) {
   hooks.built?.('fail');
   if (result === 'souls') toast(`Not enough Souls: a ${it.name} costs ${it.cost.toLocaleString()}.`);
   else if (result === 'max') toast(`One ${it.name} is all an isle can hold.`);
+  else if (room) toast(it.wall ? 'That hangs on the back wall.' : "It doesn't fit there.");
   else toast(meta.isle.land < LAND.length ? "It doesn't fit there. Clear more land in the Land tab." : "It doesn't fit there.");
+}
+
+/** Step inside one of the isle's houses. */
+function enterHome(key: string) {
+  const house = homeOf(isleData(), key);
+  if (!house) return;
+  const it = ISLE_ITEM[house[0]];
+  room = key;
+  build = null;
+  AREAS.home.name = visiting ? `${visiting.name}'s ${it.name.replace(/^.*'s /, '')}` : `Your ${it.name}`;
+  AREAS.home.floor = HOME_FLOORS[house[0]] ?? '#4a3020';
+  outside = { area: 'isle', x: pos.x, y: pos.y };
+  travel('home', ROOM_ENTRY.x, ROOM_ENTRY.y);
 }
 
 /** Look round someone else's isle. `back` runs when they leave. */
 export function showIsleVisit(h: HollowHooks, name: string, isle: IsleState, back: () => void) {
   hooks = h;
   build = null;
-  visiting = { name, isle, back, home: { area: areaId, x: pos.x, y: pos.y, outside } };
+  visiting = { name, isle, back, home: { area: areaId, x: pos.x, y: pos.y, outside, room } };
+  room = null;
   areaId = 'isle';
   outside = null;
   pos.x = ISLE_DOCK.x;
@@ -759,6 +797,7 @@ function leaveVisit() {
   pos.x = v.home.x;
   pos.y = v.home.y;
   outside = v.home.outside;
+  room = v.home.room;
   v.back();
 }
 
@@ -788,12 +827,39 @@ function renderIsle(ctx: CanvasRenderingContext2D, px: Px, t: number) {
     }
     ctx.globalAlpha = 1;
   }
-  drawIsleItems(ctx, px, isle, t);
+  drawIsleItems(ctx, px, isle.placed, t);
+  buildPreview(ctx, px, t);
+  sign(ctx, visiting ? 'BACK' : 'GRAVEYARD', 3 * TILE, 6 * TILE - 2, '#c9c3b2');
+}
+
+/** Inside a house: the room, its furniture, and the build preview. */
+function renderHome(ctx: CanvasRenderingContext2D, px: Px, t: number) {
+  renderInside(ctx, px, t);
+  const isle = isleData();
+  if (build) {
+    ctx.globalAlpha = 0.12;
+    for (let y = 0; y < ROOM_H - 1; y++) {
+      for (let x = 1; x < ROOM_W - 1; x++) {
+        if (x === ROOM_ENTRY.x && y === ROOM_ENTRY.y) continue;
+        px(x * TILE, y * TILE, TILE, 1, '#e8dcc4');
+        px(x * TILE, y * TILE, 1, TILE, '#e8dcc4');
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+  if (room) drawIsleItems(ctx, px, isle.rooms[room] ?? [], t);
+  buildPreview(ctx, px, t);
+}
+
+/** While building: what a tap will set down (green fits, red doesn't), or pick up. */
+function buildPreview(ctx: CanvasRenderingContext2D, px: Px, t: number) {
+  const isle = isleData();
+  const where = room ?? undefined;
   if (build && cursor) {
     if (build.pickup) {
-      const i = itemAt(isle, cursor.x, cursor.y);
+      const i = itemAt(isle, cursor.x, cursor.y, where);
       if (i >= 0) {
-        const [id, x, y] = isle.placed[i];
+        const [id, x, y] = (where ? isle.rooms[where] : isle.placed)[i];
         const it = ISLE_ITEM[id];
         ctx.globalAlpha = 0.3 + 0.15 * Math.sin(t * 6);
         px(x * TILE, y * TILE, (it.w ?? 1) * TILE, (it.h ?? 1) * TILE, '#d23a46');
@@ -802,7 +868,7 @@ function renderIsle(ctx: CanvasRenderingContext2D, px: Px, t: number) {
     } else if (build.item) {
       const it = ISLE_ITEM[build.item];
       const { x, y } = anchor(build.item, cursor.x, cursor.y);
-      const ok = fits(isle, build.item, x, y);
+      const ok = fits(isle, build.item, x, y, where);
       ctx.globalAlpha = 0.25;
       px(x * TILE, y * TILE, (it.w ?? 1) * TILE, (it.h ?? 1) * TILE, ok ? '#5fd36a' : '#d23a46');
       ctx.globalAlpha = ok ? 0.75 : 0.35;
@@ -810,7 +876,6 @@ function renderIsle(ctx: CanvasRenderingContext2D, px: Px, t: number) {
       ctx.globalAlpha = 1;
     }
   }
-  sign(ctx, visiting ? 'BACK' : 'GRAVEYARD', 3 * TILE, 6 * TILE - 2, '#c9c3b2');
 }
 
 // ---------- moving ----------
@@ -914,6 +979,16 @@ function step(dx: number, dy: number) {
     build = null;
     return travel(exit.to, exit.x, exit.y);
   }
+  if (area().isle) {
+    // Walking into the front of a house takes you inside.
+    const isle = isleData();
+    const i = itemAt(isle, x, y);
+    const house = i >= 0 ? isle.placed[i] : null;
+    if (house && ISLE_ITEM[house[0]].home && y === house[2] + (ISLE_ITEM[house[0]].h ?? 1) - 1) {
+      path = [];
+      return enterHome(homeKey(house));
+    }
+  }
   if (!walkable(x, y)) return;
   const door = doorAt(x, y);
   // Story doors stay shut until the story opens.
@@ -934,6 +1009,8 @@ function step(dx: number, dy: number) {
   if ('out' in door) {
     const back = outside ?? { area: 'graveyard', x: SPAWN.x, y: SPAWN.y };
     outside = null;
+    room = null;
+    build = null;
     areaId = back.area;
     pos.x = back.x;
     pos.y = back.y;
@@ -1126,7 +1203,8 @@ function render(ctx: CanvasRenderingContext2D, t: number) {
     ctx.fillStyle = c;
     ctx.fillRect(x, y, w, h);
   };
-  if (area().interior) renderInside(ctx, px, t);
+  if (areaId === 'home') renderHome(ctx, px, t);
+  else if (area().interior) renderInside(ctx, px, t);
   else if (area().isle) renderIsle(ctx, px, t);
   else renderOutside(ctx, px, t);
 

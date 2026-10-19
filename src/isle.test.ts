@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Game } from './game';
-import { ISLE_DOCK, ISLE_H, ISLE_ITEMS, ISLE_MAP, ISLE_W, LAND, cleanIsle, emptyIsle, fits, isleSolid, islePerks, itemAt } from './isle';
+import { ISLE_DOCK, ISLE_H, ISLE_ITEMS, ISLE_MAP, ISLE_W, LAND, ROOM_ENTRY, cleanIsle, emptyIsle, fits, isleSolid, islePerks, itemAt, owned, roomSolid } from './isle';
 import { buyLand, finishRunMeta, meta, pickUpIsleItem, placeIsleItem, runConfig } from './meta';
 
 /** Tiles reachable on foot from the jetty. */
@@ -78,6 +78,36 @@ describe('your isle', () => {
     expect(isle.placed).toEqual([['pine', 10, 6]]);
     expect(isle.stored).toEqual({ pine: 2 });
     expect(cleanIsle(null)).toEqual(emptyIsle());
+  });
+
+  it('furnishes the inside of houses: floor things on the floor, wall things on the back wall', () => {
+    meta.isle = emptyIsle();
+    meta.souls = 10_000;
+    expect(placeIsleItem('cottage', 8, 5)).toBe('ok');
+    const room = 'cottage@8,5';
+    expect(placeIsleItem('bed', 2, 2, 'nowhere@1,1')).toBe('blocked');
+    expect(placeIsleItem('bed', 2, 2, room)).toBe('ok');
+    expect(placeIsleItem('pine', 3, 2, room)).toBe('blocked'); // outdoor things stay outdoors
+    expect(placeIsleItem('bed', 9, 9)).toBe('blocked'); // and furniture stays in
+    expect(placeIsleItem('painting', 3, 2, room)).toBe('blocked'); // pictures go on the wall
+    expect(placeIsleItem('painting', 3, 0, room)).toBe('ok');
+    expect(placeIsleItem('chair', ROOM_ENTRY.x, ROOM_ENTRY.y, room)).toBe('blocked'); // the doorway stays clear
+    expect(placeIsleItem('rug', 4, 3, room)).toBe('ok');
+    expect(roomSolid(meta.isle, room, 2, 2)).toBe(true);
+    expect(roomSolid(meta.isle, room, 4, 3)).toBe(false);
+    expect(owned(meta.isle, 'bed')).toBe(1);
+    expect(cleanIsle(JSON.parse(JSON.stringify(meta.isle))).rooms[room]).toHaveLength(3);
+
+    // Picking the house up takes everything inside with it, into storage.
+    expect(pickUpIsleItem(9, 6)).toBe('cottage');
+    expect(meta.isle.rooms[room]).toBeUndefined();
+    expect(meta.isle.stored).toEqual({ cottage: 1, bed: 1, painting: 1, rug: 1 });
+    // Set down somewhere new, it starts empty, and the furniture goes back in for free.
+    expect(placeIsleItem('cottage', 10, 6)).toBe('ok');
+    const souls = meta.souls;
+    expect(placeIsleItem('bed', 1, 1, 'cottage@10,6')).toBe('ok');
+    expect(meta.souls).toBe(souls);
+    meta.isle = emptyIsle();
   });
 
   it('gives its perks to Endless and the story, never the Daily', () => {

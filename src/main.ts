@@ -1031,7 +1031,7 @@ function showHelp(back: () => void) {
       <li>Some walls are <b>cracked</b>. Bump one twice to find a secret vault.</li>
       <li><b>Spikes</b> hurt anything that steps on them, foes included.</li>
       <li>Every run earns <b>Souls</b>. Spend them in the <b>Ossuary</b> on new heroes and relics.</li>
-      <li>Take the road west out of the graveyard to <b>your isle</b>. Spend Souls on trees, lights and houses, and on buildings that help in Endless and the story.</li>
+      <li>Take the road west out of the graveyard to <b>your isle</b>. Spend Souls on trees, lights and houses (walk in to furnish them), and on buildings that help in Endless and the story.</li>
       <li>The <b>Daily Descent</b> is the same crypt and hero for everyone, once a day. Share your depth.</li>
       <li>One More Crypt is free, with no ads. If you'd like to help keep it running, you can <a href="${KOFI_URL}" target="_blank" rel="noopener">leave a tip on Ko-fi</a> ☕</li>
     </ul>
