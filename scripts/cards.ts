@@ -502,7 +502,7 @@ export function drawStory(
   const champLook = champion ? heroLook({ ...champion, mode: 'daily' }) : null;
   const endlessLook = endless ? heroLook({ ...endless, mode: 'endless' }) : null;
   panel(60, champion ? championLabel(champion) : 'YESTERDAY\'S CHAMPION', '#f2c14e', 'rgba(242,193,78,0.45)', champion, champLook, true);
-  panel(SW - 520, 'ENDLESS LEADER', '#c9a6ff', 'rgba(176,124,255,0.45)', endless, endlessLook, false);
+  panel(SW - 520, "YESTERDAY'S ENDLESS BEST", '#c9a6ff', 'rgba(176,124,255,0.45)', endless, endlessLook, false);
 
   // call to action, above the reply bar; the gap below the title is for a link sticker
   const cta = tally ? 18 : 0;
@@ -590,7 +590,7 @@ export function drawDigest(
   const champLook = champion ? heroLook({ ...champion, mode: 'daily' }) : null;
   const endlessLook = endless ? heroLook({ ...endless, mode: 'endless' }) : null;
   panel(48, champion ? championLabel(champion) : "YESTERDAY'S CHAMPION", '#f2c14e', 'rgba(242,193,78,0.45)', champion, champLook, true);
-  panel(282, 'ENDLESS LEADER', '#c9a6ff', 'rgba(176,124,255,0.45)', endless, endlessLook, false);
+  panel(282, "YESTERDAY'S ENDLESS BEST", '#c9a6ff', 'rgba(176,124,255,0.45)', endless, endlessLook, false);
 
   // today's tally, when there is one
   if (tally) {
