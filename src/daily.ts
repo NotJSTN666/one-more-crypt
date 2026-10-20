@@ -24,6 +24,11 @@ export function weekStart(weeksAgo = 0, now = Date.now()): string {
   return day.toISOString().slice(0, 10);
 }
 
+/** Today's date in Central Time, as YYYY-MM-DD. */
+export function centralDate(now = Date.now()): string {
+  return dateFormat.format(now);
+}
+
 export function dailyNumber(now = Date.now()): number {
   return Math.round((centralDay(now) - EPOCH) / DAY_MS) + 1;
 }

@@ -4,10 +4,11 @@
 import { ACHIEVEMENT_BY_ID, COMBOS, HEROES, HERO_BY_ID, dailyHero, type AchievementDef, type ComboDef, type HeroId } from './content';
 import { Game, UNDEAD, basePool, fullPool, type Mode, type RunConfig } from './game';
 import { ISLE_ITEM, LAND, cleanIsle, emptyIsle, fits, homeKey, homeOf, islePerks, itemAt, layout, owned, type IsleState } from './isle';
+import { centralDate } from './daily';
 import { FUSIONS, RELICS, UNLOCKABLE_RELICS, type FusedId, type RelicId } from './relics';
 import {
-  BESTIARY_KINDS, BESTIARY_TITLES, beastPlural, HEADS, HEAD_BY_ID, HERO_CLOAKS, HERO_COSTUMES, LOOKS, LOOK_BY_ID, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_TIER, betterRun, bestiaryTiers, rankIndex,
-  type BestRuns, type HeadDef, type LookDef, type Outfit, type RunGoal, type Unlock,
+  BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, beastPlural, HEADS, HEAD_BY_ID, HERO_CLOAKS, HERO_COSTUMES, LOOKS, LOOK_BY_ID, SEASONS, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_TIER,
+  betterRun, bestiaryTiers, rankIndex, seasonOf, seasonOpen, type BestRuns, type SeasonId, type HeadDef, type LookDef, type Outfit, type RunGoal, type Unlock,
 } from './progression';
 import type { EnemyKind } from './game';
 
@@ -74,6 +75,8 @@ export interface Meta {
   patron: boolean;
   /** Your Isle: land cleared and everything built on it. */
   isle: IsleState;
+  /** Seasons played in, e.g. 'halloween-2026', for their free pieces. */
+  seasons: string[];
 }
 
 /** Story progress: quests taken, cleared (dungeon done) and finished, choices, the hound's bond, lore read. */
@@ -124,7 +127,7 @@ function empty(): Meta {
     podiums: {}, podiumChecked: 0, bought: [], streak: { best: 0, count: 0, last: 0 },
     bounties: { day: 0, ids: [], progress: [], done: [] },
     weekly: {}, weeklyChecked: '',
-    story: emptyStory(), pet: '', summonsSeen: '', patron: false, isle: emptyIsle(),
+    story: emptyStory(), pet: '', summonsSeen: '', patron: false, isle: emptyIsle(), seasons: [],
   };
 }
 
@@ -185,6 +188,7 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
     meta.best[h as HeroId] = betterRun(meta.best[h as HeroId], run);
   }
   meta.patron ||= other.patron === true;
+  meta.seasons = [...new Set([...meta.seasons, ...(Array.isArray(other.seasons) ? other.seasons.map(String) : [])])];
   // The isle is one layout: whichever device changed it last wins.
   if (other.isle && (Number(other.isle.at) || 0) > meta.isle.at) meta.isle = cleanIsle(other.isle);
   meta.title ||= other.title ?? '';
@@ -470,6 +474,11 @@ export function finishRunMeta(game: Game, streak: number): RunReward {
   }
   noteBestRun(game);
   noteHeroCostumes(game);
+  // Playing while a season is open earns its free pieces (announced with the unlocks below).
+  for (const season of openSeasons()) {
+    const tag = `${season}-${centralDate().slice(0, 4)}`;
+    if (!meta.seasons.includes(tag)) meta.seasons.push(tag);
+  }
   const unlocks = progressUnlocks(game);
   saveMeta();
   return { souls, lines, achievements, unlocks };
@@ -486,9 +495,22 @@ export function headUnlocked(h: HeadDef): boolean {
   return h.unlock ? unlockMet(h.unlock) : costumeUnlocked(h.id);
 }
 
-/** Buy a cosmetic or Hall decoration from the Ossuary. */
+/** The season an Ossuary item is sold in, if it's a seasonal piece. */
+export function itemSeason(id: string): SeasonId | undefined {
+  return DECOR_BY_ID[id]?.season ?? seasonOf(LOOK_BY_ID[id]?.unlock) ?? seasonOf(HEAD_BY_ID[id]?.unlock);
+}
+
+/** Seasons open today (Central Time). */
+export function openSeasons(now = Date.now()): SeasonId[] {
+  const today = centralDate(now);
+  return (Object.keys(SEASONS) as SeasonId[]).filter((id) => seasonOpen(id, today));
+}
+
+/** Buy a cosmetic or Hall decoration from the Ossuary. Seasonal pieces only while their season is open. */
 export function buyItem(id: string, cost: number): boolean {
   if (meta.bought.includes(id) || meta.souls < cost) return false;
+  const season = itemSeason(id);
+  if (season && !openSeasons().includes(season)) return false;
   meta.souls -= cost;
   meta.bought.push(id);
   // Bought on purpose, so there's no need to announce it after the next run.
@@ -507,6 +529,7 @@ function unlockMet(u: Unlock): boolean {
   if ('weekly' in u) return Object.values(meta.weekly).includes(u.weekly);
   if ('story' in u) return meta.story.done.includes(u.story);
   if ('cost' in u) return false;
+  if ('season' in u) return meta.seasons.some((x) => x.startsWith(`${u.season}-`));
   return (meta.bestiaryTier[u.beast] ?? 0) > u.tier;
 }
 

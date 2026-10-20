@@ -4,8 +4,8 @@
 import { sfx } from './audio';
 import { ACHIEVEMENTS, COMBOS, HEROES, HERO_BY_ID, type AchievementDef, type ComboDef, type HeroId } from './content';
 import { heroPortrait } from './hero';
-import { RELIC_COSTS, type UnlockNote, buyHero, buyItem, outfitFor, buyRelic, heroUnlocked, meta, relicDiscovered, saveMeta } from './meta';
-import { DECOR, HEADS, LEGENDARY, LOOKS, shopPrice } from './progression';
+import { RELIC_COSTS, type UnlockNote, buyHero, buyItem, lookUnlocked, openSeasons, outfitFor, buyRelic, heroUnlocked, meta, relicDiscovered, saveMeta } from './meta';
+import { DECOR, HEADS, LEGENDARY, LOOKS, SEASONS, seasonOf, shopPrice } from './progression';
 import { ASCEND_FLOOR, ENDLESS_RELICS, FUSIONS, RELICS, RELIC_BY_ID, UNLOCKABLE_RELICS, type RelicId } from './relics';
 import { $, esc, on, overlay, showOverlay } from './ui';
 import { showWardrobe } from './wardrobe';
@@ -110,26 +110,58 @@ export function showOssuary(back: () => void, tab: OssuaryTab = 'unlocks') {
         ${owned ? '<span class="owned-tag">Owned</span>' : buy(`data-item="${id}" data-cost="${cost}"`, cost)}
       </div>`;
     };
-    const cloaks = LOOKS.filter((l) => shopPrice(l.unlock)).sort((a, b) => shopPrice(a.unlock) - shopPrice(b.unlock));
-    const heads = HEADS.filter((h) => shopPrice(h.unlock)).sort((a, b) => shopPrice(a.unlock) - shopPrice(b.unlock));
+    const byPrice = <T extends { unlock?: Parameters<typeof shopPrice>[0] }>(a: T, b: T) => shopPrice(a.unlock) - shopPrice(b.unlock);
+    const cloaks = LOOKS.filter((l) => shopPrice(l.unlock) && !seasonOf(l.unlock)).sort(byPrice);
+    const heads = HEADS.filter((h) => shopPrice(h.unlock) && !seasonOf(h.unlock)).sort(byPrice);
+    // Seasonal pieces: on sale only while their season is open.
+    const seasonal = openSeasons()
+      .map((season) => {
+        const sc = LOOKS.filter((l) => shopPrice(l.unlock) && seasonOf(l.unlock) === season).sort(byPrice);
+        const sh = HEADS.filter((h) => shopPrice(h.unlock) && seasonOf(h.unlock) === season).sort(byPrice);
+        const free = LOOKS.find((l) => !shopPrice(l.unlock) && seasonOf(l.unlock) === season);
+        const freeLine = free
+          ? `<p class="fine season-free">${lookUnlocked(free) ? `✅ Your free <b>${esc(free.name)}</b> is in the Wardrobe.` : `🎁 Play any run before the season ends to get the <b>${esc(free.name)}</b> cloak free.`}</p>`
+          : '';
+        return `<div class="season-block">
+          <h3 class="shop-head">${SEASONS[season].emoji} ${esc(SEASONS[season].name)} <small>· until ${esc(SEASONS[season].dates.split(' to ')[1])}</small></h3>
+          <p class="fine">Exclusive pieces, sold only during the season. Yours to keep for good.</p>
+          ${freeLine}
+          <div class="shop">${sc.map((l) => item('look', l.id, l.name, shopPrice(l.unlock))).join('')}${sh.map((h) => item('head', h.id, h.name, shopPrice(h.unlock))).join('')}</div>
+        </div>`;
+      })
+      .join('');
     body = `
       <p class="fine">Looks only, never power. Shown on your ${esc(HERO_BY_ID[hero].name)}; wear them on any hero in the Wardrobe.</p>
+      ${seasonal}
       <h3 class="shop-head">Cloaks</h3>
       <div class="shop">${cloaks.map((l) => item('look', l.id, l.name, shopPrice(l.unlock))).join('')}</div>
       <h3 class="shop-head">Headwear</h3>
       <div class="shop">${heads.map((h) => item('head', h.id, h.name, shopPrice(h.unlock))).join('')}</div>
       <button class="btn" id="wardrobe">🎨 Open the Wardrobe</button>`;
   } else {
-    body = `
-      <p class="fine">Decorate your Crypt Hall. Everyone who visits your Hall sees them.</p>
-      <div class="shop">${DECOR.map((d) => {
-        const owned = meta.bought.includes(d.id);
-        return `<div class="shop-item ${owned ? 'owned' : ''}">
+    const decorItem = (d: (typeof DECOR)[number]) => {
+      const owned = meta.bought.includes(d.id);
+      return `<div class="shop-item ${owned ? 'owned' : ''}">
           <span class="shop-emoji">${d.emoji}</span>
           <span class="shop-info"><span class="name">${esc(d.name)}</span><span class="desc">${esc(d.desc)}</span></span>
           ${owned ? '<span class="owned-tag">In your Hall</span>' : buy(`data-item="${d.id}" data-cost="${d.cost}"`, d.cost)}
         </div>`;
-      }).join('')}</div>
+    };
+    const open = openSeasons();
+    // Seasonal decorations you own stay listed after the season; the rest leave the shop.
+    const seasonalDecor = open
+      .map((season) => `<div class="season-block">
+          <h3 class="shop-head">${SEASONS[season].emoji} ${esc(SEASONS[season].name)} <small>· until ${esc(SEASONS[season].dates.split(' to ')[1])}</small></h3>
+          <p class="fine">Exclusive decorations, sold only during the season. Yours to keep for good.</p>
+          <div class="shop">${DECOR.filter((d) => d.season === season).map(decorItem).join('')}</div>
+        </div>`)
+      .join('');
+    const kept = DECOR.filter((d) => d.season && !open.includes(d.season) && meta.bought.includes(d.id));
+    body = `
+      <p class="fine">Decorate your Crypt Hall. Everyone who visits your Hall sees them.</p>
+      ${seasonalDecor}
+      ${seasonalDecor ? '<h3 class="shop-head">All year</h3>' : ''}
+      <div class="shop">${DECOR.filter((d) => !d.season).map(decorItem).join('')}${kept.map(decorItem).join('')}</div>
       <button class="btn" id="see-hall">🏰 See your Hall</button>`;
   }
   const tabs: [OssuaryTab, string][] = [

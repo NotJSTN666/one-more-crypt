@@ -351,12 +351,202 @@ function throne(ctx: CanvasRenderingContext2D, x: number) {
   }
 }
 
-function drawDecor(ctx: CanvasRenderingContext2D, d: HallData, t: number, layer: 'wall' | 'floor') {
+// ---------- the Hallowed Season ----------
+
+function cobwebs(ctx: CanvasRenderingContext2D, t: number) {
+  ctx.strokeStyle = 'rgba(220,220,235,0.45)';
+  ctx.lineWidth = 2;
+  for (const side of [1, -1]) {
+    const cx = side > 0 ? 0 : W;
+    const cy = 152;
+    // spokes out from the corner, and rings strung between them
+    const spokes = [0, 0.3, 0.6, 0.9, 1.2, 1.5708].map((a) => [Math.cos(a) * side, Math.sin(a)]);
+    for (const [dx, dy] of spokes) {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + dx * 130, cy + dy * 130);
+      ctx.stroke();
+    }
+    for (const r of [34, 64, 96, 124]) {
+      ctx.beginPath();
+      spokes.forEach(([dx, dy], i) => {
+        const sag = i ? 4 : 0;
+        if (i) ctx.quadraticCurveTo(cx + (dx + spokes[i - 1][0]) * r * 0.5 - side * sag, cy + (dy + spokes[i - 1][1]) * r * 0.5 - sag, cx + dx * r, cy + dy * r);
+        else ctx.moveTo(cx + dx * r, cy + dy * r);
+      });
+      ctx.stroke();
+    }
+  }
+  // a spider lets itself down on a thread, now and then
+  const drop = 40 + Math.max(0, Math.sin(t * 0.6)) * 110;
+  const sx = W - 70;
+  ctx.fillStyle = 'rgba(220,220,235,0.5)';
+  ctx.fillRect(sx, 152, 1, drop);
+  ctx.fillStyle = '#141119';
+  ctx.fillRect(sx - 6, 152 + drop, 12, 10);
+  ctx.fillRect(sx - 4, 152 + drop - 4, 8, 4);
+  ctx.fillStyle = '#3a3048';
+  for (const ly of [2, 5, 8]) {
+    ctx.fillRect(sx - 12, 152 + drop + ly, 6, 2);
+    ctx.fillRect(sx + 6, 152 + drop + ly, 6, 2);
+  }
+  ctx.fillStyle = '#ff4d5a';
+  ctx.fillRect(sx - 3, 152 + drop + 2, 2, 2);
+  ctx.fillRect(sx + 1, 152 + drop + 2, 2, 2);
+}
+
+function garland(ctx: CanvasRenderingContext2D, t: number) {
+  const colors = ['#e67e22', '#5a2f8a', '#141119', '#8aff6a'];
+  for (const [x0, x1] of [[130, 470], [490, 830]]) {
+    const n = 9;
+    ctx.strokeStyle = '#3a2818';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    const y = (x: number) => 156 + Math.sin(((x - x0) / (x1 - x0)) * Math.PI) * 22;
+    ctx.moveTo(x0, y(x0));
+    for (let x = x0; x <= x1; x += 8) ctx.lineTo(x, y(x));
+    ctx.stroke();
+    for (let i = 0; i < n; i++) {
+      const x = x0 + ((i + 0.5) / n) * (x1 - x0);
+      const sway = Math.sin(t * 1.6 + i) * 2;
+      ctx.fillStyle = colors[i % colors.length];
+      ctx.beginPath();
+      ctx.moveTo(x - 13, y(x));
+      ctx.lineTo(x + 13, y(x));
+      ctx.lineTo(x + sway, y(x) + 28);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+}
+
+function jackOLantern(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, t: number) {
+  const flick = 0.75 + 0.25 * Math.sin(t * 9 + x) * Math.sin(t * 4.3 + x * 2);
+  const glow = ctx.createRadialGradient(x, y, 4, x, y, 60 * s);
+  glow.addColorStop(0, `rgba(255,150,40,${0.35 * flick})`);
+  glow.addColorStop(1, 'rgba(255,150,40,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(x - 70 * s, y - 70 * s, 140 * s, 140 * s);
+  const p = (dx: number, dy: number, w: number, h: number, c: string) => {
+    ctx.fillStyle = c;
+    ctx.fillRect(x + dx * s, y + dy * s, w * s, h * s);
+  };
+  p(-18, -14, 36, 28, '#e67e22');
+  p(-22, -10, 44, 20, '#e67e22');
+  p(-6, -14, 4, 28, '#c4601a');
+  p(4, -14, 4, 28, '#c4601a');
+  p(-3, -22, 6, 8, '#3d6b2a');
+  ctx.globalAlpha = flick;
+  p(-13, -6, 7, 6, '#ffd23f');
+  p(6, -6, 7, 6, '#ffd23f');
+  p(-14, 4, 28, 5, '#ffd23f');
+  ctx.globalAlpha = 1;
+  p(-8, 4, 4, 3, '#c4601a');
+  p(4, 4, 4, 3, '#c4601a');
+}
+
+function bats(ctx: CanvasRenderingContext2D, t: number) {
+  for (let i = 0; i < 5; i++) {
+    const speed = 60 + i * 17;
+    const x = ((t * speed + i * 230) % (W + 120)) - 60;
+    const y = 190 + i * 28 + Math.sin(t * 2 + i * 1.7) * 18;
+    const flap = Math.sin(t * 16 + i) > 0;
+    ctx.fillStyle = '#141119';
+    ctx.fillRect(x - 4, y - 3, 8, 7);
+    ctx.fillRect(x - 3, y - 6, 2, 3);
+    ctx.fillRect(x + 1, y - 6, 2, 3);
+    if (flap) {
+      ctx.fillRect(x - 16, y - 8, 12, 4);
+      ctx.fillRect(x + 4, y - 8, 12, 4);
+      ctx.fillRect(x - 12, y - 4, 8, 3);
+      ctx.fillRect(x + 4, y - 4, 8, 3);
+    } else {
+      ctx.fillRect(x - 16, y + 1, 12, 4);
+      ctx.fillRect(x + 4, y + 1, 12, 4);
+    }
+    ctx.fillStyle = '#ff4d5a';
+    ctx.fillRect(x - 2, y - 1, 1, 1);
+    ctx.fillRect(x + 1, y - 1, 1, 1);
+  }
+}
+
+function cauldron(ctx: CanvasRenderingContext2D, x: number, t: number) {
+  const glow = ctx.createRadialGradient(x, 420, 4, x, 420, 80);
+  glow.addColorStop(0, 'rgba(138,255,106,0.3)');
+  glow.addColorStop(1, 'rgba(138,255,106,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(x - 90, 340, 180, 140);
+  // fire beneath
+  const f = Math.sin(t * 10 + x) > 0 ? 3 : 0;
+  ctx.fillStyle = '#ff8a2a';
+  ctx.fillRect(x - 22, 452 - f, 44, 12 + f);
+  ctx.fillStyle = '#ffd23f';
+  ctx.fillRect(x - 12, 456, 24, 8);
+  // the pot
+  ctx.fillStyle = '#2a2433';
+  ctx.fillRect(x - 36, 412, 72, 40);
+  ctx.fillRect(x - 30, 452, 60, 6);
+  ctx.fillStyle = '#3a3346';
+  ctx.fillRect(x - 40, 406, 80, 8);
+  ctx.fillRect(x - 32, 458, 6, 8);
+  ctx.fillRect(x + 26, 458, 6, 8);
+  // the brew, bubbling
+  ctx.fillStyle = '#5fd36a';
+  ctx.fillRect(x - 34, 404, 68, 4);
+  for (let i = 0; i < 4; i++) {
+    const p = (t * 0.8 + i / 4) % 1;
+    ctx.globalAlpha = 1 - p;
+    ctx.fillStyle = i % 2 ? '#b5e07a' : '#8aff6a';
+    const r = 3 + p * 4;
+    ctx.fillRect(x - 24 + i * 15 + Math.sin(p * 6 + i) * 3, 400 - p * 46, r, r);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function ghosts(ctx: CanvasRenderingContext2D, t: number) {
+  for (let i = 0; i < 2; i++) {
+    const speed = 34 + i * 12;
+    const dir = i ? -1 : 1;
+    const span = W + 160;
+    const along = (t * speed + i * 400) % span;
+    const x = dir > 0 ? along - 80 : W + 80 - along;
+    const y = 300 + i * 120 + Math.sin(t * 1.4 + i * 2) * 14;
+    ctx.globalAlpha = 0.35 + 0.15 * Math.sin(t * 2 + i);
+    ctx.fillStyle = '#e8f0ff';
+    ctx.beginPath();
+    ctx.arc(x, y, 22, Math.PI, 0);
+    ctx.lineTo(x + 22, y + 34);
+    for (let k = 0; k < 4; k++) {
+      const wx = x + 22 - (k + 1) * 11;
+      ctx.lineTo(wx + 5.5, y + 28 + Math.sin(t * 6 + k) * 3);
+      ctx.lineTo(wx, y + 34);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#141119';
+    ctx.fillRect(x - 10 + dir * 3, y - 6, 6, 8);
+    ctx.fillRect(x + 4 + dir * 3, y - 6, 6, 8);
+    ctx.fillRect(x - 3 + dir * 3, y + 8, 6, 6);
+    ctx.globalAlpha = 1;
+  }
+}
+
+function drawDecor(ctx: CanvasRenderingContext2D, d: HallData, t: number, layer: 'wall' | 'floor' | 'air') {
   const has = (id: string) => d.decor.includes(id);
   if (layer === 'floor') {
     if (has('carpet')) carpet(ctx);
+    if (has('jacks')) for (const x of [160, 416, 544, 800]) jackOLantern(ctx, x, 634, 0.75, t);
     return;
   }
+  // Things that drift in front of everything.
+  if (layer === 'air') {
+    if (has('bats')) bats(ctx, t);
+    if (has('ghosts')) ghosts(ctx, t);
+    return;
+  }
+  if (has('cobwebs')) cobwebs(ctx, t);
+  if (has('garland')) garland(ctx, t);
+  if (has('cauldron')) cauldron(ctx, 896, t);
   if (has('skulls')) {
     skullPile(ctx, 150);
     skullPile(ctx, 810);
@@ -440,6 +630,7 @@ export function drawHall(ctx: CanvasRenderingContext2D, d: HallData, t = 0) {
     const run = d.best[h.id];
     statue(ctx, 96 + i * 128, h.id, run, Boolean(run && run.floor === deepest), t);
   });
+  drawDecor(ctx, d, t, 'air');
 
   text(ctx, `${d.relics}/${RELICS.length} RELICS FOUND · ONEMORECRYPT.COM`, W / 2, H - 12, `16px ${FONT_PIXEL}`, '#6b6680');
 }

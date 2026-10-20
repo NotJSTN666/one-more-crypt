@@ -129,7 +129,7 @@ export interface LookDef {
   /** Colour of the drifting aura motes, if any. */
   aura: string | null;
   /** What unlocks it: an achievement, a Soul Rank (index) or a Bestiary tier. */
-  unlock: { feat: string } | { rank: number } | { beast: EnemyKind; tier: number } | { costume: string } | { podium: number } | { cost: number } | { streak: number } | { weekly: number } | { story: number };
+  unlock: { feat: string } | { rank: number } | { beast: EnemyKind; tier: number } | { costume: string } | { podium: number } | { cost: number; season?: SeasonId } | { streak: number } | { weekly: number } | { story: number } | { season: SeasonId };
   how: string;
 }
 
@@ -169,6 +169,40 @@ LOOKS.push(
   { id: 'inferno', name: 'Inferno Mantle', cloak: { p: '#ff5a1f', P: '#8a1f0c' }, aura: '#ff8a2a', ...sold(5000) },
 );
 
+// ---------- seasons ----------
+// Limited-time pieces: sold (or given) only while their season is open, kept for good after.
+
+export type SeasonId = 'halloween';
+
+export const SEASONS: Record<SeasonId, { name: string; emoji: string; from: string; to: string; dates: string }> = {
+  // Month-day, Central Time, both days included.
+  halloween: { name: 'The Hallowed Season', emoji: '🎃', from: '10-19', to: '11-02', dates: 'October 19 to November 2' },
+};
+
+/** Whether a season is open on a Central date (YYYY-MM-DD). */
+export function seasonOpen(id: SeasonId, date: string): boolean {
+  const md = date.slice(5);
+  const { from, to } = SEASONS[id];
+  return from <= to ? md >= from && md <= to : md >= from || md <= to;
+}
+
+/** The season a shop item belongs to, if any. */
+export function seasonOf(unlock: Unlock | undefined): SeasonId | undefined {
+  return unlock && 'season' in unlock ? unlock.season : undefined;
+}
+
+const hallowed = (cost: number) => ({ unlock: { cost, season: 'halloween' as const }, how: `Sold in the Ossuary during the Hallowed Season (October 19 to November 2) for ${cost.toLocaleString()} Souls.` });
+LOOKS.push(
+  // Free: play any run while the season is open.
+  { id: 'hallowed', name: 'Hallowed Shroud', cloak: { p: '#d35400', P: '#2a1505' }, aura: '#ffb35a', unlock: { season: 'halloween' }, how: 'Play any run during the Hallowed Season (October 19 to November 2).' },
+  { id: 'candycorn', name: 'Candy Corn', cloak: { p: '#f2c14e', P: '#e0661c' }, aura: '#fff2c0', ...hallowed(400) },
+  { id: 'pumpkincloak', name: 'Pumpkin Patch', cloak: { p: '#e67e22', P: '#3d6b2a' }, aura: null, ...hallowed(450) },
+  { id: 'witchcloak', name: "Witch's Cloak", cloak: { p: '#3b2060', P: '#1a0f26' }, aura: '#8aff6a', ...hallowed(600) },
+  { id: 'gravemist', name: 'Graveyard Mist', cloak: { p: '#3f4f45', P: '#1c2620' }, aura: '#b5e07a', ...hallowed(700) },
+  { id: 'vampcape', name: 'Vampire Cape', cloak: { p: '#141119', P: '#8a1f2c' }, aura: '#ff4d5a', ...hallowed(900) },
+  { id: 'banshee', name: 'Banshee Shroud', cloak: { p: '#dfe8f2', P: '#8fa4c0' }, aura: '#c9f2ff', ...hallowed(1100) },
+);
+
 export const LOOK_BY_ID = Object.fromEntries(LOOKS.map((l) => [l.id, l])) as Record<string, LookDef>;
 
 /** Ossuary items that are pure show: the price, and whether it's a legendary piece. */
@@ -186,6 +220,8 @@ export interface DecorDef {
   emoji: string;
   cost: number;
   desc: string;
+  /** Sold only while this season is open. */
+  season?: SeasonId;
 }
 
 export const DECOR: DecorDef[] = [
@@ -195,6 +231,13 @@ export const DECOR: DecorDef[] = [
   { id: 'braziers', name: 'Twin Braziers', emoji: '🔥', cost: 900, desc: 'Two roaring braziers either side of your throne room.' },
   { id: 'tomb', name: 'Your Tomb', emoji: '🪦', cost: 1500, desc: 'A gravestone with your name and deepest floor carved in.' },
   { id: 'throne', name: 'Bone Throne', emoji: '🪑', cost: 2500, desc: 'A throne of bone at the heart of your Hall.' },
+  // The Hallowed Season.
+  { id: 'cobwebs', name: 'Cobwebs', emoji: '🕸️', cost: 400, desc: 'Great webs in the high corners, with a spider that comes down to look.', season: 'halloween' },
+  { id: 'garland', name: 'Hallowed Garland', emoji: '🎏', cost: 500, desc: 'Orange and purple bunting strung along the top of the wall.', season: 'halloween' },
+  { id: 'jacks', name: "Jack-o'-Lanterns", emoji: '🎃', cost: 800, desc: 'A row of grinning pumpkins along the floor, lit from inside.', season: 'halloween' },
+  { id: 'bats', name: 'Bat Swarm', emoji: '🦇', cost: 900, desc: 'Bats that flit across your Hall, forever.', season: 'halloween' },
+  { id: 'cauldron', name: "Witch's Cauldron", emoji: '🧪', cost: 1200, desc: 'A great iron pot of green brew that never stops bubbling.', season: 'halloween' },
+  { id: 'ghosts', name: 'Wandering Ghosts', emoji: '👻', cost: 1800, desc: 'Two pale ghosts that drift through your Hall and pass through the walls.', season: 'halloween' },
 ];
 export const DECOR_BY_ID = Object.fromEntries(DECOR.map((d) => [d.id, d])) as Record<string, DecorDef>;
 
@@ -292,6 +335,16 @@ export const HEADS: HeadDef[] = [
   { id: 'cyclops', name: 'Cyclops Helm', ...sold(1000), pixels: [...row(1, 3, 8, STEEL), ...row(2, 3, 8, '#9aa3b5'), ...row(3, 3, 8, '#9aa3b5'), ...row(4, 3, 8, '#9aa3b5'), [5, 4, '#ff4d5a'], [6, 4, '#ff4d5a']] },
   { id: 'executioner', name: "Executioner's Hood", ...sold(1200), pixels: [...row(0, 4, 7, '#0b0710'), ...row(1, 3, 8, '#0b0710'), ...row(2, 2, 9, '#0b0710'), ...row(3, 2, 9, '#0b0710'), [3, 4, '#0b0710'], [4, 4, '#0b0710'], [6, 4, '#0b0710'], [8, 4, '#0b0710']] },
   { id: 'pumpkin', name: "Jack-o'-Lantern", ...sold(1500), pixels: [[5, 0, '#3d6b2a'], [6, 0, '#3d6b2a'], ...row(1, 4, 7, '#e67e22'), ...row(2, 3, 8, '#e67e22'), ...row(3, 3, 8, '#e67e22'), ...row(4, 3, 8, '#e67e22'), ...row(5, 3, 8, '#e67e22'), ...row(6, 4, 7, '#d35400'), [4, 3, '#ffd23f'], [7, 3, '#ffd23f'], [4, 5, '#ffd23f'], [5, 5, '#2a1505'], [6, 5, '#ffd23f'], [7, 5, '#2a1505']] },
+  // The Hallowed Season: sold only October 19 to November 2.
+  { id: 'catears', name: 'Black Cat Ears', ...hallowed(400), pixels: [[3, 0, DARK], [3, 1, '#ff9ab0'], [4, 1, DARK], [8, 0, DARK], [8, 1, '#ff9ab0'], [7, 1, DARK]] },
+  { id: 'strawhat', name: 'Scarecrow Hat', ...hallowed(450), pixels: [...row(0, 4, 7, '#8a6a3a'), ...row(1, 3, 8, '#a8894a'), ...row(2, 1, 10, '#c4a46a'), [4, 1, '#5a1622'], [7, 1, '#5a1622'], [1, 3, '#c4a46a'], [10, 3, '#c4a46a']] },
+  { id: 'devilhorns', name: 'Devil Horns', ...hallowed(500), pixels: [[2, 0, RED], [3, 1, RED], [3, 2, '#8a1f2c'], [9, 0, RED], [8, 1, RED], [8, 2, '#8a1f2c']] },
+  { id: 'witchhat', name: "Witch's Hat", ...hallowed(600), pixels: [[7, 0, '#2a1640'], [8, 0, '#2a1640'], ...row(0, 5, 6, '#2a1640'), ...row(1, 4, 7, '#7a34b0'), [5, 1, GOLD], ...row(2, 1, 10, '#1a0f26')] },
+  { id: 'skullmask', name: 'Skull Mask', ...hallowed(700), pixels: [...row(3, 4, 7, BONE), [4, 4, BONE], [5, 4, '#0d0812'], [6, 4, BONE], [7, 4, '#0d0812'], ...row(5, 4, 7, '#c9c3b2'), [5, 5, '#0d0812'], [7, 5, '#0d0812']] },
+  { id: 'ghostsheet', name: 'Ghost Sheet', ...hallowed(700), pixels: [...row(0, 4, 7, '#f2f2f2'), ...row(1, 3, 8, '#f2f2f2'), ...row(2, 2, 9, '#f2f2f2'), ...row(3, 2, 9, '#f2f2f2'), [4, 3, '#0d0812'], [7, 3, '#0d0812'], ...row(4, 2, 9, '#e2e6ee'), [5, 4, '#0d0812'], [6, 4, '#0d0812'], ...row(5, 2, 9, '#d2d8e2'), [2, 6, '#c8d0dc'], [4, 6, '#c8d0dc'], [7, 6, '#c8d0dc'], [9, 6, '#c8d0dc']] },
+  { id: 'mummy', name: 'Mummy Wraps', ...hallowed(800), pixels: [...row(1, 3, 8, '#d8d2c2'), ...row(2, 3, 8, '#b8b0a0'), ...row(3, 4, 7, '#d8d2c2'), [4, 4, '#b8b0a0'], [5, 4, '#ffd23f'], [6, 4, '#b8b0a0'], [7, 4, '#b8b0a0'], [3, 3, '#b8b0a0'], [8, 3, '#d8d2c2'], [9, 2, '#d8d2c2'], [10, 3, '#d8d2c2']] },
+  { id: 'vampire', name: 'Vampire Count', ...hallowed(900), pixels: [...row(1, 3, 8, '#141119'), [3, 2, '#141119'], [4, 2, '#e8e0e8'], [5, 2, '#141119'], [6, 2, '#141119'], [7, 2, '#e8e0e8'], [8, 2, '#141119'], ...row(3, 4, 7, '#e8e0e8'), [4, 4, '#e8e0e8'], [5, 4, RED], [6, 4, '#e8e0e8'], [7, 4, RED], [5, 5, '#ffffff'], [6, 5, '#701826'], [7, 5, '#ffffff']] },
+  { id: 'monster', name: 'Stitched Monster', ...hallowed(900), pixels: [...row(0, 4, 7, '#141119'), ...row(1, 3, 8, '#141119'), ...row(2, 3, 8, '#7f9a52'), [4, 2, '#2a2a2a'], [5, 2, '#2a2a2a'], [6, 2, '#2a2a2a'], ...row(3, 4, 7, '#7f9a52'), [4, 4, '#7f9a52'], [5, 4, '#f2f2f2'], [6, 4, '#7f9a52'], [7, 4, '#f2f2f2'], [1, 4, '#9aa3b5'], [2, 4, '#5d667a'], [9, 4, '#5d667a'], [10, 4, '#9aa3b5']] },
   // Legendary: skulls circle your head in the crypt.
   { id: 'skullhalo', name: 'Halo of Skulls', ...sold(10000), pixels: [...row(0, 3, 8, '#fff2c0'), [2, 1, GOLD], [9, 1, GOLD]] },
   { id: 'bronzelaurel', name: 'Bronze Laurel', unlock: { podium: 3 }, how: 'Finish 3rd in a Daily Descent.', pixels: [[2, 3, '#8a5a28'], [2, 2, '#b07a3c'], [3, 1, '#cd8f4a'], [4, 1, '#b07a3c'], [9, 3, '#8a5a28'], [9, 2, '#b07a3c'], [8, 1, '#cd8f4a'], [7, 1, '#b07a3c']] },
