@@ -49,6 +49,10 @@ export const X_HANDLE = 'OneMoreCrypt';
 export const followXHtml = `<a class="follow-x" href="https://x.com/${X_HANDLE}" target="_blank" rel="noopener">𝕏 Follow @${X_HANDLE}</a>`;
 
 export const KOFI_URL = 'https://ko-fi.com/onemorecrypt';
+export const DISCORD_URL = 'https://discord.gg/V454sdbTQH';
+
+/** The community server: results, deep runs, bugs and ideas. */
+export const discordHtml = `<a class="follow-x discord" href="${DISCORD_URL}" target="_blank" rel="noopener">💬 Join the Discord</a>`;
 
 /** The tip jar: free, no ads, tips keep the domain and servers running. */
 export const kofiHtml = `<a class="follow-x kofi" href="${KOFI_URL}" target="_blank" rel="noopener">☕ Keep the crypt open</a>`;

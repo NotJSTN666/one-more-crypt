@@ -23,7 +23,7 @@ import { showWardrobe } from './wardrobe';
 import { IMPACT, playFusion } from './fusefx';
 import { howToHtml, startHowTo } from './howto';
 import { RELIC_COACH, TUTORIAL } from './tutorial';
-import { KOFI_URL, copyText, descentStrip, followXHtml, kofiHtml, playTime, shareText, siteUrl, xIntentUrl } from './share';
+import { DISCORD_URL, KOFI_URL, copyText, descentStrip, discordHtml, followXHtml, kofiHtml, playTime, shareText, siteUrl, xIntentUrl } from './share';
 import { installMode, onInstallChange, promptInstall, setupInstall } from './install';
 import { bountiesHtml, progressBounties } from './bounties';
 import { enableReminders, reminderPrefs, remindersAvailable, remindersNeedInstall } from './push';
@@ -792,7 +792,7 @@ function showTitle() {
     <button class="btn" id="help">How to play</button>
     ${installMode() ? '<button class="btn install-btn" id="install">📲 Install the app<small>Play from your home screen, full screen</small></button>' : ''}
     ${streak > 1 ? `<div class="streak">🕯️ ${streak}-day streak</div>` : ''}
-    <div class="foot-links">${followXHtml}${kofiHtml}</div>
+    <div class="foot-links">${followXHtml}${discordHtml}${kofiHtml}</div>
   `);
   on('#account', () => showProfile(showTitle));
   on('#leaderboard', () => showLeaderboard(showTitle));
@@ -1050,6 +1050,7 @@ function showHelp(back: () => void) {
       <li>The <b>Daily Descent</b> is the same crypt and hero for everyone, once a day. Share your depth. Finish in the <b>top 3</b> for exclusive headwear and Souls, and keep a <b>streak</b> going for streak helms.</li>
       <li><b>Daily bounties</b> pay Souls for goals in any mode, and the <b>top 3 on each week's Endless board</b> win prizes too.</li>
       <li>Your <b>Crypt Hall</b> holds your trophies, statues and titles. Dress your heroes in the <b>Wardrobe</b>: outfits show in runs and on the leaderboards.</li>
+      <li>Share your runs, report bugs and suggest ideas in the <a href="${DISCORD_URL}" target="_blank" rel="noopener">One More Crypt Discord</a> 💬</li>
       <li>One More Crypt is free, with no ads. If you'd like to help keep it running, you can <a href="${KOFI_URL}" target="_blank" rel="noopener">leave a tip on Ko-fi</a> ☕</li>
     </ul>
     <div class="foes card">
@@ -1395,7 +1396,7 @@ function showDeath(r: RunResult, best: boolean) {
     </div>
     ${onlineCountHtml()}
     ${tipNoteHtml()}
-    ${followXHtml}
+    <div class="foot-links">${followXHtml}${discordHtml}</div>
   `);
   const backHere = () => showDeath(r, best);
   on('#leaderboard', () => showLeaderboard(backHere, daily ? 'today' : 'endless'));
