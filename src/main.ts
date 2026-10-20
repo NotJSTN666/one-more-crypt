@@ -38,6 +38,10 @@ const save = loadSave();
 // Fill in the Hall's streak from the dailies already played (saves from before streaks were tracked).
 noteStreak(streakStats(save, dailyNumber()));
 setMuted(save.muted);
+
+/** Under the share button after a run, and on the title once the daily is done: the community server. */
+const discordBtn = `<a class="btn discord" href="${DISCORD_URL}" target="_blank" rel="noopener">💬 Join the Discord<small>Post your result, compare builds, report bugs</small></a>`;
+
 setMusicEnabled(!save.musicOff);
 
 let game: Game;
@@ -756,6 +760,7 @@ function showTitle() {
         <div class="strip">${descentStrip(done.floor)}</div>
         <div class="sub" style="margin:0">Floor ${done.floor} · ${done.kills} kills</div>
         <button class="btn x" id="share-today">Share on 𝕏</button>
+        ${discordBtn}
         <div class="sub" style="margin:6px 0 0">Next crypt opens in <span class="countdown">--:--:--</span></div>
       </div>`
     : resumable?.mode === 'daily'
@@ -1342,9 +1347,6 @@ function showPause() {
     }
   });
 }
-
-/** After a run, under the share button: the community server. */
-const discordBtn = `<a class="btn discord" href="${DISCORD_URL}" target="_blank" rel="noopener">💬 Join the Discord<small>Post your result, compare builds, report bugs</small></a>`;
 
 function showDeath(r: RunResult, best: boolean) {
   const daily = game.mode === 'daily';
