@@ -102,6 +102,13 @@ let look: ZoneDef = ZONES.crypt;
 /** The look's headline colour: the brand's blood red in the plain crypt, the place's own colour elsewhere. */
 const accent = () => (look.id === 'crypt' ? '#d23a46' : look.color);
 
+/** The look's colour as a background glow: paler colours glow fainter, so the card stays dark enough to read. */
+function glow(a: number) {
+  const n = parseInt(accent().slice(1), 16);
+  const lum = (0.2126 * (n >> 16) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
+  return rgba(accent(), a * Math.min(1, 0.45 / Math.max(lum, 0.01)));
+}
+
 /** A colour at some opacity, for glows. */
 function rgba(hex: string, a: number) {
   const n = parseInt(hex.slice(1), 16);
@@ -185,10 +192,16 @@ function wallBand(top: number, bottom: number, width: number) {
   ctx.fillRect(0, bottom - 6, width, 6);
 }
 
-function backdrop(glow: string) {
+function backdrop(color: string) {
+  const glow = color.startsWith('#') ? rgba(color, 1) : color;
+  // A solid dark base first: the glow is see-through, and a light page behind would wash it out.
+  ctx.fillStyle = '#07040b';
+  ctx.fillRect(0, 0, W, H);
+  // Fade the glow out to nothing over the base. (Fading it into the dark colour instead
+  // drags the glow's colour across the whole card and washes it out.)
   const bg = ctx.createRadialGradient(W * 0.3, H * 0.45, 30, W * 0.5, H * 0.5, 820);
   bg.addColorStop(0, glow);
-  bg.addColorStop(1, '#07040b');
+  bg.addColorStop(1, glow.replace(/[\d.]+\)$/, '0)'));
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
   floorBand(540, H, W, 60);
@@ -345,7 +358,7 @@ export function drawDaily(canvas: HTMLCanvasElement, { dailyNo, heroId, tally }:
   use(canvas);
   look = cardLook(dailyNo);
   const hero = HERO_BY_ID[heroId];
-  backdrop(rgba(accent(), 0.22));
+  backdrop(glow(0.22));
   motes(look.mote, 40, 3);
   const s = sprites();
   const foe = (name: keyof ReturnType<typeof sprites>, x: number, y: number, k: number) => ctx.drawImage(s[name].normal, x, y, 12 * k, 12 * k);
@@ -410,10 +423,11 @@ export function drawStory(
   const hero = HERO_BY_ID[heroId];
   look = cardLook(dailyNo);
 
+  ctx.fillStyle = '#07040b';
+  ctx.fillRect(0, 0, SW, STORY_H);
   const bg = ctx.createRadialGradient(SW / 2, 620, 40, SW / 2, 900, 1300);
-  bg.addColorStop(0, rgba(accent(), 0.24));
-  bg.addColorStop(0.55, '#14091a');
-  bg.addColorStop(1, '#07040b');
+  bg.addColorStop(0, glow(0.24));
+  bg.addColorStop(1, glow(0));
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, SW, STORY_H);
   // the place: its wall along the top and its floor along the bottom, under Instagram's bars
@@ -426,10 +440,10 @@ export function drawStory(
   shade.addColorStop(1, 'rgba(7,4,11,0.35)');
   ctx.fillStyle = shade;
   ctx.fillRect(0, 0, SW, STORY_H);
-  const glow = ctx.createRadialGradient(SW / 2, 620, 40, SW / 2, 800, 1000);
-  glow.addColorStop(0, rgba(accent(), 0.22));
-  glow.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = glow;
+  const halo = ctx.createRadialGradient(SW / 2, 620, 40, SW / 2, 800, 1000);
+  halo.addColorStop(0, glow(0.22));
+  halo.addColorStop(1, glow(0));
+  ctx.fillStyle = halo;
   ctx.fillRect(0, 0, SW, STORY_H);
   let r = 7;
   const rand = () => ((r = (r * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
@@ -530,7 +544,7 @@ export function drawDigest(
   use(canvas);
   look = cardLook(dailyNo);
   const hero = HERO_BY_ID[heroId];
-  backdrop(rgba(accent(), 0.22));
+  backdrop(glow(0.22));
   motes(look.mote, 34, 5);
   // two of the place's residents either side of the hero
   const s = sprites();
