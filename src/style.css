@@ -387,6 +387,18 @@ h2.dead {
   color: #fff;
 }
 
+.btn.discord {
+  background: #5865f2;
+  border-color: #7983f5;
+  border-bottom-color: #3c45a5;
+  color: #fff;
+  text-align: center;
+}
+
+.btn.discord small {
+  color: rgba(255, 255, 255, 0.8);
+}
+
 .btn small {
   display: block;
   font-size: 10px;

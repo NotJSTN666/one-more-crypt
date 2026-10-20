@@ -1343,6 +1343,9 @@ function showPause() {
   });
 }
 
+/** After a run, under the share button: the community server. */
+const discordBtn = `<a class="btn discord" href="${DISCORD_URL}" target="_blank" rel="noopener">💬 Join the Discord<small>Post your result, compare builds, report bugs</small></a>`;
+
 function showDeath(r: RunResult, best: boolean) {
   const daily = game.mode === 'daily';
   setMusicDepth(0);
@@ -1379,10 +1382,12 @@ function showDeath(r: RunResult, best: boolean) {
           }<span class="endless-record"></span></p>
     <button class="btn primary" id="again">Endless Descent<small>The crypt never ends. Keep descending.<span class="keys-hint"> · Enter or R</span></small></button>
     <button class="btn x" id="share">Share on 𝕏</button>
+    ${discordBtn}
     <div class="row">
       <button class="btn" id="copy">Copy result</button>
     </div>`
         : `<button class="btn x" id="share">Share on 𝕏</button>
+    ${discordBtn}
     <div class="row">
       <button class="btn" id="copy">Copy result</button>
       <button class="btn" id="again">Descend again<small class="keys-hint">Enter or R</small></button>
@@ -1396,7 +1401,7 @@ function showDeath(r: RunResult, best: boolean) {
     </div>
     ${onlineCountHtml()}
     ${tipNoteHtml()}
-    <div class="foot-links">${followXHtml}${discordHtml}</div>
+    ${followXHtml}
   `);
   const backHere = () => showDeath(r, best);
   on('#leaderboard', () => showLeaderboard(backHere, daily ? 'today' : 'endless'));
