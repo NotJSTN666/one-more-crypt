@@ -1446,6 +1446,7 @@ function showDeath(r: RunResult, best: boolean) {
           }<span class="endless-record"></span></p>
     <button class="btn primary" id="again">Endless Descent<small>The crypt never ends. Keep descending.<span class="keys-hint"> · Enter or R</span></small></button>
     <button class="btn x" id="share">Share on 𝕏</button>
+    ${ONLINE ? `<button class="btn challenge-btn" id="challenge">⚔️ Challenge a friend<small>Today's crypt, your hero. Can they beat floor ${r.floor}?</small></button>` : ''}
     ${discordBtn}
     <div class="row">
       <button class="btn" id="copy">Copy result</button>
@@ -1568,6 +1569,23 @@ function openChallenge(code: string, back: () => void) {
       if (screen !== 'challenge') return;
       if (!c) {
         showOverlay('challenge', '<h2>⚔️ A challenge</h2><p class="sub">That challenge doesn\'t exist. The link may be mistyped.</p><button class="btn primary" id="back">Back</button>');
+        on('#back', back);
+        return;
+      }
+      // A challenge on today's Daily crypt would let you scout it first, so the Daily comes first.
+      const today = dailyNumber();
+      if (Number(c.seed) === hashSeed('cryptfall-daily', today) && !save.daily[today]) {
+        showOverlay('challenge', `
+          <h2>⚔️ ${esc(c.name)} challenges you</h2>
+          <p class="sub"><b>${esc(c.name)}</b> reached <b>floor ${c.floor}</b> in today's Daily crypt.</p>
+          <p class="fine">Play your own Daily #${today} first, then open this link again to take them on.</p>
+          <button class="btn primary" id="play-daily">Play Daily #${today}</button>
+          <button class="btn" id="back">Not now</button>`);
+        on('#play-daily', () => {
+          const resumable = savedRun();
+          if (resumable?.mode === 'daily') resumeRun(resumable);
+          else withTutorialOffer(() => startRun('daily'));
+        });
         on('#back', back);
         return;
       }
