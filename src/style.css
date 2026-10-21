@@ -2521,3 +2521,74 @@ body.tutorial #relic-bar {
   height: 150px;
   image-rendering: pixelated;
 }
+
+/* ---------- title effects: the hardest titles shimmer, glow or flow ---------- */
+
+.title-fx {
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: title-sweep 4s linear infinite;
+}
+
+@keyframes title-sweep {
+  from { background-position: 0% 50%; }
+  to { background-position: 300% 50%; }
+}
+
+.fx-prism {
+  background-image: linear-gradient(90deg, #ff4d5a, #ff8a2a, #ffd23f, #5fd36a, #5fe3ff, #b07cff, #ff4d5a);
+  filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.35));
+  animation-duration: 3s;
+}
+
+.fx-gold {
+  background-image: linear-gradient(90deg, #a8781f, #f2c14e, #fff2c0, #f2c14e, #a8781f);
+  filter: drop-shadow(0 0 3px rgba(242, 193, 78, 0.6));
+}
+
+.fx-eternal {
+  background-image: linear-gradient(90deg, #f2c14e, #ffffff, #fff2c0, #ffffff, #f2c14e);
+  filter: drop-shadow(0 0 4px rgba(255, 242, 192, 0.8));
+  animation-duration: 5s;
+}
+
+.fx-sovereign {
+  background-image: linear-gradient(90deg, #d23a46, #f2c14e, #ff4d5a, #fff2c0, #d23a46);
+  filter: drop-shadow(0 0 3px rgba(255, 77, 90, 0.6));
+}
+
+.fx-soul {
+  background-image: linear-gradient(90deg, #5fe3ff, #e8fbff, #9fe8ff, #5fe3ff);
+  filter: drop-shadow(0 0 3px rgba(95, 227, 255, 0.6));
+  animation-duration: 3s;
+}
+
+.fx-abyss {
+  background-image: linear-gradient(90deg, #7b5cff, #d3b0ff, #b07cff, #7b5cff);
+  filter: drop-shadow(0 0 3px rgba(176, 124, 255, 0.6));
+}
+
+.fx-arcane {
+  background-image: linear-gradient(90deg, #5fe3ff, #b07cff, #f2c14e, #5fe3ff);
+  filter: drop-shadow(0 0 3px rgba(127, 180, 255, 0.5));
+}
+
+.fx-ember {
+  background-image: linear-gradient(90deg, #d23a46, #ff8a2a, #ffd23f, #ff8a2a, #d23a46);
+  filter: drop-shadow(0 0 3px rgba(255, 138, 42, 0.6));
+  animation-duration: 2.5s;
+}
+
+.fx-steel {
+  background-image: linear-gradient(90deg, #9aa3b5, #9aa3b5, #eef3fb, #9aa3b5, #9aa3b5);
+  animation-duration: 3.5s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .title-fx {
+    animation: none;
+  }
+}

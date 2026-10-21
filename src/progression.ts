@@ -122,6 +122,32 @@ export const WEEKLY = [
 
 export const TITLE_BY_ID = Object.fromEntries(TITLES.map((t) => [t.id, t])) as Record<string, TitleDef>;
 
+/** The hardest titles shimmer, glow or flow wherever they're shown. */
+export type TitleFx = 'prism' | 'gold' | 'eternal' | 'sovereign' | 'soul' | 'abyss' | 'arcane' | 'ember' | 'steel';
+
+export const TITLE_FX: Record<string, TitleFx> = {
+  'patron:1': 'prism',
+  'podium:1': 'gold',
+  'rank:The Eternal': 'eternal',
+  'rank:Crypt Sovereign': 'sovereign',
+  'rank:Soulreaver': 'soul',
+  'rank:Lord of the Abyss': 'abyss',
+  'feat:floor50': 'abyss',
+  'feat:ascend-all': 'arcane',
+  'feat:ascend': 'arcane',
+  'feat:completionist': 'arcane',
+  'feat:combos-all': 'arcane',
+  'feat:forge-all': 'arcane',
+  'beast:boss': 'ember',
+  'beast:abbot': 'ember',
+  'beast:lich': 'ember',
+  'feat:annihilate': 'ember',
+  ...Object.fromEntries(BESTIARY_KINDS.filter((k) => !BOSSES.includes(k)).map((k) => [`beast:${k}`, 'steel'])),
+};
+
+/** The CSS class for a title's effect ('' for plain titles). */
+export const titleFxClass = (id: string | null | undefined) => (id && TITLE_FX[id] ? `title-fx fx-${TITLE_FX[id]}` : '');
+
 // ---------- cosmetic looks ----------
 
 export interface LookDef {

@@ -9,7 +9,7 @@ import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
 import { hallFromLink, onVisitIsle, showHall, showPublicHall, soulRankHtml, titleName } from './hall';
-import { HEAD_BY_ID, LOOK_BY_ID, PODIUM, STREAK_HELMS, WEEKLY, rankFor } from './progression';
+import { HEAD_BY_ID, LOOK_BY_ID, PODIUM, STREAK_HELMS, WEEKLY, rankFor, titleFxClass } from './progression';
 import { Renderer } from './render';
 import { hashSeed } from './rng';
 import { ONLINE, dailyBoard, endlessBoard, mySummons, noteRun, noteSummon, pingActivity, startActivityPings } from './online';
@@ -921,7 +921,7 @@ function accountChip(): string {
   if (ONLINE && !session.ready) return `<div class="account-row">${mute}</div>`;
   const name = playerName();
   const title = titleName(meta.title);
-  return `<div class="account-row">${mute}<button class="account-chip" id="account">👤 ${name ? esc(name) : 'Sign in'}${name && title ? ` <small>${esc(title)}</small>` : ''}</button></div>`;
+  return `<div class="account-row">${mute}<button class="account-chip" id="account">👤 ${name ? esc(name) : 'Sign in'}${name && title ? ` <small class="${titleFxClass(meta.title)}">${esc(title)}</small>` : ''}</button></div>`;
 }
 
 // ---------- the Hollow ----------

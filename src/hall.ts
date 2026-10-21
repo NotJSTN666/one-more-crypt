@@ -14,8 +14,8 @@ import { equipTitle, meta, titleUnlocked, type Meta } from './meta';
 import { showWardrobe } from './wardrobe';
 import { ONLINE, loadHall } from './online';
 import {
-  AURA_BY_ID, BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, HEAD_BY_ID, LOOK_BY_ID, TITLES, TITLE_BY_ID, TITLE_TIER, bestiaryTiers, rankFor, rankProgress,
-  type BestRun, type BestRuns,
+  AURA_BY_ID, BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, TITLE_FX, titleFxClass, HEAD_BY_ID, LOOK_BY_ID, TITLES, TITLE_BY_ID, TITLE_TIER, bestiaryTiers, rankFor, rankProgress,
+  type BestRun, type BestRuns, type TitleFx,
 } from './progression';
 import { RELICS, RELIC_BY_ID, type RelicId } from './relics';
 import { copyText, siteUrl } from './share';
@@ -139,7 +139,7 @@ function silhouette(img: HTMLCanvasElement, color: string): HTMLCanvasElement {
   return c;
 }
 
-function text(ctx: CanvasRenderingContext2D, str: string, x: number, y: number, font: string, color: string, glow = '') {
+function text(ctx: CanvasRenderingContext2D, str: string, x: number, y: number, font: string, color: string | CanvasGradient, glow = '') {
   ctx.font = font;
   ctx.textAlign = 'center';
   ctx.fillStyle = color;
@@ -152,7 +152,7 @@ function text(ctx: CanvasRenderingContext2D, str: string, x: number, y: number, 
 }
 
 /** Text shrunk until it fits the width. */
-function fitText(ctx: CanvasRenderingContext2D, str: string, x: number, y: number, size: number, family: string, color: string, maxW: number, glow = '') {
+function fitText(ctx: CanvasRenderingContext2D, str: string, x: number, y: number, size: number, family: string, color: string | CanvasGradient, maxW: number, glow = '') {
   let s = size;
   ctx.font = `${s}px ${family}`;
   while (s > 10 && ctx.measureText(str).width > maxW) ctx.font = `${--s}px ${family}`;
@@ -571,6 +571,41 @@ function drawDecor(ctx: CanvasRenderingContext2D, d: HallData, t: number, layer:
   if (has('throne')) throne(ctx, 480);
 }
 
+/** How a title is painted on the Hall's banner: the hardest ones shimmer, glow or flow. */
+function titleFill(ctx: CanvasRenderingContext2D, fx: TitleFx | undefined, t: number): { fill: string | CanvasGradient; glow: string } {
+  // A gradient band that slides across the title line.
+  const sweep = (stops: string[], speed: number) => {
+    const shift = ((t * speed) % 1) * 600;
+    const g = ctx.createLinearGradient(180 + shift - 600, 0, 780 + shift - 600, 0);
+    const all = [...stops, ...stops];
+    all.forEach((c, i) => g.addColorStop(i / (all.length - 1), c));
+    return g;
+  };
+  const pulse = 0.45 + 0.25 * Math.sin(t * 2.4);
+  switch (fx) {
+    case 'prism':
+      return { fill: sweep(['#ff4d5a', '#ff8a2a', '#ffd23f', '#5fd36a', '#5fe3ff', '#b07cff'], 0.25), glow: `hsla(${(t * 90) % 360}, 95%, 64%, 0.8)` };
+    case 'gold':
+      return { fill: sweep(['#a8781f', '#f2c14e', '#fff2c0', '#f2c14e'], 0.35), glow: `rgba(242,193,78,${pulse})` };
+    case 'eternal':
+      return { fill: sweep(['#f2c14e', '#ffffff', '#fff2c0', '#ffffff'], 0.2), glow: `rgba(255,242,192,${pulse + 0.2})` };
+    case 'sovereign':
+      return { fill: sweep(['#d23a46', '#f2c14e', '#ff4d5a', '#fff2c0'], 0.3), glow: `rgba(255,77,90,${pulse})` };
+    case 'soul':
+      return { fill: sweep(['#5fe3ff', '#e8fbff', '#9fe8ff'], 0.4), glow: `rgba(95,227,255,${pulse})` };
+    case 'abyss':
+      return { fill: sweep(['#7b5cff', '#d3b0ff', '#b07cff'], 0.25), glow: `rgba(176,124,255,${pulse})` };
+    case 'arcane':
+      return { fill: sweep(['#5fe3ff', '#b07cff', '#f2c14e'], 0.3), glow: `rgba(127,180,255,${pulse})` };
+    case 'ember':
+      return { fill: sweep(['#d23a46', '#ff8a2a', '#ffd23f', '#ff8a2a'], 0.5), glow: `rgba(255,138,42,${pulse})` };
+    case 'steel':
+      return { fill: sweep(['#9aa3b5', '#eef3fb', '#9aa3b5'], 0.3), glow: '' };
+    default:
+      return { fill: '#f2c14e', glow: '' };
+  }
+}
+
 /** Draw the Hall at time t (seconds), for the screen and the saved image. */
 export function drawHall(ctx: CanvasRenderingContext2D, d: HallData, t = 0) {
   ctx.imageSmoothingEnabled = false;
@@ -615,7 +650,10 @@ export function drawHall(ctx: CanvasRenderingContext2D, d: HallData, t = 0) {
   const rank = rankFor(d.earned);
   fitText(ctx, d.name || 'Nameless', W / 2, 74, 76, FONT_NAME, '#d23a46', 880, 'rgba(210,58,70,0.6)');
   const title = titleName(d.title);
-  if (title) fitText(ctx, `« ${title.toUpperCase()} »`, W / 2, 110, 20, FONT_PIXEL, '#f2c14e', 880);
+  if (title) {
+    const fx = titleFill(ctx, TITLE_FX[d.title], t);
+    fitText(ctx, `« ${title.toUpperCase()} »`, W / 2, 110, 20, FONT_PIXEL, fx.fill, 880, fx.glow);
+  }
   text(ctx, `${rank.name.toUpperCase()} · ${d.earned.toLocaleString()} SOULS`, W / 2, title ? 138 : 120, `17px ${FONT_PIXEL}`, rank.color);
   if (d.streak.best > 1) {
     const { current, best } = d.streak;
@@ -720,7 +758,7 @@ function titlesBody(): string {
   const item = (id: string, name: string, desc: string, has: boolean) => `
     <button class="codex-item pick ${meta.title === id ? 'equipped' : ''}" data-title="${esc(id)}" ${has ? '' : 'disabled'}>
       <span class="shop-emoji">${has ? (meta.title === id ? '✅' : '📜') : '🔒'}</span>
-      <span class="shop-info"><span class="name">${esc(name)}</span><span class="desc">${esc(desc)}</span></span>
+      <span class="shop-info"><span class="name ${has ? titleFxClass(id) : ''}">${esc(name)}</span><span class="desc">${esc(desc)}</span></span>
     </button>`;
   return `<p class="fine">Your title shows under your name on the leaderboards and in your Hall. ${owned.filter((t) => !t.secret).length}/${TITLES.filter((t) => !t.secret).length} earned.</p>
     <div class="codex">
