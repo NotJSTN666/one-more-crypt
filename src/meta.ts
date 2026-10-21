@@ -7,7 +7,7 @@ import { ISLE_ITEM, LAND, cleanIsle, emptyIsle, fits, homeKey, homeOf, islePerks
 import { centralDate } from './daily';
 import { FUSIONS, RELICS, UNLOCKABLE_RELICS, type FusedId, type RelicId } from './relics';
 import {
-  AURAS, AURA_BY_ID, BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, beastPlural, HEADS, HEAD_BY_ID, HERO_CLOAKS, HERO_COSTUMES, LOOKS, LOOK_BY_ID, SEASONS, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_TIER,
+  AURAS, AURA_BY_ID, DUNCE_AT, SHAME, BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, beastPlural, HEADS, HEAD_BY_ID, HERO_CLOAKS, HERO_COSTUMES, LOOKS, LOOK_BY_ID, SEASONS, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_TIER,
   betterRun, bestiaryTiers, rankIndex, seasonOf, seasonOpen, type AuraDef, type BestRuns, type SeasonId, type HeadDef, type LookDef, type Outfit, type RunGoal, type Unlock,
 } from './progression';
 import type { EnemyKind } from './game';
@@ -79,6 +79,8 @@ export interface Meta {
   seasons: string[];
   /** The deepest floor ever reached, any mode (also fed from the account's synced records). */
   deepest: number;
+  /** Deaths of Shame collected: id -> when first suffered. */
+  shame: Record<string, number>;
 }
 
 /** Story progress: quests taken, cleared (dungeon done) and finished, choices, the hound's bond, lore read. */
@@ -129,7 +131,7 @@ function empty(): Meta {
     podiums: {}, podiumChecked: 0, bought: [], streak: { best: 0, count: 0, last: 0 },
     bounties: { day: 0, ids: [], progress: [], done: [] },
     weekly: {}, weeklyChecked: '',
-    story: emptyStory(), pet: '', summonsSeen: '', patron: false, isle: emptyIsle(), seasons: [], deepest: 0,
+    story: emptyStory(), pet: '', summonsSeen: '', patron: false, isle: emptyIsle(), seasons: [], deepest: 0, shame: {},
   };
 }
 
@@ -191,6 +193,7 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   }
   meta.patron ||= other.patron === true;
   meta.deepest = Math.max(meta.deepest, Number(other.deepest) || 0);
+  meta.shame = { ...(other.shame ?? {}), ...meta.shame };
   meta.seasons = [...new Set([...meta.seasons, ...(Array.isArray(other.seasons) ? other.seasons.map(String) : [])])];
   // The isle is one layout: whichever device changed it last wins.
   if (other.isle && (Number(other.isle.at) || 0) > meta.isle.at) meta.isle = cleanIsle(other.isle);
@@ -485,7 +488,8 @@ export function finishRunMeta(game: Game, streak: number): RunReward {
     const tag = `${season}-${centralDate().slice(0, 4)}`;
     if (!meta.seasons.includes(tag)) meta.seasons.push(tag);
   }
-  const unlocks = progressUnlocks(game);
+  const shame = noteShame(game);
+  const unlocks = [...shame, ...progressUnlocks(game)];
   saveMeta();
   return { souls, lines, achievements, unlocks };
 }
@@ -538,6 +542,7 @@ function unlockMet(u: Unlock): boolean {
   if ('story' in u) return meta.story.done.includes(u.story);
   if ('cost' in u) return false;
   if ('season' in u) return meta.seasons.some((x) => x.startsWith(`${u.season}-`));
+  if ('shame' in u) return Object.keys(meta.shame).length >= u.shame;
   return (meta.bestiaryTier[u.beast] ?? 0) > u.tier;
 }
 
@@ -665,6 +670,50 @@ export function grantWeekly(week: string, place: number, souls: number, head: st
   return true;
 }
 
+// ---------- Deaths of Shame ----------
+
+const SHAME_SOULS = 25;
+
+/** Which Deaths of Shame a finished run counts as (from how it ended). */
+export function shameFor(game: Game): string[] {
+  const d = game.deathInfo;
+  if (!d || game.phase !== 'dead') return [];
+  const ground = d.cause === 'the spikes' || d.cause === 'the lava';
+  const tests: [string, boolean][] = [
+    ['victory-lap', ground && d.cleared],
+    ['pincushion', d.cause === 'the spikes'],
+    ['hotfoot', d.cause === 'the lava'],
+    ['almost-there', d.nearStairs],
+    ['bat-snack', d.kind === 'bat'],
+    ['kaboom', d.cause === 'an exploding foe'],
+    ['glass-jaw', d.hpBefore >= d.maxHp],
+    ['colorblind', d.telegraphed],
+    ['outlasted', d.lastFoe],
+    ['speedrun', game.turns <= 15],
+    ['floor-one', game.floor === 1],
+    ['borrowed-time', d.revivedHere],
+  ];
+  return tests.filter(([, ok]) => ok).map(([id]) => id);
+}
+
+/** Record the run's Deaths of Shame. New ones pay Souls and unlock their title. */
+function noteShame(game: Game): UnlockNote[] {
+  if (game.mode === 'story') return [];
+  const notes: UnlockNote[] = [];
+  for (const id of shameFor(game)) {
+    if (meta.shame[id]) continue;
+    const def = SHAME.find((x) => x.id === id);
+    if (!def) continue;
+    meta.shame[id] = Date.now();
+    meta.souls += SHAME_SOULS;
+    meta.earned += SHAME_SOULS;
+    notes.push({ icon: def.emoji, title: `Death of Shame: ${def.title}`, detail: `+${SHAME_SOULS} Souls · new title "${def.title}"` });
+  }
+  const n = Object.keys(meta.shame).length;
+  if (notes.length && n < DUNCE_AT) notes.push({ icon: '🪦', title: `Deaths of Shame: ${n}/${SHAME.length}`, detail: `${DUNCE_AT - n} more for the Dunce Cap` });
+  return notes;
+}
+
 // ---------- your isle ----------
 
 export type BuildResult = 'ok' | 'souls' | 'blocked' | 'max';
@@ -731,6 +780,7 @@ export function titleUnlocked(id: string): boolean {
   const [kind, key] = id.split(':');
   if (kind === 'podium') return podiumCount(Number(key)) > 0;
   if (kind === 'patron') return meta.patron;
+  if (kind === 'shame') return Boolean(meta.shame[key]);
   if (kind === 'feat') return Boolean(meta.achievements[key]);
   if (kind === 'beast') return (meta.bestiaryTier[key as EnemyKind] ?? 0) > TITLE_TIER;
   if (kind === 'rank') return meta.earned >= (SOUL_RANKS.find((r) => r.name === key)?.souls ?? Infinity);

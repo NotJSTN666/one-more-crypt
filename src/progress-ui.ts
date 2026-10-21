@@ -5,7 +5,7 @@ import { sfx } from './audio';
 import { ACHIEVEMENTS, COMBOS, HEROES, HERO_BY_ID, type AchievementDef, type ComboDef, type HeroId } from './content';
 import { heroPortrait } from './hero';
 import { RELIC_COSTS, type UnlockNote, buyHero, buyItem, lookUnlocked, openSeasons, outfitFor, buyRelic, heroUnlocked, meta, relicDiscovered, saveMeta } from './meta';
-import { AURAS, DECOR, HEADS, LEGENDARY, LOOKS, SEASONS, seasonOf, shopPrice, type AuraDef } from './progression';
+import { AURAS, DECOR, DUNCE_AT, HEADS, LEGENDARY, LOOKS, SEASONS, SHAME, seasonOf, shopPrice, type AuraDef } from './progression';
 import { auraClass } from './aura';
 import { ASCEND_FLOOR, ENDLESS_RELICS, FUSIONS, RELICS, RELIC_BY_ID, UNLOCKABLE_RELICS, type RelicId } from './relics';
 import { $, esc, on, overlay, showOverlay } from './ui';
@@ -220,7 +220,7 @@ export function setHallOpener(open: (back: () => void) => void) {
 
 // ---------- the Grimoire ----------
 
-type GrimoireTab = 'relics' | 'combos' | 'fusions' | 'achievements';
+type GrimoireTab = 'relics' | 'combos' | 'fusions' | 'achievements' | 'shame';
 
 export function showGrimoire(back: () => void, tab: GrimoireTab = 'relics') {
   const found = RELICS.filter((r) => relicDiscovered(r.id)).length;
@@ -231,6 +231,7 @@ export function showGrimoire(back: () => void, tab: GrimoireTab = 'relics') {
     ['combos', `Combos ${combosFound}/${COMBOS.length}`],
     ['fusions', `Fusions ${FUSIONS.filter((f) => meta.fusions[f.id]).length}/${FUSIONS.length}`],
     ['achievements', `Achievements ${feats}/${ACHIEVEMENTS.length}`],
+    ['shame', `Deaths of Shame ${SHAME.filter((d) => meta.shame[d.id]).length}/${SHAME.length}`],
   ];
   let body = '';
   if (tab === 'relics') {
@@ -268,6 +269,16 @@ export function showGrimoire(back: () => void, tab: GrimoireTab = 'relics') {
         <span class="desc">${parts}${seen ? ` · ${c.desc}` : ' · hold them all in one run'}</span></span>
       </div>`;
     }).join('')}</div>`;
+  } else if (tab === 'shame') {
+    const got = SHAME.filter((d) => meta.shame[d.id]).length;
+    body = `<p class="fine">Silly ways to fall. Each one pays ${25} Souls and a title to wear. Collect ${DUNCE_AT} for the <b>Dunce Cap</b>${got >= DUNCE_AT ? ' (yours!)' : ''}.</p>
+      <div class="codex">${SHAME.map((d) => {
+        const when = meta.shame[d.id];
+        return `<div class="codex-item ${when ? '' : 'unknown'}">
+          <span class="shop-emoji">${when ? d.emoji : '🪦'}</span>
+          <span class="shop-info"><span class="name">${esc(d.title)}</span><span class="desc">${esc(d.how)}${when ? ` · ${new Date(when).toLocaleDateString([], { month: 'short', day: 'numeric' })}` : ''}</span></span>
+        </div>`;
+      }).join('')}</div>`;
   } else {
     body = `<div class="codex">${ACHIEVEMENTS.map((a) => {
       const got = !!meta.achievements[a.id];

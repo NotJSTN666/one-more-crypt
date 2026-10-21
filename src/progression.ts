@@ -82,6 +82,35 @@ export const BESTIARY_TITLES: Partial<Record<EnemyKind, string>> = {
 };
 export const TITLE_TIER = 2;
 
+// ---------- Deaths of Shame ----------
+// Silly ways to fall. Each pays a few Souls and a title to wear; collect ten for the Dunce Cap.
+
+export interface ShameDef {
+  id: string;
+  emoji: string;
+  /** The title it unlocks. */
+  title: string;
+  how: string;
+}
+
+export const SHAME: ShameDef[] = [
+  { id: 'victory-lap', emoji: '🏃', title: 'Victory Lap', how: 'Slay every foe on the floor, then die to the spikes or the lava.' },
+  { id: 'pincushion', emoji: '📌', title: 'Pincushion', how: 'Die on the spikes.' },
+  { id: 'hotfoot', emoji: '🔥', title: 'Hot Foot', how: 'Walk into lava and die.' },
+  { id: 'almost-there', emoji: '🚪', title: 'Almost There', how: 'Die one step from the open stairs.' },
+  { id: 'bat-snack', emoji: '🦇', title: 'Bat Snack', how: 'Be slain by a Blood Bat.' },
+  { id: 'kaboom', emoji: '💥', title: 'Kaboom', how: 'Stand too close to an exploding foe.' },
+  { id: 'glass-jaw', emoji: '🥊', title: 'Glass Jaw', how: 'Go from full health to dead in one hit.' },
+  { id: 'colorblind', emoji: '🟥', title: 'Colorblind', how: 'Die to a shot or spell you were warned about (the red tiles).' },
+  { id: 'outlasted', emoji: '🫠', title: 'Outlasted', how: 'Be slain by the very last foe on the floor.' },
+  { id: 'speedrun', emoji: '⏱️', title: 'Speedrunner', how: 'Die within your first 15 turns.' },
+  { id: 'floor-one', emoji: '🍌', title: 'First Floor Fumble', how: 'Fall on floor 1.' },
+  { id: 'borrowed-time', emoji: '⏳', title: 'Borrowed Time', how: 'Die on the same floor the Phylactery saved you.' },
+];
+
+/** Deaths of Shame needed for the Dunce Cap. */
+export const DUNCE_AT = 10;
+
 // ---------- titles ----------
 
 export interface TitleDef {
@@ -102,6 +131,8 @@ export const TITLES: TitleDef[] = [
   })),
   ...SOUL_RANKS.slice(1).map((r) => ({ id: `rank:${r.name}`, name: r.name, how: `Earn ${r.souls.toLocaleString()} Souls in total.` })),
   { id: 'podium:1', name: 'Crypt Champion', how: 'Finish 1st in a Daily Descent.' },
+  // Deaths of Shame: silly ways to fall, each worn as a title.
+  ...SHAME.map((d) => ({ id: `shame:${d.id}`, name: d.title, how: d.how })),
   // Given by hand to supporters (the patrons table), never sold in the game.
   { id: 'patron:1', name: 'Patron of the Crypt', how: 'Helped keep the crypt open. Thank you.', secret: true },
 ];
@@ -158,7 +189,7 @@ export interface LookDef {
   /** Colour of the drifting aura motes, if any. */
   aura: string | null;
   /** What unlocks it: an achievement, a Soul Rank (index) or a Bestiary tier. */
-  unlock: { feat: string } | { rank: number } | { beast: EnemyKind; tier: number } | { costume: string } | { podium: number } | { cost: number; season?: SeasonId } | { streak: number } | { weekly: number } | { story: number } | { season: SeasonId };
+  unlock: { feat: string } | { rank: number } | { beast: EnemyKind; tier: number } | { costume: string } | { podium: number } | { cost: number; season?: SeasonId } | { streak: number } | { weekly: number } | { story: number } | { season: SeasonId } | { shame: number };
   how: string;
 }
 
@@ -379,6 +410,7 @@ export const HEADS: HeadDef[] = [
   { id: 'bronzelaurel', name: 'Bronze Laurel', unlock: { podium: 3 }, how: 'Finish 3rd in a Daily Descent.', pixels: [[2, 3, '#8a5a28'], [2, 2, '#b07a3c'], [3, 1, '#cd8f4a'], [4, 1, '#b07a3c'], [9, 3, '#8a5a28'], [9, 2, '#b07a3c'], [8, 1, '#cd8f4a'], [7, 1, '#b07a3c']] },
   // Daily streak helms: play the Daily Descent this many days in a row. Kept for good once earned.
   ...STREAK_HELMS.map(([n, id, name, pixels]) => ({ id, name, unlock: { streak: n }, how: `Play the daily ${n} days in a row.`, pixels })),
+  { id: 'dunce', name: 'Dunce Cap', unlock: { shame: DUNCE_AT }, how: `Collect ${DUNCE_AT} Deaths of Shame.`, pixels: [[6, 0, '#ffffff'], [5, 0, '#e8dcc4'], ...row(1, 4, 7, '#e8dcc4'), [6, 1, '#d23a46'], ...row(2, 3, 8, '#f2f2f2'), [4, 2, '#d23a46'], [7, 2, '#d23a46'], ...row(3, 2, 9, '#2f4aa8'), [3, 3, '#f2c14e'], [8, 3, '#f2c14e']] },
   { id: 'tophat', name: "Gravedigger's Hat", unlock: { feat: 'gravekeeper' }, how: 'Read every epitaph in the Hollow.', pixels: [...row(0, 4, 7, DARK), ...row(1, 4, 7, RED), ...row(2, 2, 9, DARK)] },
   { id: 'forgehelm', name: 'Forged Helm', unlock: { feat: 'forge' }, how: 'Fuse two relics at the Soul Forge.', pixels: [...row(1, 3, 8, '#5d667a'), ...row(2, 3, 8, '#5d667a'), [3, 3, '#5d667a'], [8, 3, '#5d667a'], ...row(0, 5, 6, '#5fe3ff')] },
 

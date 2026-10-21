@@ -186,6 +186,26 @@ export function basePool(unlocked: RelicId[] = [], legacy = false): RelicId[] {
   return [...base, ...ENDLESS_RELICS.filter((id) => unlocked.includes(id))];
 }
 
+/** A snapshot of the blow that ended a run, for the Deaths of Shame. */
+export interface DeathInfo {
+  /** What the game names as the killer ('the spikes', 'Blood Bat' and so on). */
+  cause: string;
+  /** The foe that struck the blow, if one did. */
+  kind: EnemyKind | null;
+  hpBefore: number;
+  maxHp: number;
+  /** Every foe on the floor was already dead. */
+  cleared: boolean;
+  /** The stairs were open and one step away. */
+  nearStairs: boolean;
+  /** Struck down by the only foe left on the floor. */
+  lastFoe: boolean;
+  /** A shot or spell aimed in advance, with the danger tiles shown. */
+  telegraphed: boolean;
+  /** The Phylactery had already saved the hero on this floor. */
+  revivedHere: boolean;
+}
+
 export interface RunStats {
   elites: number;
   bosses: Partial<Record<EnemyKind, number>>;
@@ -275,6 +295,12 @@ export class Game {
   kills = 0;
   turns = 0;
   killedBy = '';
+  /** How the run ended (null while it goes on). */
+  deathInfo: DeathInfo | null = null;
+  /** Set while an aimed shot or spell lands, for the Deaths of Shame. */
+  private telegraphed = false;
+  /** The floor the Phylactery last brought the hero back on. */
+  private revivedOn = 0;
   stats: RunStats = {
     elites: 0, bosses: {}, spikeKills: 0, maxKillsInTurn: 0, maxHit: 0, cleanFloors: 0, maxAllies: 0, bossAtOneHp: false,
     arrowKills: 0, revived: false, turnsTo5: 0, kinds: {}, fusions: 0, shadowSteps: 0, dodges: 0, raised: 0, lowHpKills: 0, vaults: 0,
@@ -1294,6 +1320,7 @@ export class Game {
       return;
     }
     amount = Math.max(1, amount - this.r('scale')) + this.r('moon');
+    const hpBefore = this.player.hp;
     this.player.hp -= amount;
     this.hurtThisFloor = true;
     this.events.push({ t: 'hurt', amount });
@@ -1303,6 +1330,7 @@ export class Game {
       if (this.r('phylactery') && !this.phylacteryUsed) {
         this.phylacteryUsed = true;
         this.stats.revived = true;
+        this.revivedOn = this.floor;
         this.player.hp = this.r('vheart') ? this.player.maxHp : 1;
         this.events.push({ t: 'revive' });
         return;
@@ -1310,6 +1338,19 @@ export class Game {
       this.player.hp = 0;
       this.phase = 'dead';
       this.killedBy = src ? ENEMY_INFO[src.kind].name : cause;
+      const foes = this.alive;
+      const away = Math.abs(this.player.x - this.stairs.x) + Math.abs(this.player.y - this.stairs.y);
+      this.deathInfo = {
+        cause: this.killedBy,
+        kind: src?.kind ?? null,
+        hpBefore,
+        maxHp: this.player.maxHp,
+        cleared: foes.length === 0,
+        nearStairs: this.stairsOpen && away === 1,
+        lastFoe: Boolean(src) && foes.length === 1 && foes[0] === src,
+        telegraphed: this.telegraphed,
+        revivedHere: this.revivedOn === this.floor,
+      };
       this.events.push({ t: 'death' });
     }
   }
@@ -1412,7 +1453,11 @@ export class Game {
     const pending = this.warnings;
     this.warnings = [];
     for (const w of pending) {
-      if (w.x === this.player.x && w.y === this.player.y) this.hurtPlayer(w.dmg, null, w.src);
+      if (w.x === this.player.x && w.y === this.player.y) {
+        this.telegraphed = true;
+        this.hurtPlayer(w.dmg, null, w.src);
+        this.telegraphed = false;
+      }
       const u = this.unitAt(w.x, w.y);
       if (u?.ally) this.damageEnemy(u, w.dmg, 'bolt');
       if (this.phase === 'dead') return;
@@ -1556,7 +1601,11 @@ export class Game {
         }
       }
       this.events.push({ t: 'shot', from: { x: e.x, y: e.y }, to: { x, y }, hit });
-      if (hit) this.hurtPlayer(e.dmg, e);
+      if (hit) {
+        this.telegraphed = true;
+        this.hurtPlayer(e.dmg, e);
+        this.telegraphed = false;
+      }
       return;
     }
     const aim = this.lineOfSight(e);
