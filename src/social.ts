@@ -42,7 +42,7 @@ import { HEAD_BY_ID, LOOK_BY_ID, PODIUM, WEEKLY, rankFor, titleFxClass } from '.
 import { HERO_BY_ID, dailyHero, type HeroId } from './content';
 import { auraClass } from './aura';
 import { heroPortrait } from './hero';
-import { BACKFILL_VERSION, backfillHeroes, grantPatron, grantPodium, grantWeekly, meta, mergeMeta, noteDeepest, noteStreak, onMetaChange, saveMeta, type Meta } from './meta';
+import { BACKFILL_VERSION, backfillHeroes, grantPatron, grantPodium, grantVault, grantWeekly, meta, mergeMeta, noteDeepest, noteStreak, onMetaChange, saveMeta, type Meta } from './meta';
 import { currentStreak, streakStats, writeSave, type Save } from './storage';
 import { esc, field, formStatus, on, onSubmit, screen, showOverlay, toast } from './ui';
 
@@ -133,6 +133,9 @@ async function backfill() {
 }
 
 /** Merge progress saved on the account with this device's, then save the result back. */
+/** Accounts given every cosmetic and title (the game's maker). */
+const KEEPERS = ['ad5d6ad6-bd7b-4952-a0cb-9917d15909fd'];
+
 async function syncMeta() {
   const acc = session.account;
   if (!acc) return;
@@ -142,6 +145,7 @@ async function syncMeta() {
     if (!meta.patron && (await isPatron(acc.id)) && grantPatron()) {
       toast('☕ Thank you for keeping the crypt open! The Patron of the Crypt title is yours in the Hall.');
     }
+    if (KEEPERS.includes(acc.id) && grantVault()) toast('🗝️ The vault is open: every cloak, headpiece, aura, title and Hall decoration is yours.');
     await saveRemoteMeta(acc.id, meta);
     onChange();
   } catch {

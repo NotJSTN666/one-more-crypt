@@ -8,7 +8,7 @@ import { ISLE_ITEM, LAND, cleanIsle, emptyIsle, fits, homeKey, homeOf, islePerks
 import { centralDate } from './daily';
 import { FUSIONS, RELICS, UNLOCKABLE_RELICS, type FusedId, type RelicId } from './relics';
 import {
-  AURAS, AURA_BY_ID, DUNCE_AT, SHAME, BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, beastPlural, HEADS, HEAD_BY_ID, HERO_CLOAKS, HERO_COSTUMES, LOOKS, LOOK_BY_ID, SEASONS, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_TIER,
+  AURAS, AURA_BY_ID, DUNCE_AT, SHAME, BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, beastPlural, HEADS, HEAD_BY_ID, HERO_CLOAKS, HERO_COSTUMES, LOOKS, LOOK_BY_ID, SEASONS, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_BY_ID, TITLE_TIER,
   betterRun, bestiaryTiers, rankIndex, seasonOf, seasonOpen, type AuraDef, type BestRuns, type SeasonId, type HeadDef, type LookDef, type Outfit, type RunGoal, type Unlock,
 } from './progression';
 import type { EnemyKind } from './game';
@@ -74,6 +74,8 @@ export interface Meta {
   summonsSeen: string;
   /** A supporter on Ko-fi (set from the patrons table): the Patron title is theirs. */
   patron: boolean;
+  /** The crypt's keeper: every cosmetic and title, granted by account in social.ts. */
+  vault: boolean;
   /** Your Isle: land cleared and everything built on it. */
   isle: IsleState;
   /** Seasons played in, e.g. 'halloween-2026', for their free pieces. */
@@ -137,7 +139,7 @@ function empty(): Meta {
     podiums: {}, podiumChecked: 0, bought: [], streak: { best: 0, count: 0, last: 0 },
     bounties: { day: 0, ids: [], progress: [], done: [] },
     weekly: {}, weeklyChecked: '',
-    story: emptyStory(), pet: '', summonsSeen: '', patron: false, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null,
+    story: emptyStory(), pet: '', summonsSeen: '', patron: false, vault: false, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null,
   };
 }
 
@@ -199,6 +201,7 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
     meta.best[h as HeroId] = betterRun(meta.best[h as HeroId], run);
   }
   meta.patron ||= other.patron === true;
+  meta.vault ||= other.vault === true;
   meta.deepest = Math.max(meta.deepest, Number(other.deepest) || 0);
   meta.shame = { ...(other.shame ?? {}), ...meta.shame };
   // Grave Shift is one plot: whichever device changed it last wins.
@@ -508,10 +511,12 @@ export function finishRunMeta(game: Game, streak: number): RunReward {
 // ---------- titles, looks and the Bestiary ----------
 
 export function lookUnlocked(l: LookDef): boolean {
+  if (meta.vault) return true;
   return 'cost' in l.unlock ? meta.bought.includes(l.id) : unlockMet(l.unlock);
 }
 
 export function headUnlocked(h: HeadDef): boolean {
+  if (meta.vault) return true;
   if (h.unlock && 'cost' in h.unlock) return meta.bought.includes(h.id);
   return h.unlock ? unlockMet(h.unlock) : costumeUnlocked(h.id);
 }
@@ -821,7 +826,22 @@ export function grantPatron(): boolean {
   return true;
 }
 
+/** Open every cosmetic, title and Hall decoration (never relics or heroes). True the first time. */
+export function grantVault(): boolean {
+  if (meta.vault) return false;
+  meta.vault = true;
+  const sold = [...LOOKS, ...HERO_CLOAKS, ...HEADS, ...AURAS].filter((x) => x.unlock && 'cost' in x.unlock).map((x) => x.id);
+  for (const id of [...sold, ...Object.keys(DECOR_BY_ID)]) if (!meta.bought.includes(id)) meta.bought.push(id);
+  // Mark it all seen, so the next run doesn't announce fifty unlocks.
+  for (const id of [...LOOKS, ...HERO_CLOAKS].map((x) => x.id)) if (!meta.looksSeen.includes(id)) meta.looksSeen.push(id);
+  for (const a of AURAS) if (!meta.looksSeen.includes(`aura:${a.id}`)) meta.looksSeen.push(`aura:${a.id}`);
+  for (const h of HEADS) if (!meta.headsSeen.includes(h.id)) meta.headsSeen.push(h.id);
+  saveMeta();
+  return true;
+}
+
 export function titleUnlocked(id: string): boolean {
+  if (meta.vault && TITLE_BY_ID[id]) return true;
   const [kind, key] = id.split(':');
   if (kind === 'podium') return podiumCount(Number(key)) > 0;
   if (kind === 'patron') return meta.patron;
@@ -876,6 +896,7 @@ export function noteDeepest(floor: number) {
 }
 
 export function auraUnlocked(a: AuraDef): boolean {
+  if (meta.vault) return true;
   const u = a.unlock;
   if ('floor' in u) return deepestFloor() >= u.floor;
   if ('wins' in u) return podiumCount(1) >= u.wins;
