@@ -3,6 +3,7 @@
 
 import { ACHIEVEMENT_BY_ID, COMBOS, HEROES, HERO_BY_ID, dailyHero, type AchievementDef, type ComboDef, type HeroId } from './content';
 import { Game, UNDEAD, basePool, fullPool, type Mode, type RunConfig } from './game';
+import { cleanGraveState, newGraveState, type GraveState } from './graveshift';
 import { ISLE_ITEM, LAND, cleanIsle, emptyIsle, fits, homeKey, homeOf, islePerks, itemAt, layout, owned, type IsleState } from './isle';
 import { centralDate } from './daily';
 import { FUSIONS, RELICS, UNLOCKABLE_RELICS, type FusedId, type RelicId } from './relics';
@@ -84,6 +85,8 @@ export interface Meta {
   /** Challenges beaten (each counted once), and when we last checked who beat yours. */
   duels: string[];
   challengeSeen: string;
+  /** Grave Shift: the old plot, its crops, graves and Obols (null until first visit). */
+  grave: GraveState | null;
 }
 
 /** Story progress: quests taken, cleared (dungeon done) and finished, choices, the hound's bond, lore read. */
@@ -134,7 +137,7 @@ function empty(): Meta {
     podiums: {}, podiumChecked: 0, bought: [], streak: { best: 0, count: 0, last: 0 },
     bounties: { day: 0, ids: [], progress: [], done: [] },
     weekly: {}, weeklyChecked: '',
-    story: emptyStory(), pet: '', summonsSeen: '', patron: false, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '',
+    story: emptyStory(), pet: '', summonsSeen: '', patron: false, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null,
   };
 }
 
@@ -145,6 +148,7 @@ function load(): Meta {
     const m: Meta = { ...empty(), ...JSON.parse(raw) };
     // The story moved into the open world: earlier chapter progress starts over (the hound stays).
     m.isle = cleanIsle(m.isle);
+    m.grave = m.grave ? cleanGraveState(m.grave, Date.now()) : null;
     m.story = m.story?.v === STORY_V ? { ...emptyStory(), ...m.story } : { ...emptyStory(), choices: m.story?.choices ?? {}, bond: m.story?.bond ?? 0 };
     return m;
   } catch {
@@ -197,6 +201,8 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   meta.patron ||= other.patron === true;
   meta.deepest = Math.max(meta.deepest, Number(other.deepest) || 0);
   meta.shame = { ...(other.shame ?? {}), ...meta.shame };
+  // Grave Shift is one plot: whichever device changed it last wins.
+  if (other.grave && typeof other.grave === 'object' && (Number(other.grave.at) || 0) > (meta.grave?.at ?? -1)) meta.grave = cleanGraveState(other.grave, Date.now());
   meta.duels = [...new Set([...meta.duels, ...(Array.isArray(other.duels) ? other.duels.map(String) : [])])];
   if (String(other.challengeSeen ?? '') > meta.challengeSeen) meta.challengeSeen = String(other.challengeSeen);
   meta.seasons = [...new Set([...meta.seasons, ...(Array.isArray(other.seasons) ? other.seasons.map(String) : [])])];
@@ -673,6 +679,17 @@ export function grantWeekly(week: string, place: number, souls: number, head: st
   if (head && !meta.headsSeen.includes(head)) meta.headsSeen.push(head);
   saveMeta();
   return true;
+}
+
+// ---------- Grave Shift ----------
+
+/** The player's plot, made fresh on the first visit. */
+export function graveState(): GraveState {
+  if (!meta.grave) {
+    meta.grave = newGraveState(Date.now());
+    saveMeta();
+  }
+  return meta.grave;
 }
 
 // ---------- challenges ----------

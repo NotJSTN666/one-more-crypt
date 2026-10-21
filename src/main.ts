@@ -20,6 +20,8 @@ import {
 import { EPITAPHS, hollowKey, setHollowSpot, showHollow, showIsleVisit, type HollowHooks, type HollowPlace } from './hollow';
 import { auraClass } from './aura';
 import { islePerks, type IsleState } from './isle';
+import { CROP_BY_ID, FARM_SPAWN, isRipe } from './graveshift';
+import { showGraveRequests, showGraveShop } from './graveshift-ui';
 import { showWardrobe } from './wardrobe';
 import { IMPACT, playFusion } from './fusefx';
 import { howToHtml, startHowTo } from './howto';
@@ -825,6 +827,7 @@ function showTitle() {
     ${endlessNext ? endlessBtn : ''}
     ${bountiesHtml(today)}
     ${storyButtonHtml()}
+    ${graveButtonHtml()}
     <button class="btn hollow-btn" id="hollow">🌙 Enter the Hollow<small>Walk the graveyard. Ferry out to build your own isle.</small></button>
     ${endlessNext ? '' : endlessBtn}
     <div class="row">
@@ -848,6 +851,11 @@ function showTitle() {
   on('#grimoire', () => showGrimoire(showTitle));
   on('#hall', () => openHall(showTitle));
   on('#hollow', () => enterHollow());
+  on('#graveshift', () => {
+    if (!graveShiftOpen()) return toast('🌾 Grave Shift is coming soon: keep the old plot behind Gravesend.');
+    setHollowSpot('farm', FARM_SPAWN.x, FARM_SPAWN.y + 1);
+    enterHollow();
+  });
   on('#story', () => (storyOpen() ? playStory() : toast('🔔 Act I: The Bell Beneath is coming soon.')));
   on('#help', () => showHelp(showTitle));
   on('#install', () => {
@@ -1007,6 +1015,18 @@ function hollowHooks(): HollowHooks {
     loreRead: (id) => meta.story.journal.includes(id),
     pet: () => storyOpen() && meta.pet === 'hound' && houndJoined(),
     quests: () => showQuests(),
+    graveOpen: graveShiftOpen,
+    graveShop: () => showGraveShop(enterHollow),
+    graveRequests: () => showGraveRequests(enterHollow),
+    graveFx: (what) => {
+      if (what === 'harvest' || what === 'settle') sfx.relic();
+      else if (what === 'hit') sfx.hit();
+      else if (what === 'hurt') sfx.hurt();
+      else if (what === 'kill') sfx.kill();
+      else if (what === 'faint') sfx.death();
+      else if (what === 'fail') sfx.bump();
+      else sfx.step();
+    },
     built: (what) => {
       if (what === 'place') sfx.relic();
       else if (what === 'pickup') sfx.step();
@@ -1776,6 +1796,19 @@ function storyOpen(): boolean {
   // Local development only (never in a real build): a switch for testing the story.
   if (import.meta.env.DEV && localStorage.getItem('omc:story-test')) return true;
   return Boolean(session.account && STORY_TESTERS.includes(session.account.id));
+}
+
+/** Grave Shift is open to the same testers as the story, for now. */
+function graveShiftOpen(): boolean {
+  if (import.meta.env.DEV && localStorage.getItem('omc:grave-test')) return true;
+  return storyOpen();
+}
+
+function graveButtonHtml(): string {
+  if (!graveShiftOpen()) return `<button class="btn grave-btn soon" id="graveshift">🌾 Grave Shift<small>Coming soon · Keep the old plot behind Gravesend</small></button>`;
+  const s = meta.grave;
+  const ripe = s ? s.plots.filter((p) => CROP_BY_ID[p.crop] && isRipe(p, Date.now())).length : 0;
+  return `<button class="btn grave-btn" id="graveshift">🌾 Grave Shift<small>${s ? `🪙 ${s.obols} Obols${ripe ? ` · ${ripe} ready to harvest` : ''}` : 'Keep the old plot behind Gravesend'}</small></button>`;
 }
 
 function storyButtonHtml(): string {

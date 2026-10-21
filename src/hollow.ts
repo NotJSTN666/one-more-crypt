@@ -12,7 +12,11 @@ import {
 } from './isle';
 import { dailyNumber } from './daily';
 import { heroSprite } from './hero';
-import { buyLand, meta, outfitFor, pickUpIsleItem, placeIsleItem } from './meta';
+import {
+  CROP_BY_ID, FARM_MAP, GRAVE_TILES, PLOT_TILES, SPADE_DMG, drawGrave, drawNight, drawPlot, graveAt, isNight, isRestless, plotAt, risenCount, settleGrave, tapPlot,
+  type Risen,
+} from './graveshift';
+import { buyLand, graveState, meta, outfitFor, pickUpIsleItem, placeIsleItem, saveMeta } from './meta';
 import { LOOK_BY_ID } from './progression';
 import { enemyFrames } from './sprites';
 import { npcFigure, type NpcId } from './story';
@@ -189,6 +193,8 @@ interface Area {
   floor?: string;
   /** Your Isle: the ground and what stands on it come from the save. */
   isle?: boolean;
+  /** Grave Shift's plot: fields, graves and the risen. */
+  farm?: boolean;
 }
 
 const AREAS: Record<string, Area> = {
@@ -219,6 +225,14 @@ const AREAS: Record<string, Area> = {
     isle: true,
     doors: {},
     exits: { '<': { to: 'graveyard', x: 1, y: 4 } },
+  },
+  farm: {
+    name: 'The Old Plot',
+    map: FARM_MAP,
+    farm: true,
+    buildings: [{ letter: 'S', wall: '#4a3a2a', roof: '#2a3b1f', glow: '#f2c14e', label: () => "MORTIMER'S SHED" }],
+    doors: {},
+    exits: { '^': { to: 'graveyard', x: 8, y: 11 } },
   },
   // Inside one of the houses on your isle (which one is `room`).
   home: { name: 'Home', interior: true, map: ROOM_MAP, floor: '#4a3020', doors: { x: { out: true } } },
@@ -330,6 +344,11 @@ export interface HollowHooks {
   quests: () => void;
   /** Something built, picked up or bought on the isle. */
   built?: (what: 'place' | 'pickup' | 'land' | 'fail') => void;
+  /** Grave Shift: whether it's open to this player, its shed and board, and sounds. */
+  graveOpen?: () => boolean;
+  graveShop?: () => void;
+  graveRequests?: () => void;
+  graveFx?: (what: 'till' | 'plant' | 'water' | 'harvest' | 'hit' | 'hurt' | 'kill' | 'settle' | 'faint' | 'fail') => void;
 }
 
 const PLACE_NAMES: Record<HollowPlace, string> = {
@@ -367,6 +386,16 @@ let hold = 0;
 let build: { item: string | null; pickup: boolean; cat: IsleCat | 'land' } | null = null;
 /** The tile under the pointer (or last tapped) while building, for the preview. */
 let cursor: { x: number; y: number } | null = null;
+/** Grave Shift: the risen walking the plot, your health while they do, and the seed in hand. */
+let risen: Risen[] = [];
+let shiftHp = 10;
+const SHIFT_HP = 10;
+let seedInHand = 'glowcap';
+let risenMoved = 0;
+let risenStruck = 0;
+/** Little words that float up off the plot ("+1 Glowcap", "-1"). */
+let floats: { x: number; y: number; text: string; color: string; t: number }[] = [];
+
 /** The house on the isle you're inside (its room key), when in 'home'. */
 let room: string | null = null;
 /** Each house's floorboards. */
@@ -408,7 +437,7 @@ const rows = () => area().map.length;
  */
 const STAGE_ROWS = Math.max(...Object.values(AREAS).map((a) => a.map.length));
 /** Roads that are always open, story or not: the ferry to your isle and back. */
-const openRoad = (to: string) => to === 'isle' || areaId === 'isle';
+const openRoad = (to: string) => to === 'isle' || areaId === 'isle' || areaId === 'farm';
 const at = (x: number, y: number) => (x < 0 || y < 0 || x >= cols() || y >= rows() ? '#' : area().map[y][x]);
 const isBuilding = (c: string) => Boolean(area().buildings?.some((b) => b.letter === c));
 const doorAt = (x: number, y: number): Door | undefined => area().doors[at(x, y)];
@@ -417,6 +446,7 @@ const npcAt = (x: number, y: number) => area().npcs?.find((n) => n.x === x && n.
 function walkable(x: number, y: number): boolean {
   const c = at(x, y);
   if (area().isle) return !isleSolid(isleData(), x, y);
+  if (area().farm && risen.some((r) => r.x === x && r.y === y)) return false;
   if (areaId === 'home') return Boolean(room) && !roomSolid(isleData(), room!, x, y);
   if (isBuilding(c)) return false;
   if (area().interior) return !INDOOR_SOLID.has(c);
@@ -450,7 +480,8 @@ export function showHollow(h: HollowHooks) {
     pos.x = ISLE_DOCK.x;
     pos.y = ISLE_DOCK.y;
   }
-  if (areaId !== 'graveyard' && areaId !== 'isle' && areaId !== 'home' && !hooks.storyOpen()) {
+  if (areaId === 'farm' && !hooks.graveOpen?.()) areaId = 'graveyard';
+  if (areaId !== 'graveyard' && areaId !== 'isle' && areaId !== 'home' && areaId !== 'farm' && !hooks.storyOpen()) {
     areaId = 'graveyard';
     outside = null;
     pos.x = SPAWN.x;
@@ -479,9 +510,12 @@ function open() {
   const story = hooks.storyOpen();
   const isle = Boolean(area().isle) || areaId === 'home';
   const title = visiting && areaId !== 'home' ? `${visiting.name}'s Isle` : area().name;
+  const farm = Boolean(area().farm);
   const right = visiting
     ? '<span></span>'
-    : isle
+    : farm
+      ? `<span class="souls-chip obols-chip">🪙 <b id="obols">${graveState().obols}</b></span>`
+      : isle
       ? `<button class="btn ${build ? 'on' : ''}" id="isle-build">${build ? '✓ Done' : '🔨 Build'}</button>`
       : story
         ? '<button class="btn" id="hollow-quests">📜 Quests</button>'
@@ -498,6 +532,7 @@ function open() {
       </div>
       <div class="hollow-dialog" id="hollow-dialog" hidden></div>
       ${build ? '<div class="isle-panel" id="isle-panel"></div>' : ''}
+      ${farm ? '<div class="farm-panel" id="farm-panel"></div>' : ''}
       ${touch && !build ? `<div class="hollow-dpad" aria-label="Move">
         <button type="button" data-d="0,-1" aria-label="Up">▲</button>
         <button type="button" data-d="-1,0" aria-label="Left">◀</button>
@@ -505,7 +540,9 @@ function open() {
         <button type="button" data-d="0,1" aria-label="Down">▼</button>
       </div>` : ''}
       ${build ? '' : `<p class="fine hollow-hint">${touch ? 'Use the arrows or tap a spot to walk.' : 'Arrows or WASD to walk, or click a spot.'} ${
-        visiting
+        farm
+          ? 'Tap a plot to clear, plant, water or harvest. Walk into a glowing grave to wake the risen; bump them with your spade.'
+          : visiting
           ? areaId === 'home'
             ? 'Have a look round. The door takes you back out.'
             : 'Have a look round. Walk into a house to go inside. The jetty takes you back.'
@@ -536,6 +573,7 @@ function open() {
     const ty = Math.floor(((e.clientY - r.top) / r.height) * rows());
     if (dialog) return closeDialog();
     if (build) return buildTap(tx, ty);
+    if (area().farm && plotAt(tx, ty) >= 0) return farmTap(plotAt(tx, ty));
     walkTo(tx, ty);
   });
   canvas.addEventListener('pointermove', (e) => {
@@ -550,6 +588,11 @@ function open() {
     if (build && !matchMedia('(pointer: coarse)').matches) cursor = null;
   });
   if (build) renderPanel();
+  if (farm) {
+    risen = [];
+    shiftHp = SHIFT_HP;
+    farmPanel();
+  }
   overlay.querySelector('#hollow-dialog')?.addEventListener('click', (e) => {
     // The finger that walked into a sign or door shouldn't also dismiss what it opened.
     if (staleTap(e, dialogShownAt)) return;
@@ -879,6 +922,220 @@ function buildPreview(ctx: CanvasRenderingContext2D, px: Px, t: number) {
   }
 }
 
+// ---------- Grave Shift: the old plot ----------
+
+/** Words that float up off a tile. */
+function float(x: number, y: number, text: string, color = '#f2c14e') {
+  floats.push({ x, y, text, color, t: performance.now() });
+}
+
+/** One tap on a plot: clear it, plant the seed in hand, water it, or harvest it. */
+function farmTap(i: number) {
+  const s = graveState();
+  const now = Date.now();
+  const r = tapPlot(s, i, seedInHand, now);
+  const { x, y } = PLOT_TILES[i];
+  if (r.did === 'locked') {
+    hooks.graveFx?.('fail');
+    return toast('Overgrown. Mortimer can help you clear it, at the shed.');
+  }
+  if (r.did === 'noseed') {
+    hooks.graveFx?.('fail');
+    return toast(s.inv[`seed:${seedInHand}`] ? 'Choose a seed below.' : `No ${CROP_BY_ID[seedInHand]?.name ?? 'seed'} seeds left. Mortimer sells more at the shed.`);
+  }
+  if (r.did === 'growing') {
+    const left = Math.max(1, Math.ceil((s.plots[i].ready - now) / 60_000));
+    float(x, y, left >= 60 ? `${Math.floor(left / 60)}h ${left % 60}m` : `${left}m`, '#9fe8ff');
+    return;
+  }
+  if (r.did === 'harvest') float(x, y, `+${r.n} ${CROP_BY_ID[r.crop].emoji}`);
+  if (r.did === 'water') float(x, y, '💧', '#5fe3ff');
+  hooks.graveFx?.(r.did);
+  saveMeta();
+  farmPanel();
+}
+
+/** Walking into things on the plot. Returns true if the step was used up. */
+function farmStep(x: number, y: number, tile: string): boolean {
+  const s = graveState();
+  const now = Date.now();
+  const foe = risen.find((r) => r.x === x && r.y === y);
+  if (foe) {
+    foe.hp -= SPADE_DMG[s.spade];
+    hooks.graveFx?.('hit');
+    float(x, y, `-${SPADE_DMG[s.spade]}`, '#ff4d5a');
+    if (foe.hp <= 0) {
+      risen = risen.filter((r) => r !== foe);
+      s.inv.ecto = (s.inv.ecto ?? 0) + 1;
+      const coins = 3 + Math.floor(Math.random() * 4);
+      s.obols += coins;
+      s.at = now;
+      hooks.graveFx?.('kill');
+      float(x, y, `+${coins} 🪙 +1 👻`);
+      if (!risen.length) {
+        const reward = settleGrave(s, foe.grave, now, Math.random());
+        hooks.graveFx?.('settle');
+        const g = GRAVE_TILES[foe.grave];
+        float(g.x, g.y, `At rest · +${reward} 🪙`, '#b5e07a');
+        shiftHp = SHIFT_HP;
+      }
+      saveMeta();
+      farmPanel();
+    }
+    return true;
+  }
+  if (tile === '+') {
+    const g = graveAt(x, y);
+    if (g < 0) return true;
+    if (isRestless(s, g, now) && !risen.length) wakeGrave(g, now);
+    else if (risen.length) toast('Deal with the risen first.');
+    else {
+      const left = Math.max(1, Math.round((s.graves[g] - now) / 3_600_000));
+      dialog = 'grave';
+      showDialog(`<b>A quiet grave</b>Fresh flowers, settled earth. It should stay quiet for about ${left} hour${left === 1 ? '' : 's'}${isNight(now) ? ', though the night makes them restless sooner' : ''}.`);
+    }
+    return true;
+  }
+  if (tile === 's' || tile === 'S') {
+    hooks.graveShop?.();
+    return true;
+  }
+  return false;
+}
+
+/** A restless grave opens and the risen climb out around it. */
+function wakeGrave(g: number, now: number) {
+  const { x, y } = GRAVE_TILES[g];
+  const n = risenCount(now, Math.random());
+  const spots: { x: number; y: number }[] = [];
+  for (let r = 1; r <= 3 && spots.length < n; r++) {
+    for (const [dx, dy] of [[0, 1], [1, 0], [-1, 0], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]]) {
+      const sx = x + dx * r;
+      const sy = y + dy * r;
+      if (spots.length < n && walkable(sx, sy) && !(sx === pos.x && sy === pos.y) && !spots.some((p) => p.x === sx && p.y === sy)) spots.push({ x: sx, y: sy });
+    }
+  }
+  risen = spots.map((p, i) => ({ kind: i % 3 === 2 ? 'wraith' : 'ghoul', x: p.x, y: p.y, hp: i % 3 === 2 ? 3 : 2, grave: g }));
+  risenMoved = performance.now() + 600;
+  shiftHp = SHIFT_HP;
+  hooks.graveFx?.('hurt');
+  float(x, y, 'The earth heaves!', '#b5e07a');
+  farmPanel();
+}
+
+/** The risen shamble toward you and strike when they're next to you. */
+function farmUpdate(now: number) {
+  if (!risen.length || dialog || pending) return;
+  if (now - risenMoved > 650) {
+    risenMoved = now;
+    for (const r of risen) {
+      const dx = Math.sign(pos.x - r.x);
+      const dy = Math.sign(pos.y - r.y);
+      if (Math.abs(pos.x - r.x) + Math.abs(pos.y - r.y) <= 1) continue;
+      const tries = Math.abs(pos.x - r.x) >= Math.abs(pos.y - r.y) ? [[dx, 0], [0, dy]] : [[0, dy], [dx, 0]];
+      for (const [mx, my] of tries) {
+        if (!mx && !my) continue;
+        const nx = r.x + mx;
+        const ny = r.y + my;
+        // Wraiths drift over graves and fences; ghouls go round.
+        const open = r.kind === 'wraith' ? at(nx, ny) !== '#' : walkable(nx, ny);
+        if (open && !(nx === pos.x && ny === pos.y) && !risen.some((o) => o !== r && o.x === nx && o.y === ny)) {
+          r.x = nx;
+          r.y = ny;
+          break;
+        }
+      }
+    }
+  }
+  if (now - risenStruck > 900 && risen.some((r) => Math.abs(pos.x - r.x) + Math.abs(pos.y - r.y) === 1)) {
+    risenStruck = now;
+    shiftHp--;
+    hooks.graveFx?.('hurt');
+    float(pos.x, pos.y, '-1', '#ff4d5a');
+    if (shiftHp <= 0) {
+      // Knocked flat: you come to by the shed, and the risen sink back into the earth.
+      risen = [];
+      shiftHp = SHIFT_HP;
+      pos.x = 5;
+      pos.y = 4;
+      draw.x = pos.x;
+      draw.y = pos.y;
+      hooks.graveFx?.('faint');
+      dialog = 'faint';
+      showDialog("<b>Knocked flat</b>You come to by the shed with a sore head. The risen have sunk back into the earth, but the grave is still restless. Try again with a sharper spade?");
+    }
+    farmPanel();
+  }
+}
+
+/** The panel under the plot: Obols, health in a fight, seeds in hand, and the shed. */
+function farmPanel() {
+  const el = document.getElementById('farm-panel');
+  if (!el) return;
+  const s = graveState();
+  const ob = document.getElementById('obols');
+  if (ob) ob.textContent = String(s.obols);
+  const seeds = Object.entries(s.inv).filter(([k, n]) => k.startsWith('seed:') && n > 0);
+  if (!s.inv[`seed:${seedInHand}`] && seeds.length) seedInHand = seeds[0][0].slice(5);
+  const harvest = Object.entries(s.inv).filter(([k, n]) => !k.startsWith('seed:') && n > 0);
+  el.innerHTML = `${risen.length ? `<div class="farm-fight">⚔️ ${risen.length} risen · ❤️ ${'■'.repeat(Math.max(0, shiftHp))}${'□'.repeat(Math.max(0, SHIFT_HP - shiftHp))}</div>` : ''}
+    <div class="farm-seeds">${seeds.length ? seeds.map(([k, n]) => {
+      const id = k.slice(5);
+      return `<button type="button" class="farm-seed ${id === seedInHand ? 'on' : ''}" data-seed="${id}">${CROP_BY_ID[id]?.emoji ?? '🌱'}<small>${n}</small></button>`;
+    }).join('') : '<span class="fine">No seeds. Buy some at the shed.</span>'}</div>
+    <div class="farm-bag">${harvest.map(([k, n]) => `<span>${k === 'ecto' ? '👻' : CROP_BY_ID[k]?.emoji ?? ''} ${n}</span>`).join('') || '<span class="fine">Your satchel is empty.</span>'}</div>
+    <div class="farm-actions">
+      <button type="button" class="btn" id="farm-shop">🛒 Mortimer's shed</button>
+      <button type="button" class="btn" id="farm-reqs">📋 Requests</button>
+    </div>`;
+  el.querySelectorAll<HTMLElement>('[data-seed]').forEach((b) =>
+    b.addEventListener('click', () => {
+      seedInHand = b.dataset.seed!;
+      farmPanel();
+    }),
+  );
+  el.querySelector('#farm-shop')?.addEventListener('click', () => hooks.graveShop?.());
+  el.querySelector('#farm-reqs')?.addEventListener('click', () => hooks.graveRequests?.());
+}
+
+/** Plots, graves, the risen and the night, over the plot's ground. */
+function renderFarm(ctx: CanvasRenderingContext2D, px: Px, t: number) {
+  const s = graveState();
+  const now = Date.now();
+  PLOT_TILES.forEach((_, i) => drawPlot(ctx, px, s, i, now, t));
+  GRAVE_TILES.forEach((_, i) => drawGrave(ctx, px, s, i, now, t));
+  for (const r of risen) {
+    const img = enemyFrames(r.kind).idle[Math.floor(t * 3) % 2].normal;
+    ctx.globalAlpha = r.kind === 'wraith' ? 0.8 : 1;
+    ctx.drawImage(img, r.x * TILE + 2, r.y * TILE + 2, 12, 12);
+    ctx.globalAlpha = 1;
+  }
+  drawNight(ctx, cols() * TILE, rows() * TILE, now);
+  const nowMs = performance.now();
+  floats = floats.filter((f) => nowMs - f.t < 1400);
+  for (const f of floats) {
+    const p = (nowMs - f.t) / 1400;
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1 - p;
+    ctx.font = `${5 * SCALE}px Silkscreen, monospace`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(7,4,11,0.7)';
+    const w = ctx.measureText(f.text).width + 4 * SCALE;
+    const fx = (f.x * TILE + 8 - camX) * SCALE;
+    const fy = (f.y * TILE - p * 10) * SCALE;
+    ctx.fillRect(fx - w / 2, fy - 6 * SCALE, w, 7 * SCALE);
+    ctx.fillStyle = f.color;
+    ctx.fillText(f.text, fx, fy);
+    ctx.restore();
+  }
+}
+
+/** Refresh the plot's panel from outside (after the shed or the board). */
+export function refreshFarm() {
+  farmPanel();
+}
+
 // ---------- moving ----------
 
 /** Arrow keys and WASD walk; Escape opens the menu. Returns true if the key was used. */
@@ -930,6 +1187,10 @@ function step(dx: number, dy: number) {
   const y = pos.y + dy;
   const tile = at(x, y);
   const story = hooks.storyOpen();
+  if (area().farm && farmStep(x, y, tile)) {
+    path = [];
+    return;
+  }
   const npc = npcAt(x, y);
   if (npc) {
     path = [];
@@ -1138,6 +1399,7 @@ function walkTo(tx: number, ty: number) {
 }
 
 function update(now: number, dt: number) {
+  if (area().farm) farmUpdate(now);
   if (path.length && now - lastStep > 150 && !dialog) {
     const n = path.shift()!;
     step(n.x - pos.x, n.y - pos.y);
@@ -1208,6 +1470,7 @@ function render(ctx: CanvasRenderingContext2D, t: number) {
   else if (area().interior) renderInside(ctx, px, t);
   else if (area().isle) renderIsle(ctx, px, t);
   else renderOutside(ctx, px, t);
+  if (area().farm) renderFarm(ctx, px, t);
 
   // people, with a mark over anyone who has a quest for you (!) or is waiting to hear back (?)
   for (const n of area().npcs ?? []) {
@@ -1366,7 +1629,7 @@ function renderOutside(ctx: CanvasRenderingContext2D, px: Px, t: number) {
         px(X + 3, Y + 3, 1, 2, '#2a2018');
         px(X + 9, Y + 7, 4, 1, '#2a2018');
         px(X + 12, Y + 4, 1, 3, '#2a2018');
-      } else if (c === '+' || epitaph) {
+      } else if ((c === '+' && !area().farm) || epitaph) {
         const read = epitaph && meta.epitaphs.includes(c);
         px(X + 4, Y + 4, 8, 10, '#4b4259');
         px(X + 5, Y + 3, 6, 1, '#4b4259');

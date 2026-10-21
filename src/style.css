@@ -2674,3 +2674,78 @@ body.tutorial #relic-bar {
   color: var(--text);
   font-size: 13px;
 }
+
+/* ---------- Grave Shift ---------- */
+
+.btn.grave-btn {
+  border-color: #3f6a4a;
+  box-shadow: 0 0 16px rgba(95, 211, 106, 0.18);
+}
+
+.btn.grave-btn.soon {
+  opacity: 0.6;
+}
+
+.farm-panel {
+  margin-top: 10px;
+  text-align: left;
+}
+
+.farm-fight {
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  background: var(--panel);
+  border: 1px solid var(--blood);
+  font-family: var(--pixel);
+  font-size: 11px;
+  color: #ff8a8a;
+}
+
+.farm-seeds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.farm-seed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 48px;
+  padding: 6px 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.farm-seed small {
+  font-family: var(--pixel);
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.farm-seed.on {
+  border-color: var(--gold);
+  box-shadow: 0 0 10px rgba(242, 193, 78, 0.3);
+}
+
+.farm-bag {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 8px 0;
+  font-size: 15px;
+}
+
+.farm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.farm-actions .btn {
+  margin: 0;
+  padding: 10px 8px;
+  font-size: 11px;
+}
