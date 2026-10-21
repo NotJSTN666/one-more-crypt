@@ -2592,3 +2592,85 @@ body.tutorial #relic-bar {
     animation: none;
   }
 }
+
+/* ---------- challenge links ---------- */
+
+.btn.challenge-btn {
+  border-color: #a8781f;
+  box-shadow: 0 0 14px rgba(242, 193, 78, 0.18);
+}
+
+.challenge-box {
+  margin: 12px 0 6px;
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--blood);
+  font-size: 15px;
+  text-align: left;
+}
+
+.challenge-box.won {
+  border-left-color: var(--gold);
+  box-shadow: 0 0 18px rgba(242, 193, 78, 0.2);
+}
+
+.challenge-box small {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--pixel);
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.challenge-board {
+  list-style: none;
+  margin: 8px 0 12px;
+  padding: 0;
+  text-align: left;
+}
+
+.challenge-board li {
+  display: grid;
+  grid-template-columns: 2.4em minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 4px;
+  border-bottom: 1px dashed var(--line);
+}
+
+.challenge-board li.fine {
+  display: block;
+  border: 0;
+}
+
+.challenge-board li.me {
+  background: var(--panel-2);
+}
+
+.challenge-board .who {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.challenge-board .fl {
+  font-family: var(--pixel);
+  text-align: right;
+}
+
+.challenge-board .fl small {
+  display: block;
+  font-size: 9px;
+  color: var(--muted);
+}
+
+.challenge-link {
+  width: 100%;
+  margin: 8px 0;
+  padding: 10px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-size: 13px;
+}

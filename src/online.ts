@@ -198,6 +198,77 @@ export async function submitRun(run: RunSubmission): Promise<void> {
   if (error && error.code !== '23505') throw friendly(error, 'Could not submit your run.');
 }
 
+// ---------- challenge links ----------
+
+export interface Challenge {
+  code: string;
+  /** Who made it, and their run: the score to beat. */
+  name: string;
+  user_id: string;
+  seed: number;
+  /** The run log's header: hero, relic pool and rules, so the crypt is exactly the same. */
+  head: string;
+  floor: number;
+  kills: number;
+  turns: number;
+  created_at: string;
+  players: number;
+}
+
+export interface ChallengeRow {
+  rank: number;
+  user_id: string;
+  name: string;
+  floor: number;
+  kills: number;
+  turns: number;
+  creator: boolean;
+  title?: string | null;
+  earned?: number | null;
+}
+
+/** The message a challenge function raised, if any (they're written for players). */
+function raised(err: { message?: string } | null, fallback: string): OnlineError {
+  const m = err?.message ?? '';
+  return /^[A-Z][^\n]{5,120}[.!]$/.test(m) && !/function|relation|column|permission/i.test(m) ? new OnlineError(m) : friendly(err, fallback);
+}
+
+/** Turn a finished run into a challenge link code. */
+export async function createChallenge(run: { seed: number; head: string; floor: number; kills: number; turns: number; log: string }): Promise<string> {
+  const sb = await client();
+  const { data, error } = await sb.rpc('create_challenge', { p_seed: run.seed, p_head: run.head, p_floor: run.floor, p_kills: run.kills, p_turns: run.turns, p_log: run.log });
+  if (error || !data) throw raised(error, 'Could not make the challenge.');
+  return String(data);
+}
+
+export async function getChallenge(code: string): Promise<Challenge | null> {
+  const sb = await client();
+  const { data, error } = await sb.rpc('challenge_get', { p_code: code }).maybeSingle();
+  if (error) throw friendly(error, 'Could not open the challenge.');
+  return (data as Challenge | null) ?? null;
+}
+
+export async function challengeBoard(code: string): Promise<ChallengeRow[]> {
+  const sb = await client();
+  const { data, error } = await sb.rpc('challenge_board', { p_code: code });
+  if (error) throw friendly(error, 'Could not load the challenge board.');
+  return (data as ChallengeRow[]) ?? [];
+}
+
+export async function submitChallengeRun(code: string, run: { floor: number; kills: number; turns: number; log: string }): Promise<void> {
+  const sb = await client();
+  const { error } = await sb.rpc('submit_challenge_run', { p_code: code, p_floor: run.floor, p_kills: run.kills, p_turns: run.turns, p_log: run.log });
+  if (error) throw raised(error, 'Could not post to the challenge board.');
+}
+
+/** People who beat one of your challenges since a moment. */
+export async function challengeNews(since: string): Promise<{ code: string; name: string; floor: number; my_floor: number; at: string }[]> {
+  const sb = await client();
+  const { data, error } = await sb.rpc('challenge_news', { p_since: since });
+  if (error) return [];
+  return (data as { code: string; name: string; floor: number; my_floor: number; at: string }[]) ?? [];
+}
+
 async function board(view: string, filter: (q: any) => any, userId: string | null, limit: number): Promise<Board> {
   const sb = await client();
   const top = filter(sb.from(view).select('*', { count: 'exact' })).order('rank').limit(limit);

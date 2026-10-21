@@ -81,6 +81,9 @@ export interface Meta {
   deepest: number;
   /** Deaths of Shame collected: id -> when first suffered. */
   shame: Record<string, number>;
+  /** Challenges beaten (each counted once), and when we last checked who beat yours. */
+  duels: string[];
+  challengeSeen: string;
 }
 
 /** Story progress: quests taken, cleared (dungeon done) and finished, choices, the hound's bond, lore read. */
@@ -131,7 +134,7 @@ function empty(): Meta {
     podiums: {}, podiumChecked: 0, bought: [], streak: { best: 0, count: 0, last: 0 },
     bounties: { day: 0, ids: [], progress: [], done: [] },
     weekly: {}, weeklyChecked: '',
-    story: emptyStory(), pet: '', summonsSeen: '', patron: false, isle: emptyIsle(), seasons: [], deepest: 0, shame: {},
+    story: emptyStory(), pet: '', summonsSeen: '', patron: false, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '',
   };
 }
 
@@ -194,6 +197,8 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   meta.patron ||= other.patron === true;
   meta.deepest = Math.max(meta.deepest, Number(other.deepest) || 0);
   meta.shame = { ...(other.shame ?? {}), ...meta.shame };
+  meta.duels = [...new Set([...meta.duels, ...(Array.isArray(other.duels) ? other.duels.map(String) : [])])];
+  if (String(other.challengeSeen ?? '') > meta.challengeSeen) meta.challengeSeen = String(other.challengeSeen);
   meta.seasons = [...new Set([...meta.seasons, ...(Array.isArray(other.seasons) ? other.seasons.map(String) : [])])];
   // The isle is one layout: whichever device changed it last wins.
   if (other.isle && (Number(other.isle.at) || 0) > meta.isle.at) meta.isle = cleanIsle(other.isle);
@@ -668,6 +673,29 @@ export function grantWeekly(week: string, place: number, souls: number, head: st
   if (head && !meta.headsSeen.includes(head)) meta.headsSeen.push(head);
   saveMeta();
   return true;
+}
+
+// ---------- challenges ----------
+
+/** Souls for beating someone's challenge, the first time. */
+export const DUEL_SOULS = 50;
+
+/** Record beating a challenge. Pays once per challenge; five wins earn Duelist. */
+export function noteDuelWin(code: string): { souls: number; feat: AchievementDef | null } {
+  if (meta.duels.includes(code)) return { souls: 0, feat: null };
+  meta.duels.push(code);
+  meta.souls += DUEL_SOULS;
+  meta.earned += DUEL_SOULS;
+  const feat = meta.duels.length >= 5 ? grant('duelist') : null;
+  saveMeta();
+  return { souls: DUEL_SOULS, feat };
+}
+
+export function noteChallengeSeen(at: string) {
+  if (at > meta.challengeSeen) {
+    meta.challengeSeen = at;
+    saveMeta();
+  }
 }
 
 // ---------- Deaths of Shame ----------

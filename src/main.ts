@@ -4,7 +4,7 @@ import { dailyNumber, formatCountdown, msUntilNextDaily } from './daily';
 import { ELITES, FEATURES, HERO_BY_ID, dailyHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait } from './hero';
 import { ENEMY_INFO, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode } from './game';
-import { acceptQuest, checkRun, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, noteBond, noteDeepest, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, type RunReward } from './meta';
+import { acceptQuest, checkRun, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
@@ -12,7 +12,7 @@ import { hallFromLink, onVisitIsle, showHall, showPublicHall, soulRankHtml, titl
 import { HEAD_BY_ID, LOOK_BY_ID, PODIUM, STREAK_HELMS, WEEKLY, rankFor, titleFxClass } from './progression';
 import { Renderer } from './render';
 import { hashSeed } from './rng';
-import { ONLINE, dailyBoard, endlessBoard, mySummons, noteRun, noteSummon, pingActivity, startActivityPings } from './online';
+import { ONLINE, challengeBoard, challengeNews, createChallenge, dailyBoard, endlessBoard, getChallenge, mySummons, noteRun, noteSummon, pingActivity, startActivityPings, submitChallengeRun, type Challenge, type ChallengeRow } from './online';
 import {
   ACT_TITLE, LORE, LORE_COUNT, MAIN_QUESTS, QUESTS, QUEST_BY_N, SPEAKERS, conversation, facePortrait, houndStats, npcMarker, npcPresent, petName, questStatus,
   type Line, type NpcId, type Quest, type StoryState,
@@ -91,6 +91,7 @@ function showGame(g: Game) {
 }
 
 function startRun(mode: Mode) {
+  challenge = null;
   unlockAudio();
   void pingActivity(true);
   newGame(mode);
@@ -224,7 +225,14 @@ interface SavedRun {
   dailyNo: number;
   log: string;
   seconds?: number;
+  /** A challenge being played, so it carries on after a reload. */
+  challenge?: Challenge;
 }
+
+/** The challenge the current run is playing (null for an ordinary run). */
+let challenge: Challenge | null = null;
+/** The challenge the last finished run played, for its results screen. */
+let lastChallenge: Challenge | null = null;
 
 // Time played this run. Each input adds the time since the last one, capped, so a
 // run left open in a background tab doesn't count as play.
@@ -257,7 +265,7 @@ function saveRun() {
   // Story chapters are short, and start over rather than resume.
   if (!game || game.phase === 'dead' || game.mode === 'story') return;
   try {
-    const run: SavedRun = { mode: game.mode, seed: game.seed, dailyNo: game.dailyNo, log: game.header() + game.log, seconds: Math.round(runSeconds) };
+    const run: SavedRun = { mode: game.mode, seed: game.seed, dailyNo: game.dailyNo, log: game.header() + game.log, seconds: Math.round(runSeconds), ...(challenge ? { challenge } : {}) };
     localStorage.setItem(RUN_KEY, JSON.stringify(run));
   } catch {
     // Storage blocked: the run just can't be resumed.
@@ -294,7 +302,17 @@ function savedRun(): Game | null {
   }
 }
 
+/** The challenge a saved run was playing, if any. */
+function savedChallenge(): Challenge | null {
+  try {
+    return (JSON.parse(localStorage.getItem(RUN_KEY) ?? 'null') as SavedRun | null)?.challenge ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function resumeRun(g: Game) {
+  challenge = savedChallenge();
   unlockAudio();
   startClock(savedSeconds());
   showGame(g);
@@ -334,9 +352,23 @@ function finishRun(abandoned = false) {
   lastReward.souls += bounty.souls;
   lastReward.lines.push(...bounty.lines);
   lastReward.unlocks.push(...bounty.notes);
+  // A challenge run: its own board, not the Endless leaderboard or your Endless best.
+  const ch = challenge;
+  challenge = null;
+  lastChallenge = ch;
+  if (ch && beats(result, ch) && ch.user_id !== session.account?.id) {
+    const won = noteDuelWin(ch.code);
+    if (won.souls) {
+      lastReward.souls += won.souls;
+      lastReward.lines.push(['Beat the challenge', won.souls]);
+    }
+    if (won.feat) lastReward.achievements.push(won.feat);
+  }
   let best = false;
   if (game.mode === 'daily') {
     lastLabel = `Daily #${game.dailyNo}`;
+  } else if (ch) {
+    lastLabel = `Challenge vs ${ch.name}`;
   } else {
     if (result.floor > save.bestEndless) {
       best = save.bestEndless > 0;
@@ -355,7 +387,7 @@ function finishRun(abandoned = false) {
   // Story chapters end in finishStory, so only daily and Endless runs get here.
   const mode = game.mode === 'daily' ? 'daily' : 'endless';
   const dailyNo = game.dailyNo;
-  const uploaded = recordRun({
+  const uploaded = ch ? postChallengeRun(ch) : recordRun({
     mode,
     daily_no: mode === 'daily' ? dailyNo : null,
     seed: game.seed,
@@ -370,6 +402,10 @@ function finishRun(abandoned = false) {
   window.clearTimeout(overlayTimer);
   overlayTimer = window.setTimeout(() => {
     showDeath(result, best);
+    if (ch) {
+      void uploaded.then(() => fillChallengeBoard(ch));
+      return;
+    }
     void uploaded
       .then((ok) => (ok || (mode === 'daily' && !signedIn()) ? rankLine(mode, dailyNo, result.floor) : ''))
       .then((line) => setRank(line))
@@ -749,6 +785,7 @@ function zoneTip(g: Game): string {
 // ---------- overlays ----------
 
 function showTitle() {
+  checkChallengeNews();
   setMusicDepth(0);
   setMusicMood('crypt');
   const today = dailyNumber();
@@ -1343,6 +1380,7 @@ function showPause() {
       enterHollow();
     } else {
       noteRun('endless', 'quit', game.floor);
+      challenge = null;
       hideOverlay();
       newGame('endless');
       showTitle();
@@ -1352,6 +1390,7 @@ function showPause() {
 
 function showDeath(r: RunResult, best: boolean) {
   const daily = game.mode === 'daily';
+  const ch = daily ? null : lastChallenge;
   setMusicDepth(0);
   setMusicMood('fallen');
   showOverlay('death', `
@@ -1373,9 +1412,10 @@ function showDeath(r: RunResult, best: boolean) {
         ? `<div class="souls-earned"><b>+${lastReward.souls} Souls</b><span>${lastReward.lines.map(([k, v]) => `${esc(k)} +${v}`).join(' · ')}</span><span>💀 ${meta.souls} to spend in the Ossuary</span></div>`
         : ''
     }
+    ${ch ? challengeResultHtml(r, ch) : ''}
     ${soulRankHtml()}
-    ${ONLINE ? `<p class="rank-line ${daily ? 'daily-rank' : ''}" id="rank">${signedIn() ? 'Carving your name into the crypt…' : daily ? 'Counting the fallen…' : ''}</p>` : ''}
-    ${ONLINE && !signedIn() ? '<button class="btn" id="join">Claim a name for the leaderboard</button>' : ''}
+    ${ONLINE && !ch ? `<p class="rank-line ${daily ? 'daily-rank' : ''}" id="rank">${signedIn() ? 'Carving your name into the crypt…' : daily ? 'Counting the fallen…' : ''}</p>` : ''}
+    ${ONLINE && !signedIn() ? `<button class="btn" id="join">${ch ? 'Claim a name to post to the challenge board' : 'Claim a name for the leaderboard'}</button>` : ''}
     ${
       daily
         ? `${streakTeaseHtml()}${tomorrowHtml()}${reminderPromptHtml()}${ONLINE ? '<p class="podium-tease">🥇 Finish in the top 3 when the day ends to win exclusive headwear and Souls.</p>' : ''}
@@ -1390,7 +1430,16 @@ function showDeath(r: RunResult, best: boolean) {
     <div class="row">
       <button class="btn" id="copy">Copy result</button>
     </div>`
-        : `<button class="btn x" id="share">Share on 𝕏</button>
+        : ch
+          ? `<button class="btn primary" id="retry-challenge">⚔️ Try again<small>Same crypt, same hero</small></button>
+    <button class="btn" id="pass-challenge">📨 Pass the challenge on<small>Send ${esc(ch.name)}'s crypt to a friend</small></button>
+    ${discordBtn}
+    <div class="row">
+      <button class="btn" id="copy">Copy result</button>
+      <button class="btn" id="again">Endless<small class="keys-hint">Enter or R</small></button>
+    </div>`
+          : `<button class="btn x" id="share">Share on 𝕏</button>
+    ${ONLINE ? `<button class="btn challenge-btn" id="challenge">⚔️ Challenge a friend<small>Same crypt, same hero. Can they beat floor ${r.floor}?</small></button>` : ''}
     ${discordBtn}
     <div class="row">
       <button class="btn" id="copy">Copy result</button>
@@ -1413,7 +1462,10 @@ function showDeath(r: RunResult, best: boolean) {
     showLogin(() => {
       backHere();
       // Joining uploads the queued run; show where it landed.
-      if (signedIn()) {
+      if (signedIn() && lastChallenge) {
+        const c = lastChallenge;
+        void postChallengeRun(c).then(() => fillChallengeBoard(c));
+      } else if (signedIn()) {
         setRank('Carving your name into the crypt…');
         void syncNow()
           .then(() => rankLine(daily ? 'daily' : 'endless', game.dailyNo, r.floor))
@@ -1424,6 +1476,10 @@ function showDeath(r: RunResult, best: boolean) {
   );
   const beat = () => (daily ? lastBeat : null);
   on('#share', () => share(r, lastLabel, beat()));
+  on('#challenge', () => makeChallenge(r, backHere));
+  on('#retry-challenge', () => ch && startChallenge(ch));
+  on('#pass-challenge', () => ch && showChallengeShare(ch.code, `${ch.name} reached floor ${ch.floor}`, backHere, true));
+  if (ch) void fillChallengeBoard(ch);
   on('#copy', async () => toast((await copyText(shareText(r, lastLabel, beat()) + '\n' + siteUrl())) ? 'Copied!' : 'Copy failed'));
   on('#again', () => showHeroSelect(() => startRun('endless'), backHere));
   if (daily) showEndlessRecord();
@@ -1453,6 +1509,190 @@ function tipNoteHtml(): string {
   const runs = runsPlayed();
   if (meta.patron || runs < 5 || runs % 10 !== 5) return '';
   return `<p class="fine tip-note">Thanks for playing. One More Crypt is free with no ads; if you're enjoying it, a <a href="${KOFI_URL}" target="_blank" rel="noopener">☕ tip on Ko-fi</a> keeps the crypt open.</p>`;
+}
+
+// ---------- challenge links ----------
+// Any Endless run becomes a link; friends play the exact same crypt and hero (the run's
+// seed and header) and race its board. Challenge runs never touch the Endless leaderboard.
+
+/** Did this result beat the challenge: deeper, or as deep with more kills, or fewer turns. */
+function beats(r: { floor: number; kills: number; turns: number }, c: Challenge): boolean {
+  return r.floor !== c.floor ? r.floor > c.floor : r.kills !== c.kills ? r.kills > c.kills : r.turns < c.turns;
+}
+
+const challengeUrl = (code: string) => `${siteUrl()}?c=${code}&ref=challenge`;
+
+/** A challenge code from the page's link (?c=CODE), tidied out of the address bar. */
+function challengeFromLink(): string | null {
+  try {
+    const u = new URL(location.href);
+    const code = (u.searchParams.get('c') ?? '').toUpperCase();
+    if (!u.searchParams.has('c')) return null;
+    u.searchParams.delete('c');
+    history.replaceState(history.state, '', u.toString());
+    return /^[A-HJ-NP-Z2-9]{6}$/.test(code) ? code : null;
+  } catch {
+    return null;
+  }
+}
+
+function challengeHero(c: Challenge): HeroId {
+  return Game.parseLog(c.head).config.hero;
+}
+
+/** Someone's challenge, opened from a link: who, how deep, and the board so far. */
+function openChallenge(code: string, back: () => void) {
+  showOverlay('challenge', '<h2>⚔️ A challenge</h2><p class="sub">Opening the crypt…</p>');
+  void getChallenge(code)
+    .then((c) => {
+      if (screen !== 'challenge') return;
+      if (!c) {
+        showOverlay('challenge', '<h2>⚔️ A challenge</h2><p class="sub">That challenge doesn\'t exist. The link may be mistyped.</p><button class="btn primary" id="back">Back</button>');
+        on('#back', back);
+        return;
+      }
+      const hero = challengeHero(c);
+      const unfinished = savedRun();
+      showOverlay('challenge', `
+        <h2>⚔️ ${esc(c.name)} challenges you</h2>
+        <img class="hero-portrait" src="${heroPortrait(hero, {}, [], 8)}" alt="" width="96" height="96" />
+        <p class="sub"><b>${esc(c.name)}</b> reached <b>floor ${c.floor}</b> (${c.kills} kills) as the ${esc(HERO_BY_ID[hero].name)}.</p>
+        <p class="fine">Same crypt, same hero, same relics on offer. Can you go deeper?${heroUnlocked(hero) ? '' : ` You'll borrow the ${esc(HERO_BY_ID[hero].name)} for this run.`}</p>
+        <ol class="challenge-board" id="challenge-board"><li class="fine">Loading the board…</li></ol>
+        <button class="btn primary" id="accept">⚔️ Accept the challenge<small>${c.players ? `${c.players} ${c.players === 1 ? 'player has' : 'players have'} tried` : 'Be the first to try'}</small></button>
+        ${unfinished ? `<p class="fine">This replaces your unfinished run on floor ${unfinished.floor}.</p>` : ''}
+        <button class="btn" id="back">Not now</button>`);
+      on('#accept', () => startChallenge(c));
+      on('#back', back);
+      void fillChallengeBoard(c);
+    })
+    .catch((e) => {
+      showOverlay('challenge', `<h2>⚔️ A challenge</h2><p class="sub">${esc((e as Error).message)}</p><button class="btn primary" id="back">Back</button>`);
+      on('#back', back);
+    });
+}
+
+function startChallenge(c: Challenge) {
+  unlockAudio();
+  void pingActivity(true);
+  const { config } = Game.parseLog(c.head);
+  challenge = c;
+  showGame(new Game('endless', Number(c.seed), 0, config));
+  noteRun('endless', 'start');
+  startClock();
+  saveRun();
+  setMusicDepth(game.floor, game.zone.def.key);
+  setMusicMood(game.isBossFloor() ? 'boss' : 'crypt');
+  hideOverlay();
+  sfx.stairs();
+  renderer.banner(`BEAT FLOOR ${c.floor}`, '#f2c14e');
+}
+
+/** Post a finished challenge run to its board (signed-in players). True once it's there. */
+async function postChallengeRun(c: Challenge): Promise<boolean> {
+  if (!ONLINE || !signedIn() || !lastResult) return false;
+  try {
+    await submitChallengeRun(c.code, { floor: lastResult.floor, kills: lastResult.kills, turns: lastResult.turns, log: game.header() + game.log });
+    return true;
+  } catch (e) {
+    toast((e as Error).message);
+    return false;
+  }
+}
+
+function challengeResultHtml(r: RunResult, c: Challenge): string {
+  const won = beats(r, c);
+  const gap = Math.abs(r.floor - c.floor);
+  const line = won
+    ? gap
+      ? `You beat <b>${esc(c.name)}</b> by ${gap} floor${gap === 1 ? '' : 's'}!`
+      : `You beat <b>${esc(c.name)}</b> on the same floor!`
+    : gap
+      ? `<b>${esc(c.name)}</b> still leads by ${gap} floor${gap === 1 ? '' : 's'}.`
+      : `<b>${esc(c.name)}</b> edges it on the same floor.`;
+  return `<div class="challenge-box ${won ? 'won' : ''}">⚔️ ${line}<small>Floor ${r.floor} vs ${c.floor}</small></div>
+    <ol class="challenge-board" id="challenge-board"><li class="fine">Loading the board…</li></ol>`;
+}
+
+/** Fill the challenge board on whatever screen shows one. */
+async function fillChallengeBoard(c: Challenge) {
+  let rows: ChallengeRow[] = [];
+  try {
+    rows = await challengeBoard(c.code);
+  } catch {
+    rows = [];
+  }
+  const el = document.getElementById('challenge-board');
+  if (!el) return;
+  const me = session.account?.id;
+  el.innerHTML = rows.length
+    ? rows
+        .slice(0, 10)
+        .map(
+          (row) => `<li class="${row.user_id === me ? 'me' : ''}"><span>${row.rank <= 3 ? ['🥇', '🥈', '🥉'][row.rank - 1] : `#${row.rank}`}</span>
+            <span class="who">${esc(row.name)}${row.creator ? ' <em class="title-tag">challenger</em>' : ''}</span>
+            <span class="fl">F${row.floor}<small>${row.kills} kills</small></span></li>`,
+        )
+        .join('')
+    : '<li class="fine">No board yet.</li>';
+}
+
+/** Make a challenge from the run just finished, then share it. */
+function makeChallenge(r: RunResult, back: () => void) {
+  if (!signedIn()) {
+    toast('Claim a name first, so your friends know who challenged them.');
+    showLogin(back);
+    return;
+  }
+  const btn = document.getElementById('challenge') as HTMLButtonElement | null;
+  if (btn) btn.disabled = true;
+  void createChallenge({ seed: game.seed, head: game.header(), floor: r.floor, kills: r.kills, turns: r.turns, log: game.log })
+    .then((code) => showChallengeShare(code, `floor ${r.floor} as the ${HERO_BY_ID[game.hero].name}`, back))
+    .catch((e) => {
+      if (btn) btn.disabled = false;
+      toast((e as Error).message);
+    });
+}
+
+/** Share a challenge link: the phone's share sheet, copy, or X. */
+function showChallengeShare(code: string, line: string, back: () => void, passing = false) {
+  const url = challengeUrl(code);
+  const text = passing
+    ? `⚔️ ${line} in One More Crypt. Same crypt, same hero: can you beat it?`
+    : `⚔️ I reached ${line} in One More Crypt. Same crypt, same hero: can you beat me?`;
+  const native = typeof navigator.share === 'function';
+  showOverlay('challenge-share', `
+    <h2>⚔️ ${passing ? 'Pass it on' : 'Your challenge'}</h2>
+    <p class="sub">Send this link. Whoever opens it plays the exact same crypt.</p>
+    <input class="challenge-link" readonly value="${esc(url)}" aria-label="Challenge link" />
+    ${native ? '<button class="btn primary" id="native-share">📤 Share</button>' : ''}
+    <button class="btn ${native ? '' : 'primary'}" id="copy-link">🔗 Copy link</button>
+    <button class="btn x" id="x-share">Share on 𝕏</button>
+    <p class="fine">You'll hear about it here when someone beats you.</p>
+    <button class="btn" id="back">Back</button>`);
+  on('#native-share', () => void navigator.share({ title: 'One More Crypt challenge', text, url }).catch(() => undefined));
+  on('#copy-link', async () => toast((await copyText(`${text}\n${url}`)) ? 'Link copied!' : 'Copy failed'));
+  on('#x-share', () => window.open(`https://x.com/intent/post?${new URLSearchParams({ text: `${text}\n${url}` }).toString()}`, '_blank', 'noopener'));
+  on('#back', back);
+}
+
+let challengeNewsChecked = false;
+
+/** Once a visit: who beat your challenges since you last looked. */
+function checkChallengeNews() {
+  if (challengeNewsChecked || !ONLINE || !signedIn()) return;
+  challengeNewsChecked = true;
+  const since = meta.challengeSeen || new Date(Date.now() - 7 * 86_400_000).toISOString();
+  void challengeNews(since).then((rows) => {
+    if (!rows.length) return;
+    const first = rows[0];
+    toast(
+      rows.length === 1
+        ? `⚔️ ${first.name} beat your challenge: floor ${first.floor} vs your ${first.my_floor}.`
+        : `⚔️ ${rows.length} players beat your challenges, led by ${first.name} on floor ${first.floor}.`,
+    );
+    noteChallengeSeen(rows[0].at);
+  });
 }
 
 /** After the daily: a look at tomorrow's crypt, to come back for. */
@@ -1950,6 +2190,8 @@ showTitle();
 if (!ONLINE && !save.seenLogin) showLogin(showTitle);
 const visiting = hallFromLink();
 if (visiting && ONLINE) showPublicHall(visiting, showTitle);
+const challengeCode = challengeFromLink();
+if (challengeCode && ONLINE) openChallenge(challengeCode, showTitle);
 startGhosts();
 requestAnimationFrame(loop);
 

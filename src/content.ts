@@ -170,6 +170,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'forge-all', name: 'Master of the Forge', desc: 'Discover every fusion.', souls: 200 },
   { id: 'ascend', name: 'Ascended', desc: 'Forge two fused relics into an ascended relic.', souls: 120 },
   { id: 'ascend-all', name: 'Godforger', desc: 'Discover every ascended relic.', souls: 400 },
+  { id: 'duelist', name: 'Duelist', desc: 'Beat 5 challenges from other players.', souls: 150 },
   // The Hollow.
   { id: 'gravekeeper', name: 'Gravekeeper', desc: 'Read every epitaph in the Hollow.', souls: 50 },
 ];
