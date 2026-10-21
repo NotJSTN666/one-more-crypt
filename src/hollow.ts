@@ -4,6 +4,7 @@
 // open, the road leads on to Gravesend: a village, the old kennels and a ruined chapel,
 // homes to walk into, people to talk to, and quests that send you down into dungeons.
 
+import { drawAura } from './aura';
 import { dailyHero } from './content';
 import {
   HOME_CATS, ISLE_CATS, ISLE_DOCK, ISLE_ITEM, ISLE_ITEMS, ISLE_MAP, LAND, ROOM_ENTRY, ROOM_H, ROOM_MAP, ROOM_W, drawIsleGround, drawIsleItem, drawIsleItems, fits,
@@ -1261,6 +1262,7 @@ function render(ctx: CanvasRenderingContext2D, t: number) {
   const hx = draw.x * TILE + 2;
   const hy = draw.y * TILE + 1;
   px(hx + 2, hy + 12, 8, 2, 'rgba(0,0,0,0.4)');
+  drawAura(ctx, fit.aura, hx + 6, hy + 12, 12, t, 'back');
   ctx.save();
   if (facing < 0) {
     ctx.translate(hx + 12, hy);
@@ -1268,7 +1270,9 @@ function render(ctx: CanvasRenderingContext2D, t: number) {
     ctx.drawImage(hero, 0, 0, 12, 12);
   } else ctx.drawImage(hero, hx, hy, 12, 12);
   ctx.restore();
-  const aura = LOOK_BY_ID[fit.look]?.aura;
+  drawAura(ctx, fit.aura, hx + 6, hy + 12, 12, t, 'front');
+  // A cloak's faint motes, unless a proper aura is on.
+  const aura = fit.aura ? null : LOOK_BY_ID[fit.look]?.aura;
   if (aura) {
     for (let i = 0; i < 3; i++) {
       const p = (t * 0.5 + i / 3) % 1;

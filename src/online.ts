@@ -55,6 +55,8 @@ export interface BoardRow {
   hero?: string | null;
   outfit_look?: string | null;
   outfit_head?: string | null;
+  /** The aura the player radiates on that hero (missing until the board SQL includes it). */
+  outfit_aura?: string | null;
   /** Seconds of active play (missing for older runs). */
   seconds?: number | null;
 }

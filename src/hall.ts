@@ -3,6 +3,7 @@
 // tabs to wear titles and looks and to read the Bestiary. Anyone can visit another
 // player's Hall from the leaderboard or a shared link.
 
+import { drawAura } from './aura';
 import { cleanIsle, type IsleState } from './isle';
 import { sfx } from './audio';
 import { ACHIEVEMENTS, ACHIEVEMENT_BY_ID, COMBOS, HEROES, HERO_BY_ID, type HeroId } from './content';
@@ -13,7 +14,7 @@ import { equipTitle, meta, titleUnlocked, type Meta } from './meta';
 import { showWardrobe } from './wardrobe';
 import { ONLINE, loadHall } from './online';
 import {
-  BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, HEAD_BY_ID, LOOK_BY_ID, TITLES, TITLE_BY_ID, TITLE_TIER, bestiaryTiers, rankFor, rankProgress,
+  AURA_BY_ID, BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, HEAD_BY_ID, LOOK_BY_ID, TITLES, TITLE_BY_ID, TITLE_TIER, bestiaryTiers, rankFor, rankProgress,
   type BestRun, type BestRuns,
 } from './progression';
 import { RELICS, RELIC_BY_ID, type RelicId } from './relics';
@@ -24,6 +25,8 @@ import { esc, on, overlay, screen, showOverlay, toast } from './ui';
 /** What a Hall shows: your own progress, or a cleaned-up copy of someone else's. */
 export interface HallData {
   name: string;
+  /** The aura each hero radiates, from the Wardrobe. */
+  auras: Partial<Record<HeroId, string>>;
   /** Their isle, to visit. */
   isle: IsleState;
   title: string;
@@ -91,6 +94,11 @@ export function hallData(name: string, m: Partial<Meta> | Record<string, unknown
   return {
     name,
     isle: cleanIsle(raw.isle),
+    auras: Object.fromEntries(
+      Object.entries(obj(raw.outfits))
+        .map(([h, o]) => [h, String(obj(o).aura ?? '')])
+        .filter(([h, a]) => HERO_BY_ID[h as HeroId] && AURA_BY_ID[a]),
+    ) as Partial<Record<HeroId, string>>,
     podiums,
     weekly,
     decor,
@@ -216,7 +224,7 @@ function trophy(ctx: CanvasRenderingContext2D, x: number, kind: EnemyKind, kills
   fitText(ctx, ENEMY_INFO[kind].name.replace(/^The /, '').toUpperCase(), x, top + 178, 18, FONT_PIXEL, slain ? '#e8dcc4' : '#6b6680', 150);
 }
 
-function statue(ctx: CanvasRenderingContext2D, x: number, hero: HeroId, run: BestRun | undefined, deepest: boolean, t: number) {
+function statue(ctx: CanvasRenderingContext2D, x: number, hero: HeroId, run: BestRun | undefined, deepest: boolean, t: number, aura = '') {
   const base = 604;
   if (deepest) {
     const glow = ctx.createRadialGradient(x, base - 40, 10, x, base - 40, 100);
@@ -233,11 +241,14 @@ function statue(ctx: CanvasRenderingContext2D, x: number, hero: HeroId, run: Bes
   ctx.fillStyle = '#4a4058';
   ctx.fillRect(x - 52, base + 46, 104, 8);
   const sprite = run ? heroSprite(hero, run.relics, run.log as RelicId[], run.look, run.head ?? '') : heroSprite(hero, {}, []);
+  const radiant = run ? aura : '';
+  drawAura(ctx, radiant, x, base, 96, t, 'back');
   ctx.drawImage(run ? sprite.normal : silhouette(sprite.white, '#1a1424'), x - 48, base - 96, 96, 96);
-  // drifting motes from the statue's look
-  const aura = run && LOOK_BY_ID[run.look]?.aura;
-  if (aura) {
-    ctx.fillStyle = aura;
+  drawAura(ctx, radiant, x, base, 96, t, 'front');
+  // drifting motes from the statue's look, unless an aura is on
+  const motes = run && !radiant && LOOK_BY_ID[run.look]?.aura;
+  if (motes) {
+    ctx.fillStyle = motes;
     for (let i = 0; i < 5; i++) {
       const p = (t * 0.25 + i / 5) % 1;
       ctx.globalAlpha = Math.sin(p * Math.PI) * 0.8;
@@ -628,7 +639,7 @@ export function drawHall(ctx: CanvasRenderingContext2D, d: HallData, t = 0) {
   const deepest = Math.max(0, ...Object.values(d.best).map((r) => r?.floor ?? 0));
   HEROES.forEach((h, i) => {
     const run = d.best[h.id];
-    statue(ctx, 96 + i * 128, h.id, run, Boolean(run && run.floor === deepest), t);
+    statue(ctx, 96 + i * 128, h.id, run, Boolean(run && run.floor === deepest), t, d.auras[h.id]);
   });
   drawDecor(ctx, d, t, 'air');
 
@@ -664,7 +675,7 @@ function rankBar(earned: number): string {
   return `<div class="soul-rank">
     <div class="soul-rank-head"><span style="color:${rank.color}">👑 ${esc(rank.name)}</span><span>${earned.toLocaleString()} Souls</span></div>
     <div class="rank-track"><div style="width:${Math.round(fraction * 100)}%;background:${rank.color}"></div></div>
-    <small>${next ? `${needed.toLocaleString()} more Souls to <b style="color:${next.color}">${esc(next.name)}</b>` : 'The highest Soul Rank. The Abyss bows to you.'}</small>
+    <small>${next ? `${needed.toLocaleString()} more Souls to <b style="color:${next.color}">${esc(next.name)}</b>` : 'The highest Soul Rank. Eternity is yours.'}</small>
   </div>`;
 }
 

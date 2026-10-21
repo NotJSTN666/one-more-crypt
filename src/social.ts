@@ -40,8 +40,9 @@ import {
 import { showPublicHall, titleName } from './hall';
 import { HEAD_BY_ID, LOOK_BY_ID, PODIUM, WEEKLY, rankFor } from './progression';
 import { HERO_BY_ID, dailyHero, type HeroId } from './content';
+import { auraClass } from './aura';
 import { heroPortrait } from './hero';
-import { BACKFILL_VERSION, backfillHeroes, grantPatron, grantPodium, grantWeekly, meta, mergeMeta, noteStreak, onMetaChange, saveMeta, type Meta } from './meta';
+import { BACKFILL_VERSION, backfillHeroes, grantPatron, grantPodium, grantWeekly, meta, mergeMeta, noteDeepest, noteStreak, onMetaChange, saveMeta, type Meta } from './meta';
 import { currentStreak, streakStats, writeSave, type Save } from './storage';
 import { esc, field, formStatus, on, onSubmit, screen, showOverlay, toast } from './ui';
 
@@ -176,6 +177,8 @@ async function syncFromServer() {
         changed = true;
       }
     }
+    // The account's deepest run unlocks the depth auras on every device.
+    noteDeepest(Math.max(save.bestEndless, ...runs.map((r) => r.floor)));
     // Dailies played on other devices count toward the streak too.
     if (noteStreak(streakStats(save, dailyNumber()))) changed = true;
     if (changed) {
@@ -797,7 +800,7 @@ function boardHtml(b: Board, uid: string | null, tab: Tab, canShowMore: boolean,
   const row = (r: BoardRow) => `
     <li class="${r.user_id === uid ? 'me' : ''}" data-hall="${esc(r.name)}" tabindex="0" title="Visit ${esc(r.name)}'s Hall">
       <span class="rank">${r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : `#${r.rank}`}</span>
-      <img class="board-hero" src="${boardPortrait(r)}" alt="" width="24" height="24" />
+      <img class="board-hero ${auraClass(r.outfit_aura).cls}" style="${auraClass(r.outfit_aura).style}" src="${boardPortrait(r)}" alt="" width="24" height="24" />
       <span class="who"><span style="color:${rankFor(Number(r.earned) || 0).color}">${esc(r.name)}</span>${champs.has(r.user_id) ? ' <span class="reigning" title="Reigning champion: won yesterday\'s Daily Descent">👑</span>' : ''}${titleName(r.title) ? ` <em class="title-tag">${esc(titleName(r.title))}</em>` : ''}<small>${esc(r.relics)}</small></span>
       <span class="depth">F${r.floor}<small>${r.kills} kills${r.seconds ? ` · ⏱ ${playTime(r.seconds)}` : ''}</small></span>
     </li>`;

@@ -2482,3 +2482,42 @@ body.tutorial #relic-bar {
   line-height: 1.45;
   color: var(--muted);
 }
+
+/* ---------- auras on still portraits (leaderboards, results, the Wardrobe) ---------- */
+
+.aura-glow {
+  filter: drop-shadow(0 0 2px var(--aura)) drop-shadow(0 0 5px var(--aura));
+  animation: aura-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes aura-pulse {
+  50% { filter: drop-shadow(0 0 3px var(--aura)) drop-shadow(0 0 9px var(--aura)); }
+}
+
+/* The Patron's Prism: the glow flows through the rainbow. */
+.aura-glow.aura-prism {
+  animation: aura-prism 4s linear infinite;
+}
+
+@keyframes aura-prism {
+  0% { filter: drop-shadow(0 0 3px #ff4d5a) drop-shadow(0 0 7px #ff4d5a); }
+  17% { filter: drop-shadow(0 0 3px #ff8a2a) drop-shadow(0 0 7px #ff8a2a); }
+  33% { filter: drop-shadow(0 0 3px #ffd23f) drop-shadow(0 0 7px #ffd23f); }
+  50% { filter: drop-shadow(0 0 3px #5fd36a) drop-shadow(0 0 7px #5fd36a); }
+  67% { filter: drop-shadow(0 0 3px #5fe3ff) drop-shadow(0 0 7px #5fe3ff); }
+  83% { filter: drop-shadow(0 0 3px #b07cff) drop-shadow(0 0 7px #b07cff); }
+  100% { filter: drop-shadow(0 0 3px #ff4d5a) drop-shadow(0 0 7px #ff4d5a); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aura-glow,
+  .aura-glow.aura-prism {
+    animation: none;
+  }
+}
+
+#ward-live {
+  width: 150px;
+  height: 150px;
+  image-rendering: pixelated;
+}

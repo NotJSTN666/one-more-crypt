@@ -7,8 +7,8 @@ import { ISLE_ITEM, LAND, cleanIsle, emptyIsle, fits, homeKey, homeOf, islePerks
 import { centralDate } from './daily';
 import { FUSIONS, RELICS, UNLOCKABLE_RELICS, type FusedId, type RelicId } from './relics';
 import {
-  BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, beastPlural, HEADS, HEAD_BY_ID, HERO_CLOAKS, HERO_COSTUMES, LOOKS, LOOK_BY_ID, SEASONS, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_TIER,
-  betterRun, bestiaryTiers, rankIndex, seasonOf, seasonOpen, type BestRuns, type SeasonId, type HeadDef, type LookDef, type Outfit, type RunGoal, type Unlock,
+  AURAS, AURA_BY_ID, BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, beastPlural, HEADS, HEAD_BY_ID, HERO_CLOAKS, HERO_COSTUMES, LOOKS, LOOK_BY_ID, SEASONS, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_TIER,
+  betterRun, bestiaryTiers, rankIndex, seasonOf, seasonOpen, type AuraDef, type BestRuns, type SeasonId, type HeadDef, type LookDef, type Outfit, type RunGoal, type Unlock,
 } from './progression';
 import type { EnemyKind } from './game';
 
@@ -77,6 +77,8 @@ export interface Meta {
   isle: IsleState;
   /** Seasons played in, e.g. 'halloween-2026', for their free pieces. */
   seasons: string[];
+  /** The deepest floor ever reached, any mode (also fed from the account's synced records). */
+  deepest: number;
 }
 
 /** Story progress: quests taken, cleared (dungeon done) and finished, choices, the hound's bond, lore read. */
@@ -127,7 +129,7 @@ function empty(): Meta {
     podiums: {}, podiumChecked: 0, bought: [], streak: { best: 0, count: 0, last: 0 },
     bounties: { day: 0, ids: [], progress: [], done: [] },
     weekly: {}, weeklyChecked: '',
-    story: emptyStory(), pet: '', summonsSeen: '', patron: false, isle: emptyIsle(), seasons: [],
+    story: emptyStory(), pet: '', summonsSeen: '', patron: false, isle: emptyIsle(), seasons: [], deepest: 0,
   };
 }
 
@@ -188,6 +190,7 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
     meta.best[h as HeroId] = betterRun(meta.best[h as HeroId], run);
   }
   meta.patron ||= other.patron === true;
+  meta.deepest = Math.max(meta.deepest, Number(other.deepest) || 0);
   meta.seasons = [...new Set([...meta.seasons, ...(Array.isArray(other.seasons) ? other.seasons.map(String) : [])])];
   // The isle is one layout: whichever device changed it last wins.
   if (other.isle && (Number(other.isle.at) || 0) > meta.isle.at) meta.isle = cleanIsle(other.isle);
@@ -199,7 +202,10 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
     if (Array.isArray(ids)) meta.heroUnlocks[h as HeroId] = [...new Set([...(meta.heroUnlocks[h as HeroId] ?? []), ...ids.map(String)])];
   }
   for (const [h, o] of Object.entries(other.outfits ?? {})) {
-    if (!meta.outfits[h as HeroId] && o && typeof o === 'object') meta.outfits[h as HeroId] = { look: String(o.look ?? ''), head: String(o.head ?? '') };
+    if (!o || typeof o !== 'object') continue;
+    const mine = meta.outfits[h as HeroId];
+    if (!mine) meta.outfits[h as HeroId] = { look: String(o.look ?? ''), head: String(o.head ?? ''), aura: String(o.aura ?? '') };
+    else if (!mine.aura && o.aura) mine.aura = String(o.aura);
   }
   meta.rankSeen = Math.max(meta.rankSeen, other.rankSeen ?? 0);
   for (const [h, st] of Object.entries(other.heroStats ?? {})) mergeHeroStats(h as HeroId, st);
@@ -497,7 +503,8 @@ export function headUnlocked(h: HeadDef): boolean {
 
 /** The season an Ossuary item is sold in, if it's a seasonal piece. */
 export function itemSeason(id: string): SeasonId | undefined {
-  return DECOR_BY_ID[id]?.season ?? seasonOf(LOOK_BY_ID[id]?.unlock) ?? seasonOf(HEAD_BY_ID[id]?.unlock);
+  const aura = AURA_BY_ID[id]?.unlock;
+  return DECOR_BY_ID[id]?.season ?? seasonOf(LOOK_BY_ID[id]?.unlock) ?? seasonOf(HEAD_BY_ID[id]?.unlock) ?? (aura && 'season' in aura ? aura.season : undefined);
 }
 
 /** Seasons open today (Central Time). */
@@ -516,6 +523,7 @@ export function buyItem(id: string, cost: number): boolean {
   // Bought on purpose, so there's no need to announce it after the next run.
   if (!meta.looksSeen.includes(id)) meta.looksSeen.push(id);
   if (!meta.headsSeen.includes(id)) meta.headsSeen.push(id);
+  if (AURA_BY_ID[id] && !meta.looksSeen.includes(`aura:${id}`)) meta.looksSeen.push(`aura:${id}`);
   saveMeta();
   return true;
 }
@@ -749,16 +757,47 @@ export function outfitFor(hero: HeroId): Outfit {
   const o = meta.outfits[hero];
   const look = o ? o.look : meta.look;
   const head = o?.head ?? '';
+  const aura = o?.aura ?? '';
   return {
     look: LOOK_BY_ID[look] && fitsHero(hero, 'look', look) && lookUnlocked(LOOK_BY_ID[look]) ? look : '',
     head: HEAD_BY_ID[head] && fitsHero(hero, 'head', head) && headUnlocked(HEAD_BY_ID[head]) ? head : '',
+    aura: AURA_BY_ID[aura] && auraUnlocked(AURA_BY_ID[aura]) ? aura : '',
   };
+}
+
+/** The deepest floor this player has reached, in any mode and on any device. */
+export function deepestFloor(): number {
+  const best = Object.values(meta.best).map((r) => r?.floor ?? 0);
+  const stats = Object.values(meta.heroStats).map((st) => st?.floor ?? 0);
+  return Math.max(meta.deepest, 0, ...best, ...stats);
+}
+
+/** Record a floor reached (e.g. the account's best Endless run, synced from the server). */
+export function noteDeepest(floor: number) {
+  if (floor > meta.deepest) {
+    meta.deepest = floor;
+    saveMeta();
+  }
+}
+
+export function auraUnlocked(a: AuraDef): boolean {
+  const u = a.unlock;
+  if ('floor' in u) return deepestFloor() >= u.floor;
+  if ('wins' in u) return podiumCount(1) >= u.wins;
+  if ('streak' in u) return meta.streak.best >= u.streak;
+  if ('rank' in u) return rankIndex(meta.earned) >= u.rank;
+  if ('patron' in u) return meta.patron;
+  return meta.bought.includes(a.id);
 }
 
 /** Dress a hero in the Wardrobe; locked pieces are ignored. */
 export function equipOutfit(hero: HeroId, part: keyof Outfit, id: string) {
   const cur = outfitFor(hero);
-  const ok = !id || (fitsHero(hero, part, id) && (part === 'look' ? LOOK_BY_ID[id] && lookUnlocked(LOOK_BY_ID[id]) : HEAD_BY_ID[id] && headUnlocked(HEAD_BY_ID[id])));
+  const ok =
+    !id ||
+    (part === 'aura'
+      ? AURA_BY_ID[id] && auraUnlocked(AURA_BY_ID[id])
+      : fitsHero(hero, part, id) && (part === 'look' ? LOOK_BY_ID[id] && lookUnlocked(LOOK_BY_ID[id]) : HEAD_BY_ID[id] && headUnlocked(HEAD_BY_ID[id])));
   if (!ok) return;
   meta.outfits[hero] = { ...cur, [part]: id };
   saveMeta();
@@ -806,6 +845,13 @@ function progressUnlocks(game: Game): UnlockNote[] {
     if (!meta.headsSeen.includes(head.id) && headUnlocked(head)) {
       meta.headsSeen.push(head.id);
       notes.push({ icon: '🎩', title: `New costume: ${head.name}`, detail: head.hero ? `For the ${HERO_BY_ID[head.hero].name}, in the Wardrobe` : 'For any hero, in the Wardrobe' });
+    }
+  }
+  for (const a of AURAS) {
+    const seen = `aura:${a.id}`;
+    if (!meta.looksSeen.includes(seen) && auraUnlocked(a)) {
+      meta.looksSeen.push(seen);
+      notes.push({ icon: '✨', title: `New aura: ${a.name}`, detail: 'Radiate it in the Wardrobe' });
     }
   }
   for (const c of HERO_CLOAKS) {

@@ -10,7 +10,8 @@ describe('Soul Ranks', () => {
     expect(rankFor(200).name).toBe('Bone Collector');
     expect(rankFor(10_000_000).name).toBe(SOUL_RANKS[SOUL_RANKS.length - 1].name);
     expect(rankProgress(400)).toMatchObject({ needed: 200, fraction: 0.5 });
-    expect(rankProgress(20_000).next).toBeNull();
+    expect(rankProgress(20_000).next?.name).toBe('Soulreaver');
+    expect(rankProgress(200_000).next).toBeNull();
   });
 
   it('every title has a unique id and a name', () => {

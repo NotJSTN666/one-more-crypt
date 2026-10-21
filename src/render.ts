@@ -1,11 +1,12 @@
 // Canvas renderer. Reads game state every frame and turns game events into
 // short-lived effects (damage numbers, particles, screen shake).
 
+import { drawAura as drawAuraFx } from './aura';
 import { ELITES, type HeroId } from './content';
 import { ENEMY_INFO, Game, H, W, isBoss, type EnemyKind, type GameEvent, type Pos } from './game';
 import { hashSeed, mulberry32 } from './rng';
 import { heroSprite, relicColor } from './hero';
-import { LOOK_BY_ID } from './progression';
+import { LOOK_BY_ID, type Outfit } from './progression';
 import { RELIC_BY_ID, type RelicId } from './relics';
 import { SPRITE_SIZE, enemyFrames, sprites } from './sprites';
 import { zoneAt } from './zones';
@@ -79,7 +80,7 @@ export class Renderer {
   private candles: Candle[] = [];
   private motes: Mote[] = [];
   /** The player's costume for this run: cloak look and headwear ('' for none). */
-  outfit = { look: '', head: '' };
+  outfit: Outfit = { look: '', head: '', aura: '' };
   /** A companion that follows the hero in the daily and Endless: looks only, it never fights. */
   pet = '';
   private petAt: Pos | null = null;
@@ -345,7 +346,8 @@ export class Renderer {
         this.particles.push({ x: px, y: py, vx: (Math.random() - 0.5) * 6, vy, color, t: 0, life: 0.5, size: 1 });
       }
     };
-    const aura = LOOK_BY_ID[this.outfit.look]?.aura;
+    // A cloak's faint motes, unless a proper aura is on.
+    const aura = this.outfit.aura ? null : LOOK_BY_ID[this.outfit.look]?.aura;
     if (aura) emit(0.22, x + Math.random() * 12, y + 4 + Math.random() * 8, -8, aura);
     // Legendary looks from the Ossuary: a mantle trailing embers, and skulls circling your head.
     if (this.outfit.look === 'inferno') emit(0.5, x + Math.random() * 12, y + 4 + Math.random() * 8, -18, Math.random() < 0.45 ? '#ff8a2a' : Math.random() < 0.6 ? '#ffd23f' : '#d23a46');
@@ -491,7 +493,11 @@ export class Renderer {
     if (g.phase !== 'dead') {
       const pd = this.smooth(PLAYER_ID, g.player, k);
       // The rogue fades when the next step will go unseen.
+      const ax = pd.x * TILE + PAD + SPRITE_SIZE / 2;
+      const ay = pd.y * TILE + PAD + SPRITE_SIZE;
+      drawAuraFx(this.ctx, this.outfit.aura, ax, ay, SPRITE_SIZE, this.time, 'back');
       this.drawSprite(PLAYER_ID, heroSprite(g.hero, g.relics, g.relicLog, this.outfit.look, this.outfit.head), pd, dt, g.shadowReady ? 0.55 : 1);
+      drawAuraFx(this.ctx, this.outfit.aura, ax, ay, SPRITE_SIZE, this.time, 'front');
       this.drawAura(g, pd);
     }
     for (const id of [...this.disp.keys()]) if (!seen.has(id)) this.disp.delete(id);

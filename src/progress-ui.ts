@@ -5,7 +5,8 @@ import { sfx } from './audio';
 import { ACHIEVEMENTS, COMBOS, HEROES, HERO_BY_ID, type AchievementDef, type ComboDef, type HeroId } from './content';
 import { heroPortrait } from './hero';
 import { RELIC_COSTS, type UnlockNote, buyHero, buyItem, lookUnlocked, openSeasons, outfitFor, buyRelic, heroUnlocked, meta, relicDiscovered, saveMeta } from './meta';
-import { DECOR, HEADS, LEGENDARY, LOOKS, SEASONS, seasonOf, shopPrice } from './progression';
+import { AURAS, DECOR, HEADS, LEGENDARY, LOOKS, SEASONS, seasonOf, shopPrice, type AuraDef } from './progression';
+import { auraClass } from './aura';
 import { ASCEND_FLOOR, ENDLESS_RELICS, FUSIONS, RELICS, RELIC_BY_ID, UNLOCKABLE_RELICS, type RelicId } from './relics';
 import { $, esc, on, overlay, showOverlay } from './ui';
 import { showWardrobe } from './wardrobe';
@@ -110,6 +111,17 @@ export function showOssuary(back: () => void, tab: OssuaryTab = 'unlocks') {
         ${owned ? '<span class="owned-tag">Owned</span>' : buy(`data-item="${id}" data-cost="${cost}"`, cost)}
       </div>`;
     };
+    const auraItem = (a: AuraDef) => {
+      const owned = meta.bought.includes(a.id);
+      const cost = 'cost' in a.unlock ? a.unlock.cost : 0;
+      const glow = auraClass(a.id);
+      return `<div class="shop-item ${owned ? 'owned' : ''}">
+        <img class="${glow.cls}" style="${glow.style}" src="${heroPortrait(hero, {}, [], 4, fit.look, fit.head)}" alt="" width="40" height="40" />
+        <span class="shop-info"><span class="name">${esc(a.name)} <em class="legend-tag">Aura</em></span><span class="desc">Radiates off any hero, in runs and on the leaderboards.</span></span>
+        ${owned ? '<span class="owned-tag">Owned</span>' : buy(`data-item="${a.id}" data-cost="${cost}"`, cost)}
+      </div>`;
+    };
+    const soldAuras = (season?: string) => AURAS.filter((a) => 'cost' in a.unlock && (a.unlock.season ?? undefined) === season);
     const byPrice = <T extends { unlock?: Parameters<typeof shopPrice>[0] }>(a: T, b: T) => shopPrice(a.unlock) - shopPrice(b.unlock);
     const cloaks = LOOKS.filter((l) => shopPrice(l.unlock) && !seasonOf(l.unlock)).sort(byPrice);
     const heads = HEADS.filter((h) => shopPrice(h.unlock) && !seasonOf(h.unlock)).sort(byPrice);
@@ -126,13 +138,16 @@ export function showOssuary(back: () => void, tab: OssuaryTab = 'unlocks') {
           <h3 class="shop-head">${SEASONS[season].emoji} ${esc(SEASONS[season].name)} <small>· until ${esc(SEASONS[season].dates.split(' to ')[1])}</small></h3>
           <p class="fine">Exclusive pieces, sold only during the season. Yours to keep for good.</p>
           ${freeLine}
-          <div class="shop">${sc.map((l) => item('look', l.id, l.name, shopPrice(l.unlock))).join('')}${sh.map((h) => item('head', h.id, h.name, shopPrice(h.unlock))).join('')}</div>
+          <div class="shop">${soldAuras(season).map(auraItem).join('')}${sc.map((l) => item('look', l.id, l.name, shopPrice(l.unlock))).join('')}${sh.map((h) => item('head', h.id, h.name, shopPrice(h.unlock))).join('')}</div>
         </div>`;
       })
       .join('');
     body = `
       <p class="fine">Looks only, never power. Shown on your ${esc(HERO_BY_ID[hero].name)}; wear them on any hero in the Wardrobe.</p>
       ${seasonal}
+      <h3 class="shop-head">Auras</h3>
+      <p class="fine">Most auras are earned: by going deep, winning Dailies, long streaks and Soul Ranks. These three are for sale.</p>
+      <div class="shop">${soldAuras().map(auraItem).join('')}</div>
       <h3 class="shop-head">Cloaks</h3>
       <div class="shop">${cloaks.map((l) => item('look', l.id, l.name, shopPrice(l.unlock))).join('')}</div>
       <h3 class="shop-head">Headwear</h3>

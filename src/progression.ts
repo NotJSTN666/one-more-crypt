@@ -20,6 +20,9 @@ export const SOUL_RANKS: SoulRank[] = [
   { name: 'Death Knight', souls: 1500, color: '#9fe8ff' },
   { name: 'Lich Lord', souls: 4000, color: '#b07cff' },
   { name: 'Lord of the Abyss', souls: 10000, color: '#f2c14e' },
+  { name: 'Soulreaver', souls: 25000, color: '#ff8a2a' },
+  { name: 'Crypt Sovereign', souls: 50000, color: '#ff4d5a' },
+  { name: 'The Eternal', souls: 100000, color: '#fff2c0' },
 ];
 
 export function rankIndex(earned: number): number {
@@ -423,7 +426,65 @@ export const HERO_COSTUMES: { id: string; name: string; hero: HeroId; need: Hero
 export interface Outfit {
   look: string;
   head: string;
+  /** An aura that radiates off the hero ('' for none). */
+  aura?: string;
 }
+
+// ---------- auras ----------
+// A glow and moving effect around the hero: in runs, the Hollow, on Hall statues and next
+// to your name on the leaderboards. Looks only. Most are earned; a few are sold.
+
+export type AuraStyle =
+  | 'candle' | 'ember' | 'tide' | 'bone' | 'abyss' | 'void' | 'rays' | 'sunburst' | 'flame'
+  | 'wisps' | 'snow' | 'storm' | 'mist' | 'souls' | 'crown' | 'eternity' | 'rainbow';
+
+export type AuraUnlock =
+  | { floor: number }
+  | { wins: number }
+  | { streak: number }
+  | { rank: number }
+  | { patron: true }
+  | { cost: number; season?: SeasonId };
+
+export interface AuraDef {
+  id: string;
+  name: string;
+  style: AuraStyle;
+  /** The glow's colour (the rainbow cycles instead). */
+  color: string;
+  unlock: AuraUnlock;
+  how: string;
+}
+
+const auraSold = (cost: number) => ({ unlock: { cost }, how: `Sold in the Ossuary for ${cost.toLocaleString()} Souls.` });
+
+export const AURAS: AuraDef[] = [
+  // Depth: the deepest floor reached in any run, any hero.
+  { id: 'candleglow', name: 'Candleglow', style: 'candle', color: '#ffb35a', unlock: { floor: 25 }, how: 'Reach floor 25.' },
+  { id: 'emberheart', name: 'Emberheart', style: 'ember', color: '#ff8a2a', unlock: { floor: 50 }, how: 'Reach floor 50.' },
+  { id: 'tidecaller', name: 'Tidecaller', style: 'tide', color: '#5fe3ff', unlock: { floor: 100 }, how: 'Reach floor 100.' },
+  { id: 'bonewind', name: 'Bonewind', style: 'bone', color: '#e8dcc4', unlock: { floor: 150 }, how: 'Reach floor 150.' },
+  { id: 'abyssal', name: 'Abyssal', style: 'abyss', color: '#b07cff', unlock: { floor: 200 }, how: 'Reach floor 200.' },
+  { id: 'voidcrown', name: 'Voidcrown', style: 'void', color: '#7b5cff', unlock: { floor: 300 }, how: 'Reach floor 300.' },
+  // The Daily Descent.
+  { id: 'gilded', name: 'Gilded Radiance', style: 'rays', color: '#f2c14e', unlock: { wins: 1 }, how: 'Win a Daily Descent.' },
+  { id: 'sunburst', name: 'Sunburst', style: 'sunburst', color: '#ffd23f', unlock: { wins: 5 }, how: 'Win 5 Daily Descents.' },
+  { id: 'eternalflame', name: 'Eternal Flame', style: 'flame', color: '#5fa8ff', unlock: { streak: 30 }, how: 'Play the daily 30 days in a row.' },
+  // Soul Ranks past Lord of the Abyss.
+  { id: 'soulstorm', name: 'Soulstorm', style: 'souls', color: '#9fe8ff', unlock: { rank: 6 }, how: 'Reach the Soulreaver Soul Rank (25,000 Souls).' },
+  { id: 'sovereign', name: "Sovereign's Halo", style: 'crown', color: '#ff4d5a', unlock: { rank: 7 }, how: 'Reach the Crypt Sovereign Soul Rank (50,000 Souls).' },
+  { id: 'eternity', name: 'Eternity', style: 'eternity', color: '#fff2c0', unlock: { rank: 8 }, how: 'Reach The Eternal Soul Rank (100,000 Souls).' },
+  // Supporters on Ko-fi.
+  { id: 'patronglow', name: "Patron's Prism", style: 'rainbow', color: '#ff4d5a', unlock: { patron: true }, how: 'Support One More Crypt on Ko-fi. Thank you.' },
+  // Sold in the Ossuary.
+  { id: 'frostbite', name: 'Frostbite', style: 'snow', color: '#c9f2ff', ...auraSold(2500) },
+  { id: 'stormcharged', name: 'Stormcharged', style: 'storm', color: '#9fe8ff', ...auraSold(5000) },
+  { id: 'bloodmist', name: 'Bloodmist', style: 'mist', color: '#d23a46', ...auraSold(10000) },
+  // The Hallowed Season.
+  { id: 'hallowedwisps', name: 'Hallowed Wisps', style: 'wisps', color: '#ff8a2a', unlock: { cost: 3000, season: 'halloween' }, how: 'Sold in the Ossuary during the Hallowed Season (October 19 to November 2) for 3,000 Souls.' },
+];
+
+export const AURA_BY_ID = Object.fromEntries(AURAS.map((a) => [a.id, a])) as Record<string, AuraDef>;
 
 // ---------- best runs (the Hall's statues) ----------
 

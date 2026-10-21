@@ -4,7 +4,7 @@ import { dailyNumber, formatCountdown, msUntilNextDaily } from './daily';
 import { ELITES, FEATURES, HERO_BY_ID, dailyHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait } from './hero';
 import { ENEMY_INFO, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode } from './game';
-import { acceptQuest, checkRun, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, noteBond, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, type RunReward } from './meta';
+import { acceptQuest, checkRun, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, noteBond, noteDeepest, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
@@ -18,6 +18,7 @@ import {
   type Line, type NpcId, type Quest, type StoryState,
 } from './story';
 import { EPITAPHS, hollowKey, setHollowSpot, showHollow, showIsleVisit, type HollowHooks, type HollowPlace } from './hollow';
+import { auraClass } from './aura';
 import { islePerks, type IsleState } from './isle';
 import { showWardrobe } from './wardrobe';
 import { IMPACT, playFusion } from './fusefx';
@@ -37,6 +38,7 @@ const renderer = new Renderer(canvas);
 const save = loadSave();
 // Fill in the Hall's streak from the dailies already played (saves from before streaks were tracked).
 noteStreak(streakStats(save, dailyNumber()));
+noteDeepest(save.bestEndless);
 setMuted(save.muted);
 
 /** Under the share button after a run, and on the title once the daily is done: the community server. */
@@ -175,7 +177,7 @@ function finishTutorial() {
   const { then, label } = tutorial;
   endTutorial();
   showOverlay('tutorial-done', `
-    <img class="hero-portrait" src="${heroPortrait(game.hero, game.relics, game.relicLog, 8, outfitFor(game.hero).look, outfitFor(game.hero).head)}" alt="" width="96" height="96" />
+    <img class="hero-portrait ${auraClass(outfitFor(game.hero).aura).cls}" style="${auraClass(outfitFor(game.hero).aura).style}" src="${heroPortrait(game.hero, game.relics, game.relicLog, 8, outfitFor(game.hero).look, outfitFor(game.hero).head)}" alt="" width="96" height="96" />
     <h2>You're ready</h2>
     <p class="sub">That's all you need to know. Each floor gets meaner, so build well. Bosses wait on every 5th floor.</p>
     <button class="btn primary" id="go">${label}</button>
@@ -1353,7 +1355,7 @@ function showDeath(r: RunResult, best: boolean) {
   setMusicDepth(0);
   setMusicMood('fallen');
   showOverlay('death', `
-    <img class="hero-portrait" src="${heroPortrait(game.hero, game.relics, game.relicLog, 8, outfitFor(game.hero).look, outfitFor(game.hero).head)}" alt="Your hero's final form" width="96" height="96" />
+    <img class="hero-portrait ${auraClass(outfitFor(game.hero).aura).cls}" style="${auraClass(outfitFor(game.hero).aura).style}" src="${heroPortrait(game.hero, game.relics, game.relicLog, 8, outfitFor(game.hero).look, outfitFor(game.hero).head)}" alt="Your hero's final form" width="96" height="96" />
     <h2 class="dead">You have fallen</h2>
     <p class="sub">${lastLabel} · slain by ${r.killedBy}</p>
     <div class="strip">${descentStrip(r.floor)}</div>
@@ -1817,7 +1819,7 @@ function finishStory(won: boolean) {
     overlayTimer = window.setTimeout(() => {
       setMusicMood('fallen');
       showOverlay('story-fallen', `
-        <img class="hero-portrait" src="${heroPortrait(game.hero, game.relics, game.relicLog, 8, outfitFor(game.hero).look, outfitFor(game.hero).head)}" alt="" width="96" height="96" />
+        <img class="hero-portrait ${auraClass(outfitFor(game.hero).aura).cls}" style="${auraClass(outfitFor(game.hero).aura).style}" src="${heroPortrait(game.hero, game.relics, game.relicLog, 8, outfitFor(game.hero).look, outfitFor(game.hero).head)}" alt="" width="96" height="96" />
         <h2 class="dead">The crypt claims you</h2>
         <p class="sub">${esc(q.dungeon.name)} · floor ${game.floor} · slain by ${esc(game.killedBy)}</p>
         <div class="souls-earned"><b>+${reward.souls} Souls</b><span>💀 ${meta.souls} to spend in the Ossuary</span></div>
