@@ -605,6 +605,14 @@ h2.dead {
   line-height: 1;
 }
 
+.account-chip.kofi-chip {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  color: inherit;
+  font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+}
+
 .account-chip {
   background: var(--panel);
   border: 1px solid var(--line);

@@ -962,7 +962,8 @@ function showInstallHelp(back: () => void) {
 }
 
 function accountChip(): string {
-  const mute = `<button class="account-chip mute-chip" id="title-mute" aria-label="${isMuted() ? 'Sound off. Turn it on' : 'Sound on. Mute'}">${isMuted() ? '🔇' : '🔊'}</button>`;
+  const mute = `<button class="account-chip mute-chip" id="title-mute" aria-label="${isMuted() ? 'Sound off. Turn it on' : 'Sound on. Mute'}">${isMuted() ? '🔇' : '🔊'}</button>`
+    + `<a class="account-chip mute-chip kofi-chip" href="${KOFI_URL}" target="_blank" rel="noopener" aria-label="Support One More Crypt on Ko-fi" title="Tip on Ko-fi">☕️</a>`;
   if (ONLINE && !session.ready) return `<div class="account-row">${mute}</div>`;
   const name = playerName();
   const title = titleName(meta.title);
