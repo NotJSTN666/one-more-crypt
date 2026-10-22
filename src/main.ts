@@ -656,6 +656,22 @@ document.addEventListener('click', (e) => {
   if (!(e.target as HTMLElement).closest?.('#title-mute')) return;
   toggleMute();
 });
+// The title screen's ☕ button: a word about donations, then on to Ko-fi if they like.
+document.addEventListener('click', (e) => {
+  if ((e.target as HTMLElement).closest?.('#title-kofi')) showSupport(showTitle);
+});
+
+function showSupport(back: () => void) {
+  showOverlay('support', `
+    <h2>☕ Keep the crypt open</h2>
+    <p class="sub">One More Crypt is free to play, with no ads.</p>
+    <p class="fine">Donations are welcome and help keep the crypt open: the servers, the leaderboards and a new crypt every day. Supporters get the Patron of the Crypt title and the rainbow Patron's Prism aura as thanks.</p>
+    ${meta.patron ? '<p class="fine">You already support the crypt. Thank you!</p>' : ''}
+    <button class="btn primary" id="kofi-go">☕ Donate on Ko-fi</button>
+    <button class="btn" id="back">Back</button>`);
+  on('#kofi-go', () => window.open(KOFI_URL, '_blank', 'noopener'));
+  on('#back', back);
+}
 $('menu-btn').addEventListener('click', () => showPause());
 
 function updateMuteIcon() {
@@ -963,7 +979,7 @@ function showInstallHelp(back: () => void) {
 
 function accountChip(): string {
   const mute = `<button class="account-chip mute-chip" id="title-mute" aria-label="${isMuted() ? 'Sound off. Turn it on' : 'Sound on. Mute'}">${isMuted() ? '🔇' : '🔊'}</button>`
-    + `<a class="account-chip mute-chip kofi-chip" href="${KOFI_URL}" target="_blank" rel="noopener" aria-label="Support One More Crypt on Ko-fi" title="Tip on Ko-fi">☕️</a>`;
+    + `<button class="account-chip mute-chip kofi-chip" id="title-kofi" aria-label="Support One More Crypt">☕️</button>`;
   if (ONLINE && !session.ready) return `<div class="account-row">${mute}</div>`;
   const name = playerName();
   const title = titleName(meta.title);
