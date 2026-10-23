@@ -8,8 +8,8 @@ import { ISLE_ITEM, LAND, cleanIsle, emptyIsle, fits, homeKey, homeOf, islePerks
 import { centralDate } from './daily';
 import { FUSIONS, RELICS, UNLOCKABLE_RELICS, type FusedId, type RelicId } from './relics';
 import {
-  AURAS, AURA_BY_ID, DUNCE_AT, SHAME, BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, beastPlural, HEADS, HEAD_BY_ID, HERO_CLOAKS, HERO_COSTUMES, LOOKS, LOOK_BY_ID, SEASONS, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_BY_ID, TITLE_TIER,
-  betterRun, bestiaryTiers, rankIndex, seasonOf, seasonOpen, type AuraDef, type BestRuns, type SeasonId, type HeadDef, type LookDef, type Outfit, type RunGoal, type Unlock,
+  AURAS, AURA_BY_ID, DUNCE_AT, SHAME, BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, beastPlural, HEADS, HEAD_BY_ID, HERO_CLOAKS, HERO_COSTUMES, LOOKS, LOOK_BY_ID, SEASONS, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_BY_ID, TITLE_TIER, WELCOME,
+  betterRun, bestiaryTiers, rankIndex, seasonOf, seasonOpen, type AuraDef, type BestRuns, type SeasonId, type HeadDef, type LookDef, type Outfit, type RunGoal, type Unlock, type WelcomeReward,
 } from './progression';
 import type { EnemyKind } from './game';
 
@@ -76,6 +76,8 @@ export interface Meta {
   patron: boolean;
   /** The crypt's keeper: every cosmetic and title, granted by account in social.ts. */
   vault: boolean;
+  /** Seven Nights: gifts claimed so far (0-7) and the daily number of the last claim. */
+  welcome: { claimed: number; last: number };
   /** Your Isle: land cleared and everything built on it. */
   isle: IsleState;
   /** Seasons played in, e.g. 'halloween-2026', for their free pieces. */
@@ -139,8 +141,13 @@ function empty(): Meta {
     podiums: {}, podiumChecked: 0, bought: [], streak: { best: 0, count: 0, last: 0 },
     bounties: { day: 0, ids: [], progress: [], done: [] },
     weekly: {}, weeklyChecked: '',
-    story: emptyStory(), pet: '', summonsSeen: '', patron: false, vault: false, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null,
+    story: emptyStory(), pet: '', summonsSeen: '', patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null,
   };
+}
+
+function cleanWelcome(w: unknown): Meta['welcome'] {
+  const o = w && typeof w === 'object' ? (w as Record<string, unknown>) : {};
+  return { claimed: Math.max(0, Math.min(WELCOME.length, Math.floor(Number(o.claimed) || 0))), last: Math.max(0, Math.floor(Number(o.last) || 0)) };
 }
 
 function load(): Meta {
@@ -150,6 +157,7 @@ function load(): Meta {
     const m: Meta = { ...empty(), ...JSON.parse(raw) };
     // The story moved into the open world: earlier chapter progress starts over (the hound stays).
     m.isle = cleanIsle(m.isle);
+    m.welcome = cleanWelcome(m.welcome);
     m.grave = m.grave ? cleanGraveState(m.grave, Date.now()) : null;
     m.story = m.story?.v === STORY_V ? { ...emptyStory(), ...m.story } : { ...emptyStory(), choices: m.story?.choices ?? {}, bond: m.story?.bond ?? 0 };
     return m;
@@ -202,6 +210,9 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   }
   meta.patron ||= other.patron === true;
   meta.vault ||= other.vault === true;
+  // Seven Nights: the device that got further wins.
+  const ow = cleanWelcome(other.welcome);
+  if (ow.claimed > meta.welcome.claimed || (ow.claimed === meta.welcome.claimed && ow.last > meta.welcome.last)) meta.welcome = ow;
   meta.deepest = Math.max(meta.deepest, Number(other.deepest) || 0);
   meta.shame = { ...(other.shame ?? {}), ...meta.shame };
   // Grave Shift is one plot: whichever device changed it last wins.
@@ -559,6 +570,7 @@ function unlockMet(u: Unlock): boolean {
   if ('cost' in u) return false;
   if ('season' in u) return meta.seasons.some((x) => x.startsWith(`${u.season}-`));
   if ('shame' in u) return Object.keys(meta.shame).length >= u.shame;
+  if ('welcome' in u) return meta.welcome.claimed >= u.welcome;
   return (meta.bestiaryTier[u.beast] ?? 0) > u.tier;
 }
 
@@ -845,6 +857,7 @@ export function titleUnlocked(id: string): boolean {
   const [kind, key] = id.split(':');
   if (kind === 'podium') return podiumCount(Number(key)) > 0;
   if (kind === 'patron') return meta.patron;
+  if (kind === 'welcome') return meta.welcome.claimed >= Number(key);
   if (kind === 'shame') return Boolean(meta.shame[key]);
   if (kind === 'feat') return Boolean(meta.achievements[key]);
   if (kind === 'beast') return (meta.bestiaryTier[key as EnemyKind] ?? 0) > TITLE_TIER;
@@ -903,6 +916,7 @@ export function auraUnlocked(a: AuraDef): boolean {
   if ('streak' in u) return meta.streak.best >= u.streak;
   if ('rank' in u) return rankIndex(meta.earned) >= u.rank;
   if ('patron' in u) return meta.patron;
+  if ('welcome' in u) return meta.welcome.claimed >= u.welcome;
   return meta.bought.includes(a.id);
 }
 
@@ -1069,4 +1083,37 @@ export async function backfillHeroes(runs: PastRun[]): Promise<void> {
   for (const [h, st] of Object.entries(totals)) mergeHeroStats(h as HeroId, st);
   meta.heroBackfill = BACKFILL_VERSION;
   saveMeta();
+}
+
+// ---------- Seven Nights ----------
+
+/** Today's Seven Nights gift, if one is waiting to be claimed (by finishing a run). */
+export function welcomeWaiting(today: number): { day: number; reward: WelcomeReward } | null {
+  const w = meta.welcome;
+  if (w.claimed >= WELCOME.length || w.last === today) return null;
+  return { day: w.claimed + 1, reward: WELCOME[w.claimed] };
+}
+
+/** The next gift after today's, for "come back tomorrow". */
+export function welcomeNext(): { day: number; reward: WelcomeReward } | null {
+  const w = meta.welcome;
+  return w.claimed < WELCOME.length ? { day: w.claimed + 1, reward: WELCOME[w.claimed] } : null;
+}
+
+/** Claim today's gift. Returns what was given, or null if there's nothing today. */
+export function claimWelcome(today: number): { day: number; reward: WelcomeReward } | null {
+  const gift = welcomeWaiting(today);
+  if (!gift) return null;
+  const r = gift.reward;
+  if ('souls' in r) {
+    meta.souls += r.souls;
+    meta.earned += r.souls;
+  }
+  meta.welcome = { claimed: gift.day, last: today };
+  // Announced by Seven Nights itself, not again as a new unlock after the next run.
+  if ('look' in r && !meta.looksSeen.includes(r.look)) meta.looksSeen.push(r.look);
+  if ('aura' in r && !meta.looksSeen.includes(`aura:${r.aura}`)) meta.looksSeen.push(`aura:${r.aura}`);
+  if ('head' in r && !meta.headsSeen.includes(r.head)) meta.headsSeen.push(r.head);
+  saveMeta();
+  return gift;
 }

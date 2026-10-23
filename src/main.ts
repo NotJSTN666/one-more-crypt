@@ -4,15 +4,15 @@ import { dailyNumber, formatCountdown, msUntilNextDaily } from './daily';
 import { ELITES, FEATURES, HERO_BY_ID, dailyHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait } from './hero';
 import { ENEMY_INFO, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode } from './game';
-import { acceptQuest, checkRun, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, type RunReward } from './meta';
+import { acceptQuest, checkRun, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, welcomeNext, welcomeWaiting, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
 import { hallFromLink, onVisitIsle, showHall, showPublicHall, soulRankHtml, titleName } from './hall';
-import { HEAD_BY_ID, LOOK_BY_ID, PODIUM, STREAK_HELMS, WEEKLY, rankFor, titleFxClass } from './progression';
+import { HEAD_BY_ID, LOOK_BY_ID, PODIUM, STREAK_HELMS, WEEKLY, WELCOME, rankFor, titleFxClass, welcomeLabel, type WelcomeReward } from './progression';
 import { Renderer } from './render';
 import { hashSeed } from './rng';
-import { ONLINE, challengeBoard, challengeNews, createChallenge, dailyBoard, endlessBoard, getChallenge, mySummons, noteRun, noteSummon, pingActivity, startActivityPings, submitChallengeRun, type Challenge, type ChallengeRow } from './online';
+import { ONLINE, challengeBoard, emailReminderOff, setEmailReminder, challengeNews, createChallenge, dailyBoard, endlessBoard, getChallenge, mySummons, noteRun, noteSummon, pingActivity, startActivityPings, submitChallengeRun, type Challenge, type ChallengeRow } from './online';
 import {
   ACT_TITLE, LORE, LORE_COUNT, MAIN_QUESTS, QUESTS, QUEST_BY_N, SPEAKERS, conversation, facePortrait, houndStats, npcMarker, npcPresent, petName, questStatus,
   type Line, type NpcId, type Quest, type StoryState,
@@ -29,7 +29,7 @@ import { RELIC_COACH, TUTORIAL } from './tutorial';
 import { DISCORD_URL, KOFI_URL, copyText, descentStrip, discordHtml, followXHtml, kofiHtml, playTime, shareText, siteUrl, xIntentUrl } from './share';
 import { installMode, onInstallChange, promptInstall, setupInstall } from './install';
 import { bountiesHtml, progressBounties } from './bounties';
-import { enableReminders, reminderPrefs, remindersAvailable, remindersNeedInstall } from './push';
+import { enableReminders, loadReminders, reminderPrefs, remindersAvailable, remindersNeedInstall, timeZone } from './push';
 import { claimPodiums, claimWeekly, clearBeat, lastBeat, type PodiumFinish, type WeeklyFinish } from './social';
 import { endlessRecord, initSocial, needsName, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
 import { currentStreak, loadSave, recordDaily, streakStats, writeSave, type RunResult } from './storage';
@@ -51,6 +51,8 @@ setMusicEnabled(!save.musicOff);
 let game: Game;
 let lastResult: RunResult | null = null;
 let lastReward: RunReward | null = null;
+/** The Seven Nights gift claimed by the run that just ended, if any. */
+let lastWelcome: { day: number; reward: WelcomeReward } | null = null;
 let lastLabel = '';
 let overlayTimer = 0;
 /** Combos completed during the current run, for the results screen and share text. */
@@ -196,6 +198,11 @@ function skipTutorial() {
   then();
 }
 $('coach-skip').addEventListener('click', skipTutorial);
+
+/** Never played, never signed in, never seen the crypt: a first visit. */
+function firstVisit(): boolean {
+  return !save.tutorialDone && save.totals.runs === 0 && !save.seenOnlineLogin && !save.seenLogin && !savedRun() && !session.account;
+}
 
 /** First run ever: offer the tutorial before the real thing. */
 function withTutorialOffer(go: () => void, back?: () => void) {
@@ -354,6 +361,18 @@ function finishRun(abandoned = false) {
   lastReward.souls += bounty.souls;
   lastReward.lines.push(...bounty.lines);
   lastReward.unlocks.push(...bounty.notes);
+  // Seven Nights: one gift a day, for finishing any run.
+  lastWelcome = claimWelcome(dailyNumber());
+  if (lastWelcome) {
+    const r = lastWelcome.reward;
+    if ('souls' in r) {
+      lastReward.souls += r.souls;
+      lastReward.lines.push([`Seven Nights, day ${lastWelcome.day}`, r.souls]);
+    } else {
+      const label = welcomeLabel(r);
+      lastReward.unlocks.push({ icon: label.icon, title: `Seven Nights, day ${lastWelcome.day}: ${label.name}`, detail: 'A gift for coming back. Wear it from the Wardrobe' });
+    }
+  }
   // A challenge run: its own board, not the Endless leaderboard or your Endless best.
   const ch = challenge;
   challenge = null;
@@ -840,6 +859,7 @@ function showTitle() {
     ${onlineCountHtml()}
     ${continueBlock}
     ${dailyBlock}
+    ${welcomeTitleHtml()}
     ${endlessNext ? endlessBtn : ''}
     ${bountiesHtml(today)}
     ${storyButtonHtml()}
@@ -1449,13 +1469,14 @@ function showDeath(r: RunResult, best: boolean) {
         ? `<div class="souls-earned"><b>+${lastReward.souls} Souls</b><span>${lastReward.lines.map(([k, v]) => `${esc(k)} +${v}`).join(' · ')}</span><span>💀 ${meta.souls} to spend in the Ossuary</span></div>`
         : ''
     }
+    ${welcomeTrackHtml()}
     ${ch ? challengeResultHtml(r, ch) : ''}
     ${soulRankHtml()}
     ${ONLINE && !ch ? `<p class="rank-line ${daily ? 'daily-rank' : ''}" id="rank">${signedIn() ? 'Carving your name into the crypt…' : daily ? 'Counting the fallen…' : ''}</p>` : ''}
-    ${ONLINE && !signedIn() ? `<button class="btn" id="join">${ch ? 'Claim a name to post to the challenge board' : 'Claim a name for the leaderboard'}</button>` : ''}
+    ${ONLINE && !signedIn() ? `<button class="btn join-cta" id="join">${ch ? '✍️ Claim a name to post to the challenge board' : `✍️ Put your name on ${daily ? "today's" : 'the'} board`}<small>One tap, no email needed. Keeps your streak and Seven Nights gifts safe.</small></button>` : ''}
     ${
       daily
-        ? `${streakTeaseHtml()}${tomorrowHtml()}${reminderPromptHtml()}${ONLINE ? '<p class="podium-tease">🥇 Finish in the top 3 when the day ends to win exclusive headwear and Souls.</p>' : ''}
+        ? `${streakTeaseHtml()}${tomorrowHtml()}${reminderPromptHtml()}${installNudgeHtml()}${ONLINE ? '<p class="podium-tease">🥇 Finish in the top 3 when the day ends to win exclusive headwear and Souls.</p>' : ''}
     <p class="endless-tease">${
             save.bestEndless
               ? `Daily done. Endless is open: beat your best of <b>floor ${save.bestEndless}</b>.`
@@ -1476,7 +1497,7 @@ function showDeath(r: RunResult, best: boolean) {
       <button class="btn" id="copy">Copy result</button>
       <button class="btn" id="again">Endless<small class="keys-hint">Enter or R</small></button>
     </div>`
-          : `<button class="btn x" id="share">Share on 𝕏</button>
+          : `${reminderPromptHtml()}${installNudgeHtml()}<button class="btn x" id="share">Share on 𝕏</button>
     ${ONLINE ? `<button class="btn challenge-btn" id="challenge">⚔️ Challenge a friend<small>Same crypt, same hero. Can they beat floor ${r.floor}?</small></button>` : ''}
     ${discordBtn}
     <div class="row">
@@ -1510,7 +1531,7 @@ function showDeath(r: RunResult, best: boolean) {
           .then(setRank)
           .catch(() => setRank(''));
       }
-    }),
+    }, 'claim'),
   );
   const beat = () => (daily ? lastBeat : null);
   on('#share', () => share(r, lastLabel, beat()));
@@ -1530,15 +1551,51 @@ function showDeath(r: RunResult, best: boolean) {
   on('#remind', async () => {
     const btn = $('#remind') as HTMLButtonElement;
     btn.disabled = true;
+    const on = '<p class="fine reminder-on">🔔 Reminders on: 8 AM when a new crypt opens, 7 PM if you haven\'t played, and when a rival passes you. Change them in your profile.</p>';
     try {
+      if (!signedIn()) {
+        // Ask while we still have the tap, then make the account the reminders belong to.
+        if ((await Notification.requestPermission()) !== 'granted') throw new Error('Notifications are blocked. Allow them for this site in your browser settings.');
+        return showLogin(() => {
+          backHere();
+          if (!signedIn()) return;
+          void syncNow().catch(() => undefined);
+          void enableReminders()
+            .then(() => {
+              const b = document.getElementById('remind');
+              if (b) b.outerHTML = on;
+              toast('🔔 Reminders on');
+            })
+            .catch((e) => toast((e as Error).message));
+        }, 'claim');
+      }
       await enableReminders();
-      btn.outerHTML = '<p class="fine reminder-on">🔔 Reminders on: 8 AM when a new crypt opens, 7 PM if you haven\'t played, and when a rival passes you. Change them in your profile.</p>';
+      btn.outerHTML = on;
     } catch (e) {
       btn.disabled = false;
       toast((e as Error).message);
     }
   });
   on('#remind-install', () => showInstallHelp(backHere));
+  on('#remind-email', async () => {
+    const btn = $('#remind-email') as HTMLButtonElement;
+    btn.disabled = true;
+    try {
+      await setEmailReminder(true, timeZone());
+      noteEmailReminder(true);
+      btn.outerHTML = `<p class="fine reminder-on">📧 We'll email ${esc(session.account?.email ?? 'you')} at 8 AM when a new crypt opens. Turn it off in your profile or from any email.</p>`;
+    } catch (e) {
+      btn.disabled = false;
+      toast((e as Error).message);
+    }
+  });
+  on('#install-nudge', () => {
+    if (installMode() === 'ios') return showInstallHelp(backHere);
+    void promptInstall().then((ok) => {
+      if (ok) toast('Installed! Find One More Crypt on your home screen.');
+      backHere();
+    });
+  });
   tickCountdowns();
 }
 
@@ -1762,6 +1819,35 @@ function tomorrowHtml(): string {
 }
 
 /** After the daily: the streak, and how far off the next streak helm is. */
+/** Seven Nights on the results screen: the seven gifts, today's marked, and what tomorrow brings. */
+function welcomeTrackHtml(): string {
+  const w = meta.welcome;
+  if (!lastWelcome && w.claimed >= WELCOME.length) return '';
+  const slots = WELCOME.map((r, i) => {
+    const day = i + 1;
+    const state = day <= w.claimed ? (lastWelcome?.day === day ? 'today' : 'got') : day === w.claimed + 1 ? 'next' : '';
+    return `<span class="wn-slot ${state}" title="Day ${day}: ${esc(welcomeLabel(r).name)}"><i>${day <= w.claimed ? '✓' : welcomeLabel(r).icon}</i><small>${day}</small></span>`;
+  }).join('');
+  const next = welcomeNext();
+  const waiting = welcomeWaiting(dailyNumber());
+  const line = waiting
+    ? `Finish a run today to claim day ${waiting.day}: <b>${esc(welcomeLabel(waiting.reward).name)}</b>.`
+    : next
+      ? `Come back tomorrow for day ${next.day}: <b>${esc(welcomeLabel(next.reward).name)}</b>.`
+      : 'All seven nights claimed. The crown and title are yours.';
+  const head = lastWelcome ? `🎁 Seven Nights · day ${lastWelcome.day} claimed: ${esc(welcomeLabel(lastWelcome.reward).name)}` : '🎁 Seven Nights';
+  return `<div class="welcome-track"><b>${head}</b><div class="wn-slots">${slots}</div><p>${line}</p></div>`;
+}
+
+/** Seven Nights on the title screen: a gift waiting today, or tomorrow's. */
+function welcomeTitleHtml(): string {
+  const waiting = welcomeWaiting(dailyNumber());
+  if (waiting) return `<div class="welcome-title">🎁 <b>Day ${waiting.day} gift waiting:</b> ${esc(welcomeLabel(waiting.reward).name)}. Finish any run to claim it.</div>`;
+  const next = welcomeNext();
+  if (next && meta.welcome.claimed > 0) return `<div class="welcome-title quiet">🎁 Tomorrow: day ${next.day} of Seven Nights, ${esc(welcomeLabel(next.reward).name)}</div>`;
+  return '';
+}
+
 function streakTeaseHtml(): string {
   const { current } = streakStats(save, dailyNumber());
   const next = STREAK_HELMS.find(([n]) => n > meta.streak.best);
@@ -1772,12 +1858,38 @@ function streakTeaseHtml(): string {
   return `<p class="streak">${days} ${left} more day${left === 1 ? '' : 's'} in a row for the <b>${esc(name)}</b>.</p>`;
 }
 
-/** After the daily: offer a reminder for tomorrow's crypt (signed-in players only). */
+/** After a run: offer a reminder for tomorrow's crypt (anyone; reminders need an account, made on the way). */
 function reminderPromptHtml(): string {
-  if (!signedIn() || reminderPrefs()) return '';
-  if (remindersAvailable()) return '<button class="btn" id="remind">🔔 Remind me when tomorrow\'s crypt opens</button>';
+  if (!ONLINE || reminderPrefs()) return '';
+  if (remindersAvailable()) return '<button class="btn remind-cta" id="remind">🔔 Remind me when tomorrow\'s crypt opens<small>8 AM your time. Skipped on days you\'ve played.</small></button>';
+  // No notifications here (iPhone Safari, in-app browsers): email, for accounts that have one.
+  if (session.account?.email && !emailReminderOn()) return '<button class="btn remind-cta" id="remind-email">📧 Email me when tomorrow\'s crypt opens<small>8 AM your time. Skipped on days you\'ve played.</small></button>';
   if (remindersNeedInstall()) return '<button class="link-btn" id="remind-install">📲 Install the app to get a reminder when the next crypt opens</button>';
   return '';
+}
+
+/** App players come back far more often: after a run, suggest installing it. */
+function installNudgeHtml(): string {
+  const mode = installMode();
+  if (!mode) return '';
+  return '<button class="btn" id="install-nudge">📲 Install One More Crypt<small>Play from your home screen, full screen, one tap a day</small></button>';
+}
+
+const EMAIL_REM_KEY = 'omc:email-reminders';
+function emailReminderOn(): boolean {
+  try {
+    return localStorage.getItem(EMAIL_REM_KEY) === session.account?.id;
+  } catch {
+    return false;
+  }
+}
+function noteEmailReminder(on: boolean) {
+  try {
+    if (on && session.account) localStorage.setItem(EMAIL_REM_KEY, session.account.id);
+    else localStorage.removeItem(EMAIL_REM_KEY);
+  } catch {
+    // Private mode: the button may show again; turning it on twice is harmless.
+  }
 }
 
 /** Fill in the endless record wherever a screen invites the player to try Endless. */
@@ -2247,19 +2359,38 @@ fitBoard();
 newGame('endless');
 // Starts restoring any session in the background; must run before the first screen draws.
 startActivityPings();
+// The notification key, so anyone (account or not) can be offered tomorrow's reminder.
+void loadReminders().catch(() => undefined);
 void initSocial(save, () => {
   if (screen !== 'title') return;
   // First visit, or back from an email link / X sign-in that still needs a name.
   if (needsName()) showLogin(showTitle, 'name');
-  else if (!session.account && !save.seenOnlineLogin) showLogin(showTitle);
   else showTitle();
 });
 showTitle();
-if (!ONLINE && !save.seenLogin) showLogin(showTitle);
 const visiting = hallFromLink();
 if (visiting && ONLINE) showPublicHall(visiting, showTitle);
 const challengeCode = challengeFromLink();
 if (challengeCode && ONLINE) openChallenge(challengeCode, showTitle);
+// The unsubscribe link in a reminder email: ?unsub=<token>.
+const unsub = new URLSearchParams(location.search).get('unsub');
+if (unsub && ONLINE) {
+  const url = new URL(location.href);
+  url.searchParams.delete('unsub');
+  history.replaceState(null, '', url.toString());
+  void emailReminderOff(unsub).then((ok) => {
+    noteEmailReminder(false);
+    toast(ok ? '📧 Email reminders are off. You can turn them back on from your profile.' : '📧 Those email reminders were already off.');
+  });
+}
+// Someone brand new: straight into the crypt (a one-minute tutorial, then today's daily).
+// They're asked for a name after their first run, once they've seen where they'd place.
+if (firstVisit() && !visiting && !challengeCode) {
+  save.seenOnlineLogin = true;
+  save.seenLogin = true;
+  writeSave(save);
+  startTutorial(() => startRun('daily'), "Enter today's crypt");
+}
 startGhosts();
 requestAnimationFrame(loop);
 

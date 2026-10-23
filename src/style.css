@@ -2757,3 +2757,120 @@ body.tutorial #relic-bar {
   padding: 10px 8px;
   font-size: 11px;
 }
+
+/* Seven Nights: a gift for each of a player's first seven days. */
+.welcome-track {
+  margin: 12px 0 6px;
+  padding: 10px 12px;
+  border: 1px solid #2f5a52;
+  background: linear-gradient(180deg, rgba(124, 245, 196, 0.08), transparent), var(--panel);
+  text-align: center;
+}
+
+.welcome-track > b {
+  display: block;
+  font-family: var(--pixel);
+  font-size: 11px;
+  font-weight: normal;
+  letter-spacing: 1px;
+  color: #7cf5c4;
+}
+
+.welcome-track p {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.welcome-track p b {
+  color: var(--text);
+}
+
+.wn-slots {
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.wn-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 36px;
+  padding: 4px 0 2px;
+  border: 1px solid var(--line);
+  background: #0d0814;
+  opacity: 0.55;
+}
+
+.wn-slot i {
+  font-style: normal;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.wn-slot small {
+  font-family: var(--pixel);
+  font-size: 8px;
+  color: var(--muted);
+}
+
+.wn-slot.got {
+  opacity: 0.8;
+  color: #7cf5c4;
+}
+
+.wn-slot.today {
+  opacity: 1;
+  color: #0d0814;
+  background: #7cf5c4;
+  border-color: #7cf5c4;
+  box-shadow: 0 0 12px rgba(124, 245, 196, 0.5);
+}
+
+.wn-slot.today small {
+  color: #0d0814;
+}
+
+.wn-slot.next {
+  opacity: 1;
+  border-color: var(--gold);
+  border-style: dashed;
+}
+
+.welcome-title {
+  margin: 0 auto 10px;
+  max-width: 420px;
+  padding: 8px 12px;
+  border: 1px solid #2f5a52;
+  background: rgba(124, 245, 196, 0.07);
+  font-size: 12px;
+  color: var(--text);
+}
+
+.welcome-title b {
+  color: #7cf5c4;
+  font-weight: normal;
+  font-family: var(--pixel);
+  font-size: 11px;
+}
+
+.welcome-title.quiet {
+  border-color: var(--line);
+  background: none;
+  color: var(--muted);
+}
+
+/* After a first run: the invitation to put a name on the board. */
+.btn.join-cta {
+  border-color: var(--gold);
+  box-shadow: 0 0 14px rgba(242, 193, 78, 0.25);
+  color: var(--gold);
+}
+
+/* After a run: the reminder offer, the strongest reason to come back tomorrow. */
+.btn.remind-cta {
+  border-color: var(--spectral);
+  box-shadow: 0 0 12px rgba(159, 232, 255, 0.2);
+}

@@ -133,6 +133,7 @@ export const TITLES: TitleDef[] = [
   { id: 'podium:1', name: 'Crypt Champion', how: 'Finish 1st in a Daily Descent.' },
   // Deaths of Shame: silly ways to fall, each worn as a title.
   ...SHAME.map((d) => ({ id: `shame:${d.id}`, name: d.title, how: d.how })),
+  { id: 'welcome:7', name: 'Keeper of Seven Nights', how: 'Play on seven different days (Seven Nights).' },
   // Given by hand to supporters (the patrons table), never sold in the game.
   { id: 'patron:1', name: 'Patron of the Crypt', how: 'Helped keep the crypt open. Thank you.', secret: true },
 ];
@@ -189,7 +190,7 @@ export interface LookDef {
   /** Colour of the drifting aura motes, if any. */
   aura: string | null;
   /** What unlocks it: an achievement, a Soul Rank (index) or a Bestiary tier. */
-  unlock: { feat: string } | { rank: number } | { beast: EnemyKind; tier: number } | { costume: string } | { podium: number } | { cost: number; season?: SeasonId } | { streak: number } | { weekly: number } | { story: number } | { season: SeasonId } | { shame: number };
+  unlock: { feat: string } | { rank: number } | { beast: EnemyKind; tier: number } | { costume: string } | { podium: number } | { cost: number; season?: SeasonId } | { streak: number } | { weekly: number } | { story: number } | { season: SeasonId } | { shame: number } | { welcome: number };
   how: string;
 }
 
@@ -206,6 +207,8 @@ export const LOOKS: LookDef[] = [
   { id: 'forgefire', name: 'Forgefire', cloak: { p: '#3b4a6b', P: '#1c2438' }, aura: '#7fb4ff', unlock: { feat: 'forge-all' }, how: 'Discover every fusion at the Soul Forge.' },
   { id: 'godforged', name: 'Godforged', cloak: { p: '#e8dcc4', P: '#a8894a' }, aura: '#fff2c0', unlock: { feat: 'ascend' }, how: 'Forge an ascended relic.' },
   { id: 'soulfire', name: 'Soulfire', cloak: { p: '#1d3b4a', P: '#0e1f28' }, aura: '#5fe3ff', unlock: { rank: 4 }, how: 'Reach the Lich Lord Soul Rank.' },
+  // Seven Nights: a gift for each of a player's first seven days.
+  { id: 'gravewalker', name: 'Gravewalker', cloak: { p: '#3d5a6c', P: '#1d2c36' }, aura: '#9fe8ff', unlock: { welcome: 2 }, how: 'Seven Nights, day 2: come back on a second day.' },
 ];
 
 // Earned in the story.
@@ -448,6 +451,8 @@ export const HEADS: HeadDef[] = [
   hero('horns', 'Demon Horns', 'barbarian', { run: 'lowHpKills', n: 10 }, [[2, 0, RED], [3, 1, '#701826'], [3, 2, '#701826'], [9, 0, RED], [8, 1, '#701826'], [8, 2, '#701826']]),
   hero('bearskull', 'Bear Skull', 'barbarian', { floor: 10 }, [...row(1, 3, 8, BONE), ...row(2, 3, 8, '#c9b99a'), [4, 3, BONE], [7, 3, BONE], [3, 0, '#c9b99a'], [8, 0, '#c9b99a']]),
   hero('warpaint', 'War Paint', 'barbarian', { souls: 1500 }, [[3, 4, RED], [4, 4, RED], [8, 4, RED], [4, 5, RED], [6, 5, RED], [7, 5, RED]]),
+  // Seven Nights: the last day's gift.
+  { id: 'sevennights', name: 'Crown of Seven Nights', unlock: { welcome: 7 }, how: 'Seven Nights, day 7: play on seven different days.', pixels: [...row(2, 3, 8, '#2a3d4a'), [4, 2, '#7cf5c4'], [7, 2, '#7cf5c4'], [3, 1, '#c9d1e0'], [5, 1, '#c9d1e0'], [6, 1, '#c9d1e0'], [8, 1, '#c9d1e0'], [3, 0, '#9fe8ff'], [5, 0, '#7cf5c4'], [6, 0, '#7cf5c4'], [8, 0, '#9fe8ff']] },
 ];
 
 export const HEAD_BY_ID = Object.fromEntries(HEADS.map((h) => [h.id, h])) as Record<string, HeadDef>;
@@ -502,6 +507,7 @@ export type AuraUnlock =
   | { streak: number }
   | { rank: number }
   | { patron: true }
+  | { welcome: number }
   | { cost: number; season?: SeasonId };
 
 export interface AuraDef {
@@ -534,6 +540,7 @@ export const AURAS: AuraDef[] = [
   { id: 'eternity', name: 'Eternity', style: 'eternity', color: '#fff2c0', unlock: { rank: 8 }, how: 'Reach The Eternal Soul Rank (100,000 Souls).' },
   // Supporters on Ko-fi.
   { id: 'patronglow', name: "Patron's Prism", style: 'rainbow', color: '#ff4d5a', unlock: { patron: true }, how: 'Support One More Crypt on Ko-fi. Thank you.' },
+  { id: 'homecoming', name: 'Homecoming', style: 'souls', color: '#7cf5c4', unlock: { welcome: 5 }, how: 'Seven Nights, day 5: come back on a fifth day.' },
   // Sold in the Ossuary.
   { id: 'frostbite', name: 'Frostbite', style: 'snow', color: '#c9f2ff', ...auraSold(2500) },
   { id: 'stormcharged', name: 'Stormcharged', style: 'storm', color: '#9fe8ff', ...auraSold(5000) },
@@ -565,4 +572,27 @@ export function betterRun(a: BestRun | undefined, b: BestRun | undefined): BestR
   if (!a) return b;
   if (!b) return a;
   return b.floor > a.floor || (b.floor === a.floor && b.kills > a.kills) ? b : a;
+}
+
+// ---------- Seven Nights ----------
+// A gift for each of a player's first seven days, claimed by finishing a run, one a day.
+// Missing a day doesn't reset it: the next gift simply waits.
+
+export type WelcomeReward = { souls: number } | { look: string } | { aura: string } | { head: string; title: string };
+
+export const WELCOME: WelcomeReward[] = [
+  { souls: 100 },
+  { look: 'gravewalker' },
+  { souls: 250 },
+  { souls: 300 },
+  { aura: 'homecoming' },
+  { souls: 500 },
+  { head: 'sevennights', title: 'welcome:7' },
+];
+
+export function welcomeLabel(r: WelcomeReward): { icon: string; name: string } {
+  if ('souls' in r) return { icon: '💀', name: `${r.souls} Souls` };
+  if ('look' in r) return { icon: '🧥', name: `${LOOK_BY_ID[r.look]?.name ?? r.look} cloak` };
+  if ('aura' in r) return { icon: '✨', name: `${AURA_BY_ID[r.aura]?.name ?? r.aura} aura` };
+  return { icon: '👑', name: `${HEAD_BY_ID[r.head]?.name ?? r.head} + a title` };
 }

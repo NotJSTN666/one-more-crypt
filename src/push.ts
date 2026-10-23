@@ -63,7 +63,7 @@ function keyBytes(base64url: string): Uint8Array {
   return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 }
 
-function timeZone(): string {
+export function timeZone(): string {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Chicago';
   } catch {

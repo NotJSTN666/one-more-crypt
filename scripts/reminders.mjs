@@ -6,6 +6,8 @@
 // Nobody is reminded about a crypt they've already played, and each reminder goes out at
 // most once per local day (GitHub can run the job late, so each has a few hours' window).
 //
+// Email reminders (8 AM, for accounts that turned them on) go out through Resend when
+// RESEND_API_KEY is set; players who haven't played in 14 days stop getting them.
 // Needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY. The notification keys live in the
 // private push_config table; the first run makes them.
 // TEST_NAME=<player>: send that player a test notification now instead.
@@ -134,6 +136,53 @@ async function send(sub, payload, ttlHours) {
   }
 }
 
+// ---------- email ----------
+
+const RESEND_KEY = (env.RESEND_API_KEY ?? '').trim();
+const escapeHtml = (v) => String(v).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+/** One reminder email through Resend, with an unsubscribe link. */
+async function sendEmail(row, { subject, lead, today, champ }) {
+  if (!RESEND_KEY) {
+    console.log('  email not set up (no RESEND_API_KEY)');
+    return false;
+  }
+  const play = `${SITE}?ref=email`;
+  const unsub = `${SITE}?unsub=${enc(row.token)}`;
+  if (DRY_RUN) {
+    console.log(`  would email ${row.email.replace(/^(.).*@/, '$1…@')}: ${subject}`);
+    return true;
+  }
+  const champLine = champ ? `${escapeHtml(champ.name)} won yesterday on floor ${champ.floor}.` : '';
+  const html = `<!doctype html><html><body style="margin:0;background:#07040b;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#07040b"><tr><td align="center" style="padding:28px 16px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;">
+      <tr><td style="font-family:Georgia,'Times New Roman',serif;font-size:34px;color:#d23a46;">One More Crypt</td></tr>
+      <tr><td style="padding:14px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:20px;color:#f2c14e;">${escapeHtml(lead)}</td></tr>
+      <tr><td style="padding:8px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#e8dcc4;">${champLine} Same crypt for everyone, one try. How deep can you go?</td></tr>
+      <tr><td style="padding:22px 0 0;"><a href="${play}" style="display:inline-block;padding:13px 22px;background:#d23a46;border-radius:4px;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;letter-spacing:1px;color:#ffffff;text-decoration:none;">PLAY DAILY #${today}</a></td></tr>
+      <tr><td style="padding:30px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.5;color:#6f6580;">You asked for a reminder when a new crypt opens. It's skipped on days you've already played. <a href="${unsub}" style="color:#9a8fa8;">Turn off email reminders</a>.</td></tr>
+    </table>
+  </td></tr></table></body></html>`;
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${RESEND_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      from: 'One More Crypt <crypt@onemorecrypt.com>',
+      to: [row.email],
+      subject,
+      html,
+      text: `${lead}\n\n${champLine ? `${champLine} ` : ''}Same crypt for everyone, one try.\n\nPlay: ${play}\n\nTurn off email reminders: ${unsub}`,
+      headers: { 'List-Unsubscribe': `<${unsub}>` },
+    }),
+  });
+  if (!res.ok) {
+    console.log(`  email failed (${res.status})`);
+    return false;
+  }
+  return true;
+}
+
 // ---------- main ----------
 
 const cfg = await vapidKeys();
@@ -147,6 +196,9 @@ if (TEST_NAME) {
   for (const sub of subs) {
     await send(sub, { title: 'One More Crypt 🕯️', body: 'Test reminder: notifications are working.', url: SITE, test: true }, 1);
   }
+  const [mail] = await rest(`email_reminders?user_id=eq.${profile.id}&select=email,token`).catch(() => []);
+  if (mail) await sendEmail(mail, { subject: 'Test reminder from One More Crypt 🕯️', lead: 'Email reminders are working.', today: dailyNumber(Date.now()), champ: null });
+  else console.log(`${TEST_NAME} has no email reminders on.`);
   process.exit(0);
 }
 
@@ -161,10 +213,7 @@ try {
   rivalsReady = false;
   subs = await rest('push_subs?select=endpoint,user_id,p256dh,auth,tz,morning,evening,last_morning,last_evening');
 }
-if (!subs.length) {
-  console.log('Nobody has signed up for reminders yet.');
-  process.exit(0);
-}
+if (!subs.length) console.log('Nobody has signed up for notifications yet.');
 
 const played = new Set((await rest(`runs?mode=eq.daily&daily_no=eq.${today}&select=user_id`)).map((r) => r.user_id));
 const [champ] = await rest(`leaderboard_daily?daily_no=eq.${today - 1}&rank=eq.1&select=name,floor&order=name.asc&limit=1`);
@@ -277,3 +326,27 @@ for (const sub of subs) {
   }
 }
 console.log(`Sent ${sent} reminder(s) and ${rivalsSent} rival alert(s) to ${subs.length} signed-up device(s).`);
+
+// ---------- 8 AM email reminders ----------
+let mails = [];
+try {
+  mails = await rest('email_reminders?select=user_id,email,tz,token,last_sent');
+} catch {
+  console.log('Email reminders are not set up yet (the email_reminders table is missing).');
+}
+let emailed = 0;
+const ACTIVE_DAYS = 14;
+const since = new Date(now - ACTIVE_DAYS * DAY_MS).toISOString();
+for (const row of mails) {
+  const local = localParts(now, validZone(row.tz));
+  if (local.hour < MORNING[0] || local.hour >= MORNING[1] || row.last_sent === local.date || played.has(row.user_id)) continue;
+  // Gone quiet for two weeks: stop, rather than keep writing to someone who left.
+  const [recent] = await rest(`runs?user_id=eq.${row.user_id}&created_at=gte.${enc(since)}&select=id&limit=1`);
+  if (!recent) continue;
+  console.log(`morning email (${row.tz}, ${local.date} ${local.hour}:00)`);
+  if (await sendEmail(row, { subject: `Daily #${today} is open 🕯️`, lead: `Daily #${today} is open.`, today, champ })) {
+    emailed++;
+    if (!DRY_RUN) await rest(`email_reminders?user_id=eq.${row.user_id}`, { method: 'PATCH', body: JSON.stringify({ last_sent: local.date }) });
+  }
+}
+console.log(`Emailed ${emailed} reminder(s) to ${mails.length} signed-up player(s).`);

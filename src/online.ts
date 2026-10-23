@@ -549,6 +549,26 @@ export async function savePush(s: PushSignup): Promise<void> {
   if (error) throw friendly(error, 'Could not turn on reminders.');
 }
 
+/** Email reminders (8 AM when a new crypt opens) for accounts with an email. Null if the server isn't set up. */
+export async function getEmailReminder(): Promise<boolean | null> {
+  const sb = await client();
+  const { data, error } = await sb.rpc('get_email_reminder');
+  return error ? null : Boolean(data);
+}
+
+export async function setEmailReminder(on: boolean, tz: string): Promise<void> {
+  const sb = await client();
+  const { error } = await sb.rpc('set_email_reminder', { p_on: on, p_tz: tz });
+  if (error) throw friendly(error, 'Could not change email reminders.');
+}
+
+/** The unsubscribe link in a reminder email. */
+export async function emailReminderOff(token: string): Promise<boolean> {
+  const sb = await client();
+  const { data, error } = await sb.rpc('email_reminder_off', { p_token: token });
+  return !error && Boolean(data);
+}
+
 export async function dropPush(endpoint: string): Promise<void> {
   const sb = await client();
   await sb.rpc('drop_push', { p_endpoint: endpoint });

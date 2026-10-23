@@ -1,7 +1,7 @@
 // Sign-in, profile and leaderboard screens, plus keeping local progress in sync
 // with the server.
 
-import { disableReminders, enableReminders, reminderPrefs, remindersAvailable, remindersNeedInstall, refreshReminders } from './push';
+import { disableReminders, enableReminders, reminderPrefs, remindersAvailable, remindersNeedInstall, refreshReminders, timeZone } from './push';
 import { playTime } from './share';
 import { dailyNumber, weekStart } from './daily';
 import {
@@ -16,6 +16,8 @@ import {
   endlessBoard,
   type EndlessPeriod,
   linkEmail,
+  getEmailReminder,
+  setEmailReminder,
   myRuns,
   myRunLogs,
   onAuthChange,
@@ -372,7 +374,7 @@ export async function rankLine(mode: 'daily' | 'endless', dailyNo: number, floor
 
 // ---------- sign-in screens ----------
 
-type Step = 'start' | 'email' | 'code' | 'name';
+type Step = 'start' | 'claim' | 'email' | 'code' | 'name';
 
 export function showLogin(back: () => void, step: Step = 'start', email = '') {
   if (ONLINE) save.seenOnlineLogin = true;
@@ -402,16 +404,18 @@ export function showLogin(back: () => void, step: Step = 'start', email = '') {
     return;
   }
 
-  if (step === 'start') {
+  if (step === 'start' || step === 'claim') {
+    // 'claim': asked after a run, when the player has just seen where they'd place.
+    const claim = step === 'claim';
     showOverlay('login', `
-      <h2>Claim your name</h2>
-      <p class="sub">Your name goes on the leaderboards. Progress is saved to your account.</p>
-      ${nameForm(save.name || randomName(), 'Enter the crypt')}
+      <h2>${claim ? 'Put your name on the board' : 'Claim your name'}</h2>
+      <p class="sub">${claim ? "Your run goes up on today's board, and your streak and gifts are kept safe." : 'Your name goes on the leaderboards. Progress is saved to your account.'}</p>
+      ${nameForm(save.name || randomName(), claim ? 'Save my place' : 'Enter the crypt')}
       <p class="fine">Starts a guest account on this device. Add an email later to play on other devices too.</p>
       <div class="divider"><span>or sign in</span></div>
       ${X_LOGIN ? '<button class="btn x" id="x-login">Continue with 𝕏</button>' : ''}
       <button class="btn" id="email-login">Continue with email</button>
-      <button class="link-btn" id="skip">Skip, play without a leaderboard</button>`);
+      <button class="link-btn" id="skip">${claim ? 'Not now' : 'Skip, play without a leaderboard'}</button>`);
     wireDice();
     onSubmit('#name-form', async (form) => {
       formStatus(form, 'Entering…', true);
@@ -566,6 +570,42 @@ function wireReminders() {
   boxes.forEach((b) => b.addEventListener('change', change));
 }
 
+function emailRemindersCard(): string {
+  return `<div class="card">
+      <div>📧 Email reminders</div>
+      <label class="check"><input type="checkbox" id="rem-email" disabled /> 8 AM: email me when a new crypt opens</label>
+      <p class="fine" id="rem-email-status" role="status">Sent to ${esc(session.account?.email ?? '')}. Skipped on days you've played.</p>
+    </div>`;
+}
+
+function wireEmailReminders() {
+  const box = document.querySelector<HTMLInputElement>('#rem-email');
+  const status = document.querySelector<HTMLElement>('#rem-email-status');
+  if (!box || !status) return;
+  void getEmailReminder().then((on) => {
+    if (on === null) return void (box.closest('.card') as HTMLElement | null)?.remove();
+    box.checked = on;
+    box.disabled = false;
+  });
+  box.addEventListener('change', async () => {
+    box.disabled = true;
+    try {
+      await setEmailReminder(box.checked, timeZone());
+      try {
+        if (box.checked && session.account) localStorage.setItem('omc:email-reminders', session.account.id);
+        else localStorage.removeItem('omc:email-reminders');
+      } catch {
+        // Private mode: nothing to remember.
+      }
+      status.textContent = box.checked ? 'Email reminders on. Your local time.' : 'Email reminders off.';
+    } catch (e) {
+      box.checked = !box.checked;
+      status.textContent = (e as Error).message;
+    }
+    box.disabled = false;
+  });
+}
+
 export function showProfile(back: () => void) {
   const acc = session.account;
   if (ONLINE && !acc?.name) return showLogin(back, acc ? 'name' : 'start');
@@ -600,9 +640,11 @@ export function showProfile(back: () => void) {
         : ''
     }
     ${acc ? remindersCard() : ''}
+    ${acc?.email ? emailRemindersCard() : ''}
     <button class="btn primary" id="back">Back</button>
     ${acc ? '<button class="link-btn" id="signout">Sign out</button>' : ''}`);
   wireReminders();
+  wireEmailReminders();
 
   wireDice();
   onSubmit('#name-form', async (form) => {
