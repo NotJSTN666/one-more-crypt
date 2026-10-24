@@ -892,7 +892,7 @@ function showTitle() {
     setHollowSpot('farm', FARM_SPAWN.x, FARM_SPAWN.y + 1);
     enterHollow();
   });
-  on('#story', () => (storyOpen() ? playStory() : toast('🔔 Act I: The Bell Beneath is coming soon.')));
+  on('#story', () => playStory());
   on('#help', () => showHelp(showTitle));
   on('#install', () => {
     if (installMode() === 'ios') return showInstallHelp(showTitle);
@@ -1147,6 +1147,7 @@ function showHelp(back: () => void) {
       <li><b>Spikes</b> hurt anything that steps on them, foes included.</li>
       <li>Every run earns <b>Souls</b>. Spend them in the <b>Ossuary</b> on new heroes, relics and cosmetics.</li>
       <li><b>Enter the Hollow</b> to walk the graveyard: every building is a way in (the daily, Endless, the Ossuary, your Hall, the Wardrobe), and the old graves hold stories.</li>
+      <li><b>Story mode</b>: in Act I, The Bell Beneath, help Mortimer the gravedigger find out who rings the bell beneath the crypt. Start it from the title screen, or knock on his door in the Hollow.</li>
       <li>Take the road west out of the graveyard to <b>your isle</b>. Spend Souls on trees, lights and houses (walk in to furnish them), and on buildings that help in Endless and the story.</li>
       <li>The <b>Daily Descent</b> is the same crypt and hero for everyone, once a day. Share your depth. Finish in the <b>top 3</b> for exclusive headwear and Souls, and keep a <b>streak</b> going for streak helms.</li>
       <li><b>Daily bounties</b> pay Souls for goals in any mode, and the <b>top 3 on each week's Endless board</b> win prizes too.</li>
@@ -1936,19 +1937,62 @@ function storyText(text: string): string {
     .replace(/\*([^*]+)\*/g, '<em>$1</em>');
 }
 
-// Story mode is still being tested: it shows as coming soon to everyone but its tester (JSTN).
-const STORY_TESTERS = ['ad5d6ad6-bd7b-4952-a0cb-9917d15909fd'];
-
+/** Story mode: Act I, The Bell Beneath, open to everyone. */
 function storyOpen(): boolean {
-  // Local development only (never in a real build): a switch for testing the story.
-  if (import.meta.env.DEV && localStorage.getItem('omc:story-test')) return true;
-  return Boolean(session.account && STORY_TESTERS.includes(session.account.id));
+  return true;
 }
 
-/** Grave Shift is open to the same testers as the story, for now. */
+// Grave Shift is still being tested: it shows as coming soon to everyone but its tester (JSTN).
+const GRAVE_TESTERS = ['ad5d6ad6-bd7b-4952-a0cb-9917d15909fd'];
+
 function graveShiftOpen(): boolean {
+  // Local development only (never in a real build): a switch for testing Grave Shift.
   if (import.meta.env.DEV && localStorage.getItem('omc:grave-test')) return true;
-  return storyOpen();
+  return Boolean(session.account && GRAVE_TESTERS.includes(session.account.id));
+}
+
+// ---------- news for returning players ----------
+
+const NEWS_KEY = 'omc:news';
+const NEWS_ID = 'story-act1';
+
+/** Has this player played before (so the news is news), and not yet seen it? */
+function newsWaiting(): boolean {
+  if (save.totals.runs === 0 && !save.tutorialDone) return false;
+  try {
+    return localStorage.getItem(NEWS_KEY) !== NEWS_ID;
+  } catch {
+    return false;
+  }
+}
+
+function markNewsSeen() {
+  try {
+    localStorage.setItem(NEWS_KEY, NEWS_ID);
+  } catch {
+    // Private mode: it may show again next time, which is harmless.
+  }
+}
+
+/** On opening the game: Act I of the story is out. */
+function showStoryNews() {
+  markNewsSeen();
+  showOverlay('news', `
+    <p class="news-tag">✨ New in One More Crypt</p>
+    <h2>📖 Story mode is open</h2>
+    <p class="sub">Act I · The Bell Beneath</p>
+    <img class="hero-portrait" src="${heroPortrait(meta.hero, {}, [], 8, outfitFor(meta.hero).look, outfitFor(meta.hero).head)}" alt="" width="96" height="96" />
+    <p class="fine">Every midnight a bell tolls under the graveyard, and the whole crypt shuffles its furniture. Someone is ringing it. Help Mortimer the gravedigger find out who.</p>
+    <ul class="news-list">
+      <li>🗺️ Walk Gravesend and the Hollow, and meet its people</li>
+      <li>⚔️ Four story quests and three side quests, each with its own crypt and boss</li>
+      <li>🐕 Take in a crypt hound that fights beside you</li>
+      <li>🎁 Story-only rewards: two cloaks, Smith's Goggles and the Warden's Keys</li>
+    </ul>
+    <button class="btn primary story-btn" id="news-play">📖 Begin the story<small>Knock on Mortimer's door</small></button>
+    <button class="btn" id="news-later">Later<small>It's on the title screen whenever you're ready</small></button>`);
+  on('#news-play', () => playStory());
+  on('#news-later', showTitle);
 }
 
 function graveButtonHtml(): string {
@@ -1959,9 +2003,6 @@ function graveButtonHtml(): string {
 }
 
 function storyButtonHtml(): string {
-  if (!storyOpen()) {
-    return `<button class="btn story-btn soon" id="story">📖 Story: The Bell Beneath<small>Coming soon · Who rings the bell beneath the crypt?</small></button>`;
-  }
   const main = MAIN_QUESTS.filter((q) => meta.story.done.includes(q.n)).length;
   const next = MAIN_QUESTS.find((q) => !meta.story.done.includes(q.n));
   return `<button class="btn story-btn" id="story">📖 Story: The Bell Beneath<small>${
@@ -2383,6 +2424,8 @@ if (unsub && ONLINE) {
     toast(ok ? '📧 Email reminders are off. You can turn them back on from your profile.' : '📧 Those email reminders were already off.');
   });
 }
+// Back again: tell them what's new (only on a plain visit, not a shared link).
+if (!visiting && !challengeCode && !unsub && newsWaiting() && !savedRun()) showStoryNews();
 // Someone brand new: straight into the crypt (a one-minute tutorial, then today's daily).
 // They're asked for a name after their first run, once they've seen where they'd place.
 if (firstVisit() && !visiting && !challengeCode) {

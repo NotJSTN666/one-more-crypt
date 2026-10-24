@@ -2874,3 +2874,28 @@ body.tutorial #relic-bar {
   border-color: var(--spectral);
   box-shadow: 0 0 12px rgba(159, 232, 255, 0.2);
 }
+
+/* What's new, shown once to returning players on opening the game. */
+.news-tag {
+  margin: 0 0 6px;
+  font-family: var(--pixel);
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--spectral);
+}
+
+.news-list {
+  margin: 10px auto 14px;
+  padding: 0;
+  max-width: 420px;
+  list-style: none;
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.news-list li {
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--line);
+}
