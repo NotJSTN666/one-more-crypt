@@ -90,7 +90,7 @@ export const QUESTS: Quest[] = [
     giver: 'gravedigger',
     dungeon: { name: 'The Old Crypt Stairs', floors: [1, 6], gifts: 0 },
     souls: 150,
-    reward: '150 Souls',
+    reward: "150 Souls, the Gravedigger's Coat and a title",
     hint: 'Take the Old Crypt Stairs in the graveyard, by Mortimer\'s cottage.',
     barred: "An iron gate, locked tight. Mortimer keeps the key, and Mortimer keeps the kettle on. His cottage is just there.",
     offer: [
@@ -118,7 +118,7 @@ export const QUESTS: Quest[] = [
     needs: 1,
     dungeon: { name: 'The Kennel Cellar', floors: [2, 8], gifts: 1, look: 'kennel' },
     souls: 200,
-    reward: 'A companion',
+    reward: 'A companion, the Houndhide cloak and a title',
     hint: 'The old kennels are north of the village. Go down into the Kennel Cellar.',
     barred: 'The cellar door is chained shut. Something behind it howls. Mortimer will want to hear about this.',
     offer: [
@@ -158,7 +158,7 @@ export const QUESTS: Quest[] = [
     needs: 2,
     dungeon: { name: 'The Flooded Crypt', floors: [3, 9], gifts: 2, look: 'flooded' },
     souls: 250,
-    reward: "Aldric's Mantle, a cloak",
+    reward: "Aldric's Mantle, the Spectral Vigil aura and a title",
     hint: 'Sir Aldric haunts the ruined chapel, east of the village. The Flooded Crypt lies beneath it.',
     barred: 'Black water fills the stairs below the chapel. Something in this room is watching you.',
     offer: [
@@ -200,7 +200,7 @@ export const QUESTS: Quest[] = [
       ],
     },
     souls: 500,
-    reward: "The Warden's Keys and a title",
+    reward: "The Warden's Keys, the Toll of the Bell aura and a title",
     hint: "The Warden's Tower stands in the chapel grounds. His stair goes down from his lodge.",
     barred: 'The tower door is locked. Sir Aldric would know where the key went.',
     offer: [
@@ -228,7 +228,7 @@ export const QUESTS: Quest[] = [
     needs: 1,
     dungeon: { name: 'The Village Well', floors: [1, 4], gifts: 0, look: 'well' },
     souls: 150,
-    reward: "The Widow's Shawl, a cloak",
+    reward: "The Widow's Shawl, the Wishing Well aura and a title",
     hint: 'Climb down the village well and find Agnes\'s ring.',
     barred: "A long way down, and something down there is breathing. Someone in the village might have a reason to go.",
     offer: [
@@ -256,7 +256,7 @@ export const QUESTS: Quest[] = [
     needs: 1,
     dungeon: { name: 'The Old Mine', floors: [3, 7], gifts: 1, look: 'mine' },
     souls: 200,
-    reward: "Smith's Goggles, headwear",
+    reward: "Smith's Goggles and a title",
     hint: 'The Old Mine is in the woods by the kennels. Bring Pip some blue coal.',
     barred: "Boarded up, with a sign: 'NO. (signed, the Mayor)'. Pip at the smithy talks about this place.",
     offer: [
@@ -282,7 +282,7 @@ export const QUESTS: Quest[] = [
     needs: 1,
     dungeon: { name: 'The Tavern Cellar', floors: [2, 6], gifts: 1, look: 'cellar' },
     souls: 150,
-    reward: 'The Tavern Regular title',
+    reward: "Bess's Kerchief and the Tavern Regular title",
     hint: "Go down Bess's cellar stairs, behind the bar of the tavern.",
     barred: "Bess's cellar. You'd need her blessing to go down there. And possibly a mop.",
     offer: [

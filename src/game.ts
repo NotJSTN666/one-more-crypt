@@ -96,6 +96,7 @@ export type GameEvent =
   | { t: 'heal'; amount: number }
   | { t: 'maxhp'; amount: number }
   | { t: 'dodge' }
+  | { t: 'boon'; id: BoonId }
   | { t: 'block' }
   | { t: 'revive' }
   | { t: 'bolt'; from: Pos; to: Pos }
@@ -128,8 +129,38 @@ export type Phase = 'play' | 'choose' | 'event' | 'dead' | 'won';
 
 export interface Offer {
   relics: RelicDef[];
+  /** Abyss boons, after the relics (their choice index follows on from the relics'). */
+  boons: BoonId[];
   restHeal: number;
 }
+
+// ---------- Abyss boons ----------
+// Deep in Endless every relic runs out. From then on the offer fills its empty places
+// with boons: small upgrades that can be taken again and again (some up to a limit).
+
+export type BoonId = 'edge' | 'ward' | 'veil' | 'candle' | 'tithe';
+
+export interface BoonDef {
+  id: BoonId;
+  name: string;
+  emoji: string;
+  /** How many times it can be taken; 0 for no limit. */
+  max: number;
+  desc: string;
+}
+
+export const BOONS: BoonDef[] = [
+  { id: 'edge', name: 'Abyssal Edge', emoji: '⚔️', max: 0, desc: '+1 attack.' },
+  { id: 'ward', name: 'Bone Ward', emoji: '🪞', max: 3, desc: 'Start each floor with one more shield: it blocks a hit.' },
+  { id: 'veil', name: 'Shade Step', emoji: '🌫️', max: 5, desc: '+5% chance to dodge attacks (up to 60% in all).' },
+  { id: 'candle', name: 'Grave Candle', emoji: '🕯️', max: 2, desc: 'Survive one more killing blow this run, at 1 HP.' },
+  { id: 'tithe', name: 'Soul Tithe', emoji: '💀', max: 0, desc: '+25 Souls when this run ends.' },
+];
+
+export const BOON_BY_ID = Object.fromEntries(BOONS.map((b) => [b.id, b])) as Record<BoonId, BoonDef>;
+
+/** Souls a Soul Tithe pays at the end of the run. */
+export const TITHE_SOULS = 25;
 
 export interface Feature extends Pos {
   kind: FeatureKind;
@@ -157,6 +188,8 @@ export interface RunConfig {
   depths?: boolean;
   /** Extra max HP from buildings on the player's isle (Endless and story only; log version 7). */
   vigor?: number;
+  /** Abyss boons once the relics run out (log version 8 and later). */
+  boons?: boolean;
 }
 
 export interface StoryConfig {
@@ -257,6 +290,8 @@ const MERCY_LOG_VERSION = 5;
 const DEPTHS_LOG_VERSION = 6;
 /** Runs with isle perks: the header carries the extra max HP. */
 const ISLE_LOG_VERSION = 7;
+/** Runs with Abyss boons; the header always carries the isle's extra max HP (maybe 0). */
+const BOONS_LOG_VERSION = 8;
 /** One input character per Soul Forge option. */
 const FORGE_KEYS = 'bcdefghijklm';
 const BOW_RANGE = 3;
@@ -290,6 +325,10 @@ export class Game {
   relics: Partial<Record<RelicId, number>> = {};
   /** Relics in the order taken, for the share card. */
   relicLog: RelicId[] = [];
+  /** Abyss boons taken, by kind. */
+  boons: Record<BoonId, number> = { edge: 0, ward: 0, veil: 0, candle: 0, tithe: 0 };
+  /** Grave Candles already burnt. */
+  private candlesUsed = 0;
   phase: Phase = 'play';
   offer: Offer | null = null;
   kills = 0;
@@ -363,7 +402,7 @@ export class Game {
   }
 
   get atk(): number {
-    let atk = 1 + this.r('whetstone') + 2 * this.r('crown') + 4 * this.r('glass') + this.harvestBonus;
+    let atk = 1 + this.r('whetstone') + 2 * this.r('crown') + 4 * this.r('glass') + this.harvestBonus + this.boons.edge;
     const missing = this.player.maxHp - this.player.hp;
     if (this.hero === 'barbarian') atk += Math.floor(missing / 3);
     if (this.hero === 'mage') atk += 2;
@@ -441,6 +480,7 @@ export class Game {
   header(): string {
     const unlocked = UNLOCKABLE_RELICS.filter((id) => this.config.pool.includes(id));
     // Pools without any post-launch relic are logged as version 2 so they replay with the launch set.
+    if (this.config.boons) return `#${BOONS_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.vigor) return `#${ISLE_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor}|`;
     const version = this.config.depths ? DEPTHS_LOG_VERSION : this.config.mercy ? MERCY_LOG_VERSION : this.config.forge ? FORGE_LOG_VERSION : this.config.pool.some((id) => !LEGACY_RELICS.includes(id)) ? LOG_VERSION : 2;
     return `#${version}|${this.config.hero}|${unlocked.join(',')}|`;
@@ -490,7 +530,7 @@ export class Game {
     this.stairsOpen = false;
     this.harvestBonus = 0;
     this.hurtThisFloor = false;
-    this.shieldCharges = this.r('mirror');
+    this.shieldCharges = this.r('mirror') + this.boons.ward;
     this.events.push({ t: 'floor', floor });
     if (floor === 5 && !this.stats.turnsTo5) this.stats.turnsTo5 = this.turns;
 
@@ -1072,7 +1112,13 @@ export class Game {
       picks.push(choice);
       pool.splice(pool.indexOf(choice), 1);
     }
-    return { relics: picks, restHeal: this.r('grail') ? this.player.maxHp : REST_HEAL + 2 * this.r('chalice') };
+    // Out of relics: the empty places go to Abyss boons.
+    const boons: BoonId[] = [];
+    if (this.config.boons && picks.length < 3) {
+      const open = BOONS.filter((b) => !b.max || this.boons[b.id] < b.max).map((b) => b.id);
+      while (picks.length + boons.length < 3 && open.length) boons.push(open.splice(Math.floor(rng() * open.length), 1)[0]);
+    }
+    return { relics: picks, boons, restHeal: this.r('grail') ? this.player.maxHp : REST_HEAL + 2 * this.r('chalice') };
   }
 
   /** Take a relic from the offer (index), or rest when index is -1. */
@@ -1083,13 +1129,20 @@ export class Game {
       this.log += 'r';
     } else {
       const relic = this.offer.relics[index];
-      if (!relic) return;
-      this.addRelic(relic.id);
+      const boon = this.offer.boons[index - this.offer.relics.length];
+      if (relic) this.addRelic(relic.id);
+      else if (boon) this.takeBoon(boon);
+      else return;
       this.log += String(index);
     }
     this.offer = null;
     this.phase = 'play';
     this.enterFloor(this.floor + 1);
+  }
+
+  private takeBoon(id: BoonId) {
+    this.boons[id]++;
+    this.events.push({ t: 'boon', id });
   }
 
   /** Whether the current floor event's offer can be taken. */
@@ -1131,7 +1184,7 @@ export class Game {
       this.heal(this.player.maxHp);
     }
     // Mirror charges for this floor follow the new count.
-    this.shieldCharges = Math.max(this.shieldCharges, this.r('mirror'));
+    this.shieldCharges = Math.max(this.shieldCharges, this.r('mirror') + this.boons.ward);
     this.stats.fusions++;
     this.events.push({ t: 'fuse', id: f.id, from: f.from });
     this.log += FORGE_KEYS[index];
@@ -1308,7 +1361,8 @@ export class Game {
 
   private hurtPlayer(amount: number, src: Enemy | null, cause = 'the dark') {
     if (this.phase === 'dead') return;
-    const dodge = Math.min(0.5, this.r('dust') * 0.2 + (this.hero === 'rogue' ? 0.15 : 0));
+    const veil = this.boons.veil * 0.05;
+    const dodge = Math.min(veil ? 0.6 : 0.5, this.r('dust') * 0.2 + (this.hero === 'rogue' ? 0.15 : 0) + veil);
     if (dodge && this.combat() < dodge) {
       this.events.push({ t: 'dodge' });
       this.stats.dodges++;
@@ -1332,6 +1386,14 @@ export class Game {
         this.stats.revived = true;
         this.revivedOn = this.floor;
         this.player.hp = this.r('vheart') ? this.player.maxHp : 1;
+        this.events.push({ t: 'revive' });
+        return;
+      }
+      if (this.candlesUsed < this.boons.candle) {
+        this.candlesUsed++;
+        this.stats.revived = true;
+        this.revivedOn = this.floor;
+        this.player.hp = 1;
         this.events.push({ t: 'revive' });
         return;
       }
@@ -1785,12 +1847,13 @@ export class Game {
     const forge = Number(m[1]) >= FORGE_LOG_VERSION;
     const mercy = Number(m[1]) >= MERCY_LOG_VERSION;
     const depths = Number(m[1]) >= DEPTHS_LOG_VERSION;
-    const config: RunConfig = { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy, ...(depths ? { depths } : {}) };
+    const boons = Number(m[1]) >= BOONS_LOG_VERSION;
+    const config: RunConfig = { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy, ...(depths ? { depths } : {}), ...(boons ? { boons } : {}) };
     let rest = full.slice(m[0].length);
     // Version 7 adds one field: the isle's extra max HP.
     const isle = Number(m[1]) >= ISLE_LOG_VERSION ? /^(\d+)\|/.exec(rest) : null;
     if (isle) {
-      config.vigor = Number(isle[1]);
+      if (Number(isle[1]) || !boons) config.vigor = Number(isle[1]);
       rest = rest.slice(isle[0].length);
     }
     return { config, inputs: rest };

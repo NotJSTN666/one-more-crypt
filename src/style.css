@@ -2899,3 +2899,7 @@ body.tutorial #relic-bar {
   padding: 6px 0;
   border-bottom: 1px dashed var(--line);
 }
+
+/* Abyss boons: what the offer fills with once the relics run out. */
+.offer .boon { border-left-color: #b07cff; background: linear-gradient(90deg, rgba(123, 92, 255, 0.12), transparent 70%), var(--panel); }
+.offer .boon .tag { color: #b07cff; }

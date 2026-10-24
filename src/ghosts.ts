@@ -68,7 +68,10 @@ function step(ghost: Ghost) {
     if (++ghost.deadTicks > 6) reset(ghost);
     return;
   }
-  if (g.phase === 'choose') g.choose(g.offer?.relics.length ? Math.floor(Math.random() * g.offer.relics.length) : -1);
+  if (g.phase === 'choose') {
+    const n = (g.offer?.relics.length ?? 0) + (g.offer?.boons.length ?? 0);
+    g.choose(n ? Math.floor(Math.random() * n) : -1);
+  }
   else if (g.phase === 'event') g.resolveEvent(Math.random() < 0.6);
   else move(g);
   ghost.renderer.consume(g.events.splice(0));

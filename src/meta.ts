@@ -2,13 +2,14 @@
 // and discovered combos. Saved locally and, when signed in, to the player's account.
 
 import { ACHIEVEMENT_BY_ID, COMBOS, HEROES, HERO_BY_ID, dailyHero, type AchievementDef, type ComboDef, type HeroId } from './content';
-import { Game, UNDEAD, basePool, fullPool, type Mode, type RunConfig } from './game';
+import { Game, TITHE_SOULS, UNDEAD, basePool, fullPool, type Mode, type RunConfig } from './game';
 import { cleanGraveState, newGraveState, type GraveState } from './graveshift';
 import { ISLE_ITEM, LAND, cleanIsle, emptyIsle, fits, homeKey, homeOf, islePerks, itemAt, layout, owned, type IsleState } from './isle';
 import { centralDate } from './daily';
+import { QUESTS } from './story';
 import { FUSIONS, RELICS, UNLOCKABLE_RELICS, type FusedId, type RelicId } from './relics';
 import {
-  AURAS, AURA_BY_ID, DUNCE_AT, SHAME, BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, beastPlural, HEADS, HEAD_BY_ID, HERO_CLOAKS, HERO_COSTUMES, LOOKS, LOOK_BY_ID, SEASONS, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_BY_ID, TITLE_TIER, WELCOME,
+  AURAS, AURA_BY_ID, DUNCE_AT, SHAME, BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, beastPlural, HEADS, HEAD_BY_ID, HERO_CLOAKS, HERO_COSTUMES, LOOKS, LOOK_BY_ID, SEASONS, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_BY_ID, TITLE_TIER, WELCOME, STORY_ALL,
   betterRun, bestiaryTiers, rankIndex, seasonOf, seasonOpen, type AuraDef, type BestRuns, type SeasonId, type HeadDef, type LookDef, type Outfit, type RunGoal, type Unlock, type WelcomeReward,
 } from './progression';
 import type { EnemyKind } from './game';
@@ -319,6 +320,8 @@ export const FORGE_DAILY = 2;
 export const MERCY_DAILY = 4;
 /** Depth zones and secret vaults reach the daily crypt with Daily #6. */
 export const DEPTHS_DAILY = 6;
+/** Abyss boons join the daily from this crypt on, so everyone in a daily plays the same rules. */
+export const BOONS_DAILY = 12;
 
 /** The daily crypt is identical for everyone; Endless uses your hero and unlocks. */
 export function runConfig(mode: Mode, dailyNo: number): RunConfig {
@@ -327,10 +330,11 @@ export function runConfig(mode: Mode, dailyNo: number): RunConfig {
   if (mode === 'daily') {
     const config: RunConfig = { hero: dailyHero(dailyNo), pool: fullPool(dailyNo <= 1), forge: dailyNo >= FORGE_DAILY, mercy: dailyNo >= MERCY_DAILY };
     if (dailyNo >= DEPTHS_DAILY) config.depths = true;
+    if (dailyNo >= BOONS_DAILY) config.boons = true;
     return config;
   }
   const hero = heroUnlocked(meta.hero) ? meta.hero : 'knight';
-  const config: RunConfig = { hero, pool: basePool(meta.relics.filter((id) => UNLOCKABLE_RELICS.includes(id))), forge: true, mercy: true, depths: true };
+  const config: RunConfig = { hero, pool: basePool(meta.relics.filter((id) => UNLOCKABLE_RELICS.includes(id))), forge: true, mercy: true, depths: true, boons: true };
   // The isle's buildings help in Endless (never the Daily).
   const { vigor } = islePerks(meta.isle);
   if (vigor) config.vigor = vigor;
@@ -493,8 +497,11 @@ export function noteStreak(s: { best: number; count: number; last: number }): bo
 /** Pay out Souls at the end of a run. */
 export function finishRunMeta(game: Game, streak: number): RunReward {
   const lines = runSouls(game);
+  // Soul Tithe (an Abyss boon): paid on top, outside the Soul Well's share.
+  const tithe = game.boons.tithe * TITHE_SOULS;
   const bonus = game.mode === 'daily' ? 0 : islePerks(meta.isle).souls;
   if (bonus) lines.push(['Soul Well', Math.round(lines.reduce((sum, [, n]) => sum + n, 0) * bonus)]);
+  if (tithe) lines.push([`Soul Tithe ×${game.boons.tithe}`, tithe]);
   const souls = lines.reduce((sum, [, n]) => sum + n, 0);
   const st = meta.heroStats[game.hero] ?? { floor: 0, souls: 0, runs: 0 };
   meta.heroStats[game.hero] = { floor: Math.max(st.floor, game.floor), souls: st.souls + souls, runs: st.runs + 1 };
@@ -566,7 +573,7 @@ function unlockMet(u: Unlock): boolean {
   if ('podium' in u) return podiumCount(u.podium) > 0;
   if ('streak' in u) return meta.streak.best >= u.streak;
   if ('weekly' in u) return Object.values(meta.weekly).includes(u.weekly);
-  if ('story' in u) return meta.story.done.includes(u.story);
+  if ('story' in u) return storyDone(u.story);
   if ('cost' in u) return false;
   if ('season' in u) return meta.seasons.some((x) => x.startsWith(`${u.season}-`));
   if ('shame' in u) return Object.keys(meta.shame).length >= u.shame;
@@ -858,6 +865,7 @@ export function titleUnlocked(id: string): boolean {
   if (kind === 'podium') return podiumCount(Number(key)) > 0;
   if (kind === 'patron') return meta.patron;
   if (kind === 'welcome') return meta.welcome.claimed >= Number(key);
+  if (kind === 'story') return storyDone(key === 'all' ? STORY_ALL : Number(key));
   if (kind === 'shame') return Boolean(meta.shame[key]);
   if (kind === 'feat') return Boolean(meta.achievements[key]);
   if (kind === 'beast') return (meta.bestiaryTier[key as EnemyKind] ?? 0) > TITLE_TIER;
@@ -917,6 +925,7 @@ export function auraUnlocked(a: AuraDef): boolean {
   if ('rank' in u) return rankIndex(meta.earned) >= u.rank;
   if ('patron' in u) return meta.patron;
   if ('welcome' in u) return meta.welcome.claimed >= u.welcome;
+  if ('story' in u) return storyDone(u.story);
   return meta.bought.includes(a.id);
 }
 
@@ -1083,6 +1092,14 @@ export async function backfillHeroes(runs: PastRun[]): Promise<void> {
   for (const [h, st] of Object.entries(totals)) mergeHeroStats(h as HeroId, st);
   meta.heroBackfill = BACKFILL_VERSION;
   saveMeta();
+}
+
+// ---------- story rewards ----------
+
+/** A quest of the story finished (or, for STORY_ALL, every one of them). */
+export function storyDone(n: number): boolean {
+  if (n === STORY_ALL) return QUESTS.every((q) => meta.story.done.includes(q.n));
+  return meta.story.done.includes(n);
 }
 
 // ---------- Seven Nights ----------

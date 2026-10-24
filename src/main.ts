@@ -3,7 +3,7 @@ import { audioRunning, fusionSound, isMusicEnabled, isMuted, onAudioState, setMu
 import { dailyNumber, formatCountdown, msUntilNextDaily } from './daily';
 import { ELITES, FEATURES, HERO_BY_ID, dailyHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait } from './hero';
-import { ENEMY_INFO, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode } from './game';
+import { BOON_BY_ID, ENEMY_INFO, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode } from './game';
 import { acceptQuest, checkRun, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, welcomeNext, welcomeWaiting, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
@@ -479,6 +479,7 @@ function processEvents() {
   }
   // Progress: codex entries, combos, fusions and achievements.
   for (const ev of events) {
+    if (ev.t === 'boon') renderer.banner(`${BOON_BY_ID[ev.id].name.toUpperCase()}`, '#b07cff');
     if (ev.t === 'fuse') {
       const def = RELIC_BY_ID[ev.id];
       renderer.banner(`${def.name.toUpperCase()}!`, def.rarity === 'ascended' ? '#fff2c0' : '#7fb4ff');
@@ -1202,6 +1203,16 @@ function showChoice() {
         <span class="desc">${r.desc(have + 1)}</span></span>
       </button>`;
     })
+    .join('') + offer.boons
+    .map((id, k) => {
+      const b = BOON_BY_ID[id];
+      const have = game.boons[id];
+      return `<button class="boon" data-i="${offer.relics.length + k}">
+        <span class="emoji">${b.emoji}</span>
+        <span><span class="name">${b.name}</span><span class="tag">ABYSS BOON${have ? ` · TAKEN ×${have}` : ''}${b.max ? ` · MAX ${b.max}` : ''}</span>
+        <span class="desc">${b.desc}</span></span>
+      </button>`;
+    })
     .join('');
   showOverlay('choose', `
     <h2>Floor ${game.floor} cleared</h2>
@@ -1256,7 +1267,7 @@ function choiceKey(e: KeyboardEvent) {
   } else {
     if (!game.offer) return;
     const n = Number(e.key);
-    if (n >= 1 && n <= game.offer.relics.length) pickRelic(n - 1);
+    if (n >= 1 && n <= game.offer.relics.length + game.offer.boons.length) pickRelic(n - 1);
     else if (e.key === 'r' || e.key === 'R') pickRelic(-1);
   }
 }
@@ -1464,6 +1475,7 @@ function showDeath(r: RunResult, best: boolean) {
     </div>
     ${r.relics ? `<div class="strip" style="font-size:18px">${r.relics}</div>` : ''}
     ${r.combos ? `<p class="combo-line">${esc(r.combos)}</p>` : ''}
+    ${boonLine()}
     ${best ? '<p class="streak">New deepest descent!</p>' : ''}
     ${
       lastReward
@@ -1820,6 +1832,12 @@ function tomorrowHtml(): string {
 }
 
 /** After the daily: the streak, and how far off the next streak helm is. */
+/** The Abyss boons a deep run gathered, if any. */
+function boonLine(): string {
+  const taken = (Object.entries(game.boons) as [keyof typeof game.boons, number][]).filter(([, n]) => n > 0);
+  return taken.length ? `<p class="combo-line">Abyss boons: ${taken.map(([id, n]) => `${BOON_BY_ID[id].emoji}×${n}`).join(' ')}</p>` : '';
+}
+
 /** Seven Nights on the results screen: the seven gifts, today's marked, and what tomorrow brings. */
 function welcomeTrackHtml(): string {
   const w = meta.welcome;
@@ -1987,7 +2005,7 @@ function showStoryNews() {
       <li>🗺️ Walk Gravesend and the Hollow, and meet its people</li>
       <li>⚔️ Four story quests and three side quests, each with its own crypt and boss</li>
       <li>🐕 Take in a crypt hound that fights beside you</li>
-      <li>🎁 Story-only rewards: two cloaks, Smith's Goggles and the Warden's Keys</li>
+      <li>🎁 Story-only rewards: 4 cloaks, 3 headpieces, 4 auras and 8 titles, never sold</li>
     </ul>
     <button class="btn primary story-btn" id="news-play">📖 Begin the story<small>Knock on Mortimer's door</small></button>
     <button class="btn" id="news-later">Later<small>It's on the title screen whenever you're ready</small></button>`);
