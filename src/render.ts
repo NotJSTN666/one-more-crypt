@@ -9,7 +9,7 @@ import { heroSprite, relicColor } from './hero';
 import { LOOK_BY_ID, type Outfit } from './progression';
 import { RELIC_BY_ID, type RelicId } from './relics';
 import { SPRITE_SIZE, enemyFrames, sprites } from './sprites';
-import { zoneAt } from './zones';
+import { deepLook, zoneAt, zoneLook, zoneTitle, type Weather } from './zones';
 
 export const TILE = 16;
 const BOARD_W = W * TILE;
@@ -147,7 +147,7 @@ export class Renderer {
             // Crossing into a new depth zone gets its name across the board.
             const zone = zoneAt(ev.floor);
             if (zone.start === ev.floor && ev.floor > 1) {
-              this.bannerText = { text: zone.title.toUpperCase(), color: zone.def.color, t: -0.35 };
+              this.bannerText = { text: zoneTitle(zone).toUpperCase(), color: zoneLook(zone).color, t: -0.35 };
             }
           }
           break;
@@ -506,6 +506,7 @@ export class Renderer {
     this.drawParticles(dt);
     this.drawMotes(dt);
     this.drawLighting(g);
+    this.drawWeather(g, dt);
     this.drawFloaters(dt);
     this.drawBanner(dt);
     this.drawEnter(g, realDt);
@@ -949,7 +950,7 @@ export class Renderer {
       this.motes.push({ x: Math.random() * BOARD_W, y: Math.random() * BOARD_H, vx: (Math.random() - 0.5) * 3, vy: -1 - Math.random() * 2, t: 0, life: 4 + Math.random() * 4 });
     }
     this.motes = this.motes.filter((m) => (m.t += dt) < m.life);
-    ctx.fillStyle = this.game ? this.game.zone.def.mote : '#e8dcc4';
+    ctx.fillStyle = this.game ? zoneLook(this.game.zone).mote : '#e8dcc4';
     for (const m of this.motes) {
       m.x += (m.vx + Math.sin(this.time + m.life) * 1.5) * dt;
       m.y += m.vy * dt;
@@ -990,7 +991,7 @@ export class Renderer {
     const flicker = Math.sin(this.time * 9) * 1.5 + Math.sin(this.time * 23) * 0.8;
     // Candles and lanterns push the darkness back.
     const light = Math.min(5, g.r('candle') + g.r('lantern'));
-    const zone = g.zone.def;
+    const zone = zoneLook(g.zone);
     // In the Abyss the dark closes right in; candles and lanterns push it back.
     const dark = zone.id === 'abyss';
     const inner = dark ? 8 + light * 6 + flicker : 18 + light * 4 + flicker;
@@ -1017,7 +1018,7 @@ export class Renderer {
     const rng = mulberry32(hashSeed(g.seed, 'decor', g.floor));
     this.candles = [];
     const boss = g.isBossFloor();
-    const zone = g.zone.def;
+    const zone = zoneLook(g.zone);
     const floorTones = boss ? zone.bossFloor : zone.floor;
     const wall = zone.wall;
     // Real walls only: bone piles block like walls but are drawn as heaps.
@@ -1145,7 +1146,179 @@ export class Renderer {
       }
     }
     this.drawStaticGround(ctx, g);
+    this.deepDetail(ctx, g, wallAt);
     return c;
+  }
+
+  /** The deeper passes' own floor detail: roots, frost, blood, stars or gold. */
+  private deepDetail(ctx: CanvasRenderingContext2D, g: Game, wallAt: (x: number, y: number) => boolean) {
+    const look = deepLook(g.zone);
+    if (!look) return;
+    // Its own random stream, so the first pass's decoration stays exactly as it was.
+    const rng = mulberry32(hashSeed(g.seed, 'deeplook', g.floor));
+    const px1 = (x: number, y: number, c: string, a = 1) => {
+      ctx.globalAlpha = a;
+      ctx.fillStyle = c;
+      ctx.fillRect(x, y, 1, 1);
+    };
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const px = x * TILE;
+        const py = y * TILE;
+        const wall = wallAt(x, y);
+        const under = wall && y + 1 < H && !wallAt(x, y + 1);
+        switch (look.weather) {
+          case 'spores':
+            if (!wall && rng() < 0.35) {
+              // a root wandering across the stone, and now and then a pale mushroom
+              let rx = px + Math.floor(rng() * TILE);
+              let ry = py + Math.floor(rng() * 4);
+              for (let i = 0; i < 9; i++) {
+                px1(rx, ry, '#2f4a1c', 0.9);
+                rx += rng() < 0.5 ? 1 : -1;
+                ry += 1;
+              }
+            }
+            if (!wall && rng() < 0.18) {
+              const mx = px + 3 + Math.floor(rng() * 9);
+              const my = py + 5 + Math.floor(rng() * 8);
+              px1(mx, my + 1, '#c9c3b2');
+              px1(mx - 1, my, '#b5e07a');
+              px1(mx, my, '#d8f5a0');
+              px1(mx + 1, my, '#b5e07a');
+            }
+            if (under) for (let i = 0; i < 3; i++) px1(px + 2 + Math.floor(rng() * 12), py + TILE - 1 + Math.floor(rng() * 3), '#4f7a2a', 0.8);
+            break;
+          case 'snow':
+            if (!wall) {
+              for (let i = 0; i < 4; i++) px1(px + Math.floor(rng() * TILE), py + Math.floor(rng() * TILE), '#e8f6ff', 0.25 + rng() * 0.3);
+              if (rng() < 0.2) {
+                // a frosted crack
+                let fx = px + 3 + Math.floor(rng() * 8);
+                let fy = py + 3 + Math.floor(rng() * 6);
+                for (let i = 0; i < 5; i++) {
+                  px1(fx, fy, '#c9f2ff', 0.7);
+                  fx += rng() < 0.5 ? 1 : 0;
+                  fy += rng() < 0.5 ? 1 : 0;
+                }
+              }
+            }
+            if (under) {
+              // icicles hanging from the wall's front
+              for (let ix = px + 1; ix < px + TILE; ix += 3) {
+                const len = 1 + Math.floor(rng() * 3);
+                for (let k = 0; k < len; k++) px1(ix, py + TILE + k, '#dff4ff', 0.85 - k * 0.2);
+              }
+            }
+            if (wall) px1(px + Math.floor(rng() * TILE), py, '#ffffff', 0.9);
+            break;
+          case 'rain':
+            if (!wall && rng() < 0.16) {
+              // a dark pool with a bright rim
+              const bx = px + 3 + Math.floor(rng() * 6);
+              const by = py + 5 + Math.floor(rng() * 6);
+              ctx.globalAlpha = 0.75;
+              ctx.fillStyle = '#4a0d16';
+              ctx.fillRect(bx, by, 5, 2);
+              ctx.fillRect(bx + 1, by - 1, 3, 4);
+              px1(bx + 1, by - 1, '#ff4d5a', 0.6);
+            }
+            if (under) for (let i = 0; i < 2; i++) {
+              const dx = px + 2 + Math.floor(rng() * 12);
+              const len = 1 + Math.floor(rng() * 3);
+              for (let k = 0; k < len; k++) px1(dx, py + TILE - 2 + k, '#8a1f2c', 0.9);
+            }
+            break;
+          case 'stars':
+            if (!wall) {
+              const n = 1 + Math.floor(rng() * 4);
+              for (let i = 0; i < n; i++) px1(px + Math.floor(rng() * TILE), py + Math.floor(rng() * TILE), rng() < 0.3 ? '#b07cff' : '#ffffff', 0.35 + rng() * 0.5);
+            }
+            break;
+          case 'sparks':
+            if (!wall && rng() < 0.14) {
+              // a little cluster of gold crystal
+              const cx = px + 3 + Math.floor(rng() * 9);
+              const cy = py + 6 + Math.floor(rng() * 7);
+              px1(cx, cy - 2, '#fff2c0');
+              px1(cx, cy - 1, '#ffd76a');
+              px1(cx - 1, cy, '#b8860b');
+              px1(cx, cy, '#ffd76a');
+              px1(cx + 1, cy, '#b8860b');
+              px1(cx + 2, cy - 1, '#ffd76a');
+            }
+            if (!wall && rng() < 0.2) px1(px + Math.floor(rng() * TILE), py + Math.floor(rng() * TILE), '#ffe9a8', 0.8);
+            if (wall && rng() < 0.3) px1(px + 2 + Math.floor(rng() * 12), py + 4 + Math.floor(rng() * 8), '#ffd76a', 0.9);
+            break;
+        }
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ---------- the deeper passes' weather ----------
+
+  private weather: { x: number; y: number; vx: number; vy: number; t: number; life: number; size: number }[] = [];
+  private weatherKind: Weather | null = null;
+
+  /** Spores, snow, red rain, twinkling stars or rising gold, over everything. */
+  private drawWeather(g: Game, dt: number) {
+    if (this.quiet) return;
+    const look = deepLook(g.zone);
+    if (!look) {
+      this.weather = [];
+      this.weatherKind = null;
+      return;
+    }
+    if (this.weatherKind !== look.weather) {
+      this.weather = [];
+      this.weatherKind = look.weather;
+    }
+    const ctx = this.ctx;
+    const kind = look.weather;
+    const cap = { spores: 18, snow: 34, rain: 26, stars: 22, sparks: 16 }[kind];
+    const rate = { spores: 4, snow: 12, rain: 30, stars: 6, sparks: 5 }[kind];
+    if (this.weather.length < cap && Math.random() < dt * rate) {
+      const r = Math.random;
+      const p =
+        kind === 'snow'
+          ? { x: r() * (BOARD_W + 20) - 10, y: -2, vx: -2 + r() * 4, vy: 6 + r() * 6, life: 30, size: r() < 0.25 ? 2 : 1 }
+          : kind === 'rain'
+            ? { x: r() * (BOARD_W + 30), y: -4, vx: -8, vy: 70 + r() * 30, life: 3, size: 3 }
+            : kind === 'stars'
+              ? { x: r() * BOARD_W, y: r() * BOARD_H, vx: 0, vy: 0, life: 1.5 + r() * 2.5, size: r() < 0.2 ? 2 : 1 }
+              : { x: r() * BOARD_W, y: BOARD_H * (0.4 + r() * 0.6), vx: (r() - 0.5) * 3, vy: -(3 + r() * 4), life: 4 + r() * 3, size: 1 };
+      this.weather.push({ ...p, t: 0 });
+    }
+    this.weather = this.weather.filter((p) => (p.t += dt) < p.life && p.y < BOARD_H + 6);
+    for (const p of this.weather) {
+      p.x += (p.vx + (kind === 'snow' || kind === 'spores' ? Math.sin(this.time * 1.3 + p.life * 7) * 2 : 0)) * dt;
+      p.y += p.vy * dt;
+      const fade = Math.sin(Math.min(1, p.t / p.life) * Math.PI);
+      if (kind === 'rain') {
+        ctx.globalAlpha = 0.45;
+        ctx.fillStyle = '#ff4d5a';
+        ctx.fillRect(Math.round(p.x), Math.round(p.y), 1, p.size);
+      } else if (kind === 'stars') {
+        ctx.globalAlpha = fade * 0.9;
+        ctx.fillStyle = p.life > 3 ? '#d0b8ff' : '#ffffff';
+        ctx.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size);
+      } else {
+        ctx.globalAlpha = (kind === 'snow' ? 0.8 : fade * 0.7);
+        ctx.fillStyle = kind === 'spores' ? (p.life > 5.5 ? '#d8f5a0' : '#8fc95a') : kind === 'sparks' ? (Math.sin(this.time * 12 + p.life) > 0 ? '#fff2c0' : '#ffd76a') : '#ffffff';
+        ctx.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size);
+      }
+    }
+    // The Starless dark flickers violet now and then.
+    if (kind === 'stars') {
+      const f = Math.max(0, Math.sin(this.time * 0.9) * Math.sin(this.time * 2.3) - 0.85) * 4;
+      if (f > 0) {
+        ctx.globalAlpha = f * 0.12;
+        ctx.fillStyle = '#7b5cff';
+        ctx.fillRect(-10, -10, BOARD_W + 20, BOARD_H + 20);
+      }
+    }
+    ctx.globalAlpha = 1;
   }
 
   /** A little zone flavour on the odd floor tile. */

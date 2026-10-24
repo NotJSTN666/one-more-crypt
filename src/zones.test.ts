@@ -131,3 +131,21 @@ describe('depth zones', () => {
     expect(story().zone.def.id).toBe('crypt');
   });
 });
+
+describe('deeper looks', () => {
+  it('give each pass after the first its own look, leaving the rules alone', async () => {
+    const { deepLook, zoneLook, zoneTitle } = await import('./zones');
+    expect(deepLook(zoneAt(50))).toBeNull();
+    expect(zoneTitle(zoneAt(101))).toBe('The Flooded Catacombs · Blighted');
+    expect(zoneTitle(zoneAt(181))).toBe('The Flooded Catacombs · Frozen');
+    expect(zoneTitle(zoneAt(261))).toBe('The Flooded Catacombs · Bloodmoon');
+    expect(zoneTitle(zoneAt(341))).toBe('The Flooded Catacombs · Starless');
+    expect(zoneTitle(zoneAt(421))).toBe('The Flooded Catacombs · Gilded');
+    expect(zoneTitle(zoneAt(501))).toBe('The Flooded Catacombs · Blighted II');
+    // Same zone, same rules underneath; only the colours move.
+    const deep = zoneLook(zoneAt(181));
+    expect(deep.id).toBe('flooded');
+    expect(deep.hint).toBe(zoneAt(181).def.hint);
+    expect(deep.floor[0]).not.toBe(zoneAt(181).def.floor[0]);
+  });
+});

@@ -168,3 +168,78 @@ export function zoneAt(floor: number): ZoneAt {
   const tier = Math.floor(k / DEEP.length) + 1;
   return { def, tier, start: ZONE_SPAN + 1 + k * ZONE_SPAN, title: def.name + (NUMERALS[tier] ?? ` ${tier}`) };
 }
+
+// ---------- deeper looks ----------
+// Past floor 100 the deep zones come round again with the same rules, so each pass
+// gets its own look: the whole palette leans toward a new colour, the air fills with
+// something different and the floor gathers new detail. Drawing only: nothing here
+// touches the game's rules, so runs replay exactly as they were played.
+
+export type Weather = 'spores' | 'snow' | 'rain' | 'stars' | 'sparks';
+
+export interface DeepLook {
+  name: string;
+  /** The colour everything leans toward, and how far (0-1). */
+  tint: string;
+  mix: number;
+  /** Banner colour and drifting motes. */
+  color: string;
+  mote: string;
+  weather: Weather;
+  /** Torchlight: inner glow, then the dark at the edge. */
+  light: [string, string];
+}
+
+/** One per pass after the first: floors 101-180, 181-260, 261-340, 341-420, 421-500, then round again. */
+export const DEEP_LOOKS: DeepLook[] = [
+  { name: 'Blighted', tint: '#3f6b2a', mix: 0.38, color: '#b5e07a', mote: '#c8f08a', weather: 'spores', light: ['rgba(170, 255, 120, 0.07)', 'rgba(4, 10, 2, 0.64)'] },
+  { name: 'Frozen', tint: '#3f6f94', mix: 0.45, color: '#c9f2ff', mote: '#ffffff', weather: 'snow', light: ['rgba(200, 240, 255, 0.09)', 'rgba(2, 8, 16, 0.6)'] },
+  { name: 'Bloodmoon', tint: '#5e1019', mix: 0.38, color: '#ff4d5a', mote: '#ff8a8a', weather: 'rain', light: ['rgba(255, 70, 80, 0.09)', 'rgba(16, 2, 4, 0.66)'] },
+  { name: 'Starless', tint: '#0a0614', mix: 0.55, color: '#d0b8ff', mote: '#ffffff', weather: 'stars', light: ['rgba(200, 170, 255, 0.06)', 'rgba(1, 0, 4, 0.76)'] },
+  { name: 'Gilded', tint: '#6e5212', mix: 0.42, color: '#ffd76a', mote: '#ffe9a8', weather: 'sparks', light: ['rgba(255, 215, 120, 0.1)', 'rgba(12, 8, 0, 0.6)'] },
+];
+
+/** The look for this stretch of floors, or null in the crypt, the first pass and story dungeons. */
+export function deepLook(z: ZoneAt): DeepLook | null {
+  if (z.tier < 2 || !DEEP.includes(z.def.id)) return null;
+  return DEEP_LOOKS[(z.tier - 2) % DEEP_LOOKS.length];
+}
+
+function mixHex(a: string, b: string, t: number): string {
+  const p = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const [x, y] = [p(a), p(b)];
+  return `#${x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join('')}`;
+}
+
+const looked = new Map<string, ZoneDef>();
+
+/** The zone as it is drawn: its own colours, leaned toward the pass's look when there is one. */
+export function zoneLook(z: ZoneAt): ZoneDef {
+  const look = deepLook(z);
+  if (!look) return z.def;
+  const key = `${z.def.id}:${look.name}`;
+  let def = looked.get(key);
+  if (!def) {
+    const m = (c: string) => mixHex(c, look.tint, look.mix);
+    const w = z.def.wall;
+    def = {
+      ...z.def,
+      color: look.color,
+      floor: z.def.floor.map(m),
+      bossFloor: z.def.bossFloor.map(m),
+      wall: { base: m(w.base), top: m(w.top), face: m(w.face), front: m(w.front), edge: m(w.edge), brick: m(w.brick), moss: mixHex(w.moss, look.tint, 0.7) },
+      light: look.light,
+      mote: look.mote,
+    };
+    looked.set(key, def);
+  }
+  return def;
+}
+
+/** The zone's name as the banner shows it, e.g. "The Burning Depths · Bloodmoon". */
+export function zoneTitle(z: ZoneAt): string {
+  const look = deepLook(z);
+  if (!look) return z.title;
+  const round = Math.floor((z.tier - 2) / DEEP_LOOKS.length);
+  return `${z.def.name} · ${look.name}${round ? NUMERALS[round + 1] ?? ` ${round + 1}` : ''}`;
+}
