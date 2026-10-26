@@ -1,6 +1,6 @@
 // The world boss: "The Bell Tolls". A few times a day (Central Time) a boss rises for
 // everyone at once. Each player fights it in a short arena; every hit lands on one shared
-// health bar on the server. Fell it together and everyone who fought earns the next of
+// health bar on the server. Bring it down together and everyone who fought earns the next of
 // the Bell-Breaker rewards (see RAID_REWARDS in progression.ts).
 
 import { BOSS_KINDS, ENEMY_INFO, fullPool, type EnemyKind, type RunConfig } from './game';

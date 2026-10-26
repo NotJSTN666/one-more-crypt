@@ -2182,7 +2182,7 @@ function showRaid(back: () => void) {
         <ul class="raid-feed" data-raid-feed>${raidFeedHtml(st)}</ul>
         <h3 class="shop-head">Top damage</h3>
         <ol class="raid-top" data-raid-top>${raidTopHtml(st)}</ol>`
-      : `<p class="sub">Three times a day a world boss rises for everyone at once. Join in, hit it as hard as you can, and bring it down together for a reward you can't get anywhere else.</p>
+      : `<p class="sub">Three times a day a world boss rises for everyone at once. Join in and fight it together for a reward you can't get anywhere else.</p>
         <p class="act2-ready">Next: <b>${esc(raidBossName(p.slot.kind))}</b> at ${esc(raidTimeLabel(p.slot.start))} · in <span data-raid-clock>${raidClockText(p)}</span></p>
         <p class="fine">Then ${upcoming.map((t) => esc(raidTimeLabel(t))).join(' and ')}. Times are in your time zone. You can join for the first ${RAID_JOIN_MIN} minutes.</p>`}
     <h3 class="shop-head">Bell-Breaker rewards <small>${wins}/${RAID_REWARDS.length}</small></h3>
