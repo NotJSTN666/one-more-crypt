@@ -114,6 +114,10 @@ export type GameEvent =
   | { t: 'floor'; floor: number }
   | { t: 'death' }
   | { t: 'timestop' }
+  /** Death draws near (`turns` until he rises), rises, or takes a step. */
+  | { t: 'reaper'; turns: number }
+  | { t: 'reaperrise'; x: number; y: number }
+  | { t: 'reaperstep'; x: number; y: number }
   | { t: 'toll' }
   | { t: 'ring'; x: number; y: number }
   | { t: 'fuse'; id: FusedId; from: [RelicId, RelicId] }
@@ -191,6 +195,8 @@ export interface RunConfig {
   vigor?: number;
   /** Abyss boons once the relics run out (log version 8 and later). */
   boons?: boolean;
+  /** Death comes for you from REAPER_FLOOR on (log version 9 and later). */
+  reaper?: boolean;
 }
 
 export interface StoryConfig {
@@ -294,6 +300,13 @@ const DEPTHS_LOG_VERSION = 6;
 const ISLE_LOG_VERSION = 7;
 /** Runs with Abyss boons; the header always carries the isle's extra max HP (maybe 0). */
 const BOONS_LOG_VERSION = 8;
+/** Adds Death: from REAPER_FLOOR he rises on every floor and hunts you through the walls. */
+const REAPER_LOG_VERSION = 9;
+export const REAPER_FLOOR = 150;
+/** Turns on a floor before Death rises: plenty at first, one fewer every 4 floors, none from floor 250. */
+export function reaperDelay(floor: number): number {
+  return Math.max(0, 25 - Math.floor((floor - REAPER_FLOOR) / 4));
+}
 /** One input character per Soul Forge option. */
 const FORGE_KEYS = 'bcdefghijklm';
 const BOW_RANGE = 3;
@@ -336,6 +349,9 @@ export class Game {
   kills = 0;
   turns = 0;
   killedBy = '';
+  /** Death, once he has risen on this floor (he can't be hurt), and the turns until he rises. */
+  reaper: { x: number; y: number; frozen: number } | null = null;
+  reaperIn = 0;
   /** How the run ended (null while it goes on). */
   deathInfo: DeathInfo | null = null;
   /** Set while an aimed shot or spell lands, for the Deaths of Shame. */
@@ -482,6 +498,7 @@ export class Game {
   header(): string {
     const unlocked = UNLOCKABLE_RELICS.filter((id) => this.config.pool.includes(id));
     // Pools without any post-launch relic are logged as version 2 so they replay with the launch set.
+    if (this.config.reaper) return `#${REAPER_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.boons) return `#${BOONS_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.vigor) return `#${ISLE_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor}|`;
     const version = this.config.depths ? DEPTHS_LOG_VERSION : this.config.mercy ? MERCY_LOG_VERSION : this.config.forge ? FORGE_LOG_VERSION : this.config.pool.some((id) => !LEGACY_RELICS.includes(id)) ? LOG_VERSION : 2;
@@ -492,6 +509,9 @@ export class Game {
 
   private enterFloor(floor: number) {
     this.floor = floor;
+    this.reaper = null;
+    this.reaperIn = this.reaperDue() ? reaperDelay(floor) : 0;
+    if (this.reaperDue()) this.events.push({ t: 'reaper', turns: this.reaperIn });
     const rng = mulberry32(hashSeed(this.seed, 'floor', floor));
     this.generateLayout(rng);
     const thralls = this.allies;
@@ -952,6 +972,10 @@ export class Game {
     if (mark) {
       this.playerAttack(mark, { x: dx, y: dy }, true);
       this.endTurn();
+      return true;
+    }
+    if (this.reaper && this.reaper.x === tx && this.reaper.y === ty && !this.isWall(tx, ty)) {
+      this.reap();
       return true;
     }
     if (this.isWall(tx, ty)) {
@@ -1478,6 +1502,64 @@ export class Game {
     }
     this.enemies = this.enemies.filter((e) => !e.dead);
     this.checkCleared();
+    this.reaperAct();
+  }
+
+  // ---------- Death ----------
+
+  private reaperDue(): boolean {
+    return Boolean(this.config.reaper) && this.floor >= REAPER_FLOOR;
+  }
+
+  /** Death rises in the far corner when his time comes, then walks straight at you through the walls. */
+  private reaperAct() {
+    if (!this.reaperDue() || this.isOver()) return;
+    const p = this.player;
+    if (!this.reaper) {
+      if (this.reaperIn > 0) this.reaperIn--;
+      if (this.reaperIn > 0) return;
+      const corners = [{ x: 0, y: 0 }, { x: W - 1, y: 0 }, { x: 0, y: H - 1 }, { x: W - 1, y: H - 1 }];
+      const far = corners.reduce((a, b) => (Math.abs(b.x - p.x) + Math.abs(b.y - p.y) > Math.abs(a.x - p.x) + Math.abs(a.y - p.y) ? b : a));
+      this.reaper = { ...far, frozen: 0 };
+      this.events.push({ t: 'reaperrise', x: far.x, y: far.y });
+      return;
+    }
+    const r = this.reaper;
+    if (r.frozen > 0) {
+      r.frozen--;
+      return;
+    }
+    // From floor 275 he quickens: two steps every other turn.
+    const steps = this.floor >= REAPER_FLOOR + 125 && this.turns % 2 === 0 ? 2 : 1;
+    for (let i = 0; i < steps; i++) {
+      const gx = p.x - r.x;
+      const gy = p.y - r.y;
+      if (Math.abs(gx) >= Math.abs(gy)) r.x += Math.sign(gx);
+      else r.y += Math.sign(gy);
+      this.events.push({ t: 'reaperstep', x: r.x, y: r.y });
+      if (r.x === p.x && r.y === p.y) return this.reap();
+    }
+  }
+
+  /** Death's touch: no shield, dodge or second life stops it. */
+  private reap() {
+    const hpBefore = this.player.hp;
+    const foes = this.alive;
+    this.player.hp = 0;
+    this.phase = 'dead';
+    this.killedBy = 'Death';
+    this.deathInfo = {
+      cause: 'Death',
+      kind: null,
+      hpBefore,
+      maxHp: this.player.maxHp,
+      cleared: foes.length === 0,
+      nearStairs: this.stairsOpen && Math.abs(this.player.x - this.stairs.x) + Math.abs(this.player.y - this.stairs.y) === 1,
+      lastFoe: false,
+      telegraphed: false,
+      revivedHere: this.revivedOn === this.floor,
+    };
+    this.events.push({ t: 'death' });
   }
 
   /** Relics that act on their own every turn. */
@@ -1499,6 +1581,8 @@ export class Game {
         e.frozen = Math.max(e.frozen, 1);
         this.damageEnemy(e, 1, 'burst');
       }
+      // Even Death stops to listen.
+      if (this.reaper && Math.abs(this.reaper.x - this.player.x) + Math.abs(this.reaper.y - this.player.y) <= 2) this.reaper.frozen = Math.max(this.reaper.frozen, 1);
     }
     if (this.r('doom') && this.turns % 10 === 0 && this.alive.length) {
       this.events.push({ t: 'toll' });
@@ -1520,6 +1604,7 @@ export class Game {
     if (this.r('hourglass') && this.turns % 8 === 0 && this.alive.length) {
       this.events.push({ t: 'timestop' });
       for (const e of this.alive) e.frozen = Math.max(e.frozen, 1);
+      if (this.reaper) this.reaper.frozen = Math.max(this.reaper.frozen, 1);
     }
     this.checkCleared();
   }
@@ -1861,7 +1946,8 @@ export class Game {
     const mercy = Number(m[1]) >= MERCY_LOG_VERSION;
     const depths = Number(m[1]) >= DEPTHS_LOG_VERSION;
     const boons = Number(m[1]) >= BOONS_LOG_VERSION;
-    const config: RunConfig = { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy, ...(depths ? { depths } : {}), ...(boons ? { boons } : {}) };
+    const reaper = Number(m[1]) >= REAPER_LOG_VERSION;
+    const config: RunConfig = { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy, ...(depths ? { depths } : {}), ...(boons ? { boons } : {}), ...(reaper ? { reaper } : {}) };
     let rest = full.slice(m[0].length);
     // Version 7 adds one field: the isle's extra max HP.
     const isle = Number(m[1]) >= ISLE_LOG_VERSION ? /^(\d+)\|/.exec(rest) : null;

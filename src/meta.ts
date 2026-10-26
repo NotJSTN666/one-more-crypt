@@ -2,7 +2,7 @@
 // and discovered combos. Saved locally and, when signed in, to the player's account.
 
 import { ACHIEVEMENT_BY_ID, COMBOS, HEROES, HERO_BY_ID, dailyHero, type AchievementDef, type ComboDef, type HeroId } from './content';
-import { Game, TITHE_SOULS, UNDEAD, basePool, fullPool, type Mode, type RunConfig } from './game';
+import { Game, REAPER_FLOOR, TITHE_SOULS, UNDEAD, basePool, fullPool, type Mode, type RunConfig } from './game';
 import { cleanGraveState, newGraveState, type GraveState } from './graveshift';
 import { ISLE_ITEM, LAND, cleanIsle, emptyIsle, fits, homeKey, homeOf, islePerks, itemAt, layout, owned, type IsleState } from './isle';
 import { centralDate } from './daily';
@@ -341,6 +341,8 @@ export const MERCY_DAILY = 4;
 export const DEPTHS_DAILY = 6;
 /** Abyss boons join the daily from this crypt on, so everyone in a daily plays the same rules. */
 export const BOONS_DAILY = 12;
+/** Death comes for deep runs from this Daily (the day after it was announced), and in every new Endless run. */
+export const REAPER_DAILY = 14;
 
 /** The daily crypt is identical for everyone; Endless uses your hero and unlocks. */
 export function runConfig(mode: Mode, dailyNo: number): RunConfig {
@@ -350,10 +352,11 @@ export function runConfig(mode: Mode, dailyNo: number): RunConfig {
     const config: RunConfig = { hero: dailyHero(dailyNo), pool: fullPool(dailyNo <= 1), forge: dailyNo >= FORGE_DAILY, mercy: dailyNo >= MERCY_DAILY };
     if (dailyNo >= DEPTHS_DAILY) config.depths = true;
     if (dailyNo >= BOONS_DAILY) config.boons = true;
+    if (dailyNo >= REAPER_DAILY) config.reaper = true;
     return config;
   }
   const hero = heroUnlocked(meta.hero) ? meta.hero : 'knight';
-  const config: RunConfig = { hero, pool: basePool(meta.relics.filter((id) => UNLOCKABLE_RELICS.includes(id))), forge: true, mercy: true, depths: true, boons: true };
+  const config: RunConfig = { hero, pool: basePool(meta.relics.filter((id) => UNLOCKABLE_RELICS.includes(id))), forge: true, mercy: true, depths: true, boons: true, reaper: true };
   // The isle's buildings help in Endless (never the Daily).
   const { vigor } = islePerks(meta.isle);
   if (vigor) config.vigor = vigor;
@@ -436,6 +439,9 @@ export function checkRun(game: Game): AchievementDef[] {
     ['floor20', game.floor >= 20],
     ['floor30', game.floor >= 30],
     ['floor50', game.floor >= 50],
+    ['deathsdoor', Boolean(game.config.reaper) && game.floor >= REAPER_FLOOR],
+    ['outran', Boolean(game.config.reaper) && game.floor >= REAPER_FLOOR + 25],
+    ['cheated', Boolean(game.config.reaper) && game.floor >= REAPER_FLOOR + 50],
     ['butcher', game.kills >= 100],
     ['massacre', s.maxKillsInTurn >= 5],
     ['annihilate', s.maxHit >= 50],

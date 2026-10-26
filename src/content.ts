@@ -154,6 +154,10 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'floor20', name: 'Hollow Depths', desc: 'Reach floor 20.', souls: 150 },
   { id: 'floor30', name: 'Into the Abyss', desc: 'Reach floor 30.', souls: 250 },
   { id: 'floor50', name: 'Bottomless', desc: 'Reach floor 50.', souls: 500 },
+  // Death walks from floor 150.
+  { id: 'deathsdoor', name: "At Death's Door", desc: 'Reach floor 150, where Death walks.', souls: 300 },
+  { id: 'outran', name: 'Outran Death', desc: 'Reach floor 175 with Death on your heels.', souls: 600 },
+  { id: 'cheated', name: 'Cheated Death', desc: 'Reach floor 200 with Death on your heels.', souls: 1000 },
   { id: 'butcher', name: 'Butcher', desc: 'Slay 100 foes in one run.', souls: 60 },
   { id: 'massacre', name: 'Massacre', desc: 'Slay 5 foes in a single turn.', souls: 60 },
   { id: 'annihilate', name: 'Annihilate', desc: 'Deal 50 or more damage in one hit.', souls: 60 },

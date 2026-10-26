@@ -27,6 +27,7 @@ interface Lunge { dx: number; dy: number; t: number }
 const PLAYER_ID = 0;
 /** The cosmetic companion that trails the hero outside the story. */
 const PET_ID = -1;
+const REAPER_ID = -2;
 
 const pixelCache = new Map<string, { x: number; y: number; c: string }[]>();
 
@@ -269,6 +270,14 @@ export class Renderer {
         case 'timestop':
           this.banner('TIME STOPS', '#9fe8ff');
           break;
+        case 'reaperrise':
+          this.banner('DEATH HAS COME FOR YOU', '#d3b0ff');
+          if (!this.quiet) this.shake = 6;
+          for (let i = 0; i < 24; i++) {
+            const a = (i / 24) * Math.PI * 2;
+            this.particles.push({ x: ev.x * TILE + TILE / 2, y: ev.y * TILE + TILE / 2, vx: Math.cos(a) * 30, vy: Math.sin(a) * 30, color: i % 2 ? '#2a1640' : '#d3b0ff', t: 0, life: 0.8, size: 2 });
+          }
+          break;
         case 'ring':
           this.rings.push({ x: ev.x * TILE + TILE / 2, y: ev.y * TILE + TILE / 2, t: 0 });
           if (!this.quiet) this.shake = Math.max(this.shake, 2);
@@ -506,6 +515,10 @@ export class Renderer {
       drawAuraFx(this.ctx, this.outfit.aura, ax, ay, SPRITE_SIZE, this.time, 'front');
       this.drawAura(g, pd);
     }
+    if (g.reaper) {
+      seen.add(REAPER_ID);
+      this.drawReaper(g.reaper, this.smooth(REAPER_ID, g.reaper, k * 0.5), dt);
+    }
     for (const id of [...this.disp.keys()]) if (!seen.has(id)) this.disp.delete(id);
 
     this.drawLines(dt);
@@ -603,6 +616,25 @@ export class Renderer {
   }
 
   /** Outside the story, an earned companion trots one step behind the hero. Looks only. */
+  /** Death: drifting, dark-haloed, scythe in hand; pale while held still by a toll or stopped time. */
+  private drawReaper(r: { frozen: number }, d: Pos, dt: number) {
+    const ctx = this.ctx;
+    const cx = d.x * TILE + TILE / 2;
+    const cy = d.y * TILE + TILE / 2;
+    const pulse = 0.5 + 0.5 * Math.sin(this.time * 3);
+    const halo = ctx.createRadialGradient(cx, cy, 2, cx, cy, TILE * 0.95);
+    halo.addColorStop(0, `rgba(10, 4, 20, ${0.75 + 0.15 * pulse})`);
+    halo.addColorStop(0.6, `rgba(120, 70, 190, ${0.22 + 0.12 * pulse})`);
+    halo.addColorStop(1, 'rgba(120, 70, 190, 0)');
+    ctx.fillStyle = halo;
+    ctx.fillRect(cx - TILE, cy - TILE, TILE * 2, TILE * 2);
+    if (Math.random() < dt * 8) {
+      this.particles.push({ x: cx - 5 + Math.random() * 10, y: cy + 4, vx: (Math.random() - 0.5) * 6, vy: -8 - Math.random() * 8, color: Math.random() < 0.5 ? '#3a1d55' : '#d3b0ff', t: 0, life: 0.9, size: 1 });
+    }
+    const bob = Math.sin(this.time * 2) * 1.5;
+    this.drawSprite(REAPER_ID, sprites().reaper, d, dt, r.frozen > 0 ? 0.55 : 0.95, bob);
+  }
+
   private drawPet(g: Game, k: number, dt: number) {
     if (!this.pet || g.mode === 'story') return;
     const here = { x: g.player.x, y: g.player.y };

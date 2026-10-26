@@ -178,6 +178,8 @@ export const TITLE_FX: Record<string, TitleFx> = {
   'rank:Soulreaver': 'soul',
   'rank:Lord of the Abyss': 'abyss',
   'feat:floor50': 'abyss',
+  'feat:outran': 'soul',
+  'feat:cheated': 'eternal',
   'feat:ascend-all': 'arcane',
   'feat:ascend': 'arcane',
   'feat:completionist': 'arcane',
@@ -246,6 +248,9 @@ LOOKS.push(
   { id: 'emberwake', name: 'Emberwake', cloak: { p: '#c0461c', P: '#2a0f08' }, aura: '#ffd23f', ...raid(25) },
   { id: 'eclipse', name: 'Eclipse Mantle', cloak: { p: '#141119', P: '#c99a2e' }, aura: '#fff2c0', ...raid(28) },
 );
+
+// Death's own: for outrunning him.
+LOOKS.push({ id: 'reapershroud', name: "Reaper's Shroud", cloak: { p: '#1d1428', P: '#0a0710' }, aura: '#d3b0ff', unlock: { feat: 'outran' }, how: 'Reach floor 175 with Death on your heels.' });
 
 // Cloaks sold in the Ossuary for Souls. Looks only, so the daily crypt stays fair.
 const sold = (cost: number) => ({ unlock: { cost }, how: `Sold in the Ossuary for ${cost.toLocaleString()} Souls.` });
@@ -511,6 +516,8 @@ export const HEADS: HeadDef[] = [
   { id: 'crestplume', name: 'Banner Crest', ...raid(22), pixels: [...row(1, 4, 7, '#5d667a'), ...row(2, 3, 8, '#8a8a96'), [4, 0, '#701826'], [5, 0, RED], [6, 0, RED], [7, 0, '#ff6b6b'], [8, 1, RED], [9, 2, '#701826']] },
   { id: 'embercirclet', name: 'Ember Circlet', ...raid(26), pixels: [...row(2, 3, 8, '#3a1a12'), [3, 1, '#d23a46'], [4, 1, '#ff8a2a'], [6, 1, '#ffd23f'], [8, 1, '#ff8a2a'], [6, 0, '#ff8a2a'], [5, 2, '#ffd23f'], [6, 2, '#ffd23f']] },
   { id: 'worldcrown', name: 'Crown of the World Boss', ...raid(29), pixels: [[3, 0, GOLD], [5, 0, '#fff2c0'], [6, 0, '#fff2c0'], [8, 0, GOLD], ...row(1, 3, 8, GOLD), ...row(2, 3, 8, '#141119'), [4, 2, '#5fe3ff'], [5, 2, RED], [6, 2, '#b5e07a'], [7, 2, '#b07cff'], [2, 1, '#a8781f'], [9, 1, '#a8781f']] },
+  // Death's own hood, skull and all: for cheating him.
+  { id: 'deathshood', name: "Death's Hood", unlock: { feat: 'cheated' }, how: 'Reach floor 200 with Death on your heels.', pixels: [...row(0, 4, 7, '#141119'), ...row(1, 3, 8, '#141119'), ...row(2, 2, 9, '#1d1428'), [2, 3, '#1d1428'], [3, 3, '#1d1428'], ...row(3, 4, 7, BONE), [8, 3, '#1d1428'], [9, 3, '#1d1428'], [3, 4, '#1d1428'], [4, 4, '#d3b0ff'], [5, 4, BONE], [6, 4, BONE], [7, 4, '#d3b0ff'], [8, 4, '#1d1428'], [3, 5, '#1d1428'], [5, 5, '#c9c3b2'], [6, 5, '#c9c3b2'], [8, 5, '#1d1428']] },
   // Seven Nights: the last day's gift.
   { id: 'sevennights', name: 'Crown of Seven Nights', unlock: { welcome: 7 }, how: 'Seven Nights, day 7: play on seven different days.', pixels: [...row(2, 3, 8, '#2a3d4a'), [4, 2, '#7cf5c4'], [7, 2, '#7cf5c4'], [3, 1, '#c9d1e0'], [5, 1, '#c9d1e0'], [6, 1, '#c9d1e0'], [8, 1, '#c9d1e0'], [3, 0, '#9fe8ff'], [5, 0, '#7cf5c4'], [6, 0, '#7cf5c4'], [8, 0, '#9fe8ff']] },
 ];

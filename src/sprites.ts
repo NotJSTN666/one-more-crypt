@@ -47,9 +47,24 @@ const PALETTE: Record<string, string> = {
   A: '#2a1640', // void dark
 };
 
-type SpriteName = 'player' | EnemyKind | 'potion';
+type SpriteName = 'player' | EnemyKind | 'potion' | 'reaper';
 
 const ART: Record<SpriteName, string[]> = {
+  // Death: hooded, with his scythe. He comes for deep runs from floor 150.
+  reaper: [
+    '.......ssss.',
+    '..kkkk.s..o.',
+    '.kVVVVk...o.',
+    'kVvvvvVk..o.',
+    'kVkbbkVk..o.',
+    'kvbebebk..o.',
+    'kVkbbbkk..o.',
+    'kvVkkkVvkbo.',
+    'kvVVVVVVVko.',
+    'kVvVVVvVVko.',
+    '.kVvVkVvVko.',
+    '..kk.k.kk.o.',
+  ],
   player: [
     '....kkkk....',
     '...kPPPPk...',
