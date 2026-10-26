@@ -201,8 +201,9 @@ export interface StoryConfig {
   pet?: { hp: number; dmg: number };
   /** A friend's hero, summoned once at the start of the chapter. */
   ghost?: GhostInfo;
-  /** The one boss floor in this story dungeon, and who waits there. Without it there are none. */
-  boss?: { floor: number; kind: EnemyKind };
+  /** The one boss floor in this story dungeon, and who waits there. Without it there are none.
+   *  A world boss sets its own health and hit. */
+  boss?: { floor: number; kind: EnemyKind; hp?: number; dmg?: number };
   /** The place this dungeon is: its look, and ground such as water or bone piles. */
   look?: ZoneId;
 }
@@ -630,6 +631,8 @@ export class Game {
       const boss = this.makeEnemy(kind, spot.x, spot.y);
       boss.maxHp = boss.hp = ENEMY_INFO[kind].hp + 12 * cycle + 4 * cycle * cycle + (story ? 2 * Math.max(0, f - 5) : 0);
       boss.dmg = ENEMY_INFO[kind].dmg + cycle + (story ? Math.floor(Math.max(0, f - 5) / 3) : 0);
+      if (story?.boss?.hp) boss.maxHp = boss.hp = story.boss.hp;
+      if (story?.boss?.dmg) boss.dmg = story.boss.dmg;
       for (let i = 0; i < Math.min(tier, 4); i++) {
         const s = this.randomFreeTile(rng, 3);
         if (s) this.makeEnemy(i % 2 ? 'archer' : 'ghoul', s.x, s.y);

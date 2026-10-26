@@ -604,3 +604,48 @@ export async function mySummons(since: string): Promise<number> {
   if (error) throw friendly(error, 'Could not count your summons.');
   return Number(data) || 0;
 }
+
+// ---------- The Bell Tolls (world boss) ----------
+
+export interface RaidState {
+  damage: number;
+  players: number;
+  hp: number;
+  felled: boolean;
+  feed: { name: string; hero: string; damage: number }[];
+  top: { name: string; damage: number }[];
+}
+
+function cleanRaidState(d: unknown): RaidState {
+  const o = (d ?? {}) as Record<string, unknown>;
+  const n = (v: unknown) => Math.max(0, Math.floor(Number(v) || 0));
+  const rows = (v: unknown) => (Array.isArray(v) ? v : []).map((r) => r as Record<string, unknown>);
+  return {
+    damage: n(o.damage),
+    players: n(o.players),
+    hp: Math.max(1, n(o.hp)),
+    felled: o.felled === true,
+    feed: rows(o.feed).map((r) => ({ name: String(r.name ?? ''), hero: String(r.hero ?? ''), damage: n(r.damage) })),
+    top: rows(o.top).map((r) => ({ name: String(r.name ?? ''), damage: n(r.damage) })),
+  };
+}
+
+/** The shared health bar and who's been hitting it. Null if the server isn't set up for it. */
+export async function raidState(event: string): Promise<RaidState | null> {
+  const sb = await client();
+  const { data, error } = await sb.rpc('raid_state', { p_event: event });
+  return error ? null : cleanRaidState(data);
+}
+
+/** Land a fight's damage on the shared bar. */
+export async function raidHit(event: string, player: string, name: string, hero: string, damage: number): Promise<RaidState> {
+  const sb = await client();
+  const { data, error } = await sb.rpc('raid_hit', { p_event: event, p_player: player, p_name: name, p_hero: hero, p_damage: damage });
+  if (error) throw friendly(error, 'Could not reach the bell. Try again in a moment.');
+  return cleanRaidState(data);
+}
+
+/** Who you are in The Bell Tolls: your account, or this device. */
+export function raidPlayer(accountId: string | undefined): string {
+  return accountId ?? `d:${deviceId()}`;
+}

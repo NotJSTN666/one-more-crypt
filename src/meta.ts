@@ -9,7 +9,7 @@ import { centralDate } from './daily';
 import { QUESTS } from './story';
 import { FUSIONS, RELICS, UNLOCKABLE_RELICS, type FusedId, type RelicId } from './relics';
 import {
-  AURAS, AURA_BY_ID, DUNCE_AT, SHAME, BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, beastPlural, HEADS, HEAD_BY_ID, HERO_CLOAKS, HERO_COSTUMES, LOOKS, LOOK_BY_ID, SEASONS, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_BY_ID, TITLE_TIER, WELCOME, STORY_ALL,
+  AURAS, AURA_BY_ID, DUNCE_AT, SHAME, BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, beastPlural, HEADS, HEAD_BY_ID, HERO_CLOAKS, HERO_COSTUMES, LOOKS, LOOK_BY_ID, SEASONS, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_BY_ID, TITLE_TIER, WELCOME, STORY_ALL, RAID_REWARDS,
   betterRun, bestiaryTiers, rankIndex, seasonOf, seasonOpen, type AuraDef, type BestRuns, type SeasonId, type HeadDef, type LookDef, type Outfit, type RunGoal, type Unlock, type WelcomeReward,
 } from './progression';
 import type { EnemyKind } from './game';
@@ -92,6 +92,14 @@ export interface Meta {
   challengeSeen: string;
   /** Grave Shift: the old plot, its crops, graves and Obols (null until first visit). */
   grave: GraveState | null;
+  /** The Bell Tolls: tolls fought in, world bosses felled together, and tolls that got away. */
+  raid: RaidProgress;
+}
+
+export interface RaidProgress {
+  joined: string[];
+  won: string[];
+  lost: string[];
 }
 
 /** Story progress: quests taken, cleared (dungeon done) and finished, choices, the hound's bond, lore read. */
@@ -142,8 +150,14 @@ function empty(): Meta {
     podiums: {}, podiumChecked: 0, bought: [], streak: { best: 0, count: 0, last: 0 },
     bounties: { day: 0, ids: [], progress: [], done: [] },
     weekly: {}, weeklyChecked: '',
-    story: emptyStory(), pet: '', summonsSeen: '', patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null,
+    story: emptyStory(), pet: '', summonsSeen: '', patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null, raid: { joined: [], won: [], lost: [] },
   };
+}
+
+const ids = (v: unknown) => (Array.isArray(v) ? [...new Set(v.map(String))] : []);
+function cleanRaid(r: unknown): RaidProgress {
+  const o = r && typeof r === 'object' ? (r as Record<string, unknown>) : {};
+  return { joined: ids(o.joined).slice(-40), won: ids(o.won), lost: ids(o.lost).slice(-40) };
 }
 
 function cleanWelcome(w: unknown): Meta['welcome'] {
@@ -159,6 +173,7 @@ function load(): Meta {
     // The story moved into the open world: earlier chapter progress starts over (the hound stays).
     m.isle = cleanIsle(m.isle);
     m.welcome = cleanWelcome(m.welcome);
+    m.raid = cleanRaid(m.raid);
     m.grave = m.grave ? cleanGraveState(m.grave, Date.now()) : null;
     m.story = m.story?.v === STORY_V ? { ...emptyStory(), ...m.story } : { ...emptyStory(), choices: m.story?.choices ?? {}, bond: m.story?.bond ?? 0 };
     return m;
@@ -215,6 +230,8 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   const ow = cleanWelcome(other.welcome);
   if (ow.claimed > meta.welcome.claimed || (ow.claimed === meta.welcome.claimed && ow.last > meta.welcome.last)) meta.welcome = ow;
   meta.deepest = Math.max(meta.deepest, Number(other.deepest) || 0);
+  const or = cleanRaid(other.raid);
+  meta.raid = cleanRaid({ joined: [...meta.raid.joined, ...or.joined], won: [...meta.raid.won, ...or.won], lost: [...meta.raid.lost, ...or.lost] });
   meta.shame = { ...(other.shame ?? {}), ...meta.shame };
   // Grave Shift is one plot: whichever device changed it last wins.
   if (other.grave && typeof other.grave === 'object' && (Number(other.grave.at) || 0) > (meta.grave?.at ?? -1)) meta.grave = cleanGraveState(other.grave, Date.now());
@@ -580,6 +597,7 @@ function unlockMet(u: Unlock): boolean {
   if ('season' in u) return meta.seasons.some((x) => x.startsWith(`${u.season}-`));
   if ('shame' in u) return Object.keys(meta.shame).length >= u.shame;
   if ('welcome' in u) return meta.welcome.claimed >= u.welcome;
+  if ('raid' in u) return raidWins() >= u.raid;
   return (meta.bestiaryTier[u.beast] ?? 0) > u.tier;
 }
 
@@ -928,6 +946,7 @@ export function auraUnlocked(a: AuraDef): boolean {
   if ('patron' in u) return meta.patron;
   if ('welcome' in u) return meta.welcome.claimed >= u.welcome;
   if ('story' in u) return storyDone(u.story);
+  if ('raid' in u) return raidWins() >= u.raid;
   return meta.bought.includes(a.id);
 }
 
@@ -1135,4 +1154,38 @@ export function claimWelcome(today: number): { day: number; reward: WelcomeRewar
   if ('head' in r && !meta.headsSeen.includes(r.head)) meta.headsSeen.push(r.head);
   saveMeta();
   return gift;
+}
+
+// ---------- The Bell Tolls ----------
+
+/** World bosses felled together. */
+export function raidWins(): number {
+  return meta.raid.won.length;
+}
+
+/** Fought in this toll: its outcome is checked once it's over. */
+export function noteRaidJoin(id: string) {
+  if (meta.raid.joined.includes(id)) return;
+  meta.raid.joined = [...meta.raid.joined, id].slice(-40);
+  saveMeta();
+}
+
+/** A toll you fought in is decided. Returns the reward number earned (1-based), or 0. */
+export function settleRaid(id: string, felled: boolean): number {
+  if (!meta.raid.joined.includes(id) || meta.raid.won.includes(id) || meta.raid.lost.includes(id)) return 0;
+  if (felled) {
+    meta.raid.won.push(id);
+    // Shown on its own reward screen, so the next run needn't announce it again.
+    const r = RAID_REWARDS[meta.raid.won.length - 1];
+    if (r?.kind === 'look' && !meta.looksSeen.includes(r.id)) meta.looksSeen.push(r.id);
+    if (r?.kind === 'aura' && !meta.looksSeen.includes(`aura:${r.id}`)) meta.looksSeen.push(`aura:${r.id}`);
+    if (r?.kind === 'head' && !meta.headsSeen.includes(r.id)) meta.headsSeen.push(r.id);
+  } else meta.raid.lost = [...meta.raid.lost, id].slice(-40);
+  saveMeta();
+  return felled ? meta.raid.won.length : 0;
+}
+
+/** Tolls fought in whose outcome isn't known yet. */
+export function unsettledRaids(): string[] {
+  return meta.raid.joined.filter((id) => !meta.raid.won.includes(id) && !meta.raid.lost.includes(id));
 }

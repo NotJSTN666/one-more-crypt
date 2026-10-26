@@ -15,7 +15,7 @@ import { equipTitle, meta, titleUnlocked, type Meta } from './meta';
 import { showWardrobe } from './wardrobe';
 import { ONLINE, loadHall } from './online';
 import {
-  AURA_BY_ID, BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, TITLE_FX, titleFxClass, HEAD_BY_ID, LOOK_BY_ID, TITLES, TITLE_BY_ID, TITLE_TIER, bestiaryTiers, rankFor, rankProgress,
+  AURA_BY_ID, RAID_DECOR, BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, TITLE_FX, titleFxClass, HEAD_BY_ID, LOOK_BY_ID, TITLES, TITLE_BY_ID, TITLE_TIER, bestiaryTiers, rankFor, rankProgress,
   type BestRun, type BestRuns, type TitleFx,
 } from './progression';
 import { RELICS, RELIC_BY_ID, type RelicId } from './relics';
@@ -47,6 +47,8 @@ export interface HallData {
   weekly: [number, number, number];
   /** Daily play streak: days in a row right now (0 once broken) and the longest ever. */
   streak: { current: number; best: number };
+  /** World bosses felled in The Bell Tolls. */
+  raids: number;
 }
 
 const BOSS_FEAT: Partial<Record<EnemyKind, string>> = { boss: 'warden', abbot: 'abbot', lich: 'lich' };
@@ -89,6 +91,10 @@ export function hallData(name: string, m: Partial<Meta> | Record<string, unknown
   // The Great Bell hangs in the Hall of anyone who finished every quest of Act I.
   const storyDone = Array.isArray(obj(raw.story).done) ? (obj(raw.story).done as unknown[]).map(Number) : [];
   if (QUESTS.every((q) => storyDone.includes(q.n))) decor.push('greatbell');
+  // The Bell Tolls: a piece for every so many world bosses felled.
+  const raidWon = obj(raw.raid).won;
+  const raids = Array.isArray(raidWon) ? new Set(raidWon.map(String)).size : 0;
+  for (const d of RAID_DECOR) if (raw.vault === true || raids >= d.raid) decor.push(d.id);
   const weekPlaces = Object.values(obj(raw.weekly)).map((p) => num(p, 9));
   const weekly: [number, number, number] = [1, 2, 3].map((p) => weekPlaces.filter((x) => x === p).length) as [number, number, number];
   const st = obj(raw.streak);
@@ -106,6 +112,7 @@ export function hallData(name: string, m: Partial<Meta> | Record<string, unknown
     podiums,
     weekly,
     decor,
+    raids,
     streak,
     title: typeof raw.title === 'string' && TITLE_BY_ID[raw.title] ? raw.title : '',
     earned: num(raw.earned),
@@ -597,6 +604,134 @@ function ghosts(ctx: CanvasRenderingContext2D, t: number) {
   }
 }
 
+// ---------- The Bell Tolls pieces (one per so many world bosses felled) ----------
+
+/** A narrow, tattered war banner on an iron bracket, stirring in a draught. */
+function warBanners(ctx: CanvasRenderingContext2D, t: number) {
+  for (const [x, cloth] of [[34, '#7a1622'], [926, '#2a3d6b']] as [number, string][]) {
+    ctx.fillStyle = '#3a3346';
+    ctx.fillRect(x - 20, 370, 40, 5);
+    for (let r = 0; r < 12; r++) {
+      const sway = Math.round(Math.sin(t * 1.6 - r * 0.45 + x) * 2);
+      ctx.fillStyle = r % 4 === 1 ? '#c99a2e' : cloth;
+      ctx.fillRect(x - 14 + sway, 375 + r * 6, 28, 6);
+    }
+    // ragged tail
+    ctx.fillStyle = cloth;
+    ctx.fillRect(x - 14, 447, 8, 6);
+    ctx.fillRect(x + 6, 447, 8, 9);
+    // a bell sigil
+    ctx.fillStyle = '#f2c14e';
+    ctx.fillRect(x - 4, 394, 8, 3);
+    ctx.fillRect(x - 6, 397, 12, 8);
+    ctx.fillRect(x - 1, 405, 2, 3);
+  }
+}
+
+/** Bronze shards of a broken bell, heaped at the foot of the wall; one glints at a time. */
+function bellShardPile(ctx: CanvasRenderingContext2D, x: number, t: number) {
+  const bits: [number, number, number, number][] = [[-26, 456, 14, 10], [-10, 452, 18, 14], [8, 455, 16, 11], [-18, 444, 12, 9], [0, 440, 14, 12], [18, 448, 10, 8]];
+  const lit = Math.floor(t * 1.5) % bits.length;
+  bits.forEach(([dx, y, w, h], i) => {
+    ctx.fillStyle = '#5c4418';
+    ctx.fillRect(x + dx, y, w, h);
+    ctx.fillStyle = i === lit ? '#fff2c0' : '#c9a24a';
+    ctx.fillRect(x + dx + 2, y, w - 6, 3);
+  });
+  const glow = ctx.createRadialGradient(x, 456, 2, x, 456, 44);
+  glow.addColorStop(0, `rgba(242,193,78,${0.18 + 0.06 * Math.sin(t * 3)})`);
+  glow.addColorStop(1, 'rgba(242,193,78,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(x - 46, 412, 92, 60);
+}
+
+/** A great horned skull on a wooden plaque, its eyes still smouldering. */
+function bossSkull(ctx: CanvasRenderingContext2D, x: number, t: number) {
+  const px = (dx: number, dy: number, w: number, h: number, c: string) => {
+    ctx.fillStyle = c;
+    ctx.fillRect(x + dx * 4, 368 + dy * 4, w * 4, h * 4);
+  };
+  px(-6, 1, 12, 13, '#4a3420'); // plaque
+  px(-5, 2, 10, 11, '#5d4a2a');
+  px(-9, 2, 3, 1, '#d8cfb8'); px(-10, 0, 2, 2, '#d8cfb8'); px(-11, -2, 1, 2, '#e8dcc4'); // left horn
+  px(6, 2, 3, 1, '#d8cfb8'); px(8, 0, 2, 2, '#d8cfb8'); px(10, -2, 1, 2, '#e8dcc4'); // right horn
+  px(-4, 3, 8, 6, '#e8dcc4'); // cranium
+  px(-3, 9, 6, 3, '#d8cfb8'); // jaw
+  px(-2, 12, 1, 1, '#d8cfb8'); px(0, 12, 1, 1, '#d8cfb8'); px(2, 12, 1, 1, '#d8cfb8');
+  const eye = `rgba(255,${Math.round(90 + 60 * Math.sin(t * 2.2))},60,1)`;
+  px(-3, 5, 2, 2, eye);
+  px(1, 5, 2, 2, eye);
+  px(-1, 8, 2, 1, '#1a1520');
+}
+
+/** An iron wheel of candles hanging on a chain. */
+function chandelier(ctx: CanvasRenderingContext2D, x: number, t: number) {
+  ctx.fillStyle = '#3a3346';
+  for (let y = 152; y < 176; y += 6) ctx.fillRect(x - 1, y, 3, 4);
+  ctx.fillStyle = '#5d667a';
+  ctx.fillRect(x - 34, 178, 68, 5);
+  ctx.fillStyle = '#3a3346';
+  ctx.fillRect(x - 34, 183, 68, 2);
+  for (let i = 0; i < 5; i++) {
+    const cx = x - 28 + i * 14;
+    ctx.fillStyle = '#e8dcc4';
+    ctx.fillRect(cx - 2, 168, 5, 10);
+    const f = Math.sin(t * 9 + i * 1.3) > 0 ? 1 : 0;
+    ctx.fillStyle = '#ff8a2a';
+    ctx.fillRect(cx - 1, 161 - f, 3, 6);
+    ctx.fillStyle = '#ffd23f';
+    ctx.fillRect(cx, 163 - f, 1, 3);
+  }
+  const glow = ctx.createRadialGradient(x, 172, 4, x, 172, 70);
+  glow.addColorStop(0, 'rgba(255,179,90,0.22)');
+  glow.addColorStop(1, 'rgba(255,179,90,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(x - 72, 110, 144, 130);
+}
+
+/** The war horn on its stand; now and then a breath of sound rings from its mouth. */
+function warHorn(ctx: CanvasRenderingContext2D, x: number, t: number) {
+  ctx.fillStyle = '#4a3420';
+  ctx.fillRect(x - 3, 420, 6, 46);
+  ctx.fillRect(x - 16, 462, 32, 4);
+  ctx.fillRect(x - 14, 418, 28, 4);
+  // the horn: a curve of bone banded in gold, flaring to the right
+  const segs: [number, number, number][] = [[-24, 404, 6], [-18, 400, 8], [-10, 398, 10], [0, 396, 12], [12, 393, 16], [24, 389, 22]];
+  segs.forEach(([dx, y, h], i) => {
+    ctx.fillStyle = i % 2 ? '#e8dcc4' : '#d8cfb8';
+    ctx.fillRect(x + dx, y, 12, h);
+    if (i === 2 || i === 4) {
+      ctx.fillStyle = '#c99a2e';
+      ctx.fillRect(x + dx, y, 3, h);
+    }
+  });
+  ctx.fillStyle = '#1a1520';
+  ctx.fillRect(x + 32, 392, 4, 16);
+  const p = (t % 5) / 5;
+  if (p < 0.4) {
+    ctx.strokeStyle = `rgba(232,220,196,${(0.4 - p) * 1.6})`;
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 2; i++) {
+      ctx.beginPath();
+      ctx.arc(x + 38, 400, 8 + p * 60 + i * 10, -0.6, 0.6);
+      ctx.stroke();
+    }
+  }
+}
+
+/** A stone tablet carved with the count of world bosses felled. */
+function rollOfHonor(ctx: CanvasRenderingContext2D, x: number, raids: number) {
+  ctx.fillStyle = '#3a3346';
+  ctx.fillRect(x - 26, 384, 52, 82);
+  ctx.fillStyle = '#4a4458';
+  ctx.fillRect(x - 22, 388, 44, 74);
+  ctx.fillStyle = '#5a5466';
+  ctx.fillRect(x - 26, 380, 52, 6);
+  text(ctx, 'FELLED', x, 402, `11px ${FONT_PIXEL}`, '#c9a24a');
+  text(ctx, String(raids), x, 432, `24px ${FONT_PIXEL}`, '#fff2c0');
+  text(ctx, 'BOSSES', x, 452, `11px ${FONT_PIXEL}`, '#c9a24a');
+}
+
 function drawDecor(ctx: CanvasRenderingContext2D, d: HallData, t: number, layer: 'wall' | 'floor' | 'air') {
   const has = (id: string) => d.decor.includes(id);
   if (layer === 'floor') {
@@ -625,6 +760,15 @@ function drawDecor(ctx: CanvasRenderingContext2D, d: HallData, t: number, layer:
   }
   if (has('tomb')) tomb(ctx, 716, d.name, Math.max(0, ...Object.values(d.best).map((r) => r?.floor ?? 0)));
   if (has('throne')) throne(ctx, 480);
+  if (has('raidbanners')) warBanners(ctx, t);
+  if (has('bellshardpile')) bellShardPile(ctx, 552, t);
+  if (has('bossskull')) bossSkull(ctx, 412, t);
+  if (has('chandelier')) {
+    chandelier(ctx, 356, t);
+    chandelier(ctx, 604, t);
+  }
+  if (has('warhorn')) warHorn(ctx, 290, t);
+  if (has('rollofhonor')) rollOfHonor(ctx, 656, d.raids);
 }
 
 /** How a title is painted on the Hall's banner: the hardest ones shimmer, glow or flow. */

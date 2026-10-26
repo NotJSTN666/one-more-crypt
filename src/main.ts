@@ -4,16 +4,17 @@ import { dailyNumber, formatCountdown, msUntilNextDaily } from './daily';
 import { ELITES, FEATURES, HERO_BY_ID, dailyHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait } from './hero';
 import { BOON_BY_ID, ENEMY_INFO, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode } from './game';
-import { acceptQuest, checkRun, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, type RunReward } from './meta';
+import { acceptQuest, checkRun, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
 import { hallFromLink, onVisitIsle, showHall, showPublicHall, soulRankHtml, titleName } from './hall';
-import { HEAD_BY_ID, LOOK_BY_ID, PODIUM, STORY_ALL, STREAK_HELMS, WEEKLY, WELCOME, rankFor, titleFxClass, welcomeLabel, type WelcomeReward } from './progression';
+import { HEAD_BY_ID, LOOK_BY_ID, PODIUM, RAID_DECOR_BY_ID, RAID_KIND_LABEL, RAID_REWARDS, STORY_ALL, STREAK_HELMS, WEEKLY, WELCOME, rankFor, titleFxClass, welcomeLabel, type WelcomeReward } from './progression';
 import { Renderer } from './render';
 import { sprites } from './sprites';
+import { RAID_JOIN_MIN, RAID_SUBMIT_MIN, RAID_TURNS, currentRaid, nextRaid, raidBossName, raidConfig, raidJoinable, raidTimeLabel, type RaidSlot } from './raid';
 import { hashSeed } from './rng';
-import { ONLINE, challengeBoard, emailReminderOff, sendFeedback, setEmailReminder, type FeedbackKind, challengeNews, createChallenge, dailyBoard, endlessBoard, getChallenge, mySummons, noteRun, noteSummon, pingActivity, startActivityPings, submitChallengeRun, type Challenge, type ChallengeRow } from './online';
+import { ONLINE, raidHit, raidPlayer, raidState, type RaidState, challengeBoard, emailReminderOff, sendFeedback, setEmailReminder, type FeedbackKind, challengeNews, createChallenge, dailyBoard, endlessBoard, getChallenge, mySummons, noteRun, noteSummon, pingActivity, startActivityPings, submitChallengeRun, type Challenge, type ChallengeRow } from './online';
 import {
   ACT_TITLE, LORE, LORE_COUNT, MAIN_QUESTS, QUESTS, QUEST_BY_N, SPEAKERS, conversation, facePortrait, houndStats, npcMarker, npcPresent, petName, questStatus,
   type Line, type NpcId, type Quest, type StoryState,
@@ -496,6 +497,10 @@ function processEvents() {
   }
   if (game.phase !== 'dead') celebrate(checkRun(game));
   updateHud();
+  if (raidRun && (game.phase === 'dead' || game.phase === 'won' || game.turns >= RAID_TURNS)) {
+    if (game.phase === 'dead') setMusicMood('silent');
+    return finishRaid(game.phase === 'dead');
+  }
   if (game.phase === 'choose') {
     window.clearTimeout(overlayTimer);
     overlayTimer = window.setTimeout(showChoice, 280);
@@ -724,7 +729,14 @@ function updateHud(reset = false) {
 
   const boss = game.enemies.find((e) => isBoss(e) && !e.dead);
   $('boss-bar').hidden = !boss;
-  if (boss) {
+  if (boss && raidRun) {
+    // A world boss: the shared bar, less what this fight has dealt so far.
+    const st = raidStateFor(raidRun.slot.id);
+    const mine = raidDamage(game, raidRun.slot.kind);
+    const left = st ? (st.felled ? 0 : Math.max(0, st.hp - st.damage - mine)) : null;
+    $('boss-name').textContent = `${ENEMY_INFO[boss.kind].name} · you ${mine} · ${Math.max(0, RAID_TURNS - game.turns)} turns left`;
+    $('boss-fill').style.width = `${st ? (left! / st.hp) * 100 : 100}%`;
+  } else if (boss) {
     $('boss-name').textContent = ENEMY_INFO[boss.kind].name;
     $('boss-fill').style.width = `${(boss.hp / boss.maxHp) * 100}%`;
   }
@@ -831,6 +843,7 @@ function showTitle() {
   const done = save.daily[today];
   const streak = currentStreak(save, today);
   const resumable = savedRun();
+  const raid = raidPhase();
   const heroToday = HERO_BY_ID[dailyHero(today)].name;
   const dailyBlock = done
     ? `<div class="card">
@@ -860,10 +873,12 @@ function showTitle() {
     <p class="tagline">One crypt. One try a day. How deep can you go?</p>
     ${onlineCountHtml()}
     ${continueBlock}
+    ${raid.phase !== 'soon' ? raidCardHtml(raid) : ''}
     ${dailyBlock}
     ${welcomeTitleHtml()}
     ${endlessNext ? endlessBtn : ''}
     ${bountiesHtml(today)}
+    ${raid.phase === 'soon' ? raidCardHtml(raid) : ''}
     ${storyButtonHtml()}
     <button class="btn act2-btn" id="act2">🔔 Act II: The Plague Abbot<small>Coming soon · Something rings the bell below</small></button>
     ${graveButtonHtml()}
@@ -900,6 +915,7 @@ function showTitle() {
   });
   on('#story', () => playStory());
   on('#act2', () => showActTwo(showTitle));
+  on('#raid', () => showRaid(showTitle));
   on('#help', () => showHelp(showTitle));
   on('#feedback', () => showFeedback(showTitle));
   on('#install', () => {
@@ -912,6 +928,8 @@ function showTitle() {
   on('#share-today', () => done && share(done, `Daily #${today}`));
   tickCountdowns();
   // Finished on yesterday's podium? Celebrate once the result is in.
+  // A world boss you fought in fell (or got away) while you were gone.
+  if (unsettledRaids().length) void checkRaidRewards();
   if (signedIn()) {
     // Then a top 3 on last week's Endless board, then thanks for answered summons.
     void claimPodiums().then(async (won) => {
@@ -1502,14 +1520,15 @@ function showPause() {
   if (!game || game.phase !== 'play' || !overlay.hidden || tutorial || fusionPlaying) return;
   const daily = game.mode === 'daily';
   const story = game.mode === 'story' && storyRun;
+  const raidFight = game.mode === 'story' && raidRun;
   showOverlay('pause', `
     <h2>Paused</h2>
-    <p class="sub">${daily ? `Daily #${game.dailyNo}` : story ? esc(story.quest.dungeon.name) : 'Endless'} · Floor ${game.floor}</p>
+    <p class="sub">${daily ? `Daily #${game.dailyNo}` : story ? esc(story.quest.dungeon.name) : raidFight ? 'The Bell Tolls' : 'Endless'} · Floor ${game.floor}</p>
     ${onlineCountHtml()}
     <button class="btn primary" id="resume">Resume</button>
     <button class="btn" id="help">How to play</button>
     <button class="btn" id="music">🎵 Music: ${isMusicEnabled() ? 'On' : 'Off'}</button>
-    <button class="btn" id="abandon">Abandon run<small>${daily ? "Counts as today's attempt" : story ? 'Back to Gravesend' : 'Back to the title'}</small></button>
+    <button class="btn" id="abandon">${raidFight ? 'End the fight<small>Your damage so far still counts</small>' : `Abandon run<small>${daily ? "Counts as today's attempt" : story ? 'Back to Gravesend' : 'Back to the title'}</small>`}</button>
   `);
   on('#resume', hideOverlay);
   on('#music', () => {
@@ -1527,6 +1546,7 @@ function showPause() {
     });
   });
   on('#abandon', () => {
+    if (raidFight) return finishRaid(false);
     clearRun();
     if (daily) {
       game.phase = 'dead';
@@ -2019,6 +2039,325 @@ function tickCountdowns() {
   overlay.querySelectorAll('.countdown').forEach((el) => (el.textContent = text));
 }
 setInterval(tickCountdowns, 1000);
+
+// ---------- The Bell Tolls (world boss) ----------
+// A few times a day a boss rises for everyone at once. Each fight is a short arena (a story-mode
+// game, so it's never saved or uploaded as a run); the damage dealt lands on one shared bar.
+
+let raidRun: { slot: RaidSlot } | null = null;
+/** The shared bar for the toll under way, as last fetched. */
+let raidLive: { id: string; state: RaidState } | null = null;
+let raidPhaseSeen = '';
+let raidPolledAt = 0;
+
+type RaidPhase = { slot: RaidSlot; phase: 'open' | 'closing' | 'soon' };
+
+function raidPhase(now = Date.now()): RaidPhase {
+  const slot = currentRaid(now);
+  if (slot) return { slot, phase: raidJoinable(slot, now) ? 'open' : 'closing' };
+  return { slot: nextRaid(now), phase: 'soon' };
+}
+
+function raidStateFor(id: string): RaidState | null {
+  return raidLive?.id === id ? raidLive.state : null;
+}
+
+/** The arena boss in your own fight. */
+function raidDamage(g: Game, kind: RaidSlot['kind']): number {
+  const boss = g.enemies.find((e) => e.kind === kind && !e.ally);
+  return boss ? Math.max(0, boss.maxHp - Math.max(0, boss.hp)) : 0;
+}
+
+const raidLeft = (st: RaidState | null) => (st ? (st.felled ? 0 : Math.max(0, st.hp - st.damage)) : null);
+const raidPct = (st: RaidState | null) => (st ? Math.round(((raidLeft(st) ?? 0) / st.hp) * 100) : 100);
+
+function raidClockText(p: RaidPhase, now = Date.now()): string {
+  if (p.phase === 'soon') return formatCountdown(p.slot.start - now);
+  const end = p.slot.start + (p.phase === 'open' ? RAID_JOIN_MIN : RAID_SUBMIT_MIN) * 60_000;
+  return formatCountdown(end - now).replace(/^00:/, '');
+}
+
+function raidPlayersText(st: RaidState | null): string {
+  if (!st) return 'Gathering';
+  return st.players === 1 ? '1 fighting' : `${st.players} fighting`;
+}
+
+/** The title screen's card: live and loud while a boss is up, a countdown otherwise. */
+function raidCardHtml(p: RaidPhase): string {
+  if (!ONLINE) return '';
+  const name = esc(raidBossName(p.slot.kind));
+  const st = raidStateFor(p.slot.id);
+  if (p.phase === 'soon') {
+    return `<button class="btn raid-btn" id="raid">🔔 The Bell Tolls: World Boss<small>Everyone fights at ${esc(raidTimeLabel(p.slot.start))} · in <span data-raid-clock>${raidClockText(p)}</span> · ${raidWins()}/${RAID_REWARDS.length} rewards</small></button>`;
+  }
+  const felled = st?.felled;
+  return `<button class="btn raid-btn live" id="raid">🔔 ${felled ? `${name} is felled!` : p.phase === 'open' ? `LIVE: ${name} has risen` : `${name}: last blows landing`}<small>${
+    felled ? 'Everyone who fought earns a reward' : `<span data-raid-players>${raidPlayersText(st)}</span> · ${p.phase === 'open' ? 'open for' : 'ends in'} <span data-raid-clock>${raidClockText(p)}</span>`
+  }</small><span class="raid-mini"><span data-raid-fill style="width:${raidPct(st)}%"></span></span></button>`;
+}
+
+function raidFeedHtml(st: RaidState | null): string {
+  if (!st?.feed.length) return '<li class="fine">No blows yet. Be the first.</li>';
+  return st.feed.map((f) => `<li>${HERO_BY_ID[f.hero as HeroId] ? `<img src="${heroPortrait(f.hero as HeroId, {}, [], 2)}" alt="" width="24" height="24" />` : ''}<b>${esc(f.name)}</b> hit for <b>${f.damage}</b></li>`).join('');
+}
+
+function raidTopHtml(st: RaidState | null): string {
+  if (!st?.top.length) return '';
+  return st.top.map((t, i) => `<li><span>${['🥇', '🥈', '🥉', '4.', '5.'][i]} ${esc(t.name)}</span><b>${t.damage}</b></li>`).join('');
+}
+
+function raidBarHtml(st: RaidState | null): string {
+  const left = raidLeft(st);
+  return `<div class="raid-bar"><div data-raid-fill style="width:${raidPct(st)}%"></div><span data-raid-text>${st ? (st.felled ? 'FELLED' : `${left} / ${st.hp}`) : '…'}</span></div>`;
+}
+
+/** Fill in the live numbers wherever they're shown. */
+function paintRaid() {
+  const p = raidPhase();
+  const st = raidStateFor(p.slot.id);
+  overlay.querySelectorAll<HTMLElement>('[data-raid-clock]').forEach((el) => (el.textContent = raidClockText(p)));
+  if (!st) return;
+  overlay.querySelectorAll<HTMLElement>('[data-raid-fill]').forEach((el) => (el.style.width = `${raidPct(st)}%`));
+  overlay.querySelectorAll<HTMLElement>('[data-raid-text]').forEach((el) => (el.textContent = st.felled ? 'FELLED' : `${raidLeft(st)} / ${st.hp}`));
+  overlay.querySelectorAll<HTMLElement>('[data-raid-players]').forEach((el) => (el.textContent = raidPlayersText(st)));
+  overlay.querySelectorAll<HTMLElement>('[data-raid-feed]').forEach((el) => (el.innerHTML = raidFeedHtml(st)));
+  overlay.querySelectorAll<HTMLElement>('[data-raid-top]').forEach((el) => (el.innerHTML = raidTopHtml(st)));
+  if (raidRun && game) updateHud();
+}
+
+async function refreshRaid() {
+  const slot = currentRaid();
+  if (!ONLINE || !slot) return;
+  raidPolledAt = Date.now();
+  const st = await raidState(slot.id).catch(() => null);
+  if (!st) return;
+  const wasFelled = raidStateFor(slot.id)?.felled;
+  raidLive = { id: slot.id, state: st };
+  paintRaid();
+  if (st.felled && !wasFelled) {
+    if (screen === 'title') showTitle();
+    else if (screen === 'raid') showRaid(showTitle);
+  }
+}
+
+/** Every second: clocks, a fresh look at the bar while a boss is up, and redraws when a toll starts or ends. */
+function raidTick() {
+  if (!ONLINE) return;
+  const p = raidPhase();
+  const key = `${p.slot.id}:${p.phase}`;
+  if (raidPhaseSeen && key !== raidPhaseSeen) {
+    if (screen === 'title') showTitle();
+    else if (screen === 'raid') showRaid(showTitle);
+    if (p.phase === 'soon') void checkRaidRewards();
+  }
+  raidPhaseSeen = key;
+  paintRaid();
+  const watching = screen === 'title' || screen === 'raid' || raidRun;
+  if (p.phase !== 'soon' && watching && Date.now() - raidPolledAt > 5000) void refreshRaid();
+}
+setInterval(raidTick, 1000);
+
+/** The world boss panel: the live fight, or when the next one is and what it gives. */
+function showRaid(back: () => void) {
+  const p = raidPhase();
+  const name = esc(raidBossName(p.slot.kind));
+  const st = raidStateFor(p.slot.id);
+  const wins = raidWins();
+  const next = RAID_REWARDS[wins];
+  const after = nextRaid(p.phase === 'soon' ? p.slot.start : Date.now());
+  const upcoming = [after.start, nextRaid(after.start).start];
+  const live = p.phase !== 'soon';
+  const rewards = RAID_REWARDS.map((r) => `<li class="${r.n <= wins ? 'got' : r.n === wins + 1 ? 'next' : ''}" title="${esc(RAID_KIND_LABEL[r.kind])}"><span>${r.n <= wins ? '✓' : r.n === wins + 1 ? '▶' : '🔒'}</span>${esc(r.name)}<small>${esc(RAID_KIND_LABEL[r.kind])}</small></li>`).join('');
+  showOverlay('raid', `
+    <canvas class="raid-art" id="raid-art" width="320" height="150" aria-label="${name}"></canvas>
+    <p class="act2-kicker">${live ? (st?.felled ? 'Felled' : 'Live now') : 'World boss'}</p>
+    <h2 class="act2-title">The Bell Tolls</h2>
+    ${live
+      ? `<p class="sub"><b>${name}</b> has risen. Everyone fights it at once, and every hit lands on one shared health bar. Fell it before the bell falls silent, and everyone who fought earns a reward.</p>
+        ${raidBarHtml(st)}
+        <p class="fine raid-meta"><span data-raid-players>${raidPlayersText(st)}</span> · ${p.phase === 'open' ? 'join for' : 'ends in'} <span data-raid-clock>${raidClockText(p)}</span></p>
+        ${st?.felled ? `<p class="act2-ready">☠️ ${name} is felled! Everyone who fought earns a reward.</p>` : ''}
+        ${p.phase === 'open' && !st?.felled ? `<button class="btn primary" id="raid-join">⚔️ Join the fight<small>${RAID_TURNS} turns against ${name}. Your hero, 4 relics to start. Fight as often as you like.</small></button>` : ''}
+        <h3 class="shop-head">Latest blows</h3>
+        <ul class="raid-feed" data-raid-feed>${raidFeedHtml(st)}</ul>
+        <h3 class="shop-head">Top damage</h3>
+        <ol class="raid-top" data-raid-top>${raidTopHtml(st)}</ol>`
+      : `<p class="sub">Three times a day a world boss rises for everyone at once. Join in, hit it as hard as you can, and fell it together for a reward you can't get anywhere else.</p>
+        <p class="act2-ready">Next: <b>${esc(raidBossName(p.slot.kind))}</b> at ${esc(raidTimeLabel(p.slot.start))} · in <span data-raid-clock>${raidClockText(p)}</span></p>
+        <p class="fine">Then ${upcoming.map((t) => esc(raidTimeLabel(t))).join(' and ')}. Times are in your time zone. You can join for the first ${RAID_JOIN_MIN} minutes.</p>`}
+    <h3 class="shop-head">Bell-Breaker rewards <small>${wins}/${RAID_REWARDS.length}</small></h3>
+    <p class="fine">${next ? `Each boss felled earns the next one. Next up: <b>${esc(next.name)}</b> (${esc(RAID_KIND_LABEL[next.kind])}).` : 'You have every Bell-Breaker reward. The crypt bows.'}</p>
+    <ul class="raid-rewards">${rewards}</ul>
+    <button class="btn" id="back">Back</button>`);
+  on('#raid-join', () => showHeroSelect(() => startRaid(p.slot), () => showRaid(back), `The Bell Tolls · ${raidBossName(p.slot.kind)}`));
+  on('#back', back);
+  drawRaidArt($('raid-art') as HTMLCanvasElement, p.slot.kind);
+  if (live) void refreshRaid();
+}
+
+/** The boss, big, under a swinging bell, with a red glow that pulses on the toll. */
+function drawRaidArt(cv: HTMLCanvasElement, kind: RaidSlot['kind']) {
+  const ctx = cv.getContext('2d')!;
+  const spr = sprites()[kind].normal;
+  const W = cv.width, H = cv.height;
+  const t0 = performance.now();
+  const frame = (now: number) => {
+    if (screen !== 'raid' || !cv.isConnected) return;
+    const t = (now - t0) / 1000;
+    const toll = (t % 3) / 3;
+    const bg = ctx.createRadialGradient(W / 2, H * 0.7, 10, W / 2, H * 0.7, W * 0.7);
+    bg.addColorStop(0, `rgba(160,40,50,${0.55 + Math.max(0, 0.3 - toll)})`);
+    bg.addColorStop(1, '#0b0710');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+    ctx.save();
+    ctx.translate(W / 2, 0);
+    ctx.rotate(Math.sin(t * 2.1) * 0.1);
+    ctx.fillStyle = '#c9a24a';
+    ctx.fillRect(-2, 0, 4, 10);
+    ctx.fillRect(-12, 10, 24, 6);
+    ctx.fillRect(-16, 16, 32, 8);
+    ctx.fillRect(-20, 24, 40, 6);
+    ctx.restore();
+    if (toll < 0.4) {
+      ctx.strokeStyle = `rgba(242,193,78,${0.4 - toll})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(W / 2, 30, 20 + toll * 300, 6 + toll * 80, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.imageSmoothingEnabled = false;
+    const s = 8;
+    const bob = Math.round(Math.sin(t * 2) * 2);
+    ctx.drawImage(spr, W / 2 - (spr.width * s) / 2, 44 + bob, spr.width * s, spr.height * s);
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+}
+
+function startRaid(slot: RaidSlot) {
+  if (!raidJoinable(slot)) {
+    toast('The bell has gone quiet. Catch the next toll.');
+    return showRaid(showTitle);
+  }
+  unlockAudio();
+  const { seed, config } = raidConfig(slot, meta.hero);
+  raidRun = { slot };
+  storyRun = null;
+  challenge = null;
+  noteRaidJoin(slot.id);
+  showGame(new Game('story', seed, 0, config));
+  startClock();
+  setMusicDepth(game.floor);
+  setMusicMood('boss');
+  hideOverlay();
+  sfx.stairs();
+  renderer.banner(`${raidBossName(slot.kind).toUpperCase()} RISES`, '#f2c14e');
+  void refreshRaid();
+}
+
+/** The fight is over (fallen, out of turns, or walked away): land the damage on the shared bar. */
+function finishRaid(fell: boolean) {
+  const run = raidRun;
+  if (!run) return showTitle();
+  raidRun = null;
+  const dmg = raidDamage(game, run.slot.kind);
+  const streak = streakStats(save, dailyNumber());
+  const reward = finishRunMeta(game, streak.current);
+  celebrate(reward.achievements);
+  celebrateNotes(reward.unlocks);
+  setMusicMood(fell ? 'fallen' : 'crypt');
+  window.clearTimeout(overlayTimer);
+  const name = raidBossName(run.slot.kind);
+  const show = (st: RaidState | null, err = '') => {
+    const p = raidPhase();
+    const again = p.phase === 'open' && p.slot.id === run.slot.id && !st?.felled;
+    showOverlay('raid-result', `
+      <div class="podium-medal">${fell ? '💀' : '🔔'}</div>
+      <h2 class="podium-title">${fell ? 'You fell' : 'The bell rings you out'}</h2>
+      <p class="sub">You dealt <b>${dmg}</b> damage to ${esc(name)}.</p>
+      <div class="souls-earned"><b>+${reward.souls} Souls</b><span>💀 ${meta.souls} to spend in the Ossuary</span></div>
+      ${err ? `<p class="form-status">${esc(err)}</p>` : st ? raidBarHtml(st) : '<p class="fine">Landing your blows…</p>'}
+      ${st?.felled ? `<p class="act2-ready">☠️ ${esc(name)} is felled! Everyone who fought earns a reward.</p>` : st ? `<p class="fine raid-meta"><span data-raid-players>${raidPlayersText(st)}</span> · keep it up, the bar is shared</p>` : ''}
+      ${again ? '<button class="btn primary" id="raid-again">⚔️ Fight again<small>Same boss, same crypt. Every hit counts.</small></button>' : ''}
+      <button class="btn" id="raid-watch">🔔 Watch the bar</button>
+      <button class="btn" id="back">Back to the title</button>`);
+    on('#raid-again', () => showHeroSelect(() => startRaid(run.slot), () => showRaid(showTitle), `The Bell Tolls · ${name}`));
+    on('#raid-watch', () => showRaid(showTitle));
+    on('#back', showTitle);
+    if (st?.felled) void checkRaidRewards();
+  };
+  overlayTimer = window.setTimeout(() => show(null), fell ? 900 : 300);
+  void raidHit(run.slot.id, raidPlayer(session.account?.id), playerName() || 'A wanderer', game.hero, dmg)
+    .then((st) => {
+      raidLive = { id: run.slot.id, state: st };
+      window.clearTimeout(overlayTimer);
+      show(st);
+    })
+    .catch((e: Error) => {
+      window.clearTimeout(overlayTimer);
+      show(null, e.message);
+    });
+}
+
+let raidChecking = false;
+/** Tolls you fought in that are now decided: a felled boss pays the next reward. */
+async function checkRaidRewards() {
+  if (!ONLINE || raidChecking) return;
+  raidChecking = true;
+  try {
+    const live = currentRaid();
+    for (const id of unsettledRaids()) {
+      const st = raidStateFor(id) ?? (await raidState(id).catch(() => null));
+      if (!st) continue;
+      if (st.felled) {
+        const n = settleRaid(id, true);
+        if (n) await new Promise<void>((done) => showRaidReward(n, done));
+      } else if (live?.id !== id) settleRaid(id, false);
+    }
+  } finally {
+    raidChecking = false;
+  }
+}
+
+/** A world boss felled together: here's your piece. */
+function showRaidReward(n: number, then: () => void) {
+  const r = RAID_REWARDS[n - 1];
+  const back = () => {
+    then();
+    if (screen === 'raid-reward') showTitle();
+  };
+  if (!r) {
+    toast('☠️ World boss felled! You hold every Bell-Breaker reward.');
+    return then();
+  }
+  const fit = outfitFor(meta.hero);
+  const aura = r.kind === 'aura' ? auraClass(r.id) : auraClass(fit.aura);
+  const preview =
+    r.kind === 'decor'
+      ? `<div class="podium-medal">${RAID_DECOR_BY_ID[r.id]?.emoji ?? '🏰'}</div>`
+      : `<img class="hero-portrait ${aura.cls}" style="${aura.style}" src="${heroPortrait(meta.hero, {}, [], 8, r.kind === 'look' ? r.id : fit.look, r.kind === 'head' ? r.id : fit.head)}" alt="" width="96" height="96" />`;
+  sfx.relic();
+  showOverlay('raid-reward', `
+    <div class="podium-medal">☠️</div>
+    <h2 class="podium-title">World boss felled!</h2>
+    <p class="sub">You brought it down together. Bell-Breaker reward ${n} of ${RAID_REWARDS.length}:</p>
+    ${preview}
+    <p class="act2-ready"><b>${esc(RAID_KIND_LABEL[r.kind])}: ${esc(r.name)}</b></p>
+    ${r.kind === 'decor' ? `<p class="fine">${esc(RAID_DECOR_BY_ID[r.id]?.desc ?? '')} It now stands in your Crypt Hall.</p>` : ''}
+    ${r.kind === 'decor' ? '<button class="btn primary" id="raid-use">🏰 See your Hall</button>' : `<button class="btn primary" id="raid-use">Wear it now<small>On your ${esc(HERO_BY_ID[meta.hero].name)}</small></button>`}
+    <button class="btn" id="back">Continue</button>`);
+  on('#raid-use', () => {
+    if (r.kind === 'decor') {
+      then();
+      return openHall(showTitle);
+    }
+    equipOutfit(meta.hero, r.kind, r.id);
+    toast(`Your ${HERO_BY_ID[meta.hero].name} wears ${r.name}`);
+    back();
+  });
+  on('#back', back);
+}
 
 // ---------- story mode ----------
 // Act I is played out in the world: walk Gravesend, talk to people in their homes, take

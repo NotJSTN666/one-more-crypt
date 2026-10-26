@@ -228,6 +228,41 @@ function drawBack(ctx: Ctx, a: AuraDef, cx: number, feet: number, mid: number, w
       bodyGlow(ctx, cx, mid, w * 1, a.color, 0.25 * pulse);
       orbit(t, 8, 1.4, (i, x, y, front) => !front && px(cx + x * w * 0.42 - k / 2, feet - w * 1.06 + y * w * 0.09, k, i % 2 ? '#fff2c0' : '#f2c14e'));
       break;
+    case 'shards':
+      bodyGlow(ctx, cx, mid, w * 0.95, a.color, 0.22 * pulse);
+      orbit(t, 5, 1.3, (i, x, y, front) => !front && shard(px, cx + x * w * 0.72, mid + y * w * 0.24 + Math.sin(t * 3 + i) * k, k, i, t));
+      break;
+    case 'blades':
+      bodyGlow(ctx, cx, mid, w * 0.9, a.color, 0.16 * pulse);
+      orbit(t, 3, 1.9, (i, x, y, front) => !front && blade(px, cx + x * w * 0.7, mid + y * w * 0.26, k, i));
+      break;
+    case 'banner':
+      bodyGlow(ctx, cx, mid, w * 0.9, a.color, 0.2 * pulse);
+      warBanner(px, cx + w * 0.42, feet - w * 1.1, k, t, a.color);
+      rising(t, 4, 2, (i, p) => px(cx + Math.sin(i * 2.3 + p * 3) * w * 0.5, feet - p * w * 1.2, k, i % 2 ? '#ffd23f' : a.color, (1 - p) * 0.8));
+      break;
+    case 'eclipse': {
+      // A black sun behind the hero, its gold corona turning, shards circling and the bell's shockwave.
+      bodyGlow(ctx, cx, mid, w * 1.35, '#0a0716', 0.7);
+      ctx.strokeStyle = a.color;
+      ctx.lineWidth = k;
+      for (let i = 0; i < 16; i++) {
+        const ang = t * 0.35 + (i * Math.PI * 2) / 16;
+        const len = w * (i % 2 ? 0.8 : 1.1) * (0.92 + 0.08 * Math.sin(t * 3 + i));
+        ctx.globalAlpha = 0.45 + 0.2 * Math.sin(t * 2 + i);
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(ang) * w * 0.5, mid + Math.sin(ang) * w * 0.5);
+        ctx.lineTo(cx + Math.cos(ang) * len, mid + Math.sin(ang) * len);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 0.9;
+      ctx.beginPath();
+      ctx.arc(cx, mid, w * 0.5, 0, Math.PI * 2);
+      ctx.stroke();
+      shockwave(px, cx, feet, w, k, tollPhase(t), a.color);
+      orbit(t, 4, 1.1, (i, x, y, front) => !front && shard(px, cx + x * w * 0.85, mid + y * w * 0.3, k, i, t));
+      break;
+    }
     case 'rainbow': {
       // the rainbow flows round the hero: a ring of colour under the feet and colours rising
       const segs = 28;
@@ -276,6 +311,15 @@ function drawFront(_ctx: Ctx, a: AuraDef, cx: number, feet: number, mid: number,
       px(fx - k / 2, fy - k * 2, k, '#ffffff', 1);
       break;
     }
+    case 'shards':
+      orbit(t, 5, 1.3, (i, x, y, front) => front && shard(px, cx + x * w * 0.72, mid + y * w * 0.24 + Math.sin(t * 3 + i) * k, k, i, t));
+      break;
+    case 'blades':
+      orbit(t, 3, 1.9, (i, x, y, front) => front && blade(px, cx + x * w * 0.7, mid + y * w * 0.26, k, i));
+      break;
+    case 'eclipse':
+      orbit(t, 4, 1.1, (i, x, y, front) => front && shard(px, cx + x * w * 0.85, mid + y * w * 0.3, k, i, t));
+      break;
     case 'wisps':
       orbit(t, 2, 1.4, (i, x, y, front) => front && pumpkin(px, cx + x * w * 0.75, mid + y * w * 0.3, k, t, i));
       break;
@@ -323,6 +367,36 @@ function pumpkin(px: Px, x: number, y: number, k: number, t: number, i: number) 
   px(x - k, y + bob, k * 2, '#e67e22');
   px(x, y + bob - k, k, '#3d6b2a');
   px(x - k + Math.round(k / 2), y + bob + Math.round(k / 2), Math.max(1, Math.round(k / 2)), '#ffd23f', 0.7 + 0.3 * Math.sin(t * 8 + i));
+}
+
+/** A jagged bronze piece of a broken bell, glinting now and then. */
+function shard(px: Px, x: number, y: number, k: number, i: number, t: number) {
+  const glint = Math.sin(t * 4 + i * 1.7) > 0.85;
+  px(x - k, y, k, '#8a6a2a');
+  px(x, y - k, k, glint ? '#fff2c0' : '#c9a24a');
+  px(x, y, k, '#c9a24a');
+  if (i % 2) px(x + k, y + k, k, '#8a6a2a');
+}
+
+/** A small sword, point down. */
+function blade(px: Px, x: number, y: number, k: number, i: number) {
+  px(x, y - 2 * k, k, i % 2 ? '#f2c14e' : '#8a6a2a');
+  px(x - k, y - k, k, '#5d667a');
+  px(x, y - k, k, '#5d667a');
+  px(x + k, y - k, k, '#5d667a');
+  px(x, y, k, '#e8fbff');
+  px(x, y + k, k, '#c9d1e0');
+  px(x, y + 2 * k, k, '#ffffff');
+}
+
+/** A war banner on a pole behind the hero's shoulder, rippling. */
+function warBanner(px: Px, x: number, top: number, k: number, t: number, color: string) {
+  for (let r = 0; r < 9; r++) px(x, top + r * k, k, '#5d4a2a');
+  px(x, top - k, k, '#f2c14e');
+  for (let c = 1; c <= 4; c++) {
+    const wave = Math.round(Math.sin(t * 5 - c * 0.9) * 0.6) * k;
+    for (let r = 0; r < 4 - (c === 4 ? 1 : 0); r++) px(x + c * k, top + r * k + wave, k, r === 1 && c === 2 ? '#f2c14e' : color);
+  }
 }
 
 /** CSS for an aura on a still portrait (leaderboards, results): a glow in its colour, or the flowing rainbow. */

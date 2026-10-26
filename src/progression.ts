@@ -203,7 +203,7 @@ export interface LookDef {
   /** Colour of the drifting aura motes, if any. */
   aura: string | null;
   /** What unlocks it: an achievement, a Soul Rank (index) or a Bestiary tier. */
-  unlock: { feat: string } | { rank: number } | { beast: EnemyKind; tier: number } | { costume: string } | { podium: number } | { cost: number; season?: SeasonId } | { streak: number } | { weekly: number } | { story: number } | { season: SeasonId } | { shame: number } | { welcome: number };
+  unlock: { feat: string } | { rank: number } | { beast: EnemyKind; tier: number } | { costume: string } | { podium: number } | { cost: number; season?: SeasonId } | { streak: number } | { weekly: number } | { story: number } | { season: SeasonId } | { shame: number } | { welcome: number } | { raid: number };
   how: string;
 }
 
@@ -231,6 +231,20 @@ LOOKS.push(
   { id: 'gravecoat', name: "Gravedigger's Coat", cloak: { p: '#6b4a2e', P: '#3d2a1a' }, aura: '#c4a46a', unlock: { story: 1 }, how: "Dig Mortimer's grave in the story (Fresh Dirt)." },
   { id: 'bellvestment', name: "Bell-Ringer's Vestment", cloak: { p: '#8a6a2a', P: '#4a3812' }, aura: '#f2c14e', unlock: { story: STORY_ALL }, how: 'Finish every quest in Act I of the story.' },
   { id: 'houndhide', name: 'Houndhide', cloak: { p: '#3a3029', P: '#1c1714' }, aura: '#a8894a', unlock: { story: 2 }, how: 'Bring the crypt hound home in the story (The Kennel).' },
+);
+
+// The Bell Tolls: earned only by felling world bosses together, one piece per boss felled.
+export const raidHow = (n: number) => (n === 1 ? 'Fell a world boss with everyone in The Bell Tolls.' : `Fell ${n} world bosses with everyone in The Bell Tolls.`);
+const raid = (n: number) => ({ unlock: { raid: n }, how: raidHow(n) });
+LOOKS.push(
+  { id: 'tollbreaker', name: 'Tollbreaker', cloak: { p: '#a8803a', P: '#5c4418' }, aura: '#f2c14e', ...raid(1) },
+  { id: 'warbandred', name: 'Warband Crimson', cloak: { p: '#9e2a2a', P: '#4e1010' }, aura: '#ff8a2a', ...raid(5) },
+  { id: 'plaguebane', name: 'Plaguebane', cloak: { p: '#d8e8c8', P: '#6b8a4a' }, aura: '#b5e07a', ...raid(9) },
+  { id: 'wardenbane', name: 'Wardenbane', cloak: { p: '#b8b2a4', P: '#5d667a' }, aura: '#e8dcc4', ...raid(13) },
+  { id: 'lichbane', name: 'Lichbane', cloak: { p: '#8a7ab8', P: '#3a2a6b' }, aura: '#d3b0ff', ...raid(17) },
+  { id: 'nightwatch', name: 'Nightwatch', cloak: { p: '#26324a', P: '#101624' }, aura: '#c9d1e0', ...raid(21) },
+  { id: 'emberwake', name: 'Emberwake', cloak: { p: '#c0461c', P: '#2a0f08' }, aura: '#ffd23f', ...raid(25) },
+  { id: 'eclipse', name: 'Eclipse Mantle', cloak: { p: '#141119', P: '#c99a2e' }, aura: '#fff2c0', ...raid(28) },
 );
 
 // Cloaks sold in the Ossuary for Souls. Looks only, so the daily crypt stays fair.
@@ -319,6 +333,25 @@ export const DECOR: DecorDef[] = [
   { id: 'ghosts', name: 'Wandering Ghosts', emoji: '👻', cost: 1800, desc: 'Two pale ghosts that drift through your Hall and pass through the walls.', season: 'halloween' },
 ];
 export const DECOR_BY_ID = Object.fromEntries(DECOR.map((d) => [d.id, d])) as Record<string, DecorDef>;
+
+/** Hall pieces from The Bell Tolls: never sold, one per world boss felled. */
+export interface RaidDecorDef {
+  id: string;
+  name: string;
+  emoji: string;
+  desc: string;
+  raid: number;
+}
+
+export const RAID_DECOR: RaidDecorDef[] = [
+  { id: 'raidbanners', name: 'War Banners', emoji: '🚩', raid: 4, desc: 'Two tattered war banners, one for each side of your Hall.' },
+  { id: 'bellshardpile', name: 'Pile of Bell Shards', emoji: '🔔', raid: 8, desc: 'Bronze shards of a broken bell, still humming.' },
+  { id: 'bossskull', name: 'Mounted Boss Skull', emoji: '💀', raid: 12, desc: "A great horned skull over your Hall, eyes still glowing." },
+  { id: 'chandelier', name: 'Raid Chandelier', emoji: '🕯️', raid: 16, desc: 'An iron wheel of candles hung from the ceiling.' },
+  { id: 'warhorn', name: 'The War Horn', emoji: '📯', raid: 20, desc: 'The horn that calls the crypt to the fight, on its stand.' },
+  { id: 'rollofhonor', name: 'Roll of Honour', emoji: '📜', raid: 24, desc: 'A stone tablet that counts every world boss you helped fell.' },
+];
+export const RAID_DECOR_BY_ID = Object.fromEntries(RAID_DECOR.map((d) => [d.id, d])) as Record<string, RaidDecorDef>;
 
 // ---------- costumes ----------
 // Headwear is drawn over the hero's hood. A few pieces are shared by every hero; the
@@ -469,6 +502,15 @@ export const HEADS: HeadDef[] = [
   hero('horns', 'Demon Horns', 'barbarian', { run: 'lowHpKills', n: 10 }, [[2, 0, RED], [3, 1, '#701826'], [3, 2, '#701826'], [9, 0, RED], [8, 1, '#701826'], [8, 2, '#701826']]),
   hero('bearskull', 'Bear Skull', 'barbarian', { floor: 10 }, [...row(1, 3, 8, BONE), ...row(2, 3, 8, '#c9b99a'), [4, 3, BONE], [7, 3, BONE], [3, 0, '#c9b99a'], [8, 0, '#c9b99a']]),
   hero('warpaint', 'War Paint', 'barbarian', { souls: 1500 }, [[3, 4, RED], [4, 4, RED], [8, 4, RED], [4, 5, RED], [6, 5, RED], [7, 5, RED]]),
+  // The Bell Tolls: felling world bosses together.
+  { id: 'bellcrown', name: 'Bell Crown', ...raid(2), pixels: [...row(2, 3, 8, '#8a6a2a'), [3, 1, '#c9a24a'], [5, 1, '#c9a24a'], [6, 1, '#c9a24a'], [8, 1, '#c9a24a'], [5, 0, '#fff2c0'], [6, 0, '#5d4a2a'], [4, 2, '#fff2c0'], [7, 2, '#fff2c0']] },
+  { id: 'raidhorns', name: "Raider's Helm", ...raid(6), pixels: [...row(1, 3, 8, STEEL), ...row(2, 3, 8, '#9aa3b5'), [5, 3, '#9aa3b5'], [6, 3, '#9aa3b5'], [2, 1, BONE], [1, 0, BONE], [9, 1, BONE], [10, 0, BONE], [5, 0, STEEL], [6, 0, STEEL]] },
+  { id: 'beakmask', name: "Abbot's Beak", ...raid(10), pixels: [...row(3, 4, 7, '#3a4a2a'), [4, 3, '#b5e07a'], [7, 3, '#b5e07a'], [8, 4, '#d8cfb8'], [9, 4, '#d8cfb8'], [9, 5, '#c9c3b2'], [10, 5, '#c9c3b2'], ...row(1, 3, 8, '#2a3420'), ...row(2, 2, 9, '#2a3420')] },
+  { id: 'wardenvisor', name: "Warden's Visor", ...raid(14), pixels: [...row(1, 3, 8, BONE), ...row(2, 3, 8, '#c9c3b2'), ...row(3, 3, 8, BONE), [4, 3, DARK], [5, 3, DARK], [6, 3, DARK], [7, 3, DARK], [5, 0, BONE], [6, 0, BONE]] },
+  { id: 'lichdiadem', name: 'Lich Shard Diadem', ...raid(18), pixels: [...row(2, 3, 8, '#311854'), [4, 1, '#d3b0ff'], [5, 0, '#ffffff'], [6, 0, '#d3b0ff'], [7, 1, '#d3b0ff'], [5, 2, '#b07cff'], [6, 2, '#b07cff'], [3, 1, '#5a2f8a'], [8, 1, '#5a2f8a']] },
+  { id: 'crestplume', name: 'Banner Crest', ...raid(22), pixels: [...row(1, 4, 7, '#5d667a'), ...row(2, 3, 8, '#8a8a96'), [4, 0, '#701826'], [5, 0, RED], [6, 0, RED], [7, 0, '#ff6b6b'], [8, 1, RED], [9, 2, '#701826']] },
+  { id: 'embercirclet', name: 'Ember Circlet', ...raid(26), pixels: [...row(2, 3, 8, '#3a1a12'), [3, 1, '#d23a46'], [4, 1, '#ff8a2a'], [6, 1, '#ffd23f'], [8, 1, '#ff8a2a'], [6, 0, '#ff8a2a'], [5, 2, '#ffd23f'], [6, 2, '#ffd23f']] },
+  { id: 'worldcrown', name: 'Crown of the World Boss', ...raid(29), pixels: [[3, 0, GOLD], [5, 0, '#fff2c0'], [6, 0, '#fff2c0'], [8, 0, GOLD], ...row(1, 3, 8, GOLD), ...row(2, 3, 8, '#141119'), [4, 2, '#5fe3ff'], [5, 2, RED], [6, 2, '#b5e07a'], [7, 2, '#b07cff'], [2, 1, '#a8781f'], [9, 1, '#a8781f']] },
   // Seven Nights: the last day's gift.
   { id: 'sevennights', name: 'Crown of Seven Nights', unlock: { welcome: 7 }, how: 'Seven Nights, day 7: play on seven different days.', pixels: [...row(2, 3, 8, '#2a3d4a'), [4, 2, '#7cf5c4'], [7, 2, '#7cf5c4'], [3, 1, '#c9d1e0'], [5, 1, '#c9d1e0'], [6, 1, '#c9d1e0'], [8, 1, '#c9d1e0'], [3, 0, '#9fe8ff'], [5, 0, '#7cf5c4'], [6, 0, '#7cf5c4'], [8, 0, '#9fe8ff']] },
 ];
@@ -517,7 +559,8 @@ export interface Outfit {
 
 export type AuraStyle =
   | 'candle' | 'ember' | 'tide' | 'bone' | 'abyss' | 'void' | 'rays' | 'sunburst' | 'flame'
-  | 'wisps' | 'snow' | 'storm' | 'mist' | 'souls' | 'crown' | 'eternity' | 'rainbow' | 'bell';
+  | 'wisps' | 'snow' | 'storm' | 'mist' | 'souls' | 'crown' | 'eternity' | 'rainbow' | 'bell'
+  | 'shards' | 'blades' | 'banner' | 'eclipse';
 
 export type AuraUnlock =
   | { floor: number }
@@ -527,6 +570,7 @@ export type AuraUnlock =
   | { patron: true }
   | { welcome: number }
   | { story: number }
+  | { raid: number }
   | { cost: number; season?: SeasonId };
 
 export interface AuraDef {
@@ -566,6 +610,15 @@ export const AURAS: AuraDef[] = [
   { id: 'greatbell', name: 'The Great Bell', style: 'bell', color: '#c9a24a', unlock: { story: STORY_ALL }, how: 'Finish every quest in Act I of the story: the bell answers to you now.' },
   { id: 'gravesendlight', name: 'Light of Gravesend', style: 'candle', color: '#9fe8ff', unlock: { story: STORY_ALL }, how: 'Finish every quest in Act I of the story, side quests too.' },
   { id: 'homecoming', name: 'Homecoming', style: 'souls', color: '#7cf5c4', unlock: { welcome: 5 }, how: 'Seven Nights, day 5: come back on a fifth day.' },
+  // The Bell Tolls: felling world bosses together.
+  { id: 'raidember', name: 'Warcry Embers', style: 'ember', color: '#ff4d5a', ...raid(3) },
+  { id: 'bellshards', name: 'Bell Shards', style: 'shards', color: '#c9a24a', ...raid(7) },
+  { id: 'plaguecenser', name: 'Censer Smoke', style: 'mist', color: '#8fd47f', ...raid(11) },
+  { id: 'warband', name: 'Warband Blades', style: 'blades', color: '#c9d1e0', ...raid(15) },
+  { id: 'lichfire', name: 'Lichfire', style: 'flame', color: '#b07cff', ...raid(19) },
+  { id: 'rallybanner', name: 'Rallying Banner', style: 'banner', color: '#d23a46', ...raid(23) },
+  { id: 'stormtoll', name: 'Thunder Toll', style: 'storm', color: '#f2c14e', ...raid(27) },
+  { id: 'worldbreaker', name: 'Worldbreaker', style: 'eclipse', color: '#f2c14e', ...raid(30) },
   // Sold in the Ossuary.
   { id: 'frostbite', name: 'Frostbite', style: 'snow', color: '#c9f2ff', ...auraSold(2500) },
   { id: 'stormcharged', name: 'Stormcharged', style: 'storm', color: '#9fe8ff', ...auraSold(5000) },
@@ -621,3 +674,17 @@ export function welcomeLabel(r: WelcomeReward): { icon: string; name: string } {
   if ('aura' in r) return { icon: '✨', name: `${AURA_BY_ID[r.aura]?.name ?? r.aura} aura` };
   return { icon: '👑', name: `${HEAD_BY_ID[r.head]?.name ?? r.head} + a title` };
 }
+
+// ---------- The Bell Tolls rewards ----------
+
+export type RaidRewardKind = 'look' | 'head' | 'aura' | 'decor';
+
+/** Every Bell-Breaker reward in order: the nth is earned with the nth world boss felled. */
+export const RAID_REWARDS: { n: number; kind: RaidRewardKind; id: string; name: string }[] = [
+  ...LOOKS.filter((l) => 'raid' in l.unlock).map((l) => ({ n: (l.unlock as { raid: number }).raid, kind: 'look' as const, id: l.id, name: l.name })),
+  ...HEADS.filter((h) => h.unlock && 'raid' in h.unlock).map((h) => ({ n: (h.unlock as { raid: number }).raid, kind: 'head' as const, id: h.id, name: h.name })),
+  ...AURAS.filter((a) => 'raid' in a.unlock).map((a) => ({ n: (a.unlock as { raid: number }).raid, kind: 'aura' as const, id: a.id, name: a.name })),
+  ...RAID_DECOR.map((d) => ({ n: d.raid, kind: 'decor' as const, id: d.id, name: d.name })),
+].sort((a, b) => a.n - b.n);
+
+export const RAID_KIND_LABEL: Record<RaidRewardKind, string> = { look: '🎨 Cloak', head: '🎩 Headwear', aura: '✨ Aura', decor: '🏰 Hall piece' };
