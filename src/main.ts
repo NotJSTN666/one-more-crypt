@@ -4,7 +4,7 @@ import { dailyNumber, formatCountdown, msUntilNextDaily } from './daily';
 import { ELITES, FEATURES, HERO_BY_ID, dailyHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait } from './hero';
 import { BOON_BY_ID, ENEMY_INFO, REAPER_FLOOR, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode } from './game';
-import { acceptQuest, checkRun, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, type RunReward } from './meta';
+import { acceptQuest, checkRun, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
@@ -14,7 +14,7 @@ import { Renderer } from './render';
 import { sprites } from './sprites';
 import { RAID_JOIN_MIN, RAID_SUBMIT_MIN, RAID_TURNS, currentRaid, nextRaid, raidBossName, raidConfig, raidJoinable, raidTimeLabel, type RaidSlot } from './raid';
 import { hashSeed } from './rng';
-import { ONLINE, raidHit, raidPlayer, raidState, type RaidState, challengeBoard, emailReminderOff, sendFeedback, setEmailReminder, type FeedbackKind, challengeNews, createChallenge, dailyBoard, endlessBoard, getChallenge, mySummons, noteRun, noteSummon, pingActivity, startActivityPings, submitChallengeRun, type Challenge, type ChallengeRow } from './online';
+import { ONLINE, claimInvite, myInvites, raidHit, raidPlayer, raidState, type RaidState, challengeBoard, emailReminderOff, sendFeedback, setEmailReminder, type FeedbackKind, challengeNews, createChallenge, dailyBoard, endlessBoard, getChallenge, mySummons, noteRun, noteSummon, pingActivity, startActivityPings, submitChallengeRun, type Challenge, type ChallengeRow } from './online';
 import {
   ACT_TITLE, LORE, LORE_COUNT, MAIN_QUESTS, QUESTS, QUEST_BY_N, SPEAKERS, conversation, facePortrait, houndStats, npcMarker, npcPresent, petName, questStatus,
   type Line, type NpcId, type Quest, type StoryState,
@@ -400,6 +400,7 @@ function finishRun(abandoned = false) {
     lastLabel = 'Endless';
   }
   save.totals.runs += 1;
+  void claimInviteIfDue();
   save.totals.kills += result.kills;
   if (game.mode === 'daily') save.totals.bestDaily = Math.max(save.totals.bestDaily, result.floor);
   writeSave(save);
@@ -896,6 +897,7 @@ function showTitle() {
     </div>
     <button class="btn" id="hall">🏰 The Crypt Hall<small style="color:${rankFor(meta.earned).color}">${esc(rankFor(meta.earned).name)} · trophies, titles, wardrobe</small></button>
     ${ONLINE ? '<button class="btn" id="leaderboard">🏆 Leaderboards</button>' : ''}
+    ${ONLINE ? inviteButtonHtml() : ''}
     <div class="row">
       <button class="btn" id="help">How to play</button>
       <button class="btn" id="feedback">💬 Feedback<small>Bugs, ideas, anything</small></button>
@@ -922,6 +924,7 @@ function showTitle() {
   on('#story', () => playStory());
   on('#act2', () => showActTwo(showTitle));
   on('#raid', () => showRaid(showTitle));
+  on('#invite', () => showInvite(showTitle));
   on('#help', () => showHelp(showTitle));
   on('#feedback', () => showFeedback(showTitle));
   on('#install', () => {
@@ -936,6 +939,7 @@ function showTitle() {
   // Finished on yesterday's podium? Celebrate once the result is in.
   // A world boss you fought in fell (or got away) while you were gone.
   if (unsettledRaids().length) void checkRaidRewards();
+  if (signedIn()) void checkFriends();
   if (signedIn()) {
     // Then a top 3 on last week's Endless board, then thanks for answered summons.
     void claimPodiums().then(async (won) => {
@@ -1640,6 +1644,7 @@ function showDeath(r: RunResult, best: boolean) {
       <button class="btn" id="ossuary">🏛️ Ossuary</button>
       <button class="btn" id="title">Title</button>
     </div>
+    ${ONLINE ? inviteButtonHtml() : ''}
     ${onlineCountHtml()}
     ${tipNoteHtml()}
     ${followXHtml}
@@ -1673,6 +1678,7 @@ function showDeath(r: RunResult, best: boolean) {
   if (daily) showEndlessRecord();
   on('#ossuary', () => showOssuary(backHere));
   on('#hall', () => openHall(backHere));
+  on('#invite', () => showInvite(backHere));
   on('#title', () => {
     newGame('endless');
     showTitle();
@@ -2366,6 +2372,107 @@ function showRaidReward(n: number, then: () => void) {
   on('#back', back);
 }
 
+// ---------- Bring a friend ----------
+// Each named player has a link (?invite=NAME). A new player who arrives through it and finishes a
+// run counts for them: both get the Kindred Cloak, and more friends bring more.
+
+const INVITE_LADDER: { n: number; what: string }[] = [
+  { n: 1, what: '🎨 Kindred Cloak (your friend gets one too)' },
+  { n: 3, what: '✨ Kindred Flame, an aura' },
+  { n: 5, what: '🎩 Lantern Hood, headwear' },
+  { n: 10, what: '📜 The Crypt Crier, a golden title' },
+];
+
+const inviteUrl = (name: string) => `${siteUrl()}?invite=${encodeURIComponent(name)}&ref=invite`;
+
+function inviteButtonHtml(): string {
+  const n = meta.invite.friends;
+  return `<button class="btn invite-btn" id="invite">👥 Bring a friend<small>${n ? `${n} friend${n === 1 ? '' : 's'} brought · ` : ''}You both get the Kindred Cloak</small></button>`;
+}
+
+/** ?invite=NAME: a friend sent you. Counted once you finish a run (new players only). */
+function inviteFromLink() {
+  try {
+    const u = new URL(location.href);
+    if (!u.searchParams.has('invite')) return;
+    const name = (u.searchParams.get('invite') ?? '').trim().slice(0, 24);
+    u.searchParams.delete('invite');
+    history.replaceState(history.state, '', u.toString());
+    if (!name || name.toLowerCase() === playerName().toLowerCase()) return;
+    if (save.totals.runs > 2 || meta.invite.claimed || meta.invite.from) return;
+    noteInvitedBy(name);
+    window.setTimeout(() => toast(`👥 ${name} invited you! Finish a run: you both get a cloak.`), 1500);
+  } catch {
+    // A broken link: nothing to remember.
+  }
+}
+
+/** After a run: if a friend invited you, this run counts for them (once). */
+async function claimInviteIfDue() {
+  const from = meta.invite.from;
+  if (!ONLINE || !from || meta.invite.claimed) return;
+  try {
+    const name = await claimInvite(from);
+    settleInvite(Boolean(name));
+    if (name) {
+      sfx.relic();
+      toast(`👥 You and ${name} both earned the Kindred Cloak! Wear it from the Wardrobe.`);
+    }
+  } catch {
+    // Offline: try again after the next run.
+  }
+}
+
+/** Friends who've played since last time: say so, and what it unlocked. */
+async function checkFriends() {
+  const n = await myInvites().catch(() => null);
+  if (n === null) return;
+  const before = meta.invite.friends;
+  const fresh = noteFriends(n);
+  if (!fresh) return;
+  const reward = INVITE_LADDER.filter((r) => r.n > before && r.n <= n).map((r) => r.what.replace(/ \(.*\)$/, ''));
+  toast(`👥 ${fresh === 1 ? 'A friend you invited' : `${fresh} friends you invited`} just played!${reward.length ? ` Unlocked: ${reward.join(', ')}.` : ''}`);
+  if (screen === 'title') showTitle();
+}
+
+/** Your link, what it earns, and how many friends it has brought. */
+function showInvite(back: () => void) {
+  const name = signedIn() ? playerName() : '';
+  const n = meta.invite.friends;
+  const url = name ? inviteUrl(name) : '';
+  const text = `I've been playing One More Crypt: a free daily roguelike in your browser. One crypt, one try a day. Come down with me:`;
+  showOverlay('invite', `
+    <h2>👥 Bring a friend</h2>
+    <p class="sub">Send a friend your link. When they finish their first run, you <b>both</b> get the Kindred Cloak, and every friend you bring counts toward more.</p>
+    <img class="hero-portrait aura-glow" style="--aura:#ffb35a" src="${heroPortrait(meta.hero, {}, [], 8, 'kindred', outfitFor(meta.hero).head)}" alt="Your hero in the Kindred Cloak" width="96" height="96" />
+    <ul class="invite-ladder">
+      ${INVITE_LADDER.map((r) => `<li class="${n >= r.n ? 'got' : ''}"><span>${n >= r.n ? '✓' : `${Math.min(n, r.n)}/${r.n}`}</span>${esc(r.what)}</li>`).join('')}
+    </ul>
+    ${name
+      ? `<div class="invite-link"><input id="invite-url" type="text" readonly value="${esc(url)}" aria-label="Your invite link" /></div>
+        <button class="btn primary" id="invite-share">📤 Share your link</button>
+        <button class="btn" id="invite-copy">📋 Copy link</button>
+        <p class="fine">Friends brought so far: <b>${n}</b>. A friend counts once they finish a run; it can take a moment to show up here. Only new players count.</p>`
+      : `<p class="fine">Pick a name and sign in to get your own link, so friends know who sent them.</p>
+        <button class="btn primary" id="invite-join">Get my link</button>`}
+    <button class="btn" id="back">Back</button>`);
+  on('#invite-join', () => showLogin(() => showInvite(back), 'claim'));
+  on('#invite-copy', async () => toast((await copyText(url)) ? 'Link copied!' : 'Copy failed'));
+  on('#invite-share', async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'One More Crypt', text, url });
+        return;
+      } catch (e) {
+        if ((e as Error).name === 'AbortError') return;
+      }
+    }
+    toast((await copyText(`${text} ${url}`)) ? 'Invite copied! Paste it to a friend.' : 'Copy failed');
+  });
+  on('#back', back);
+  if (name) void checkFriends();
+}
+
 // ---------- story mode ----------
 // Act I is played out in the world: walk Gravesend, talk to people in their homes, take
 // their quests, and descend into the dungeons under it. Story runs are never saved
@@ -3022,6 +3129,7 @@ showTitle();
 const visiting = hallFromLink();
 if (visiting && ONLINE) showPublicHall(visiting, showTitle);
 const challengeCode = challengeFromLink();
+inviteFromLink();
 if (challengeCode && ONLINE) openChallenge(challengeCode, showTitle);
 // The unsubscribe link in a reminder email: ?unsub=<token>.
 const unsub = new URLSearchParams(location.search).get('unsub');

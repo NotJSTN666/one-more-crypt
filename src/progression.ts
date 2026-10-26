@@ -145,6 +145,7 @@ export const TITLES: TitleDef[] = [
   { id: 'story:bell', name: 'The Bell-Ringer', how: 'Finish every quest in Act I of the story.' },
   { id: 'story:all', name: 'Hero of Gravesend', how: 'Finish every quest in Act I of the story, side quests too.' },
   { id: 'welcome:7', name: 'Keeper of Seven Nights', how: 'Play on seven different days (Seven Nights).' },
+  { id: 'invite:10', name: 'The Crypt Crier', how: 'Bring 10 friends to the crypt.' },
   // Given by hand to supporters (the patrons table), never sold in the game.
   { id: 'patron:1', name: 'Patron of the Crypt', how: 'Helped keep the crypt open. Thank you.', secret: true },
 ];
@@ -169,6 +170,7 @@ export const TITLE_BY_ID = Object.fromEntries(TITLES.map((t) => [t.id, t])) as R
 export type TitleFx = 'prism' | 'gold' | 'eternal' | 'sovereign' | 'soul' | 'abyss' | 'arcane' | 'ember' | 'steel';
 
 export const TITLE_FX: Record<string, TitleFx> = {
+  'invite:10': 'gold',
   'patron:1': 'prism',
   'story:bell': 'gold',
   'story:all': 'gold',
@@ -205,7 +207,7 @@ export interface LookDef {
   /** Colour of the drifting aura motes, if any. */
   aura: string | null;
   /** What unlocks it: an achievement, a Soul Rank (index) or a Bestiary tier. */
-  unlock: { feat: string } | { rank: number } | { beast: EnemyKind; tier: number } | { costume: string } | { podium: number } | { cost: number; season?: SeasonId } | { streak: number } | { weekly: number } | { story: number } | { season: SeasonId } | { shame: number } | { welcome: number } | { raid: number };
+  unlock: { feat: string } | { rank: number } | { beast: EnemyKind; tier: number } | { costume: string } | { podium: number } | { cost: number; season?: SeasonId } | { streak: number } | { weekly: number } | { story: number } | { season: SeasonId } | { shame: number } | { welcome: number } | { raid: number } | { invite: number };
   how: string;
 }
 
@@ -248,6 +250,9 @@ LOOKS.push(
   { id: 'emberwake', name: 'Emberwake', cloak: { p: '#c0461c', P: '#2a0f08' }, aura: '#ffd23f', ...raid(25) },
   { id: 'eclipse', name: 'Eclipse Mantle', cloak: { p: '#141119', P: '#c99a2e' }, aura: '#fff2c0', ...raid(28) },
 );
+
+// Bring a friend: the first is shared with the friend you brought.
+LOOKS.push({ id: 'kindred', name: 'Kindred Cloak', cloak: { p: '#c46a2e', P: '#5a2a12' }, aura: '#ffb35a', unlock: { invite: 1 }, how: 'Bring a friend to the crypt (they get it too). Find your link under Bring a friend.' });
 
 // Death's own: for outrunning him.
 LOOKS.push({ id: 'reapershroud', name: "Reaper's Shroud", cloak: { p: '#1d1428', P: '#0a0710' }, aura: '#d3b0ff', unlock: { feat: 'outran' }, how: 'Reach floor 175 with Death on your heels.' });
@@ -516,6 +521,8 @@ export const HEADS: HeadDef[] = [
   { id: 'crestplume', name: 'Banner Crest', ...raid(22), pixels: [...row(1, 4, 7, '#5d667a'), ...row(2, 3, 8, '#8a8a96'), [4, 0, '#701826'], [5, 0, RED], [6, 0, RED], [7, 0, '#ff6b6b'], [8, 1, RED], [9, 2, '#701826']] },
   { id: 'embercirclet', name: 'Ember Circlet', ...raid(26), pixels: [...row(2, 3, 8, '#3a1a12'), [3, 1, '#d23a46'], [4, 1, '#ff8a2a'], [6, 1, '#ffd23f'], [8, 1, '#ff8a2a'], [6, 0, '#ff8a2a'], [5, 2, '#ffd23f'], [6, 2, '#ffd23f']] },
   { id: 'worldcrown', name: 'Crown of the World Boss', ...raid(29), pixels: [[3, 0, GOLD], [5, 0, '#fff2c0'], [6, 0, '#fff2c0'], [8, 0, GOLD], ...row(1, 3, 8, GOLD), ...row(2, 3, 8, '#141119'), [4, 2, '#5fe3ff'], [5, 2, RED], [6, 2, '#b5e07a'], [7, 2, '#b07cff'], [2, 1, '#a8781f'], [9, 1, '#a8781f']] },
+  // Bring a friend: five friends brought.
+  { id: 'lanternhood', name: 'Lantern Hood', unlock: { invite: 5 }, how: 'Bring 5 friends to the crypt.', pixels: [...row(1, 3, 8, '#5a2a12'), ...row(2, 2, 9, '#7a3a18'), [5, 0, '#3a3346'], [6, 0, '#3a3346'], [8, 0, '#3a3346'], [9, 1, '#ffd23f'], [10, 1, '#ff8a2a'], [9, 2, '#3a3346'], [10, 2, '#3a3346'], [4, 2, '#ffb35a'], [7, 2, '#ffb35a']] },
   // Death's own hood, skull and all: for cheating him.
   { id: 'deathshood', name: "Death's Hood", unlock: { feat: 'cheated' }, how: 'Reach floor 200 with Death on your heels.', pixels: [...row(0, 4, 7, '#141119'), ...row(1, 3, 8, '#141119'), ...row(2, 2, 9, '#1d1428'), [2, 3, '#1d1428'], [3, 3, '#1d1428'], ...row(3, 4, 7, BONE), [8, 3, '#1d1428'], [9, 3, '#1d1428'], [3, 4, '#1d1428'], [4, 4, '#d3b0ff'], [5, 4, BONE], [6, 4, BONE], [7, 4, '#d3b0ff'], [8, 4, '#1d1428'], [3, 5, '#1d1428'], [5, 5, '#c9c3b2'], [6, 5, '#c9c3b2'], [8, 5, '#1d1428']] },
   // Seven Nights: the last day's gift.
@@ -578,6 +585,7 @@ export type AuraUnlock =
   | { welcome: number }
   | { story: number }
   | { raid: number }
+  | { invite: number }
   | { cost: number; season?: SeasonId };
 
 export interface AuraDef {
@@ -617,6 +625,7 @@ export const AURAS: AuraDef[] = [
   { id: 'greatbell', name: 'The Great Bell', style: 'bell', color: '#c9a24a', unlock: { story: STORY_ALL }, how: 'Finish every quest in Act I of the story: the bell answers to you now.' },
   { id: 'gravesendlight', name: 'Light of Gravesend', style: 'candle', color: '#9fe8ff', unlock: { story: STORY_ALL }, how: 'Finish every quest in Act I of the story, side quests too.' },
   { id: 'homecoming', name: 'Homecoming', style: 'souls', color: '#7cf5c4', unlock: { welcome: 5 }, how: 'Seven Nights, day 5: come back on a fifth day.' },
+  { id: 'kindredflame', name: 'Kindred Flame', style: 'candle', color: '#ff8a2a', unlock: { invite: 3 }, how: 'Bring 3 friends to the crypt.' },
   // The Bell Tolls: felling world bosses together.
   { id: 'raidember', name: 'Warcry Embers', style: 'ember', color: '#ff4d5a', ...raid(3) },
   { id: 'bellshards', name: 'Bell Shards', style: 'shards', color: '#c9a24a', ...raid(7) },

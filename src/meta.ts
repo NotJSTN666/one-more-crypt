@@ -94,6 +94,8 @@ export interface Meta {
   grave: GraveState | null;
   /** The Bell Tolls: tolls fought in, world bosses felled together, and tolls that got away. */
   raid: RaidProgress;
+  /** Bring a friend: who invited you (and whether your first run counted for them), and friends you've brought. */
+  invite: { from: string; claimed: boolean; friends: number };
 }
 
 export interface RaidProgress {
@@ -150,7 +152,7 @@ function empty(): Meta {
     podiums: {}, podiumChecked: 0, bought: [], streak: { best: 0, count: 0, last: 0 },
     bounties: { day: 0, ids: [], progress: [], done: [] },
     weekly: {}, weeklyChecked: '',
-    story: emptyStory(), pet: '', summonsSeen: '', patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null, raid: { joined: [], won: [], lost: [] },
+    story: emptyStory(), pet: '', summonsSeen: '', patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null, raid: { joined: [], won: [], lost: [] }, invite: { from: '', claimed: false, friends: 0 },
   };
 }
 
@@ -158,6 +160,11 @@ const ids = (v: unknown) => (Array.isArray(v) ? [...new Set(v.map(String))] : []
 function cleanRaid(r: unknown): RaidProgress {
   const o = r && typeof r === 'object' ? (r as Record<string, unknown>) : {};
   return { joined: ids(o.joined).slice(-40), won: ids(o.won), lost: ids(o.lost).slice(-40) };
+}
+
+function cleanInvite(v: unknown): Meta['invite'] {
+  const o = v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
+  return { from: typeof o.from === 'string' ? o.from.slice(0, 24) : '', claimed: o.claimed === true, friends: Math.max(0, Math.min(10000, Math.floor(Number(o.friends) || 0))) };
 }
 
 function cleanWelcome(w: unknown): Meta['welcome'] {
@@ -174,6 +181,7 @@ function load(): Meta {
     m.isle = cleanIsle(m.isle);
     m.welcome = cleanWelcome(m.welcome);
     m.raid = cleanRaid(m.raid);
+    m.invite = cleanInvite(m.invite);
     m.grave = m.grave ? cleanGraveState(m.grave, Date.now()) : null;
     m.story = m.story?.v === STORY_V ? { ...emptyStory(), ...m.story } : { ...emptyStory(), choices: m.story?.choices ?? {}, bond: m.story?.bond ?? 0 };
     return m;
@@ -230,6 +238,8 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   const ow = cleanWelcome(other.welcome);
   if (ow.claimed > meta.welcome.claimed || (ow.claimed === meta.welcome.claimed && ow.last > meta.welcome.last)) meta.welcome = ow;
   meta.deepest = Math.max(meta.deepest, Number(other.deepest) || 0);
+  const oi = cleanInvite(other.invite);
+  meta.invite = { from: meta.invite.from || oi.from, claimed: meta.invite.claimed || oi.claimed, friends: Math.max(meta.invite.friends, oi.friends) };
   const or = cleanRaid(other.raid);
   meta.raid = cleanRaid({ joined: [...meta.raid.joined, ...or.joined], won: [...meta.raid.won, ...or.won], lost: [...meta.raid.lost, ...or.lost] });
   meta.shame = { ...(other.shame ?? {}), ...meta.shame };
@@ -604,6 +614,7 @@ function unlockMet(u: Unlock): boolean {
   if ('shame' in u) return Object.keys(meta.shame).length >= u.shame;
   if ('welcome' in u) return meta.welcome.claimed >= u.welcome;
   if ('raid' in u) return raidWins() >= u.raid;
+  if ('invite' in u) return inviteMet(u.invite);
   return (meta.bestiaryTier[u.beast] ?? 0) > u.tier;
 }
 
@@ -891,6 +902,7 @@ export function titleUnlocked(id: string): boolean {
   if (kind === 'podium') return podiumCount(Number(key)) > 0;
   if (kind === 'patron') return meta.patron;
   if (kind === 'welcome') return meta.welcome.claimed >= Number(key);
+  if (kind === 'invite') return inviteMet(Number(key));
   if (kind === 'story') return storyDone(key === 'all' || key === 'bell' ? STORY_ALL : Number(key));
   if (kind === 'shame') return Boolean(meta.shame[key]);
   if (kind === 'feat') return Boolean(meta.achievements[key]);
@@ -953,6 +965,7 @@ export function auraUnlocked(a: AuraDef): boolean {
   if ('welcome' in u) return meta.welcome.claimed >= u.welcome;
   if ('story' in u) return storyDone(u.story);
   if ('raid' in u) return raidWins() >= u.raid;
+  if ('invite' in u) return inviteMet(u.invite);
   return meta.bought.includes(a.id);
 }
 
@@ -1194,4 +1207,35 @@ export function settleRaid(id: string, felled: boolean): number {
 /** Tolls fought in whose outcome isn't known yet. */
 export function unsettledRaids(): string[] {
   return meta.raid.joined.filter((id) => !meta.raid.won.includes(id) && !meta.raid.lost.includes(id));
+}
+
+// ---------- Bring a friend ----------
+
+/** The nth Bring-a-friend reward: n friends brought (the first is also the invited friend's own). */
+export function inviteMet(n: number): boolean {
+  return meta.invite.friends >= n || (n === 1 && meta.invite.claimed);
+}
+
+/** Arrived from a friend's invite link: remember who, once. */
+export function noteInvitedBy(name: string) {
+  if (meta.invite.from || meta.invite.claimed) return;
+  meta.invite.from = name;
+  saveMeta();
+}
+
+/** The invite was settled: it counted (claimed), or it can't (cleared). */
+export function settleInvite(counted: boolean) {
+  if (counted) meta.invite.claimed = true;
+  else meta.invite.from = '';
+  saveMeta();
+}
+
+/** The server's count of friends you've brought. Returns how many are new since last time. */
+export function noteFriends(n: number): number {
+  const fresh = Math.max(0, n - meta.invite.friends);
+  if (fresh) {
+    meta.invite.friends = n;
+    saveMeta();
+  }
+  return fresh;
 }

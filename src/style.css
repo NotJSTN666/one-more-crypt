@@ -3171,3 +3171,52 @@ body.tutorial #relic-bar {
   border-color: #d23a46;
   color: #fff2c0;
 }
+
+/* Bring a friend */
+.btn.invite-btn {
+  border-color: #c46a2e;
+  background: linear-gradient(180deg, rgba(196, 106, 46, 0.22), rgba(40, 18, 8, 0.3));
+}
+
+.invite-ladder {
+  list-style: none;
+  margin: 10px 0 14px;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  text-align: left;
+  font-size: 12px;
+}
+
+.invite-ladder li {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 7px 10px;
+  border: 1px solid #2a2433;
+  border-radius: 6px;
+  color: #b8b0c4;
+}
+
+.invite-ladder li span {
+  min-width: 34px;
+  color: #ffb35a;
+}
+
+.invite-ladder li.got {
+  border-color: #c46a2e;
+  color: #ffd9a8;
+}
+
+.invite-link input {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 8px;
+  padding: 10px;
+  border: 1px solid #3a3346;
+  border-radius: 6px;
+  background: #0b0710;
+  color: #e8dcc4;
+  font: inherit;
+  font-size: 12px;
+}

@@ -649,3 +649,20 @@ export async function raidHit(event: string, player: string, name: string, hero:
 export function raidPlayer(accountId: string | undefined): string {
   return accountId ?? `d:${deviceId()}`;
 }
+
+// ---------- Bring a friend ----------
+
+/** A new player's first run counts for whoever invited them. Returns the inviter's name, or null if it can't count. */
+export async function claimInvite(name: string): Promise<string | null> {
+  const sb = await client();
+  const { data, error } = await sb.rpc('claim_invite', { p_name: name, p_device: deviceId() });
+  if (error) throw friendly(error, 'Could not reach the crypt.');
+  return typeof data === 'string' && data ? data : null;
+}
+
+/** How many friends you've brought who've played. Null if the server isn't set up for it. */
+export async function myInvites(): Promise<number | null> {
+  const sb = await client();
+  const { data, error } = await sb.rpc('my_invites');
+  return error ? null : Math.max(0, Math.floor(Number(data) || 0));
+}
