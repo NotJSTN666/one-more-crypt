@@ -1046,6 +1046,7 @@ function hollowHooks(): HollowHooks {
     storyOpen,
     npcPresent: (id) => npcPresent(id, storyState()),
     npcMarker: (id) => npcMarker(id, storyState()),
+    questDoor: (n) => Boolean(QUEST_BY_N[n]) && questStatus(QUEST_BY_N[n], storyState()) === 'active',
     talk: talkTo,
     dungeon: dungeonDoor,
     enterDungeon: (n) => QUEST_BY_N[n] && beginDungeon(QUEST_BY_N[n]),

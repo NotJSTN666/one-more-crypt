@@ -330,6 +330,8 @@ export interface HollowHooks {
   storyOpen: () => boolean;
   npcPresent: (id: NpcId) => boolean;
   npcMarker: (id: NpcId) => string;
+  /** A quest you've taken whose dungeon still waits: its door gets a marker, and the roads point to it. */
+  questDoor?: (n: number) => boolean;
   talk: (id: NpcId) => void;
   /** A dungeon's door: open (with what's down there) or barred (and why). */
   dungeon: (n: number) => { open: boolean; title: string; text: string };
@@ -1691,6 +1693,86 @@ function renderOutside(ctx: CanvasRenderingContext2D, px: Px, t: number) {
         const mark = marks.includes('?') ? '?' : marks.includes('!') ? '!' : '';
         if (mark) questMark(px, x * TILE, y * TILE - 20, mark, t);
       }
+    }
+    // the dungeon of a quest you've taken
+    for (let y = 0; y < R; y++) {
+      for (let x = 0; x < C; x++) {
+        const door = area().doors[map[y][x]];
+        if (door && 'dungeon' in door && hooks.questDoor?.(door.dungeon) && !(map[y - 1]?.[x] === map[y][x])) questMark(px, x * TILE, y * TILE - 20, '!', t);
+      }
+    }
+    // and the roads that lead toward it (or back to whoever is waiting to hear)
+    const roads = questRoads();
+    for (let y = 0; y < R; y++) {
+      for (let x = 0; x < C; x++) {
+        const c = map[y][x];
+        if (roads.has(c)) roadArrow(px, x * TILE, y * TILE, c, t);
+      }
+    }
+  }
+}
+
+/** An outdoor area holding somewhere the story wants you: a taken quest's dungeon, or someone to report to. */
+function questHere(id: string): boolean {
+  const a = AREAS[id];
+  if (!a || a.interior) return false;
+  return Object.values(a.doors).some(
+    (d) =>
+      ('dungeon' in d && hooks.questDoor?.(d.dungeon)) ||
+      ('interior' in d && (AREAS[d.interior]?.npcs ?? []).some((n) => hooks.npcPresent(n.id) && hooks.npcMarker(n.id) === '?')),
+  );
+}
+
+/** The exits from here that start the shortest walk to the nearest place the story wants you. */
+function questRoads(): Set<string> {
+  const out = new Set<string>();
+  if (questHere(areaId)) return out;
+  const first = new Map<string, string>();
+  const queue: string[] = [];
+  for (const [c, ex] of Object.entries(area().exits ?? {})) {
+    if (!first.has(ex.to)) {
+      first.set(ex.to, c);
+      queue.push(ex.to);
+    }
+  }
+  let found = -1;
+  for (let i = 0, depth = 0, edge = queue.length; i < queue.length; i++) {
+    if (i === edge) {
+      depth++;
+      edge = queue.length;
+    }
+    if (found >= 0 && depth > found) break;
+    const id = queue[i];
+    if (questHere(id)) {
+      found = depth;
+      out.add(first.get(id)!);
+      continue;
+    }
+    for (const ex of Object.values(AREAS[id]?.exits ?? {})) {
+      if (ex.to === areaId || first.has(ex.to)) continue;
+      first.set(ex.to, first.get(id)!);
+      queue.push(ex.to);
+    }
+  }
+  return out;
+}
+
+/** A gold chevron at the edge of the map, bobbing toward the way to go. */
+function roadArrow(px: Px, X: number, Y: number, c: string, t: number) {
+  const bob = Math.round(Math.sin(t * 5) * 2);
+  const [dx, dy] = c === '<' ? [-1, 0] : c === '>' ? [1, 0] : c === '^' ? [0, -1] : [0, 1];
+  const cx = X + 7 + dx * bob;
+  const cy = Y + 7 + dy * bob;
+  const color = '#f2c14e';
+  px(cx - 2, cy - 2, 6, 6, 'rgba(7,4,11,0.55)');
+  for (let i = 0; i < 3; i++) {
+    // a chevron: two arms meeting at the tip
+    if (dx) {
+      px(cx + dx * (1 - i), cy - i, 2, 1, color);
+      px(cx + dx * (1 - i), cy + i + 1, 2, 1, color);
+    } else {
+      px(cx - i, cy + dy * (1 - i), 1, 2, color);
+      px(cx + i + 1, cy + dy * (1 - i), 1, 2, color);
     }
   }
 }

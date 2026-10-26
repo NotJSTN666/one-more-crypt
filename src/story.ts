@@ -116,10 +116,10 @@ export const QUESTS: Quest[] = [
     title: 'The Kennel',
     giver: 'gravedigger',
     needs: 1,
-    dungeon: { name: 'The Kennel Cellar', floors: [2, 8], gifts: 1, look: 'kennel' },
+    dungeon: { name: 'The Kennel Cellar', floors: [2, 6], gifts: 1, look: 'kennel' },
     souls: 200,
     reward: 'A companion, the Houndhide cloak and a title',
-    hint: 'The old kennels are north of the village. Go down into the Kennel Cellar.',
+    hint: 'From the graveyard, take the east road into Gravesend, then the north road out of the village to the old kennels. Go down into the Kennel Cellar (follow the gold arrows).',
     barred: 'The cellar door is chained shut. Something behind it howls. Mortimer will want to hear about this.',
     offer: [
       { who: 'gravedigger', text: 'The howling comes from the old kennels, north of the village. The Warden kept hounds once, to sniff out escaped corpses. Long story. Very smelly.' },
