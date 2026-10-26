@@ -350,3 +350,50 @@ for (const row of mails) {
   }
 }
 console.log(`Emailed ${emailed} reminder(s) to ${mails.length} signed-up player(s).`);
+
+// ---------- new feedback, to the maker's inbox ----------
+const FEEDBACK_TO = (env.FEEDBACK_EMAIL_TO ?? env.POST_EMAIL_TO ?? '').split(',').map((a) => a.trim()).filter(Boolean);
+let fresh = [];
+try {
+  fresh = await rest('feedback?emailed=eq.false&select=id,kind,message,name,context,created_at&order=id.asc&limit=50');
+} catch {
+  console.log('Feedback is not set up yet (the feedback table is missing).');
+}
+if (fresh.length && RESEND_KEY && FEEDBACK_TO.length) {
+  const icon = { bug: '🐞', idea: '💡', balance: '⚖️', love: '❤️', other: '💬' };
+  const rows = fresh
+    .map((f) => {
+      const c = f.context ?? {};
+      const meta = [f.name ?? 'Guest', `${c.runs ?? 0} runs`, c.bestEndless ? `Endless best ${c.bestEndless}` : '', c.story ? `${c.story} quests` : '', c.app ? 'app' : '', c.screen ?? ''].filter(Boolean).join(' · ');
+      return `<tr><td style="padding:14px 0;border-top:1px solid #2d2139;font-family:Arial,Helvetica,sans-serif;">
+        <div style="font-size:13px;color:#f2c14e;">${icon[f.kind] ?? '💬'} ${escapeHtml(f.kind.toUpperCase())}</div>
+        <div style="padding:6px 0;font-size:15px;line-height:1.5;color:#e8dcc4;white-space:pre-wrap;">${escapeHtml(f.message)}</div>
+        <div style="font-size:12px;color:#6f6580;">${escapeHtml(meta)} · ${escapeHtml(new Date(f.created_at).toUTCString())}</div>
+        <div style="font-size:11px;color:#4f4560;">${escapeHtml(String(c.ua ?? ''))}</div></td></tr>`;
+    })
+    .join('');
+  const html = `<!doctype html><html><body style="margin:0;background:#07040b;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#07040b"><tr><td align="center" style="padding:24px 14px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+      <tr><td style="font-family:Georgia,'Times New Roman',serif;font-size:28px;color:#d23a46;">New feedback</td></tr>
+      <tr><td style="padding:4px 0 10px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#9a8fa8;">${fresh.length} new message${fresh.length === 1 ? '' : 's'} from players of One More Crypt.</td></tr>
+      ${rows}
+    </table></td></tr></table></body></html>`;
+  if (DRY_RUN) console.log(`would email ${fresh.length} feedback message(s)`);
+  else {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${RESEND_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: 'One More Crypt <crypt@onemorecrypt.com>',
+        to: FEEDBACK_TO,
+        subject: `${fresh.length} new feedback message${fresh.length === 1 ? '' : 's'} 💬`,
+        html,
+        text: fresh.map((f) => `[${f.kind}] ${f.name ?? 'Guest'}\n${f.message}`).join('\n\n----\n\n'),
+      }),
+    });
+    if (res.ok) {
+      await rest(`feedback?id=in.(${fresh.map((f) => f.id).join(',')})`, { method: 'PATCH', body: JSON.stringify({ emailed: true }) });
+      console.log(`Emailed ${fresh.length} feedback message(s).`);
+    } else console.log(`Feedback email failed (${res.status}).`);
+  }
+} else if (fresh.length) console.log(`${fresh.length} feedback message(s) waiting (email not set up).`);

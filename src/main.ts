@@ -12,7 +12,7 @@ import { hallFromLink, onVisitIsle, showHall, showPublicHall, soulRankHtml, titl
 import { HEAD_BY_ID, LOOK_BY_ID, PODIUM, STREAK_HELMS, WEEKLY, WELCOME, rankFor, titleFxClass, welcomeLabel, type WelcomeReward } from './progression';
 import { Renderer } from './render';
 import { hashSeed } from './rng';
-import { ONLINE, challengeBoard, emailReminderOff, setEmailReminder, challengeNews, createChallenge, dailyBoard, endlessBoard, getChallenge, mySummons, noteRun, noteSummon, pingActivity, startActivityPings, submitChallengeRun, type Challenge, type ChallengeRow } from './online';
+import { ONLINE, challengeBoard, emailReminderOff, sendFeedback, setEmailReminder, type FeedbackKind, challengeNews, createChallenge, dailyBoard, endlessBoard, getChallenge, mySummons, noteRun, noteSummon, pingActivity, startActivityPings, submitChallengeRun, type Challenge, type ChallengeRow } from './online';
 import {
   ACT_TITLE, LORE, LORE_COUNT, MAIN_QUESTS, QUESTS, QUEST_BY_N, SPEAKERS, conversation, facePortrait, houndStats, npcMarker, npcPresent, petName, questStatus,
   type Line, type NpcId, type Quest, type StoryState,
@@ -33,7 +33,7 @@ import { enableReminders, loadReminders, reminderPrefs, remindersAvailable, remi
 import { claimPodiums, claimWeekly, clearBeat, lastBeat, type PodiumFinish, type WeeklyFinish } from './social';
 import { endlessRecord, initSocial, needsName, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
 import { currentStreak, loadSave, recordDaily, streakStats, writeSave, type RunResult } from './storage';
-import { $, esc, hideOverlay, on, overlay, overlayShownAt, screen, showOverlay, toast } from './ui';
+import { $, esc, formStatus, hideOverlay, on, onSubmit, overlay, overlayShownAt, screen, showOverlay, toast } from './ui';
 
 const canvas = $<HTMLCanvasElement>('board');
 const renderer = new Renderer(canvas);
@@ -873,7 +873,10 @@ function showTitle() {
     </div>
     <button class="btn" id="hall">🏰 The Crypt Hall<small style="color:${rankFor(meta.earned).color}">${esc(rankFor(meta.earned).name)} · trophies, titles, wardrobe</small></button>
     ${ONLINE ? '<button class="btn" id="leaderboard">🏆 Leaderboards</button>' : ''}
-    <button class="btn" id="help">How to play</button>
+    <div class="row">
+      <button class="btn" id="help">How to play</button>
+      <button class="btn" id="feedback">💬 Feedback<small>Bugs, ideas, anything</small></button>
+    </div>
     ${installMode() ? '<button class="btn install-btn" id="install">📲 Install the app<small>Play from your home screen, full screen</small></button>' : ''}
     ${streak > 1 ? `<div class="streak">🕯️ ${streak}-day streak</div>` : ''}
     <div class="foot-links">${followXHtml}${discordHtml}${kofiHtml}</div>
@@ -895,6 +898,7 @@ function showTitle() {
   });
   on('#story', () => playStory());
   on('#help', () => showHelp(showTitle));
+  on('#feedback', () => showFeedback(showTitle));
   on('#install', () => {
     if (installMode() === 'ios') return showInstallHelp(showTitle);
     void promptInstall().then((ok) => {
@@ -1131,6 +1135,86 @@ function openHall(back: () => void) {
   showHall(playerName(), back, 'trophies', () => {
     if (game) renderer.outfit = outfitFor(game.hero);
   });
+}
+
+// ---------- feedback ----------
+
+const FEEDBACK_KINDS: [FeedbackKind, string][] = [
+  ['bug', '🐞 Bug'],
+  ['idea', '💡 Idea'],
+  ['balance', '⚖️ Balance'],
+  ['love', '❤️ Love it'],
+  ['other', '💬 Other'],
+];
+
+/** Tell us what to fix or make: goes straight to the maker's inbox. */
+function showFeedback(back: () => void) {
+  if (!ONLINE) {
+    showOverlay('feedback', `
+      <h2>💬 Feedback</h2>
+      <p class="sub">We'd love to hear it. Tell us on Discord.</p>
+      ${discordBtn}
+      <button class="btn" id="back">Back</button>`);
+    on('#back', back);
+    return;
+  }
+  let kind: FeedbackKind | null = null;
+  showOverlay('feedback', `
+    <h2>💬 Feedback</h2>
+    <p class="sub">Found a bug, have an idea, or something feels off? Every message is read.</p>
+    <div class="fb-kinds" role="radiogroup" aria-label="What kind of feedback">
+      ${FEEDBACK_KINDS.map(([k, label]) => `<button class="fb-kind" data-kind="${k}" role="radio" aria-checked="false">${label}</button>`).join('')}
+    </div>
+    <form id="fb-form" class="form">
+      <textarea name="message" id="fb-text" maxlength="1000" rows="6" placeholder="What happened, or what would make the game better?"></textarea>
+      <p class="fine fb-count"><span id="fb-count">0</span>/1000${session.account?.name ? ` · sent as ${esc(session.account.name)}` : ''}</p>
+      <button class="btn primary" type="submit" id="fb-send" disabled>Send feedback</button>
+      <p class="form-status" role="status"></p>
+    </form>
+    <p class="fine">Rather chat? ${discordHtml}</p>
+    <button class="btn" id="back">Back</button>`);
+  const text = $('fb-text') as HTMLTextAreaElement;
+  const send = $('fb-send') as HTMLButtonElement;
+  const ready = () => (send.disabled = !kind || text.value.trim().length < 3);
+  overlay.querySelectorAll<HTMLButtonElement>('.fb-kind').forEach((b) =>
+    b.addEventListener('click', () => {
+      kind = b.dataset.kind as FeedbackKind;
+      overlay.querySelectorAll<HTMLButtonElement>('.fb-kind').forEach((o) => {
+        o.classList.toggle('on', o === b);
+        o.setAttribute('aria-checked', String(o === b));
+      });
+      ready();
+      if (!text.value) text.focus();
+    }),
+  );
+  text.addEventListener('input', () => {
+    $('fb-count').textContent = String(text.value.length);
+    ready();
+  });
+  onSubmit('#fb-form', async (form) => {
+    if (!kind) return;
+    send.disabled = true;
+    formStatus(form, 'Sending…', true);
+    try {
+      await sendFeedback(kind, text.value.trim(), {
+        screen: `${innerWidth}x${innerHeight}`,
+        ua: navigator.userAgent.slice(0, 160),
+        runs: save.totals.runs,
+        bestEndless: save.bestEndless,
+        story: meta.story.done.length,
+      });
+      showOverlay('feedback', `
+        <h2>Thank you! 🕯️</h2>
+        <p class="sub">Your feedback is on its way. It really does shape what gets fixed and built next.</p>
+        <p class="fine">Want to see what happens with it, or talk it over? ${discordHtml}</p>
+        <button class="btn primary" id="back">Back</button>`);
+      on('#back', back);
+    } catch (e) {
+      formStatus(form, (e as Error).message);
+      ready();
+    }
+  });
+  on('#back', back);
 }
 
 function showHelp(back: () => void) {
@@ -1562,7 +1646,7 @@ function showDeath(r: RunResult, best: boolean) {
     showTitle();
   });
   on('#remind', async () => {
-    const btn = $('#remind') as HTMLButtonElement;
+    const btn = $('remind') as HTMLButtonElement;
     btn.disabled = true;
     const on = '<p class="fine reminder-on">🔔 Reminders on: 8 AM when a new crypt opens, 7 PM if you haven\'t played, and when a rival passes you. Change them in your profile.</p>';
     try {
@@ -1591,7 +1675,7 @@ function showDeath(r: RunResult, best: boolean) {
   });
   on('#remind-install', () => showInstallHelp(backHere));
   on('#remind-email', async () => {
-    const btn = $('#remind-email') as HTMLButtonElement;
+    const btn = $('remind-email') as HTMLButtonElement;
     btn.disabled = true;
     try {
       await setEmailReminder(true, timeZone());

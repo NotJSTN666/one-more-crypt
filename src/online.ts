@@ -549,6 +549,17 @@ export async function savePush(s: PushSignup): Promise<void> {
   if (error) throw friendly(error, 'Could not turn on reminders.');
 }
 
+// ---------- feedback ----------
+
+export type FeedbackKind = 'bug' | 'idea' | 'balance' | 'love' | 'other';
+
+/** Send a player's feedback (a few a day per device). The hourly job emails new ones to the maker. */
+export async function sendFeedback(kind: FeedbackKind, message: string, context: Record<string, unknown>): Promise<void> {
+  const sb = await client();
+  const { error } = await sb.rpc('send_feedback', { p_kind: kind, p_message: message, p_device: deviceId(), p_context: { ...context, app: runningAsApp() } });
+  if (error) throw friendly(error, 'Could not send that. Try again in a moment.');
+}
+
 /** Email reminders (8 AM when a new crypt opens) for accounts with an email. Null if the server isn't set up. */
 export async function getEmailReminder(): Promise<boolean | null> {
   const sb = await client();

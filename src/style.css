@@ -2903,3 +2903,45 @@ body.tutorial #relic-bar {
 /* Abyss boons: what the offer fills with once the relics run out. */
 .offer .boon { border-left-color: #b07cff; background: linear-gradient(90deg, rgba(123, 92, 255, 0.12), transparent 70%), var(--panel); }
 .offer .boon .tag { color: #b07cff; }
+
+/* Feedback: what kind, then what to say. */
+.fb-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin: 10px 0 12px;
+}
+
+.fb-kind {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  font-family: var(--pixel);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.fb-kind.on {
+  border-color: var(--gold);
+  background: var(--panel-2);
+  color: var(--gold);
+  box-shadow: 0 0 10px rgba(242, 193, 78, 0.25);
+}
+
+#fb-text {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  padding: 10px;
+  border: 1px solid var(--line);
+  background: #0d0814;
+  color: var(--text);
+  font: 15px/1.4 system-ui, sans-serif;
+}
+
+.fb-count {
+  margin: 4px 0 8px;
+  text-align: right;
+}

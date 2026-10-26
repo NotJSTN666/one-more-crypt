@@ -41,5 +41,6 @@ jobs:
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          POST_EMAIL_TO: ${{ secrets.POST_EMAIL_TO }}
           TEST_NAME: ${{ inputs.test_name }}
           DRY_RUN: ${{ inputs.dry_run }}
