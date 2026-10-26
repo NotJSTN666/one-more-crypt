@@ -2091,7 +2091,7 @@ function raidCardHtml(p: RaidPhase): string {
     return `<button class="btn raid-btn" id="raid">🔔 The Bell Tolls: World Boss<small>Everyone fights at ${esc(raidTimeLabel(p.slot.start))} · in <span data-raid-clock>${raidClockText(p)}</span> · ${raidWins()}/${RAID_REWARDS.length} rewards</small></button>`;
   }
   const felled = st?.felled;
-  return `<button class="btn raid-btn live" id="raid">🔔 ${felled ? `${name} is felled!` : p.phase === 'open' ? `LIVE: ${name} has risen` : `${name}: last blows landing`}<small>${
+  return `<button class="btn raid-btn live" id="raid">🔔 ${felled ? `${name} has fallen!` : p.phase === 'open' ? `LIVE: ${name} has risen` : `${name}: last blows landing`}<small>${
     felled ? 'Everyone who fought earns a reward' : `<span data-raid-players>${raidPlayersText(st)}</span> · ${p.phase === 'open' ? 'open for' : 'ends in'} <span data-raid-clock>${raidClockText(p)}</span>`
   }</small><span class="raid-mini"><span data-raid-fill style="width:${raidPct(st)}%"></span></span></button>`;
 }
@@ -2108,7 +2108,7 @@ function raidTopHtml(st: RaidState | null): string {
 
 function raidBarHtml(st: RaidState | null): string {
   const left = raidLeft(st);
-  return `<div class="raid-bar"><div data-raid-fill style="width:${raidPct(st)}%"></div><span data-raid-text>${st ? (st.felled ? 'FELLED' : `${left} / ${st.hp}`) : '…'}</span></div>`;
+  return `<div class="raid-bar"><div data-raid-fill style="width:${raidPct(st)}%"></div><span data-raid-text>${st ? (st.felled ? 'FALLEN' : `${left} / ${st.hp}`) : '…'}</span></div>`;
 }
 
 /** Fill in the live numbers wherever they're shown. */
@@ -2118,7 +2118,7 @@ function paintRaid() {
   overlay.querySelectorAll<HTMLElement>('[data-raid-clock]').forEach((el) => (el.textContent = raidClockText(p)));
   if (!st) return;
   overlay.querySelectorAll<HTMLElement>('[data-raid-fill]').forEach((el) => (el.style.width = `${raidPct(st)}%`));
-  overlay.querySelectorAll<HTMLElement>('[data-raid-text]').forEach((el) => (el.textContent = st.felled ? 'FELLED' : `${raidLeft(st)} / ${st.hp}`));
+  overlay.querySelectorAll<HTMLElement>('[data-raid-text]').forEach((el) => (el.textContent = st.felled ? 'FALLEN' : `${raidLeft(st)} / ${st.hp}`));
   overlay.querySelectorAll<HTMLElement>('[data-raid-players]').forEach((el) => (el.textContent = raidPlayersText(st)));
   overlay.querySelectorAll<HTMLElement>('[data-raid-feed]').forEach((el) => (el.innerHTML = raidFeedHtml(st)));
   overlay.querySelectorAll<HTMLElement>('[data-raid-top]').forEach((el) => (el.innerHTML = raidTopHtml(st)));
@@ -2170,23 +2170,23 @@ function showRaid(back: () => void) {
   const rewards = RAID_REWARDS.map((r) => `<li class="${r.n <= wins ? 'got' : r.n === wins + 1 ? 'next' : ''}" title="${esc(RAID_KIND_LABEL[r.kind])}"><span>${r.n <= wins ? '✓' : r.n === wins + 1 ? '▶' : '🔒'}</span>${esc(r.name)}<small>${esc(RAID_KIND_LABEL[r.kind])}</small></li>`).join('');
   showOverlay('raid', `
     <canvas class="raid-art" id="raid-art" width="320" height="150" aria-label="${name}"></canvas>
-    <p class="act2-kicker">${live ? (st?.felled ? 'Felled' : 'Live now') : 'World boss'}</p>
+    <p class="act2-kicker">${live ? (st?.felled ? 'Fallen' : 'Live now') : 'World boss'}</p>
     <h2 class="act2-title">The Bell Tolls</h2>
     ${live
-      ? `<p class="sub"><b>${name}</b> has risen. Everyone fights it at once, and every hit lands on one shared health bar. Fell it before the bell falls silent, and everyone who fought earns a reward.</p>
+      ? `<p class="sub"><b>${name}</b> has risen. Everyone fights it at once, and every hit lands on one shared health bar. Bring it down before the bell falls silent, and everyone who fought earns a reward.</p>
         ${raidBarHtml(st)}
         <p class="fine raid-meta"><span data-raid-players>${raidPlayersText(st)}</span> · ${p.phase === 'open' ? 'join for' : 'ends in'} <span data-raid-clock>${raidClockText(p)}</span></p>
-        ${st?.felled ? `<p class="act2-ready">☠️ ${name} is felled! Everyone who fought earns a reward.</p>` : ''}
+        ${st?.felled ? `<p class="act2-ready">☠️ ${name} has fallen! Everyone who fought earns a reward.</p>` : ''}
         ${p.phase === 'open' && !st?.felled ? `<button class="btn primary" id="raid-join">⚔️ Join the fight<small>${RAID_TURNS} turns against ${name}. Your hero, 4 relics to start. Fight as often as you like.</small></button>` : ''}
         <h3 class="shop-head">Latest blows</h3>
         <ul class="raid-feed" data-raid-feed>${raidFeedHtml(st)}</ul>
         <h3 class="shop-head">Top damage</h3>
         <ol class="raid-top" data-raid-top>${raidTopHtml(st)}</ol>`
-      : `<p class="sub">Three times a day a world boss rises for everyone at once. Join in, hit it as hard as you can, and fell it together for a reward you can't get anywhere else.</p>
+      : `<p class="sub">Three times a day a world boss rises for everyone at once. Join in, hit it as hard as you can, and bring it down together for a reward you can't get anywhere else.</p>
         <p class="act2-ready">Next: <b>${esc(raidBossName(p.slot.kind))}</b> at ${esc(raidTimeLabel(p.slot.start))} · in <span data-raid-clock>${raidClockText(p)}</span></p>
         <p class="fine">Then ${upcoming.map((t) => esc(raidTimeLabel(t))).join(' and ')}. Times are in your time zone. You can join for the first ${RAID_JOIN_MIN} minutes.</p>`}
     <h3 class="shop-head">Bell-Breaker rewards <small>${wins}/${RAID_REWARDS.length}</small></h3>
-    <p class="fine">${next ? `Each boss felled earns the next one. Next up: <b>${esc(next.name)}</b> (${esc(RAID_KIND_LABEL[next.kind])}).` : 'You have every Bell-Breaker reward. The crypt bows.'}</p>
+    <p class="fine">${next ? `Each boss that falls earns you the next one. Next up: <b>${esc(next.name)}</b> (${esc(RAID_KIND_LABEL[next.kind])}).` : 'You have every Bell-Breaker reward. The crypt bows.'}</p>
     <ul class="raid-rewards">${rewards}</ul>
     <button class="btn" id="back">Back</button>`);
   on('#raid-join', () => showHeroSelect(() => startRaid(p.slot), () => showRaid(back), `The Bell Tolls · ${raidBossName(p.slot.kind)}`));
@@ -2278,7 +2278,7 @@ function finishRaid(fell: boolean) {
       <p class="sub">You dealt <b>${dmg}</b> damage to ${esc(name)}.</p>
       <div class="souls-earned"><b>+${reward.souls} Souls</b><span>💀 ${meta.souls} to spend in the Ossuary</span></div>
       ${err ? `<p class="form-status">${esc(err)}</p>` : st ? raidBarHtml(st) : '<p class="fine">Landing your blows…</p>'}
-      ${st?.felled ? `<p class="act2-ready">☠️ ${esc(name)} is felled! Everyone who fought earns a reward.</p>` : st ? `<p class="fine raid-meta"><span data-raid-players>${raidPlayersText(st)}</span> · keep it up, the bar is shared</p>` : ''}
+      ${st?.felled ? `<p class="act2-ready">☠️ ${esc(name)} has fallen! Everyone who fought earns a reward.</p>` : st ? `<p class="fine raid-meta"><span data-raid-players>${raidPlayersText(st)}</span> · keep it up, the bar is shared</p>` : ''}
       ${again ? '<button class="btn primary" id="raid-again">⚔️ Fight again<small>Same boss, same crypt. Every hit counts.</small></button>' : ''}
       <button class="btn" id="raid-watch">🔔 Watch the bar</button>
       <button class="btn" id="back">Back to the title</button>`);
@@ -2328,7 +2328,7 @@ function showRaidReward(n: number, then: () => void) {
     if (screen === 'raid-reward') showTitle();
   };
   if (!r) {
-    toast('☠️ World boss felled! You hold every Bell-Breaker reward.');
+    toast('☠️ The world boss has fallen! You hold every Bell-Breaker reward.');
     return then();
   }
   const fit = outfitFor(meta.hero);
@@ -2340,7 +2340,7 @@ function showRaidReward(n: number, then: () => void) {
   sfx.relic();
   showOverlay('raid-reward', `
     <div class="podium-medal">☠️</div>
-    <h2 class="podium-title">World boss felled!</h2>
+    <h2 class="podium-title">The world boss has fallen!</h2>
     <p class="sub">You brought it down together. Bell-Breaker reward ${n} of ${RAID_REWARDS.length}:</p>
     ${preview}
     <p class="act2-ready"><b>${esc(RAID_KIND_LABEL[r.kind])}: ${esc(r.name)}</b></p>

@@ -234,7 +234,7 @@ LOOKS.push(
 );
 
 // The Bell Tolls: earned only by felling world bosses together, one piece per boss felled.
-export const raidHow = (n: number) => (n === 1 ? 'Fell a world boss with everyone in The Bell Tolls.' : `Fell ${n} world bosses with everyone in The Bell Tolls.`);
+export const raidHow = (n: number) => (n === 1 ? 'Help bring down a world boss in The Bell Tolls.' : `Help bring down ${n} world bosses in The Bell Tolls.`);
 const raid = (n: number) => ({ unlock: { raid: n }, how: raidHow(n) });
 LOOKS.push(
   { id: 'tollbreaker', name: 'Tollbreaker', cloak: { p: '#a8803a', P: '#5c4418' }, aura: '#f2c14e', ...raid(1) },
@@ -349,7 +349,7 @@ export const RAID_DECOR: RaidDecorDef[] = [
   { id: 'bossskull', name: 'Mounted Boss Skull', emoji: '💀', raid: 12, desc: "A great horned skull over your Hall, eyes still glowing." },
   { id: 'chandelier', name: 'Raid Chandelier', emoji: '🕯️', raid: 16, desc: 'An iron wheel of candles hung from the ceiling.' },
   { id: 'warhorn', name: 'The War Horn', emoji: '📯', raid: 20, desc: 'The horn that calls the crypt to the fight, on its stand.' },
-  { id: 'rollofhonor', name: 'Roll of Honour', emoji: '📜', raid: 24, desc: 'A stone tablet that counts every world boss you helped fell.' },
+  { id: 'rollofhonor', name: 'Roll of Honour', emoji: '📜', raid: 24, desc: 'A stone tablet that counts every world boss you helped bring down.' },
 ];
 export const RAID_DECOR_BY_ID = Object.fromEntries(RAID_DECOR.map((d) => [d.id, d])) as Record<string, RaidDecorDef>;
 

@@ -727,9 +727,9 @@ function rollOfHonor(ctx: CanvasRenderingContext2D, x: number, raids: number) {
   ctx.fillRect(x - 22, 388, 44, 74);
   ctx.fillStyle = '#5a5466';
   ctx.fillRect(x - 26, 380, 52, 6);
-  text(ctx, 'FELLED', x, 402, `11px ${FONT_PIXEL}`, '#c9a24a');
+  text(ctx, 'BOSSES', x, 402, `11px ${FONT_PIXEL}`, '#c9a24a');
   text(ctx, String(raids), x, 432, `24px ${FONT_PIXEL}`, '#fff2c0');
-  text(ctx, 'BOSSES', x, 452, `11px ${FONT_PIXEL}`, '#c9a24a');
+  text(ctx, 'FALLEN', x, 452, `11px ${FONT_PIXEL}`, '#c9a24a');
 }
 
 function drawDecor(ctx: CanvasRenderingContext2D, d: HallData, t: number, layer: 'wall' | 'floor' | 'air') {
