@@ -14,7 +14,7 @@ export let overlayShownAt = 0;
 const RUN_SCREENS = ['choose', 'event', 'pause', 'fused'];
 
 /** Long screens get a small Back pinned at the top, so leaving doesn't mean scrolling to the end. */
-const TOP_BACK = ['hall', 'hall-public', 'help', 'heroes', 'ossuary', 'grimoire', 'profile', 'wardrobe'];
+const TOP_BACK = ['hall', 'act2', 'hall-public', 'help', 'heroes', 'ossuary', 'grimoire', 'profile', 'wardrobe'];
 
 /** When the last finger or mouse button went down. */
 let lastPointerDownAt = 0;

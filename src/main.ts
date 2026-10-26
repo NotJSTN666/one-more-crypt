@@ -11,6 +11,7 @@ import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } f
 import { hallFromLink, onVisitIsle, showHall, showPublicHall, soulRankHtml, titleName } from './hall';
 import { HEAD_BY_ID, LOOK_BY_ID, PODIUM, STORY_ALL, STREAK_HELMS, WEEKLY, WELCOME, rankFor, titleFxClass, welcomeLabel, type WelcomeReward } from './progression';
 import { Renderer } from './render';
+import { sprites } from './sprites';
 import { hashSeed } from './rng';
 import { ONLINE, challengeBoard, emailReminderOff, sendFeedback, setEmailReminder, type FeedbackKind, challengeNews, createChallenge, dailyBoard, endlessBoard, getChallenge, mySummons, noteRun, noteSummon, pingActivity, startActivityPings, submitChallengeRun, type Challenge, type ChallengeRow } from './online';
 import {
@@ -864,6 +865,7 @@ function showTitle() {
     ${endlessNext ? endlessBtn : ''}
     ${bountiesHtml(today)}
     ${storyButtonHtml()}
+    <button class="btn act2-btn" id="act2">🔔 Act II: The Plague Abbot<small>Coming soon · Something rings the bell below</small></button>
     ${graveButtonHtml()}
     <button class="btn hollow-btn" id="hollow">🌙 Enter the Hollow<small>Walk the graveyard. Ferry out to build your own isle.</small></button>
     ${endlessNext ? '' : endlessBtn}
@@ -897,6 +899,7 @@ function showTitle() {
     enterHollow();
   });
   on('#story', () => playStory());
+  on('#act2', () => showActTwo(showTitle));
   on('#help', () => showHelp(showTitle));
   on('#feedback', () => showFeedback(showTitle));
   on('#install', () => {
@@ -1149,7 +1152,7 @@ const FEEDBACK_KINDS: [FeedbackKind, string][] = [
 ];
 
 /** Tell us what to fix or make: goes straight to the maker's inbox. */
-function showFeedback(back: () => void) {
+function showFeedback(back: () => void, preset?: FeedbackKind, prompt?: string) {
   if (!ONLINE) {
     showOverlay('feedback', `
       <h2>💬 Feedback</h2>
@@ -1167,7 +1170,7 @@ function showFeedback(back: () => void) {
       ${FEEDBACK_KINDS.map(([k, label]) => `<button class="fb-kind" data-kind="${k}" role="radio" aria-checked="false">${label}</button>`).join('')}
     </div>
     <form id="fb-form" class="form">
-      <textarea name="message" id="fb-text" maxlength="1000" rows="6" placeholder="What happened, or what would make the game better?"></textarea>
+      <textarea name="message" id="fb-text" maxlength="1000" rows="6" placeholder="${esc(prompt ?? 'What happened, or what would make the game better?')}"></textarea>
       <p class="fine fb-count"><span id="fb-count">0</span>/1000${session.account?.name ? ` · sent as ${esc(session.account.name)}` : ''}</p>
       <button class="btn primary" type="submit" id="fb-send" disabled>Send feedback</button>
       <p class="form-status" role="status"></p>
@@ -1188,6 +1191,7 @@ function showFeedback(back: () => void) {
       if (!text.value) text.focus();
     }),
   );
+  if (preset) overlay.querySelector<HTMLButtonElement>(`.fb-kind[data-kind="${preset}"]`)?.click();
   text.addEventListener('input', () => {
     $('fb-count').textContent = String(text.value.length);
     ready();
@@ -2152,6 +2156,105 @@ function storyButtonHtml(): string {
   }</small></button>`;
 }
 
+/** The Act II teaser: what's under the lid, and a way to tell us what you want down there. */
+function showActTwo(back: () => void) {
+  const actOne = storyDone(STORY_ALL);
+  showOverlay('act2', `
+    <canvas class="act2-art" id="act2-art" width="320" height="200" aria-label="The Plague Abbot in green fog, a great bell behind him"></canvas>
+    <p class="act2-kicker">Coming soon</p>
+    <h2 class="act2-title">Act II: The Plague Abbot</h2>
+    <p class="act2-quote">"It was never a door. It was a lid."</p>
+    <p class="sub">Beneath the Warden's lid lies the Sunken Cloister, where the Abbot's monks still keep their vigil. Someone rings the bell every night now. The graves of Gravesend grow restless, a green sickness creeps up the wells, and Aldric is somewhere below.</p>
+    <ul class="act2-list">
+      <li>⛪ <b>The Sunken Cloister</b>: a new place to explore under the Hollow</li>
+      <li>📜 New quests and side quests, and a new friend in the dark</li>
+      <li>🌫️ Plague mist: crypts that fight back</li>
+      <li>🔔 The Bell Tower Below, and the Plague Abbot waiting at the bottom</li>
+      <li>🛡️ Aldric's fate</li>
+      <li>✨ New story-only cloaks, helms, auras, titles, and ???</li>
+    </ul>
+    ${actOne
+      ? '<p class="act2-ready">🔔 You finished Act I. You will be among the first down.</p>'
+      : `<p class="act2-ready">Finish Act I first: the Bell-Ringer is waiting.</p><button class="btn story-btn" id="act2-story">📖 Continue Act I</button>`}
+    <button class="btn primary" id="act2-idea">💡 Tell us what you want in Act II</button>
+    ${discordBtn}
+    <button class="btn" id="back">Back</button>`);
+  on('#act2-story', () => playStory());
+  on('#act2-idea', () => showFeedback(() => showActTwo(back), 'idea', 'What would you love to see in Act II? A quest, a monster, a reward, anything.'));
+  on('#back', back);
+  animateActTwo($('act2-art') as HTMLCanvasElement);
+}
+
+/** Fog, a swaying bell and the Abbot, until the panel closes. */
+function animateActTwo(cv: HTMLCanvasElement) {
+  const ctx = cv.getContext('2d')!;
+  const abbot = sprites().abbot.normal;
+  const W = cv.width, H = cv.height;
+  const motes = Array.from({ length: 26 }, (_, i) => ({ x: (i * 53) % W, y: 120 + ((i * 37) % 80), r: 18 + ((i * 13) % 26), v: 0.15 + (i % 5) * 0.06 }));
+  const t0 = performance.now();
+  const frame = (now: number) => {
+    if (screen !== 'act2' || !cv.isConnected) return;
+    const t = (now - t0) / 1000;
+    const sky = ctx.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, '#0a0f0b');
+    sky.addColorStop(1, '#14261a');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, H);
+    // The bell, swinging slowly behind everything.
+    const swing = Math.sin(t * 0.9) * 0.12;
+    ctx.save();
+    ctx.translate(W / 2, 8);
+    ctx.rotate(swing);
+    ctx.fillStyle = '#1f2a22';
+    ctx.fillRect(-2, 0, 4, 22);
+    ctx.beginPath();
+    ctx.moveTo(-26, 30);
+    ctx.quadraticCurveTo(-30, 82, -54, 96);
+    ctx.lineTo(54, 96);
+    ctx.quadraticCurveTo(30, 82, 26, 30);
+    ctx.quadraticCurveTo(0, 16, -26, 30);
+    ctx.fill();
+    ctx.fillStyle = '#2c3b30';
+    ctx.fillRect(-54, 92, 108, 5);
+    ctx.restore();
+    // A toll every few seconds: a ring of green light.
+    const toll = (t % 4) / 4;
+    if (toll < 0.5) {
+      ctx.strokeStyle = `rgba(140,220,120,${0.5 - toll})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(W / 2, 100, 30 + toll * 260, 10 + toll * 70, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    // The Abbot, bobbing in the mist.
+    ctx.imageSmoothingEnabled = false;
+    const s = 9;
+    const bob = Math.round(Math.sin(t * 2) * 2);
+    ctx.fillStyle = 'rgba(120,220,110,0.18)';
+    ctx.beginPath();
+    ctx.ellipse(W / 2, 182, 46, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.drawImage(abbot, W / 2 - (abbot.width * s) / 2, 76 + bob, abbot.width * s, abbot.height * s);
+    // Glowing eyes on the toll.
+    if (toll < 0.25) {
+      ctx.fillStyle = `rgba(170,255,140,${0.8 - toll * 3})`;
+      ctx.fillRect(W / 2 - 18, 76 + bob + 4 * s, 6, 6);
+      ctx.fillRect(W / 2 + 9, 76 + bob + 4 * s, 6, 6);
+    }
+    // Plague mist drifting across the floor.
+    for (const m of motes) {
+      const x = ((m.x + t * m.v * 40) % (W + 80)) - 40;
+      const g = ctx.createRadialGradient(x, m.y, 0, x, m.y, m.r);
+      g.addColorStop(0, 'rgba(110,190,100,0.22)');
+      g.addColorStop(1, 'rgba(110,190,100,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(x - m.r, m.y - m.r, m.r * 2, m.r * 2);
+    }
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+}
+
 /** Into the world for the story: straight to Mortimer's door the first time. */
 function playStory() {
   if (!meta.story.active.length && !meta.story.done.length) placeAtCottage();
@@ -2214,8 +2317,9 @@ function finishQuest(q: Quest, then: () => void) {
     <div class="souls-earned"><b>+${result.souls} Souls</b><span>💀 ${meta.souls} to spend in the Ossuary</span></div>
     ${unlocked ? `<p class="talk-quip">${unlocked}</p>` : ''}
     ${act}
-    ${q.n === 4 || actDone ? '<p class="talk-quip">Act II: The Plague Abbot is coming. The bell is waiting.</p>' : ''}
+    ${q.n === 4 || actDone ? '<p class="talk-quip">Act II: The Plague Abbot is coming. The bell is waiting.</p><button class="btn act2-btn" id="act2">🔔 See what\'s coming in Act II</button>' : ''}
     <button class="btn primary" id="back">Continue</button>`);
+  on('#act2', () => showActTwo(then));
   on('#back', then);
 }
 

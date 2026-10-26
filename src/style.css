@@ -2978,3 +2978,60 @@ body.tutorial #relic-bar {
   line-height: 1.6;
   color: var(--muted);
 }
+
+/* Act II teaser */
+.btn.act2-btn {
+  border-color: #4f8a4a;
+  border-style: dashed;
+  background: linear-gradient(180deg, rgba(40, 70, 40, 0.35), rgba(10, 20, 12, 0.35));
+  box-shadow: 0 0 14px rgba(120, 220, 110, 0.15);
+}
+
+.act2-art {
+  display: block;
+  width: 100%;
+  max-width: 360px;
+  margin: 0 auto 10px;
+  aspect-ratio: 8 / 5;
+  border: 1px solid #2f4a30;
+  border-radius: 8px;
+  image-rendering: pixelated;
+}
+
+.act2-kicker {
+  margin: 0;
+  color: #8fd47f;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.act2-title {
+  margin: 2px 0 4px;
+  text-align: center;
+}
+
+.act2-quote {
+  margin: 0 0 8px;
+  color: #c9a24a;
+  font-style: italic;
+  text-align: center;
+}
+
+.act2-list {
+  margin: 8px 0 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  padding-left: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+  text-align: left;
+}
+
+.act2-ready {
+  margin: 4px 0 8px;
+  color: #c9a24a;
+  text-align: center;
+}
