@@ -63,6 +63,47 @@ export function drawAura(ctx: Ctx, id: string | undefined, cx: number, feet: num
 
 type Px = (x: number, y: number, s: number, c: string, alpha?: number) => void;
 
+// ---------- the Great Bell (finish Act I of the story) ----------
+
+const BELL_PERIOD = 2.6;
+
+/** How far into its toll the bell is: 0 at the stroke, rising to 1 before the next. */
+function tollPhase(t: number): number {
+  return (t % BELL_PERIOD) / BELL_PERIOD;
+}
+
+/** A shockwave of bronze dots spreading across the ground from the hero's feet. */
+function shockwave(px: Px, cx: number, feet: number, w: number, k: number, p: number, color: string) {
+  if (p > 0.55) return;
+  const q = p / 0.55;
+  const r = w * (0.35 + q * 1.25);
+  const dots = 28;
+  for (let i = 0; i < dots; i++) {
+    const ang = (i / dots) * Math.PI * 2;
+    px(cx + Math.cos(ang) * r - k / 2, feet + Math.sin(ang) * r * 0.32 - k / 2, k, i % 3 ? color : '#fff2c0', (1 - q) * 0.9);
+  }
+}
+
+/** The bell itself, swinging above the hero; it flashes white on the stroke. */
+function greatBell(px: Px, cx: number, top: number, k: number, t: number) {
+  const p = tollPhase(t);
+  const swing = Math.sin((t / BELL_PERIOD) * Math.PI * 2) * 1.6;
+  const x0 = cx + swing * k - 3 * k;
+  const flash = p < 0.08;
+  const body = flash ? '#fff2c0' : '#c9a24a';
+  const shade = flash ? '#f2c14e' : '#8a6a2a';
+  // crown loop, shoulders, flared mouth: rows of pixels, widest at the bottom
+  const rows: [number, number][] = [[2, 2], [1, 4], [1, 4], [0, 6], [0, 6]];
+  px(x0 + 2.5 * k, top - k, k, '#5d4a2a');
+  rows.forEach(([off, wd], r) => {
+    for (let i = 0; i < wd; i++) px(x0 + (off + i) * k, top + r * k, k, i === 0 ? shade : i === wd - 1 ? shade : body);
+  });
+  px(x0 + 1 * k, top + k, k, '#fff2c0', 0.8);
+  // the clapper swings a beat behind
+  px(x0 + (2.5 - swing * 0.6) * k, top + 5 * k, k, '#5d4a2a');
+}
+
+
 /** Particles rising from the hero's feet: n of them, taking `secs` to rise `height`. */
 function rising(t: number, n: number, secs: number, each: (i: number, p: number) => void) {
   for (let i = 0; i < n; i++) each(i, (t / secs + i / n) % 1);
@@ -73,6 +114,15 @@ function drawBack(ctx: Ctx, a: AuraDef, cx: number, feet: number, mid: number, w
     case 'candle':
       rising(t, 4, 2.6, (i, p) => px(cx + Math.sin(i * 2.1 + t * 0.8) * w * 0.45, feet - p * w * 1.3, k, i % 2 ? '#ffd23f' : a.color, (1 - p) * (0.6 + 0.4 * Math.sin(t * 9 + i))));
       break;
+    case 'bell': {
+      // On each stroke the light swells and a shockwave crosses the ground.
+      const p = tollPhase(t);
+      bodyGlow(ctx, cx, mid, w * (0.9 + Math.max(0, 0.3 - p) * 1.5), a.color, 0.22 + Math.max(0, 0.25 - p));
+      shockwave(px, cx, feet, w, k, p, a.color);
+      shockwave(px, cx, feet, w, k, Math.max(0, p - 0.1), '#8a6a2a');
+      orbit(t, 4, 1.2, (i, x, y, front) => !front && px(cx + x * w * 0.62 - k / 2, mid + y * w * 0.22 - k / 2, k, i % 2 ? '#ffffff' : '#9fe8ff', 0.7));
+      break;
+    }
     case 'ember':
       bodyGlow(ctx, cx, mid, w * 0.9, a.color, 0.18 * pulse);
       rising(t, 7, 1.5, (i, p) => px(cx + Math.sin(i * 1.7 + p * 4) * w * 0.5, feet - p * w * 1.5, i % 3 === 0 ? k * 2 : k, ['#ff8a2a', '#ffd23f', '#d23a46'][i % 3], 1 - p));
@@ -202,6 +252,10 @@ function drawBack(ctx: Ctx, a: AuraDef, cx: number, feet: number, mid: number, w
 
 function drawFront(_ctx: Ctx, a: AuraDef, cx: number, feet: number, mid: number, w: number, k: number, t: number, px: Px) {
   switch (a.style) {
+    case 'bell':
+      orbit(t, 4, 1.2, (i, x, y, front) => front && px(cx + x * w * 0.62 - k / 2, mid + y * w * 0.22 - k / 2, k, i % 2 ? '#ffffff' : '#9fe8ff', 0.85));
+      greatBell(px, cx, feet - w * 1.32, k, t);
+      break;
     case 'bone':
       orbit(t, 4, 1.6, (_i, x, y, front) => front && bone(px, cx + x * w * 0.7, mid + y * w * 0.2, k));
       break;

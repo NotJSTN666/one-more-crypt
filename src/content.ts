@@ -4,7 +4,7 @@ import type { RelicId } from './relics';
 
 // ---------- heroes ----------
 
-export type HeroId = 'knight' | 'rogue' | 'necro' | 'paladin' | 'ranger' | 'mage' | 'barbarian';
+export type HeroId = 'knight' | 'rogue' | 'necro' | 'paladin' | 'ranger' | 'mage' | 'barbarian' | 'bellringer';
 
 export interface HeroDef {
   id: HeroId;
@@ -14,6 +14,8 @@ export interface HeroDef {
   cost: number;
   perk: string;
   perkDesc: string;
+  /** Not sold: earned by finishing every quest of the story's Act I. */
+  story?: boolean;
 }
 
 export const HEROES: HeroDef[] = [
@@ -25,13 +27,17 @@ export const HEROES: HeroDef[] = [
   { id: 'ranger', name: 'Ranger', hp: 7, cost: 350, perk: 'Longbow', perkDesc: 'Move toward a foe 2-3 tiles away in a clear line to shoot it instead.' },
   { id: 'mage', name: 'Mage', hp: 5, cost: 400, perk: 'Glass Cannon', perkDesc: '+2 attack, but only 5 HP. Every hit counts.' },
   { id: 'barbarian', name: 'Barbarian', hp: 11, cost: 450, perk: 'Rage', perkDesc: '+1 attack for every 3 HP you are missing.' },
+  { id: 'bellringer', name: 'Bell-Ringer', hp: 8, cost: 0, perk: 'The Toll', perkDesc: 'Every 6th turn your bell rings: foes next to you take 1 damage and lose their next turn.', story: true },
 ];
+
+/** The daily crypt's rotation: the heroes it had when it began, so adding a hero never moves it. */
+const DAILY_HEROES: HeroId[] = ['knight', 'rogue', 'necro', 'paladin', 'ranger', 'mage', 'barbarian'];
 
 export const HERO_BY_ID = Object.fromEntries(HEROES.map((h) => [h.id, h])) as Record<HeroId, HeroDef>;
 
 /** Everyone plays the same hero in the daily crypt; it rotates each day. */
 export function dailyHero(dailyNo: number): HeroId {
-  return HEROES[(dailyNo - 1 + HEROES.length * 100) % HEROES.length].id;
+  return DAILY_HEROES[(dailyNo - 1 + DAILY_HEROES.length * 100) % DAILY_HEROES.length];
 }
 
 // ---------- elites ----------

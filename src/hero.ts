@@ -46,6 +46,7 @@ const CLOAKS = {
   ranger: { p: '#55693a', P: '#33421f' }, // forest green
   mage: { p: '#2f4aa8', P: '#1a2a66' }, // deep blue robes
   barbarian: { p: '#7a3f24', P: '#4a2414' }, // fur and leather
+  bellringer: { p: '#4f6b5a', P: '#2c3d33' }, // verdigris robes
   pact: { p: '#8a2232', P: '#4f0f1b' }, // Blood Pact: crimson
   dust: { p: '#6d6880', P: '#433f52' }, // Grave Dust: ashen
   crown: { p: '#4b3a78', P: '#2c2148' }, // Cursed Crown: royal purple
@@ -95,6 +96,7 @@ function paint(ctx: CanvasRenderingContext2D, hero: HeroId, relics: Relics, log:
     for (let x = 5; x <= 6; x++) dot(x, 7, '#c98b62');
     dot(5, 8, '#c98b62');
   }
+  if (hero === 'bellringer') for (let x = 3; x <= 8; x++) dot(x, 8, x % 2 ? '#c9a24a' : '#8a6a2a'); // bell-rope belt
   if (hero === 'ranger') [[1, 3], [1, 4], [1, 5], [1, 6]].forEach(([x, y], i) => dot(x, y, i ? COL.wood : COL.red)); // quiver
 
   // --- body ---
@@ -198,6 +200,12 @@ function paint(ctx: CanvasRenderingContext2D, hero: HeroId, relics: Relics, log:
     for (let y = 4; y <= 10; y++) dot(11, y, COL.wood);
     [[10, 2], [11, 2], [10, 3], [11, 3]].forEach(([x, y]) => dot(x, y, blade === COL.steel ? COL.gold : blade));
     dot(11, 1, COL.gold);
+  } else if (hero === 'bellringer') {
+    // A handbell on a staff, its clapper catching the light.
+    for (let y = 4; y <= 10; y++) dot(11, y, COL.wood);
+    const bronze = blade === COL.steel || blade === '#e8eef8' ? '#c9a24a' : blade;
+    [[11, 0], [10, 1], [11, 1], [9, 2], [10, 2], [11, 2]].forEach(([x, y]) => dot(x, y, bronze));
+    dot(10, 3, COL.gold);
   } else if (hero === 'necro') {
     // Bone staff topped with a skull.
     for (let y = 2; y <= 10; y++) dot(11, y, COL.wood);

@@ -9,6 +9,7 @@ import { sfx } from './audio';
 import { ACHIEVEMENTS, ACHIEVEMENT_BY_ID, COMBOS, HEROES, HERO_BY_ID, type HeroId } from './content';
 import { ENEMY_INFO, type EnemyKind } from './game';
 import { dailyNumber } from './daily';
+import { QUESTS } from './story';
 import { heroSprite } from './hero';
 import { equipTitle, meta, titleUnlocked, type Meta } from './meta';
 import { showWardrobe } from './wardrobe';
@@ -85,6 +86,9 @@ export function hallData(name: string, m: Partial<Meta> | Record<string, unknown
   const places = Object.values(obj(raw.podiums)).map((p) => num(p, 9));
   const podiums: [number, number, number] = [1, 2, 3].map((p) => places.filter((x) => x === p).length) as [number, number, number];
   const decor = (Array.isArray(raw.bought) ? raw.bought : []).filter((id): id is string => typeof id === 'string' && Boolean(DECOR_BY_ID[id]));
+  // The Great Bell hangs in the Hall of anyone who finished every quest of Act I.
+  const storyDone = Array.isArray(obj(raw.story).done) ? (obj(raw.story).done as unknown[]).map(Number) : [];
+  if (QUESTS.every((q) => storyDone.includes(q.n))) decor.push('greatbell');
   const weekPlaces = Object.values(obj(raw.weekly)).map((p) => num(p, 9));
   const weekly: [number, number, number] = [1, 2, 3].map((p) => weekPlaces.filter((x) => x === p).length) as [number, number, number];
   const st = obj(raw.streak);
@@ -224,7 +228,7 @@ function trophy(ctx: CanvasRenderingContext2D, x: number, kind: EnemyKind, kills
   fitText(ctx, ENEMY_INFO[kind].name.replace(/^The /, '').toUpperCase(), x, top + 178, 18, FONT_PIXEL, slain ? '#e8dcc4' : '#6b6680', 150);
 }
 
-function statue(ctx: CanvasRenderingContext2D, x: number, hero: HeroId, run: BestRun | undefined, deepest: boolean, t: number, aura = '') {
+function statue(ctx: CanvasRenderingContext2D, x: number, hero: HeroId, run: BestRun | undefined, deepest: boolean, t: number, aura = '', labelW = 122) {
   const base = 604;
   if (deepest) {
     const glow = ctx.createRadialGradient(x, base - 40, 10, x, base - 40, 100);
@@ -257,7 +261,7 @@ function statue(ctx: CanvasRenderingContext2D, x: number, hero: HeroId, run: Bes
     ctx.globalAlpha = 1;
   }
   text(ctx, run ? `F${run.floor}` : '—', x, base + 36, `22px ${FONT_PIXEL}`, run ? (deepest ? '#f2c14e' : '#e8dcc4') : '#6b6680');
-  fitText(ctx, HERO_BY_ID[hero].name.replace(/^The /, '').toUpperCase(), x, base + 82, 18, FONT_PIXEL, run ? '#9a8fa8' : '#4a4058', 122);
+  fitText(ctx, HERO_BY_ID[hero].name.replace(/^The /, '').toUpperCase(), x, base + 82, 18, FONT_PIXEL, run ? '#9a8fa8' : '#4a4058', labelW);
 }
 
 // ---------- decorations (bought in the Ossuary) ----------
@@ -301,6 +305,57 @@ function graveCat(ctx: CanvasRenderingContext2D, x: number, t: number) {
     px(4, 3, 1, 1, '#d4ff5a');
   }
 }
+
+/** The Great Bell, hung from a beam in the Hall of those who finished Act I. It tolls every few seconds. */
+function greatBellHall(ctx: CanvasRenderingContext2D, x: number, t: number) {
+  const PERIOD = 4;
+  const p = (t % PERIOD) / PERIOD;
+  const swing = Math.sin((t / PERIOD) * Math.PI * 2) * 0.12;
+  // beam and rope
+  ctx.fillStyle = '#4a3420';
+  ctx.fillRect(x - 40, 354, 80, 8);
+  ctx.fillStyle = '#2a1d12';
+  ctx.fillRect(x - 40, 360, 80, 2);
+  // a warm glow that swells on the stroke
+  const glow = ctx.createRadialGradient(x, 410, 6, x, 410, 90 + Math.max(0, 0.25 - p) * 120);
+  glow.addColorStop(0, `rgba(242,193,78,${0.18 + Math.max(0, 0.2 - p)})`);
+  glow.addColorStop(1, 'rgba(242,193,78,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(x - 130, 330, 260, 140);
+  ctx.save();
+  ctx.translate(x, 362);
+  ctx.rotate(swing);
+  ctx.fillStyle = '#5d4a2a';
+  ctx.fillRect(-2, 0, 4, 12);
+  const flash = p < 0.06;
+  const body = flash ? '#fff2c0' : '#c9a24a';
+  const shade = flash ? '#f2c14e' : '#8a6a2a';
+  // bronze bell, built in pixel bands: crown, shoulders, waist, flared lip
+  const bands: [number, number, number][] = [[12, 18, 6], [18, 26, 8], [26, 32, 10], [34, 36, 10], [44, 42, 6], [50, 50, 6]];
+  for (const [y, wd, h] of bands) {
+    ctx.fillStyle = shade;
+    ctx.fillRect(-wd / 2, y, wd, h);
+    ctx.fillStyle = body;
+    ctx.fillRect(-wd / 2 + 4, y, wd - 8, h);
+  }
+  ctx.fillStyle = '#fff2c0';
+  ctx.fillRect(-wd2(26) + 6, 20, 3, 18);
+  // the clapper, a beat behind
+  ctx.fillStyle = '#3a2a18';
+  ctx.fillRect(-3 - swing * 30, 56, 6, 8);
+  ctx.restore();
+  // on the stroke, rings of sound spread out from its mouth
+  if (p < 0.5) {
+    const q = p / 0.5;
+    ctx.strokeStyle = `rgba(242,193,78,${(1 - q) * 0.8})`;
+    ctx.lineWidth = 3 * (1 - q) + 1;
+    ctx.beginPath();
+    ctx.ellipse(x, 418, 30 + q * 110, 10 + q * 36, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
+const wd2 = (w: number) => w / 2;
 
 function brazier(ctx: CanvasRenderingContext2D, x: number, t: number) {
   ctx.fillStyle = '#3a3346';
@@ -558,6 +613,7 @@ function drawDecor(ctx: CanvasRenderingContext2D, d: HallData, t: number, layer:
   if (has('cobwebs')) cobwebs(ctx, t);
   if (has('garland')) garland(ctx, t);
   if (has('cauldron')) cauldron(ctx, 896, t);
+  if (has('greatbell')) greatBellHall(ctx, 480, t);
   if (has('skulls')) {
     skullPile(ctx, 150);
     skullPile(ctx, 810);
@@ -675,9 +731,11 @@ export function drawHall(ctx: CanvasRenderingContext2D, d: HallData, t = 0) {
 
   // statues of each hero's deepest run
   const deepest = Math.max(0, ...Object.values(d.best).map((r) => r?.floor ?? 0));
+  // Spaced to fit however many heroes there are (seven at first, eight with the Bell-Ringer).
+  const gap = Math.min(128, (W - 192) / Math.max(1, HEROES.length - 1));
   HEROES.forEach((h, i) => {
     const run = d.best[h.id];
-    statue(ctx, 96 + i * 128, h.id, run, Boolean(run && run.floor === deepest), t, d.auras[h.id]);
+    statue(ctx, 96 + i * gap, h.id, run, Boolean(run && run.floor === deepest), t, d.auras[h.id], Math.min(122, gap - 8));
   });
   drawDecor(ctx, d, t, 'air');
 

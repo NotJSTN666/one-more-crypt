@@ -294,6 +294,8 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
 // ---------- unlocks ----------
 
 export function heroUnlocked(id: HeroId): boolean {
+  // The Bell-Ringer is earned in the story, never bought.
+  if (HERO_BY_ID[id]?.story) return storyDone(STORY_ALL);
   return meta.heroes.includes(id);
 }
 
@@ -865,7 +867,7 @@ export function titleUnlocked(id: string): boolean {
   if (kind === 'podium') return podiumCount(Number(key)) > 0;
   if (kind === 'patron') return meta.patron;
   if (kind === 'welcome') return meta.welcome.claimed >= Number(key);
-  if (kind === 'story') return storyDone(key === 'all' ? STORY_ALL : Number(key));
+  if (kind === 'story') return storyDone(key === 'all' || key === 'bell' ? STORY_ALL : Number(key));
   if (kind === 'shame') return Boolean(meta.shame[key]);
   if (kind === 'feat') return Boolean(meta.achievements[key]);
   if (kind === 'beast') return (meta.bestiaryTier[key as EnemyKind] ?? 0) > TITLE_TIER;

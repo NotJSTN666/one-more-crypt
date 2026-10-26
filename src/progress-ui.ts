@@ -36,7 +36,7 @@ export function showHeroSelect(onPick: (hero: HeroId) => void, back: () => void,
       <span class="hero-info">
         <span class="name">${h.name}</span>
         <span class="tag">${h.hp} HP · ${h.perk}</span>
-        <span class="desc">${owned ? h.perkDesc : `🔒 Unlock in the Ossuary for ${h.cost} Souls`}</span>
+        <span class="desc">${owned ? h.perkDesc : h.story ? `🔒 Finish every quest of Act I in the story. ${h.perkDesc}` : `🔒 Unlock in the Ossuary for ${h.cost} Souls`}</span>
         ${owned ? heroRecord(h.id) : ''}
       </span>
     </button>`;

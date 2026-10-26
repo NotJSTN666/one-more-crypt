@@ -142,6 +142,7 @@ export const TITLES: TitleDef[] = [
   { id: 'story:3', name: "Aldric's Squire", how: 'Finish The Hollow Knight in the story.' },
   { id: 'story:11', name: 'Ring Finder', how: 'Finish A Ring in the Well in the story.' },
   { id: 'story:12', name: 'Coal Runner', how: 'Finish Blue Coal in the story.' },
+  { id: 'story:bell', name: 'The Bell-Ringer', how: 'Finish every quest in Act I of the story.' },
   { id: 'story:all', name: 'Hero of Gravesend', how: 'Finish every quest in Act I of the story, side quests too.' },
   { id: 'welcome:7', name: 'Keeper of Seven Nights', how: 'Play on seven different days (Seven Nights).' },
   // Given by hand to supporters (the patrons table), never sold in the game.
@@ -169,6 +170,8 @@ export type TitleFx = 'prism' | 'gold' | 'eternal' | 'sovereign' | 'soul' | 'aby
 
 export const TITLE_FX: Record<string, TitleFx> = {
   'patron:1': 'prism',
+  'story:bell': 'gold',
+  'story:all': 'gold',
   'podium:1': 'gold',
   'rank:The Eternal': 'eternal',
   'rank:Crypt Sovereign': 'sovereign',
@@ -226,6 +229,7 @@ LOOKS.push(
   { id: 'aldric', name: "Aldric's Mantle", cloak: { p: '#5f9fc0', P: '#2a5470' }, aura: '#9fe8ff', unlock: { story: 3 }, how: "Finish Sir Aldric's trial in the story." },
   { id: 'shawl', name: "The Widow's Shawl", cloak: { p: '#2a2433', P: '#141119' }, aura: '#8a8590', unlock: { story: 11 }, how: "Find Agnes's ring in the story." },
   { id: 'gravecoat', name: "Gravedigger's Coat", cloak: { p: '#6b4a2e', P: '#3d2a1a' }, aura: '#c4a46a', unlock: { story: 1 }, how: "Dig Mortimer's grave in the story (Fresh Dirt)." },
+  { id: 'bellvestment', name: "Bell-Ringer's Vestment", cloak: { p: '#8a6a2a', P: '#4a3812' }, aura: '#f2c14e', unlock: { story: STORY_ALL }, how: 'Finish every quest in Act I of the story.' },
   { id: 'houndhide', name: 'Houndhide', cloak: { p: '#3a3029', P: '#1c1714' }, aura: '#a8894a', unlock: { story: 2 }, how: 'Bring the crypt hound home in the story (The Kennel).' },
 );
 
@@ -350,7 +354,7 @@ export interface HeadDef {
 }
 
 const HERO_NAMES: Record<HeroId, string> = {
-  knight: 'Knight', rogue: 'Rogue', necro: 'Necromancer', paladin: 'Paladin', ranger: 'Ranger', mage: 'Mage', barbarian: 'Barbarian',
+  knight: 'Knight', rogue: 'Rogue', necro: 'Necromancer', paladin: 'Paladin', ranger: 'Ranger', mage: 'Mage', barbarian: 'Barbarian', bellringer: 'Bell-Ringer',
 };
 
 /** "Reach floor 10 as the Knight." and so on. */
@@ -398,6 +402,7 @@ export const HEADS: HeadDef[] = [
   // Daily podium rewards: only ever won by finishing in the top 3 of a Daily Descent.
   { id: 'champcrown', name: "Champion's Crown", unlock: { podium: 1 }, how: 'Finish 1st in a Daily Descent.', pixels: [[3, 0, GOLD], [5, 0, '#fff2c0'], [6, 0, '#fff2c0'], [8, 0, GOLD], ...row(1, 3, 8, GOLD), ...row(2, 3, 8, '#a8781f'), [4, 2, RED], [5, 2, '#9fe8ff'], [6, 2, '#9fe8ff'], [7, 2, RED]] },
   { id: 'goggles', name: "Smith's Goggles", unlock: { story: 12 }, how: 'Bring Pip the blue coal in the story.', pixels: [...row(2, 3, 8, '#6b4a2a'), [4, 2, '#f2c14e'], [5, 2, '#5fe3ff'], [7, 2, '#f2c14e'], [8, 2, '#5fe3ff']] },
+  { id: 'bellhelm', name: 'The Bell Helm', unlock: { story: STORY_ALL }, how: 'Finish every quest in Act I of the story.', pixels: [[5, 0, '#5d4a2a'], [6, 0, '#5d4a2a'], ...row(1, 4, 7, '#c9a24a'), ...row(2, 3, 8, '#c9a24a'), ...row(3, 3, 8, '#8a6a2a'), [4, 1, '#fff2c0'], [3, 2, '#fff2c0'], [2, 3, '#8a6a2a'], [9, 3, '#8a6a2a']] },
   { id: 'tavernkerchief', name: "Bess's Kerchief", unlock: { story: 13 }, how: "Get Bess's Best back from the tavern cellar in the story.", pixels: [...row(1, 4, 7, '#c0392b'), ...row(2, 3, 8, '#c0392b'), [4, 1, '#ffffff'], [7, 2, '#ffffff'], [5, 2, '#ffffff'], [9, 3, '#c0392b']] },
   { id: 'wardenkeys', name: "The Warden's Keys", unlock: { story: 4 }, how: 'Finish Act I of the story.', pixels: [...row(2, 3, 8, '#8a4a2a'), [3, 1, '#8a4a2a'], [8, 1, '#8a4a2a'], [4, 1, GOLD], [5, 0, GOLD], [6, 0, GOLD], [7, 1, GOLD], [4, 3, GOLD], [7, 3, GOLD]] },
   { id: 'endlesscrown', name: 'Crown of the Endless', unlock: { weekly: 1 }, how: 'Win a week on the Endless leaderboard.', pixels: [[3, 0, '#b07cff'], [5, 0, '#5fe3ff'], [6, 0, '#5fe3ff'], [8, 0, '#b07cff'], ...row(1, 3, 8, '#7b5cff'), ...row(2, 3, 8, '#311854'), [4, 2, '#5fe3ff'], [7, 2, '#5fe3ff']] },
@@ -512,7 +517,7 @@ export interface Outfit {
 
 export type AuraStyle =
   | 'candle' | 'ember' | 'tide' | 'bone' | 'abyss' | 'void' | 'rays' | 'sunburst' | 'flame'
-  | 'wisps' | 'snow' | 'storm' | 'mist' | 'souls' | 'crown' | 'eternity' | 'rainbow';
+  | 'wisps' | 'snow' | 'storm' | 'mist' | 'souls' | 'crown' | 'eternity' | 'rainbow' | 'bell';
 
 export type AuraUnlock =
   | { floor: number }
@@ -558,6 +563,7 @@ export const AURAS: AuraDef[] = [
   { id: 'spectralvigil', name: 'Spectral Vigil', style: 'mist', color: '#9fe8ff', unlock: { story: 3 }, how: "Finish Sir Aldric's trial in the story." },
   { id: 'belltoll', name: 'Toll of the Bell', style: 'tide', color: '#c9a24a', unlock: { story: 4 }, how: 'Finish Act I of the story: silence the Bone Warden.' },
   { id: 'wishingwell', name: 'Wishing Well', style: 'snow', color: '#5fe3ff', unlock: { story: 11 }, how: "Find Agnes's ring in the story." },
+  { id: 'greatbell', name: 'The Great Bell', style: 'bell', color: '#c9a24a', unlock: { story: STORY_ALL }, how: 'Finish every quest in Act I of the story: the bell answers to you now.' },
   { id: 'gravesendlight', name: 'Light of Gravesend', style: 'candle', color: '#9fe8ff', unlock: { story: STORY_ALL }, how: 'Finish every quest in Act I of the story, side quests too.' },
   { id: 'homecoming', name: 'Homecoming', style: 'souls', color: '#7cf5c4', unlock: { welcome: 5 }, how: 'Seven Nights, day 5: come back on a fifth day.' },
   // Sold in the Ossuary.

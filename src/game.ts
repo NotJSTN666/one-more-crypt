@@ -115,6 +115,7 @@ export type GameEvent =
   | { t: 'death' }
   | { t: 'timestop' }
   | { t: 'toll' }
+  | { t: 'ring'; x: number; y: number }
   | { t: 'fuse'; id: FusedId; from: [RelicId, RelicId] }
   | { t: 'relic'; id: RelicId }
   /** A bone pile smashed, or a cracked wall struck (`open` once it gives way). */
@@ -1485,6 +1486,15 @@ export class Game {
         const t = targets[Math.floor(this.combat() * targets.length)];
         this.events.push({ t: 'bolt', from: { x: this.player.x, y: this.player.y }, to: { x: t.x, y: t.y } });
         this.damageEnemy(t, wisp, 'bolt');
+      }
+    }
+    // The Bell-Ringer's toll: everything next to you is struck and stunned.
+    if (this.hero === 'bellringer' && this.turns % 6 === 0) {
+      const near = this.alive.filter((e) => !e.ally && this.adjacentToPlayer(e));
+      this.events.push({ t: 'ring', x: this.player.x, y: this.player.y });
+      for (const e of near) {
+        e.frozen = Math.max(e.frozen, 1);
+        this.damageEnemy(e, 1, 'burst');
       }
     }
     if (this.r('doom') && this.turns % 10 === 0 && this.alive.length) {

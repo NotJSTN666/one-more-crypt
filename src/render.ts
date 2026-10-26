@@ -63,6 +63,8 @@ export class Renderer {
   private floaters: Floater[] = [];
   private particles: Particle[] = [];
   private lines: Line[] = [];
+  /** The Bell-Ringer's tolls: rings spreading out from the hero. */
+  private rings: { x: number; y: number; t: number }[] = [];
   private corpses: Corpse[] = [];
   private bannerText: { text: string; color: string; t: number } | null = null;
   private shake = 0;
@@ -266,6 +268,10 @@ export class Renderer {
           break;
         case 'timestop':
           this.banner('TIME STOPS', '#9fe8ff');
+          break;
+        case 'ring':
+          this.rings.push({ x: ev.x * TILE + TILE / 2, y: ev.y * TILE + TILE / 2, t: 0 });
+          if (!this.quiet) this.shake = Math.max(this.shake, 2);
           break;
         case 'toll':
           this.banner('THE BELL TOLLS', '#f2c14e');
@@ -503,6 +509,7 @@ export class Renderer {
     for (const id of [...this.disp.keys()]) if (!seen.has(id)) this.disp.delete(id);
 
     this.drawLines(dt);
+    this.drawRings(dt);
     this.drawParticles(dt);
     this.drawMotes(dt);
     this.drawLighting(g);
@@ -850,6 +857,27 @@ export class Renderer {
       ctx.drawImage(spr.white, x, y);
       ctx.globalAlpha = 1;
     }
+  }
+
+  /** Bronze shockwaves from the Bell-Ringer's toll, out past the tiles next door. */
+  private drawRings(dt: number) {
+    if (!this.rings.length) return;
+    const ctx = this.ctx;
+    this.rings = this.rings.filter((r) => (r.t += dt) < 0.6);
+    for (const r of this.rings) {
+      const p = r.t / 0.6;
+      for (const [lag, color] of [[0, '#f2c14e'], [0.12, '#c9a24a']] as const) {
+        const q = Math.max(0, p - lag);
+        if (!q) continue;
+        ctx.globalAlpha = (1 - q) * 0.9;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2 - q;
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, 4 + q * TILE * 1.6, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
   }
 
   private drawLines(dt: number) {

@@ -4,12 +4,12 @@ import { dailyNumber, formatCountdown, msUntilNextDaily } from './daily';
 import { ELITES, FEATURES, HERO_BY_ID, dailyHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait } from './hero';
 import { BOON_BY_ID, ENEMY_INFO, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode } from './game';
-import { acceptQuest, checkRun, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, welcomeNext, welcomeWaiting, type RunReward } from './meta';
+import { acceptQuest, checkRun, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
 import { hallFromLink, onVisitIsle, showHall, showPublicHall, soulRankHtml, titleName } from './hall';
-import { HEAD_BY_ID, LOOK_BY_ID, PODIUM, STREAK_HELMS, WEEKLY, WELCOME, rankFor, titleFxClass, welcomeLabel, type WelcomeReward } from './progression';
+import { HEAD_BY_ID, LOOK_BY_ID, PODIUM, STORY_ALL, STREAK_HELMS, WEEKLY, WELCOME, rankFor, titleFxClass, welcomeLabel, type WelcomeReward } from './progression';
 import { Renderer } from './render';
 import { hashSeed } from './rng';
 import { ONLINE, challengeBoard, emailReminderOff, sendFeedback, setEmailReminder, type FeedbackKind, challengeNews, createChallenge, dailyBoard, endlessBoard, getChallenge, mySummons, noteRun, noteSummon, pingActivity, startActivityPings, submitChallengeRun, type Challenge, type ChallengeRow } from './online';
@@ -520,7 +520,7 @@ function playSounds(events: GameEvent[]) {
   else if (has('kill')) sfx.kill();
   else if (has('hit')) sfx.hit();
   if (has('bolt')) sfx.zap();
-  if (has('toll')) sfx.toll();
+  if (has('toll') || has('ring')) sfx.toll();
   if (has('timestop')) sfx.timestop();
   if (has('shot')) sfx.shot();
   if (has('hurt')) sfx.hurt();
@@ -2077,6 +2077,44 @@ function markNewsSeen() {
   }
 }
 
+/** Finished Act I before the Bell-Ringer existed: tell them it's theirs. */
+function bellNewsWaiting(): boolean {
+  if (!storyDone(STORY_ALL)) return false;
+  try {
+    return localStorage.getItem('omc:news-bell') !== '1';
+  } catch {
+    return false;
+  }
+}
+
+function showBellNews() {
+  try {
+    localStorage.setItem('omc:news-bell', '1');
+    localStorage.setItem(NEWS_KEY, NEWS_ID);
+  } catch {
+    // Private mode: it may show again, which is harmless.
+  }
+  showOverlay('news', `
+    <p class="news-tag">🔔 For finishing Act I</p>
+    <h2>The Bell-Ringer is yours</h2>
+    <img class="hero-portrait aura-glow" style="--aura:#c9a24a" src="${heroPortrait('bellringer', {}, [], 8, 'bellvestment', 'bellhelm')}" alt="The Bell-Ringer" width="96" height="96" />
+    <p class="fine">A new hero, only for those who finished every quest of The Bell Beneath. Every 6th turn their bell rings, striking and stunning every foe beside them.</p>
+    <ul class="news-list">
+      <li>✨ The Great Bell: an aura, a tolling bell above your head</li>
+      <li>🎨 Bell-Ringer's Vestment and 🎩 The Bell Helm</li>
+      <li>📜 New titles: The Bell-Ringer and Hero of Gravesend</li>
+      <li>🏰 The Great Bell now hangs in your Hall</li>
+    </ul>
+    <button class="btn primary" id="news-play">🔔 Play the Bell-Ringer<small>Endless Descent</small></button>
+    <button class="btn" id="news-later">Later</button>`);
+  on('#news-play', () => {
+    meta.hero = 'bellringer';
+    saveMeta();
+    startRun('endless');
+  });
+  on('#news-later', showTitle);
+}
+
 /** On opening the game: Act I of the story is out. */
 function showStoryNews() {
   markNewsSeen();
@@ -2090,7 +2128,8 @@ function showStoryNews() {
       <li>🗺️ Walk Gravesend and the Hollow, and meet its people</li>
       <li>⚔️ Four story quests and three side quests, each with its own crypt and boss</li>
       <li>🐕 Take in a crypt hound that fights beside you</li>
-      <li>🎁 Story-only rewards: 4 cloaks, 3 headpieces, 4 auras and 8 titles, never sold</li>
+      <li>🎁 Story-only rewards: 5 cloaks, 4 headpieces, 5 auras and 9 titles, never sold</li>
+      <li>🔔 Finish all of Act I to unlock a new hero: the Bell-Ringer</li>
     </ul>
     <button class="btn primary story-btn" id="news-play">📖 Begin the story<small>Knock on Mortimer's door</small></button>
     <button class="btn" id="news-later">Later<small>It's on the title screen whenever you're ready</small></button>`);
@@ -2143,12 +2182,29 @@ function finishQuest(q: Quest, then: () => void) {
   if (result.feat) celebrate([result.feat]);
   if (!result.first) return then();
   const unlocked =
-    q.n === 2 ? `🐕 ${esc(petName(meta.story.choices.hound))} the Crypt Hound joins you. It trots behind you everywhere (it only fights in the story).`
-    : q.n === 3 ? "🎨 Aldric's Mantle: a new cloak in the Wardrobe."
-    : q.n === 4 ? "🎩 The Warden's Keys: new headwear. 📜 New title: Bell-Seeker."
-    : q.n === 11 ? "🎨 The Widow's Shawl: a new cloak in the Wardrobe."
-    : q.n === 12 ? "🎩 Smith's Goggles: new headwear."
-    : q.n === 13 ? '📜 New title: Tavern Regular.'
+    q.n === 1 ? "🎨 Gravedigger's Coat: a new cloak. 📜 New title: Gravedigger's Apprentice."
+    : q.n === 2 ? `🐕 ${esc(petName(meta.story.choices.hound))} the Crypt Hound joins you. It trots behind you everywhere (it only fights in the story). 🎨 Houndhide: a new cloak. 📜 New title: Friend of Hounds.`
+    : q.n === 3 ? "🎨 Aldric's Mantle: a new cloak. ✨ Spectral Vigil: a new aura. 📜 New title: Aldric's Squire."
+    : q.n === 4 ? "🎩 The Warden's Keys: new headwear. ✨ Toll of the Bell: a new aura. 📜 New title: Bell-Seeker."
+    : q.n === 11 ? "🎨 The Widow's Shawl: a new cloak. ✨ Wishing Well: a new aura. 📜 New title: Ring Finder."
+    : q.n === 12 ? "🎩 Smith's Goggles: new headwear. 📜 New title: Coal Runner."
+    : q.n === 13 ? "🎩 Bess's Kerchief: new headwear. 📜 New title: Tavern Regular."
+    : '';
+  // The last quest of the act: the Bell-Ringer and everything that comes with them.
+  const actDone = storyDone(STORY_ALL);
+  const act = actDone
+    ? `<div class="act-done">
+        <b>🔔 Act I complete</b>
+        <img class="hero-portrait aura-glow" style="--aura:#c9a24a" src="${heroPortrait('bellringer', {}, [], 8, 'bellvestment', 'bellhelm')}" alt="The Bell-Ringer" width="96" height="96" />
+        <p><b>The Bell-Ringer</b> joins your heroes. Every 6th turn their bell rings, striking and stunning every foe beside them. Choose them for Endless.</p>
+        <ul>
+          <li>✨ The Great Bell: an aura, a tolling bell above your head</li>
+          <li>🎨 Bell-Ringer's Vestment and 🎩 The Bell Helm</li>
+          <li>📜 Titles: The Bell-Ringer and Hero of Gravesend</li>
+          <li>✨ Light of Gravesend: an aura</li>
+          <li>🏰 The Great Bell now hangs in your Hall</li>
+        </ul>
+      </div>`
     : '';
   sfx.relic();
   showOverlay('story-won', `
@@ -2157,7 +2213,8 @@ function finishQuest(q: Quest, then: () => void) {
     <p class="sub">${q.side ? 'Side quest complete' : 'Quest complete'}</p>
     <div class="souls-earned"><b>+${result.souls} Souls</b><span>💀 ${meta.souls} to spend in the Ossuary</span></div>
     ${unlocked ? `<p class="talk-quip">${unlocked}</p>` : ''}
-    ${q.n === 4 ? '<p class="talk-quip">Act II: The Plague Abbot is coming. The bell is waiting.</p>' : ''}
+    ${act}
+    ${q.n === 4 || actDone ? '<p class="talk-quip">Act II: The Plague Abbot is coming. The bell is waiting.</p>' : ''}
     <button class="btn primary" id="back">Continue</button>`);
   on('#back', then);
 }
@@ -2528,7 +2585,10 @@ if (unsub && ONLINE) {
   });
 }
 // Back again: tell them what's new (only on a plain visit, not a shared link).
-if (!visiting && !challengeCode && !unsub && newsWaiting() && !savedRun()) showStoryNews();
+if (!visiting && !challengeCode && !unsub && !savedRun()) {
+  if (bellNewsWaiting()) showBellNews();
+  else if (newsWaiting()) showStoryNews();
+}
 // Someone brand new: straight into the crypt (a one-minute tutorial, then today's daily).
 // They're asked for a name after their first run, once they've seen where they'd place.
 if (firstVisit() && !visiting && !challengeCode) {
