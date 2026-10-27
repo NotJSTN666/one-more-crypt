@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Game, HORDE_DEATH_WAVE, HORDE_GIFT_EVERY, fullPool } from './game';
+import { Game, HORDE_DEATH_WAVE, HORDE_GIFT_EVERY, SURGE_FIRST, SURGE_STEP, fullPool } from './game';
 import { mulberry32 } from './rng';
 import { hordeHero, dailyHero } from './content';
 
@@ -77,7 +77,7 @@ describe('Horde surge', () => {
     }
     expect(offered).toBe(true);
     expect(g.horde.level).toBe(1);
-    expect(g.horde.need).toBeGreaterThan(6);
+    expect(g.horde.need).toBe(SURGE_FIRST + SURGE_STEP);
     // Relics no longer come on a wave timer.
     expect(g.relicLog.length).toBe(2);
   });

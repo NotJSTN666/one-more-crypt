@@ -340,8 +340,8 @@ export const HORDE_DEATH_WAVE = 25;
 /** The highest score multiplier. */
 export const HORDE_MAX_MULT = 5;
 /** Kills to fill the bar the first time; each fill asks for a few more (up to the cap). */
-export const SURGE_FIRST = 6;
-export const SURGE_STEP = 3;
+export const SURGE_FIRST = 4;
+export const SURGE_STEP = 2;
 export const SURGE_MAX = 30;
 /** Turns on a floor before Death rises: plenty at first, one fewer every 4 floors, none from floor 250. */
 export function reaperDelay(floor: number): number {
@@ -1409,6 +1409,8 @@ export class Game {
     if (this.mode === 'horde') {
       this.horde.score += (isBoss(e) ? 250 : e.elite ? 30 : 10) * this.hordeMult();
       if (this.config.surge) this.horde.charge += isBoss(e) ? 6 : e.elite ? 2 : 1;
+      // Felling a Horde boss steadies you for what comes next.
+      if (this.config.surge && isBoss(e)) this.heal(3);
     }
     if (this.player.hp <= 3) this.stats.lowHpKills++;
     this.stats.kinds[e.kind] = (this.stats.kinds[e.kind] ?? 0) + 1;
@@ -1695,8 +1697,8 @@ export class Game {
       const bonus = 50 * h.wave;
       h.score += bonus;
       this.events.push({ t: 'wavecleared', wave: h.wave, bonus });
-      // A potion after every second wave, somewhere in the arena.
-      if (h.wave % 2 === 0 && !this.potion) this.potion = this.randomFreeTile(mulberry32(hashSeed(this.seed, 'horde-potion', h.wave)), 0);
+      // A potion after every second wave (every wave with the surge bar), somewhere in the arena.
+      if ((this.config.surge || h.wave % 2 === 0) && !this.potion) this.potion = this.randomFreeTile(mulberry32(hashSeed(this.seed, 'horde-potion', h.wave)), 0);
       h.next = Math.min(h.next, 2);
       if (!this.config.surge && h.wave % HORDE_GIFT_EVERY === 0) {
         this.offer = this.makeOffer();
@@ -1714,6 +1716,8 @@ export class Game {
       this.events.push({ t: 'surge' });
       return;
     }
+    // With the surge bar, a boss wave is a duel: no new wave until the boss falls.
+    if (this.config.surge && this.alive.some((e) => isBoss(e))) return;
     if (--h.next <= 0) this.spawnWave();
   }
 
@@ -1726,7 +1730,8 @@ export class Game {
     const rng = mulberry32(hashSeed(this.seed, 'wave', h.wave));
     const boss = h.wave % 5 === 0;
     const room = MAX_ENEMIES - this.alive.length;
-    const count = Math.min(room, boss ? 2 + Math.floor(h.wave / 10) : 2 + Math.floor(h.wave * 0.45));
+    const adds = this.config.surge ? 1 + Math.floor(h.wave / 10) : 1 + Math.floor(h.wave / 10);
+    const count = Math.min(room, boss ? 1 + adds : 2 + Math.floor(h.wave * (this.config.surge ? 0.4 : 0.45)));
     // They come in at the edges, never right beside you.
     const p = this.player;
     const spots: Pos[] = [];
@@ -1758,7 +1763,7 @@ export class Game {
       if (boss && i === 0) {
         const kind = (['boss', 'abbot', 'lich'] as EnemyKind[])[(h.wave / 5 - 1) % 3];
         const e = this.makeEnemy(kind, s.x, s.y);
-        e.maxHp = e.hp = ENEMY_INFO[kind].hp + 4 * h.wave;
+        e.maxHp = e.hp = ENEMY_INFO[kind].hp + (this.config.surge ? 1 : 4) * h.wave;
         e.dmg = ENEMY_INFO[kind].dmg + Math.floor(h.wave / 8);
         continue;
       }
@@ -2037,8 +2042,8 @@ export class Game {
 
   /** Slow, summons ghouls every few turns. */
   private wardenAct(e: Enemy, dist: number[]) {
-    // The first Warden (floor 5) raises fewer, frailer ghouls.
-    const first = this.config.mercy && this.floor === 5;
+    // The first Warden (floor 5, or the Horde's first boss wave) raises fewer, frailer ghouls.
+    const first = this.mode === 'horde' ? Boolean(this.config.surge) && this.horde.wave === 5 : this.config.mercy && this.floor === 5;
     if (e.turns % (first ? 5 : 4) === 0) {
       const ghoul = this.summonNear(e, 'ghoul');
       if (ghoul) {
