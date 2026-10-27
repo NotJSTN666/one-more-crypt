@@ -815,12 +815,7 @@ export class Game {
     const relic = this.randomRelic(rng, (r) => r.rarity === 'rare') ?? this.randomRelic(rng, (r) => r.rarity === 'common');
     if (relic) this.addRelic(relic.id);
     // No relics left to find: the vault holds two boons instead.
-    else if (this.config.deep) {
-      for (let i = 0; i < 2; i++) {
-        const open = this.openBoons();
-        if (open.length) this.takeBoon(open[Math.floor(rng() * open.length)]);
-      }
-    }
+    else if (this.config.deep) this.giveBoons(rng, 2);
     this.heal(POTION_HEAL);
     this.stats.vaults++;
   }
@@ -1195,6 +1190,19 @@ export class Game {
     this.events.push({ t: 'boon', id });
   }
 
+  /** Random boons from what's still open: what vaults, chests, shrines and the forge give once the relics run out. */
+  private giveBoons(rng: Rng, n: number) {
+    for (let i = 0; i < n; i++) {
+      const open = this.openBoons();
+      if (open.length) this.takeBoon(open[Math.floor(rng() * open.length)]);
+    }
+  }
+
+  /** Every relic is found (or held to its limit): the deep crypt's gifts are boons instead (log version 10 and later). */
+  outOfRelics(): boolean {
+    return Boolean(this.config.deep) && !RELICS.some((r) => this.config.pool.includes(r.id) && this.own(r.id) < r.maxStack);
+  }
+
   /** Boons that can still be taken in this run (the deep ones only from log version 10, Grave Dusk only with Death). */
   private openBoons(): BoonId[] {
     return BOONS.filter((b) => (!b.deep || (this.config.deep && (b.id !== 'dusk' || this.config.reaper))) && (!b.max || this.boons[b.id] < b.max)).map((b) => b.id);
@@ -1204,7 +1212,8 @@ export class Game {
   canAcceptEvent(): boolean {
     if (this.phase !== 'event' || !this.feature) return false;
     if (this.feature.kind === 'shrine') return this.player.maxHp > 3;
-    if (this.feature.kind === 'forge') return this.forgeOptions().length > 0;
+    // Nothing left to fuse this deep: the forge can still be stoked for a boon.
+    if (this.feature.kind === 'forge') return this.forgeOptions().length > 0 || Boolean(this.config.deep);
     return true;
   }
 
@@ -1252,12 +1261,16 @@ export class Game {
     if (this.phase !== 'event' || !this.feature) return;
     const f = this.feature;
     const rng = mulberry32(hashSeed(this.seed, 'event', this.floor));
-    if (accept && f.kind === 'forge') return;
+    // The forge fuses through forge(); accepting only stokes it, when there's nothing to fuse in a deep run.
+    if (accept && f.kind === 'forge' && !(this.config.deep && !this.forgeOptions().length)) return;
     if (accept && this.canAcceptEvent()) {
-      if (f.kind === 'shrine') {
+      if (f.kind === 'forge') {
+        this.giveBoons(rng, 1);
+      } else if (f.kind === 'shrine') {
         this.changeMaxHp(-3);
         const gift = this.randomRelic(rng, (r) => r.rarity === 'rare') ?? this.randomRelic(rng, () => true);
         if (gift) this.addRelic(gift.id);
+        else if (this.config.deep) this.giveBoons(rng, 2);
       } else if (f.kind === 'chest') {
         if (!this.r('key')) {
           const cut = Math.min(2, this.player.hp - 1);
@@ -1270,6 +1283,7 @@ export class Game {
         for (let i = 0; i < gifts; i++) {
           const gift = this.randomRelic(rng, () => true);
           if (gift) this.addRelic(gift.id);
+          else if (this.config.deep) this.giveBoons(rng, 1);
         }
       } else {
         this.heal(this.player.maxHp);

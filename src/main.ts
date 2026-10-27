@@ -57,6 +57,8 @@ let lastReward: RunReward | null = null;
 let lastWelcome: { day: number; reward: WelcomeReward } | null = null;
 let lastLabel = '';
 let overlayTimer = 0;
+/** A newer version of the game is out (see checkForUpdate); it loads at the title screen. */
+let updateReady = false;
 /** Combos completed during the current run, for the results screen and share text. */
 let runCombos: ComboDef[] = [];
 
@@ -843,6 +845,8 @@ function zoneTip(g: Game): string {
 // ---------- overlays ----------
 
 function showTitle() {
+  // A newer version came out while the app sat open: load it now, between runs.
+  if (updateReady && reloadForUpdate()) return;
   checkChallengeNews();
   setMusicDepth(0);
   setMusicMood('crypt');
@@ -1411,12 +1415,18 @@ function showForge() {
     <h2>Soul Forge</h2>
     <p class="sub">${FEATURES.forge.text}</p>
     ${deep ? '<p class="fine ascend-note">✨ This deep, the forge burns white-hot: two fused relics can <b>ascend</b> into one.</p>' : ''}
-    ${options.length ? '<p class="fine">Fusing uses up one of each relic. You can fuse once here.</p>' : '<p class="fine">None of your relics answer the forge. Fusions need two particular relics held together, like 🔥 Ember Brand and ⚡ Storm Rune.</p>'}
+    ${options.length
+      ? '<p class="fine">Fusing uses up one of each relic. You can fuse once here.</p>'
+      : game.config.deep
+        ? '<p class="fine">Nothing you hold will fuse. Stoke the fire instead, and the forge gives you an Abyss boon.</p>'
+        : '<p class="fine">None of your relics answer the forge. Fusions need two particular relics held together, like 🔥 Ember Brand and ⚡ Storm Rune.</p>'}
     <div class="offer event-offer">
       ${cards}
+      ${!options.length && game.config.deep ? '<button class="fused" id="stoke"><span class="emoji">🔥</span><span><span class="name">Stoke the forge</span><span class="desc">Gain a random Abyss boon.</span></span></button>' : ''}
       <button class="rare" id="leave"><span class="emoji">🚶</span><span><span class="name">${FEATURES.forge.leave}</span></span></button>
     </div>`);
   overlay.querySelectorAll<HTMLButtonElement>('.offer button[data-i]').forEach((b) => b.addEventListener('click', () => forgePick(Number(b.dataset.i))));
+  on('#stoke', () => resolveEvent(true));
   on('#leave', () => resolveEvent(false));
   (document.activeElement as HTMLElement | null)?.blur();
   choiceShownAt = performance.now();
@@ -1489,12 +1499,17 @@ function showEvent() {
   if (game.feature.kind === 'forge') return showForge();
   const f = FEATURES[game.feature.kind];
   const can = game.canAcceptEvent();
+  const kind = game.feature.kind;
   const note =
-    game.feature.kind === 'chest' && game.r('key')
-      ? 'Your Skeleton Key opens it cleanly, and it holds two relics.'
-      : game.feature.kind === 'shrine' && !can
-        ? 'You have too little life left to offer.'
-        : '';
+    kind === 'shrine' && !can
+      ? 'You have too little life left to offer.'
+      : game.outOfRelics() && kind === 'shrine'
+        ? 'No relics are left to find down here. The shrine gives two Abyss boons instead.'
+        : game.outOfRelics() && kind === 'chest'
+          ? `No relics are left to find down here. It holds ${game.r('key') ? 'two Abyss boons, and your Skeleton Key opens it cleanly' : 'an Abyss boon'} instead.`
+          : kind === 'chest' && game.r('key')
+            ? 'Your Skeleton Key opens it cleanly, and it holds two relics.'
+            : '';
   showOverlay('event', `
     <h2>${f.name}</h2>
     <p class="sub">${f.text}</p>
@@ -3088,6 +3103,44 @@ const firstTouch = () => {
 };
 window.addEventListener('pointerdown', firstTouch, true);
 window.addEventListener('keydown', firstTouch, true);
+// ---------- updates ----------
+// The installed app can sit open in the background for days, running the version it
+// started with. Coming back to it, check whether a newer one is out; if so it loads the
+// next time the title screen shows (never mid-run).
+
+const builtScript = (document.querySelector<HTMLScriptElement>('script[type="module"][src*="/assets/index-"]')?.src ?? '').split('/').pop() ?? '';
+let updateCheckedAt = 0;
+
+async function checkForUpdate() {
+  if (!builtScript || updateReady || Date.now() - updateCheckedAt < 10 * 60_000) return;
+  updateCheckedAt = Date.now();
+  try {
+    const html = await (await fetch('./', { cache: 'no-store' })).text();
+    const live = /assets\/(index-[\w-]+\.js)/.exec(html)?.[1];
+    if (live && live !== builtScript) {
+      updateReady = true;
+      if (screen === 'title') reloadForUpdate();
+    }
+  } catch {
+    // Offline: try again next time.
+  }
+}
+
+/** Reload into the new version, at most once every few minutes (in case the page keeps coming back stale). */
+function reloadForUpdate(): boolean {
+  try {
+    const last = Number(sessionStorage.getItem('omc:update-reload')) || 0;
+    if (Date.now() - last < 5 * 60_000) return false;
+    sessionStorage.setItem('omc:update-reload', String(Date.now()));
+  } catch {
+    return false;
+  }
+  location.reload();
+  return true;
+}
+
+document.addEventListener('visibilitychange', () => !document.hidden && void checkForUpdate());
+
 // Back from the background: the phone may have wiped cached sprites, so bake them again.
 const refreshCanvases = () => {
   resetCanvases();

@@ -47,3 +47,40 @@ describe('the deep boons', () => {
     expect(count(old)).toBe(0);
   });
 });
+
+describe('deep floor events', () => {
+  type Ev = { feature: { kind: string; x: number; y: number; used: boolean } | null; phase: string };
+  const at = (g: Game, kind: string) => {
+    (g as unknown as Ev).feature = { kind, x: 0, y: 0, used: false };
+    (g as unknown as Ev).phase = 'event';
+  };
+  const count = (g: Game) => Object.values(g.boons).reduce((a, b) => a + b, 0);
+
+  it('the forge, a shrine and a chest give boons once the relics run out', () => {
+    const forge = new Game('endless', 11, 0, { ...base, deep: true });
+    at(forge, 'forge');
+    expect(forge.canAcceptEvent()).toBe(true);
+    forge.resolveEvent(true);
+    expect(count(forge)).toBe(1);
+    expect(forge.log.endsWith('a')).toBe(true);
+    const shrine = new Game('endless', 11, 0, { ...base, deep: true });
+    expect(shrine.outOfRelics()).toBe(true);
+    at(shrine, 'shrine');
+    shrine.resolveEvent(true);
+    expect(count(shrine)).toBe(2);
+    const chest = new Game('endless', 11, 0, { ...base, deep: true });
+    at(chest, 'chest');
+    chest.resolveEvent(true);
+    expect(count(chest)).toBe(1);
+  });
+
+  it('stay as they were in runs without the deep rules', () => {
+    const forge = new Game('endless', 11, 0, { ...base });
+    at(forge, 'forge');
+    expect(forge.canAcceptEvent()).toBe(false);
+    forge.resolveEvent(true);
+    expect(forge.phase).toBe('event');
+    expect(count(forge)).toBe(0);
+    expect(forge.outOfRelics()).toBe(false);
+  });
+});
