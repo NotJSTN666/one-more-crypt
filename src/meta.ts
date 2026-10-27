@@ -1250,14 +1250,15 @@ export function noteFriends(n: number): number {
 // ---------- Horde ----------
 
 /** A Horde run is over: Souls for how long you held, the wave feats, and whether it's today's best. */
-export function finishHordeMeta(dailyNo: number, score: number, wave: number, kills: number): { souls: number; best: boolean; feats: AchievementDef[] } {
+export function finishHordeMeta(dailyNo: number, score: number, wave: number, kills: number, earned: string[] = []): { souls: number; best: boolean; feats: AchievementDef[] } {
   const souls = Math.min(500, wave * 10 + Math.floor(kills / 2));
   meta.souls += souls;
   meta.earned += souls;
   const feats: AchievementDef[] = [];
-  for (const [id, need] of [['horde10', 10], ['horde20', 20], ['horde30', 30]] as const) {
+  const ids = [...(['horde10', 'horde20', 'horde30'] as const).filter((_, i) => wave >= (i + 1) * 10), ...earned];
+  for (const id of ids) {
     const def = ACHIEVEMENT_BY_ID[id];
-    if (def && wave >= need && !meta.achievements[id]) {
+    if (def && !meta.achievements[id]) {
       meta.achievements[id] = Date.now();
       meta.souls += def.souls;
       meta.earned += def.souls;

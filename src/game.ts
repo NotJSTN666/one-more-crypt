@@ -126,7 +126,7 @@ export type GameEvent =
   | { t: 'surge' }
   | { t: 'spark'; x: number; y: number }
   | { t: 'drop'; kind: FeatureKind }
-  | { t: 'magnet'; from: Pos[]; x: number; y: number }
+  | { t: 'magnet'; from: MagnetPull[]; x: number; y: number }
   | { t: 'toll' }
   | { t: 'ring'; x: number; y: number }
   | { t: 'fuse'; id: FusedId; from: [RelicId, RelicId] }
@@ -222,6 +222,13 @@ export interface RunConfig {
   waves?: boolean;
   /** Horde: the Grave Magnet can turn up (log version 14 and later). */
   magnet?: boolean;
+  /** Horde: the War Drum, Gravedigger's Spade and Reaper's Invitation can turn up (log version 15 and later). */
+  armory?: boolean;
+}
+
+/** Something the Grave Magnet pulled, and where from. */
+export interface MagnetPull extends Pos {
+  kind: 'potion' | 'spark' | FeatureKind;
 }
 
 export interface StoryConfig {
@@ -337,6 +344,8 @@ const SURGE_LOG_VERSION = 12;
 const WAVES_LOG_VERSION = 13;
 /** Adds the Horde-only Grave Magnet. */
 const MAGNET_LOG_VERSION = 14;
+/** Adds the Horde-only War Drum, Gravedigger's Spade and Reaper's Invitation. */
+const ARMORY_LOG_VERSION = 15;
 export const REAPER_FLOOR = 150;
 
 // ---------- Horde ----------
@@ -349,6 +358,9 @@ export const HORDE_GAP = 10;
 export const HORDE_GIFT_EVERY = 2;
 /** Death joins from this wave, and stays. */
 export const HORDE_DEATH_WAVE = 25;
+/** With the Reaper's Invitation, Death comes this much sooner, and points are worth this much more. */
+export const INVITATION_DEATH_WAVE = 15;
+const INVITATION_RATE = 1.5;
 /** The highest score multiplier. */
 export const HORDE_MAX_MULT = 5;
 /** Kills to fill the bar the first time; each fill asks for a few more (up to the cap). */
@@ -410,7 +422,7 @@ export class Game {
   turns = 0;
   killedBy = '';
   /** Horde: the wave under way, turns until the next, the score, and the run of turns with a kill. */
-  horde = { wave: 0, next: 2, score: 0, chain: 0, idle: 0, bestMult: 1, cleared: true, charge: 0, need: SURGE_FIRST, level: 0 };
+  horde = { wave: 0, next: 2, score: 0, chain: 0, idle: 0, bestMult: 1, cleared: true, charge: 0, need: SURGE_FIRST, level: 0, untouched: false, deathWaves: 0 };
   /** Death, once he has risen on this floor (he can't be hurt), and the turns until he rises. */
   reaper: { x: number; y: number; frozen: number; waiting?: boolean } | null = null;
   reaperIn = 0;
@@ -568,6 +580,7 @@ export class Game {
   header(): string {
     const unlocked = UNLOCKABLE_RELICS.filter((id) => this.config.pool.includes(id));
     // Pools without any post-launch relic are logged as version 2 so they replay with the launch set.
+    if (this.config.armory) return `#${ARMORY_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.magnet) return `#${MAGNET_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.waves) return `#${WAVES_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.surge) return `#${SURGE_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
@@ -1209,7 +1222,8 @@ export class Game {
 
   /** Whether a relic can still turn up. The Horde has no chests worth a key. */
   private inPool(r: RelicDef): boolean {
-    const offered = r.horde ? Boolean(this.config.magnet) : this.config.pool.includes(r.id);
+    const hordeLevel = this.config.armory ? 15 : this.config.magnet ? 14 : 0;
+    const offered = r.horde ? hordeLevel >= r.horde : this.config.pool.includes(r.id);
     return offered && this.own(r.id) < r.maxStack && !(this.config.waves && r.id === 'key');
   }
 
@@ -1454,7 +1468,7 @@ export class Game {
     this.killsThisTurn++;
     if (this.boons.mend) this.heal(this.boons.mend);
     if (this.mode === 'horde') {
-      this.horde.score += (isBoss(e) ? 250 : e.elite ? 30 : 10) * this.hordeMult();
+      this.horde.score += this.hordePoints((isBoss(e) ? 250 : e.elite ? 30 : 10) * this.hordeMult());
       if (this.config.surge) this.horde.charge += isBoss(e) ? 6 : e.elite ? 2 : 1;
       // Felling a Horde boss steadies you for what comes next.
       if (this.config.surge && isBoss(e)) this.heal(3);
@@ -1663,7 +1677,7 @@ export class Game {
   // ---------- Death ----------
 
   private reaperDue(): boolean {
-    if (this.mode === 'horde') return this.horde.wave >= HORDE_DEATH_WAVE;
+    if (this.mode === 'horde') return this.horde.wave >= this.hordeDeathWave();
     return Boolean(this.config.reaper) && this.floor >= REAPER_FLOOR;
   }
 
@@ -1727,23 +1741,46 @@ export class Game {
 
   /** The score multiplier: up by one for every two turns in a row with a kill. */
   hordeMult(): number {
-    return Math.min(HORDE_MAX_MULT, 1 + Math.floor(this.horde.chain / 2));
+    return Math.min(HORDE_MAX_MULT + (this.r('drum') ? 1 : 0), 1 + Math.floor(this.horde.chain / 2));
+  }
+
+  /** The wave Death joins the Horde. */
+  hordeDeathWave(): number {
+    return this.r('invitation') ? INVITATION_DEATH_WAVE : HORDE_DEATH_WAVE;
+  }
+
+  /** Points scored in the Horde, raised by the Reaper's Invitation. */
+  private hordePoints(n: number): number {
+    return this.r('invitation') ? Math.round(n * INVITATION_RATE) : n;
+  }
+
+  /** Horde achievements earned this run, besides the wave milestones. */
+  hordeFeats(): string[] {
+    const h = this.horde;
+    const feats: string[] = [];
+    if (h.bestMult >= HORDE_MAX_MULT) feats.push('hordeunbroken');
+    if (h.untouched) feats.push('hordeuntouched');
+    if (h.level >= 10) feats.push('hordeovercharged');
+    if (h.deathWaves >= 10) feats.push('hordedanced');
+    for (const [id, need] of [['horde10k', 10_000], ['horde50k', 50_000], ['horde100k', 100_000]] as const) if (h.score >= need) feats.push(id);
+    return feats;
   }
 
   /** After each turn: keep the kill chain, reward a cleared wave, and bring the next one. */
   private hordeTick() {
     const h = this.horde;
-    // One quiet turn is forgiven; two break the chain.
+    // One quiet turn is forgiven (two with the War Drum); one more breaks the chain.
     if (this.killsThisTurn > 0) {
       h.chain++;
       h.idle = 0;
-    } else if (++h.idle > 1) h.chain = 0;
+    } else if (++h.idle > 1 + (this.r('drum') ? 1 : 0)) h.chain = 0;
     h.bestMult = Math.max(h.bestMult, this.hordeMult());
     if (this.isOver()) return;
     if (!h.cleared && this.alive.length === 0) {
       h.cleared = true;
-      const bonus = 50 * h.wave;
+      const bonus = this.hordePoints(50 * h.wave);
       h.score += bonus;
+      if (h.wave >= 10 && !this.hurtThisFloor) h.untouched = true;
       this.events.push({ t: 'wavecleared', wave: h.wave, bonus });
       // A potion after every second wave (every wave with the surge bar), somewhere in the arena.
       if ((this.config.surge || h.wave % 2 === 0) && !this.potion) this.potion = this.randomFreeTile(mulberry32(hashSeed(this.seed, 'horde-potion', h.wave)), 0);
@@ -1775,19 +1812,19 @@ export class Game {
     const reach = magnetRange(this.r('magnet'));
     if (!reach) return;
     const near = (p: Pos) => Math.abs(p.x - x) + Math.abs(p.y - y) <= reach && !(p.x === x && p.y === y);
-    const from: Pos[] = [];
+    const from: MagnetPull[] = [];
     if (this.potion && near(this.potion)) {
-      from.push(this.potion);
+      from.push({ ...this.potion, kind: 'potion' });
       this.potion = { x, y };
     }
     this.sparks = this.sparks.map((p) => {
       if (!near(p)) return p;
-      from.push(p);
+      from.push({ ...p, kind: 'spark' });
       return { x, y };
     });
     const f = this.feature;
     if (f && !f.used && f.kind !== 'forge' && near(f)) {
-      from.push({ x: f.x, y: f.y });
+      from.push({ x: f.x, y: f.y, kind: f.kind });
       this.feature = { ...f, x, y };
     }
     if (from.length) this.events.push({ t: 'magnet', from, x, y });
@@ -1797,7 +1834,8 @@ export class Game {
   private hordeDrop() {
     if (this.feature && !this.feature.used) return;
     const rng = mulberry32(hashSeed(this.seed, 'horde-drop', this.horde.wave));
-    if (this.horde.wave < 2 || rng() >= HORDE_DROP_CHANCE) return;
+    const roll = rng();
+    if (!this.r('spade') && (this.horde.wave < 2 || roll >= HORDE_DROP_CHANCE)) return;
     const kind = weightedPick(rng, ['chest', 'shrine', 'fountain'] as FeatureKind[], (k) => (k === 'chest' ? 4 : k === 'shrine' ? 3 : 2));
     const spot = this.randomFreeTile(rng, 1);
     if (!spot) return;
@@ -1831,6 +1869,9 @@ export class Game {
     const h = this.horde;
     h.wave++;
     h.cleared = false;
+    // A wave counts as untouched if you clear it without a hit after it arrives.
+    this.hurtThisFloor = false;
+    if (this.reaper) h.deathWaves++;
     // Foes are as tough as they would be this deep in the crypt.
     this.floor = 1 + Math.floor(h.wave * 0.7);
     const rng = mulberry32(hashSeed(this.seed, 'wave', h.wave));
@@ -1880,7 +1921,7 @@ export class Game {
     this.events.push({ t: 'wave', wave: h.wave, boss });
     if (this.config.waves) this.waveStart(boss);
     // Death joins late, and stays.
-    if (h.wave >= HORDE_DEATH_WAVE && !this.reaper) {
+    if (h.wave >= this.hordeDeathWave() && !this.reaper) {
       const at = this.farCorner();
       this.reaper = { x: at.x, y: at.y, frozen: 0 };
       this.events.push({ t: 'reaperrise', x: at.x, y: at.y });
@@ -2298,7 +2339,8 @@ export class Game {
     const surge = Number(m[1]) >= SURGE_LOG_VERSION;
     const waves = Number(m[1]) >= WAVES_LOG_VERSION;
     const magnet = Number(m[1]) >= MAGNET_LOG_VERSION;
-    const config: RunConfig = { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy, ...(depths ? { depths } : {}), ...(boons ? { boons } : {}), ...(reaper ? { reaper } : {}), ...(deep ? { deep } : {}), ...(lurk ? { lurk } : {}), ...(surge ? { surge } : {}), ...(waves ? { waves } : {}), ...(magnet ? { magnet } : {}) };
+    const armory = Number(m[1]) >= ARMORY_LOG_VERSION;
+    const config: RunConfig = { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy, ...(depths ? { depths } : {}), ...(boons ? { boons } : {}), ...(reaper ? { reaper } : {}), ...(deep ? { deep } : {}), ...(lurk ? { lurk } : {}), ...(surge ? { surge } : {}), ...(waves ? { waves } : {}), ...(magnet ? { magnet } : {}), ...(armory ? { armory } : {}) };
     let rest = full.slice(m[0].length);
     // Version 7 adds one field: the isle's extra max HP.
     const isle = Number(m[1]) >= ISLE_LOG_VERSION ? /^(\d+)\|/.exec(rest) : null;

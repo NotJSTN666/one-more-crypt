@@ -516,12 +516,13 @@ function processEvents() {
     if (game.phase === 'dead') setMusicMood('silent');
     return finishRaid(game.phase === 'dead');
   }
+  // Let anything the Grave Magnet is pulling land before an offer covers the board.
   if (game.phase === 'choose') {
     window.clearTimeout(overlayTimer);
-    overlayTimer = window.setTimeout(showChoice, 280);
+    overlayTimer = window.setTimeout(showChoice, 280 + renderer.pullingMs());
   } else if (game.phase === 'event') {
     window.clearTimeout(overlayTimer);
-    overlayTimer = window.setTimeout(showEvent, 250);
+    overlayTimer = window.setTimeout(showEvent, 250 + renderer.pullingMs());
   } else if (game.phase === 'dead') {
     setMusicMood('silent');
     if (game.mode === 'horde') finishHorde();
@@ -2469,7 +2470,7 @@ function startHorde() {
   challenge = null;
   storyRun = null;
   raidRun = null;
-  showGame(new Game('horde', hashSeed('horde', n), n, { hero: hordeHero(n), pool: fullPool(), mercy: true, boons: true, surge: true, waves: true, magnet: true }));
+  showGame(new Game('horde', hashSeed('horde', n), n, { hero: hordeHero(n), pool: fullPool(), mercy: true, boons: true, surge: true, waves: true, magnet: true, armory: true }));
   startClock();
   setMusicDepth(1);
   setMusicMood('crypt');
@@ -2482,7 +2483,7 @@ function startHorde() {
 function finishHorde() {
   const g = game;
   const h = g.horde;
-  const reward = finishHordeMeta(g.dailyNo, h.score, h.wave, g.kills);
+  const reward = finishHordeMeta(g.dailyNo, h.score, h.wave, g.kills, g.hordeFeats());
   celebrate(reward.feats);
   setMusicMood('fallen');
   window.clearTimeout(overlayTimer);

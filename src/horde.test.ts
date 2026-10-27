@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Game, HORDE_DEATH_WAVE, HORDE_GIFT_EVERY, HORDE_SPARK, SURGE_FIRST, SURGE_STEP, fullPool } from './game';
+import { Game, HORDE_DEATH_WAVE, HORDE_GIFT_EVERY, HORDE_SPARK, INVITATION_DEATH_WAVE, SURGE_FIRST, SURGE_STEP, fullPool } from './game';
 import { mulberry32 } from './rng';
 import { hordeHero, dailyHero } from './content';
 
@@ -217,5 +217,61 @@ describe('Grave Magnet', () => {
     expect(g.sparks).toEqual([{ x: startX - 4, y: g.player.y }]);
     expect(g.phase).toBe('event');
     expect(g.feature).toMatchObject({ x: g.player.x, y: g.player.y, kind: 'chest' });
+  });
+});
+
+describe('Horde armory', () => {
+  const armory = () => new Game('horde', 41, 15, { hero: 'barbarian', pool: fullPool(), mercy: true, boons: true, surge: true, waves: true, magnet: true, armory: true });
+  type Inner = { makeOffer(): { relics: { id: string }[] }; hordeDrop(): void };
+
+  it('logs as version 15 and offers the new relics only from then', () => {
+    const g = armory();
+    expect(g.header()).toMatch(/^#15\|/);
+    expect(Game.parseLog(g.header() + 'W').config.armory).toBe(true);
+    const seen = new Set<string>();
+    for (let level = 0; level < 150; level++) {
+      g.horde.level = level;
+      for (const r of (g as unknown as Inner).makeOffer().relics) seen.add(r.id);
+    }
+    for (const id of ['drum', 'spade', 'invitation']) expect(seen.has(id)).toBe(true);
+    const v14 = new Game('horde', 41, 15, { hero: 'barbarian', pool: fullPool(), mercy: true, boons: true, surge: true, waves: true, magnet: true });
+    for (let level = 0; level < 150; level++) {
+      v14.horde.level = level;
+      for (const r of (v14 as unknown as Inner).makeOffer().relics) expect(['drum', 'spade', 'invitation']).not.toContain(r.id);
+    }
+  });
+
+  it('War Drum lifts the multiplier to ×6', () => {
+    const g = armory();
+    g.horde.chain = 40;
+    expect(g.hordeMult()).toBe(5);
+    g.addRelic('drum' as never);
+    expect(g.hordeMult()).toBe(6);
+  });
+
+  it("Reaper's Invitation brings Death at wave 15", () => {
+    const g = armory();
+    g.addRelic('invitation' as never);
+    g.horde.wave = INVITATION_DEATH_WAVE - 1;
+    g.horde.next = 1;
+    g.act(0, 0);
+    expect(g.reaper).not.toBeNull();
+  });
+
+  it("Gravedigger's Spade leaves a drop after every wave", () => {
+    for (let wave = 1; wave < 12; wave++) {
+      const g = armory();
+      g.addRelic('spade' as never);
+      g.horde.wave = wave;
+      (g as unknown as Inner).hordeDrop();
+      expect(g.feature?.kind).toMatch(/chest|shrine|fountain/);
+    }
+  });
+
+  it('names the achievements a run earned', () => {
+    const g = armory();
+    expect(g.hordeFeats()).toEqual([]);
+    Object.assign(g.horde, { bestMult: 5, untouched: true, level: 10, deathWaves: 10, score: 60_000 });
+    expect(g.hordeFeats()).toEqual(['hordeunbroken', 'hordeuntouched', 'hordeovercharged', 'hordedanced', 'horde10k', 'horde50k']);
   });
 });

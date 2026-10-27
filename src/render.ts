@@ -3,7 +3,7 @@
 
 import { drawAura as drawAuraFx } from './aura';
 import { ELITES, type HeroId } from './content';
-import { ENEMY_INFO, Game, H, HORDE_SPARK, W, isBoss, type EnemyKind, type GameEvent, type Pos } from './game';
+import { ENEMY_INFO, Game, H, HORDE_SPARK, W, isBoss, type EnemyKind, type GameEvent, type MagnetPull, type Pos } from './game';
 import { hashSeed, mulberry32 } from './rng';
 import { heroSprite, relicColor } from './hero';
 import { LOOK_BY_ID, type Outfit } from './progression';
@@ -50,6 +50,9 @@ function spritePixels(kind: EnemyKind | HTMLCanvasElement): { x: number; y: numb
   return px;
 }
 
+/** How long a Grave Magnet pull takes to fly in (seconds). */
+const FLIGHT_S = 0.5;
+
 export class Renderer {
   private ctx: CanvasRenderingContext2D;
   private scale = 1;
@@ -70,6 +73,13 @@ export class Renderer {
   private strikes = new Map<number, number>();
   private floaters: Floater[] = [];
   private particles: Particle[] = [];
+  /** Pickups the Grave Magnet is pulling in, flying from where they lay to the hero. */
+  private flying: { kind: MagnetPull['kind']; x0: number; y0: number; x1: number; y1: number; t: number }[] = [];
+
+  /** Milliseconds until every pickup the magnet is pulling has landed. */
+  pullingMs(): number {
+    return Math.max(0, ...this.flying.map((f) => (1 - f.t) * FLIGHT_S * 1000));
+  }
   private lines: Line[] = [];
   /** The Bell-Ringer's tolls: rings spreading out from the hero. */
   private rings: { x: number; y: number; t: number }[] = [];
@@ -141,6 +151,8 @@ export class Renderer {
     if (!g) return;
     let stack = 0;
     const claimed: RelicId[] = [];
+    // Pickups the Grave Magnet pulled this turn pop when they land, not where they lay.
+    let pulled = false;
     for (const ev of events) {
       switch (ev.t) {
         case 'floor':
@@ -148,6 +160,7 @@ export class Renderer {
           this.disp.clear();
           this.remain.clear();
           this.corpses = [];
+          this.flying = [];
           this.lines = [];
           this.floaters = [];
           {
@@ -273,15 +286,19 @@ export class Renderer {
           this.floaters.push(this.floater(g.stairs.x, g.stairs.y, 'DESCEND', '#f2c14e', 1.2));
           break;
         case 'potion':
+          if (pulled) break;
           this.burstParticles(g.player.x, g.player.y, '#ff4d5a', 14);
           break;
         case 'magnet':
-          // A streak from each pickup to the hero.
+          // Each pickup lifts off and flies to the hero; its pop plays when it lands.
+          pulled = true;
           for (const f of ev.from) {
-            for (let i = 0; i <= 4; i++) this.burstParticles(f.x + ((ev.x - f.x) * i) / 4, f.y + ((ev.y - f.y) * i) / 4, '#c9a8ff', 2, 0.6);
+            this.flying.push({ kind: f.kind, x0: f.x, y0: f.y, x1: ev.x, y1: ev.y, t: 0 });
+            this.burstParticles(f.x, f.y, '#c9a8ff', 6, 0.7);
           }
           break;
         case 'spark':
+          if (pulled) break;
           this.burstParticles(ev.x, ev.y, '#5fe3ff', 14);
           this.floaters.push(this.floater(ev.x, ev.y, `+${HORDE_SPARK} SURGE`, '#5fe3ff', 0.9));
           break;
@@ -544,6 +561,7 @@ export class Renderer {
 
     this.drawLines(dt);
     this.drawRings(dt);
+    this.drawFlying(dt);
     this.drawParticles(dt);
     this.drawMotes(dt);
     this.drawLighting(g);
@@ -814,34 +832,95 @@ export class Renderer {
 
   /** Horde sparks: a spinning cyan shard that tops up the surge bar. */
   private drawSparks(g: Game, dt: number) {
-    const ctx = this.ctx;
+    // Sparks still being pulled in are drawn in flight, not on the hero's tile.
+    const landing = this.flying.filter((f) => f.kind === 'spark').length;
+    let skip = landing;
     for (const p of g.sparks) {
+      if (skip > 0 && p.x === g.player.x && p.y === g.player.y) {
+        skip--;
+        continue;
+      }
       const cx = p.x * TILE + TILE / 2;
       const cy = p.y * TILE + TILE / 2 + Math.round(Math.sin(this.time * 4 + p.x) * 1);
-      const pulse = 0.4 + 0.2 * Math.sin(this.time * 5 + p.y);
-      const glow = ctx.createRadialGradient(cx, cy, 1, cx, cy, TILE * 0.85);
-      glow.addColorStop(0, `rgba(95, 227, 255, ${pulse})`);
-      glow.addColorStop(1, 'rgba(95, 227, 255, 0)');
-      ctx.fillStyle = glow;
-      ctx.fillRect(cx - TILE, cy - TILE, TILE * 2, TILE * 2);
-      // A diamond that narrows and widens as it turns.
-      const w = Math.max(1, Math.round(3 * Math.abs(Math.cos(this.time * 3 + p.x))));
-      ctx.fillStyle = '#5fe3ff';
-      for (let i = -4; i <= 4; i++) {
-        const half = Math.round(w * (1 - Math.abs(i) / 5));
-        ctx.fillRect(Math.round(cx) - half, Math.round(cy) + i, half * 2 || 1, 1);
-      }
-      ctx.fillStyle = '#e8fbff';
-      ctx.fillRect(Math.round(cx) - 1, Math.round(cy) - 2, 1, 2);
+      this.drawSparkAt(cx, cy, p.x + p.y, 1);
       if (Math.random() < dt * 4) {
         this.particles.push({ x: cx - 3 + Math.random() * 6, y: cy, vx: (Math.random() - 0.5) * 4, vy: -12 - Math.random() * 6, color: '#9fefff', t: 0, life: 0.6, size: 1 });
       }
     }
   }
 
+  /** A spark: a glowing cyan diamond that narrows and widens as it turns. */
+  private drawSparkAt(cx: number, cy: number, seed: number, size: number) {
+    const ctx = this.ctx;
+    const pulse = 0.4 + 0.2 * Math.sin(this.time * 5 + seed);
+    const glow = ctx.createRadialGradient(cx, cy, 1, cx, cy, TILE * 0.85 * size);
+    glow.addColorStop(0, `rgba(95, 227, 255, ${pulse})`);
+    glow.addColorStop(1, 'rgba(95, 227, 255, 0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(cx - TILE, cy - TILE, TILE * 2, TILE * 2);
+    const w = Math.max(1, Math.round(3 * size * Math.abs(Math.cos(this.time * 3 + seed))));
+    const tall = Math.max(2, Math.round(4 * size));
+    ctx.fillStyle = '#5fe3ff';
+    for (let i = -tall; i <= tall; i++) {
+      const half = Math.round(w * (1 - Math.abs(i) / (tall + 1)));
+      ctx.fillRect(Math.round(cx) - half, Math.round(cy) + i, half * 2 || 1, 1);
+    }
+    ctx.fillStyle = '#e8fbff';
+    ctx.fillRect(Math.round(cx) - 1, Math.round(cy) - 2, 1, 2);
+  }
+
+  /** Grave Magnet pulls: each pickup speeds up as it nears the hero, trailing light, then pops. */
+  private drawFlying(dt: number) {
+    const ctx = this.ctx;
+    for (const f of this.flying) {
+      f.t = Math.min(1, f.t + dt / FLIGHT_S);
+      // Slow to leave, fast to arrive: the pull of the magnet.
+      const e = f.t * f.t * f.t;
+      // A little arc so it reads as flying, not sliding.
+      const lift = Math.sin(Math.PI * f.t) * 0.6;
+      const tx = f.x0 + (f.x1 - f.x0) * e;
+      const ty = f.y0 + (f.y1 - f.y0) * e - lift;
+      const cx = tx * TILE + TILE / 2;
+      const cy = ty * TILE + TILE / 2;
+      const color = f.kind === 'potion' ? '#ff6b78' : f.kind === 'spark' ? '#9fefff' : f.kind === 'shrine' ? '#d23a46' : f.kind === 'fountain' ? '#9fe8ff' : '#f2c14e';
+      // The trail.
+      if (Math.random() < 0.9) this.particles.push({ x: cx + (Math.random() - 0.5) * 4, y: cy + (Math.random() - 0.5) * 4, vx: 0, vy: 0, color, t: 0, life: 0.35, size: 1 });
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.globalAlpha = 0.35 * (1 - f.t * 0.5);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(f.x0 * TILE + TILE / 2, f.y0 * TILE + TILE / 2);
+      ctx.lineTo(cx, cy);
+      ctx.stroke();
+      ctx.restore();
+      if (f.kind === 'spark') this.drawSparkAt(cx, cy, f.x0, 1);
+      else if (f.kind === 'potion') ctx.drawImage(sprites().potion.normal, Math.round(cx - TILE / 2 + PAD), Math.round(cy - TILE / 2 + PAD));
+      else {
+        // A chest, shrine or fountain: a glowing block shrinking into the hero.
+        const size = Math.round(TILE * (0.7 - 0.3 * e));
+        ctx.save();
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 8;
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.85;
+        ctx.fillRect(Math.round(cx - size / 2), Math.round(cy - size / 2), size, size);
+        ctx.restore();
+      }
+      if (f.t >= 1) {
+        this.burstParticles(f.x1, f.y1, color, 14, 1.2);
+        if (f.kind === 'spark') this.floaters.push(this.floater(f.x1, f.y1, `+${HORDE_SPARK} SURGE`, '#5fe3ff', 0.9));
+        if (f.kind === 'potion') this.healFlash = Math.max(this.healFlash, 0.5);
+      }
+    }
+    this.flying = this.flying.filter((f) => f.t < 1);
+  }
+
   private drawFeature(g: Game) {
     const f = g.feature;
     if (!f) return;
+    // A chest or shrine the magnet is still pulling in shows in flight instead.
+    if (this.flying.some((p) => p.kind === f.kind)) return;
     const ctx = this.ctx;
     const px = f.x * TILE;
     const py = f.y * TILE;

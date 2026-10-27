@@ -52,6 +52,9 @@ export type RelicId =
   | 'glass'
   // Horde-only
   | 'magnet'
+  | 'drum'
+  | 'spade'
+  | 'invitation'
   // Fused at the Soul Forge, never offered
   | FusedId;
 
@@ -74,8 +77,8 @@ export interface RelicDef {
   desc: (n: number) => string;
   /** Only ever offered in Endless (once bought), so the daily crypt stays the same. */
   endless?: true;
-  /** Only ever offered in the Horde, so the other modes' offers stay the same. */
-  horde?: true;
+  /** Only ever offered in the Horde, from this log version on, so the other modes' offers stay the same. */
+  horde?: 14 | 15;
 }
 
 export const RELICS: RelicDef[] = [
@@ -129,7 +132,10 @@ export const RELICS: RelicDef[] = [
   { id: 'leech', name: 'Leech Ring', emoji: '💍', rarity: 'common', maxStack: 3, endless: true, desc: (n) => `Every 5th turn, heal ${n} HP.` },
   { id: 'glass', name: 'Glass Skull', emoji: '💀', rarity: 'cursed', maxStack: 1, endless: true, desc: () => `+4 attack, but your max HP is cut by a third.` },
   // Horde-only. Kept out of every other pool.
-  { id: 'magnet', name: 'Grave Magnet', emoji: '🧲', rarity: 'common', maxStack: 3, horde: true, desc: (n) => `Potions, sparks, chests, shrines and fountains within ${magnetRange(n)} steps fly to you.` },
+  { id: 'magnet', name: 'Grave Magnet', emoji: '🧲', rarity: 'common', maxStack: 3, horde: 14, desc: (n) => `Potions, sparks, chests, shrines and fountains within ${magnetRange(n)} steps fly to you.` },
+  { id: 'drum', name: 'War Drum', emoji: '🥁', rarity: 'rare', maxStack: 1, horde: 15, desc: () => `Your score multiplier goes up to ×6, and your kill chain survives two quiet turns.` },
+  { id: 'spade', name: "Gravedigger's Spade", emoji: '⛏️', rarity: 'rare', maxStack: 1, horde: 15, desc: () => `Every wave you hold leaves a chest, shrine or fountain behind.` },
+  { id: 'invitation', name: "Reaper's Invitation", emoji: '💌', rarity: 'cursed', maxStack: 1, horde: 15, desc: () => `Death joins at wave 15 instead of 25, but every point you score is worth 1.5×.` },
 ];
 
 /** How many steps away the Grave Magnet reaches with this many held. */
