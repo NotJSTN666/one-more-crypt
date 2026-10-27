@@ -568,16 +568,35 @@ function open() {
   });
   overlay.querySelector('#hollow-quests')?.addEventListener('click', () => hooks.quests());
   const canvas = overlay.querySelector<HTMLCanvasElement>('#hollow-canvas')!;
+  // A tap walks to the spot; a swipe walks that way, like the arrows (building places on the touch).
+  let press: { x: number; y: number } | null = null;
   canvas.addEventListener('pointerdown', (e) => {
     const r = canvas.getBoundingClientRect();
+    press = null;
     if (pending) return;
     const tx = Math.floor(((e.clientX - r.left) / r.width) * viewCols + camX / TILE);
     const ty = Math.floor(((e.clientY - r.top) / r.height) * rows());
     if (dialog) return closeDialog();
     if (build) return buildTap(tx, ty);
+    press = { x: e.clientX, y: e.clientY };
+  });
+  canvas.addEventListener('pointerup', (e) => {
+    if (!press || pending || dialog || build) return;
+    const dx = e.clientX - press.x;
+    const dy = e.clientY - press.y;
+    press = null;
+    if (Math.hypot(dx, dy) > 24) {
+      if (Math.abs(dx) > Math.abs(dy)) swipeWalk(Math.sign(dx), 0);
+      else swipeWalk(0, Math.sign(dy));
+      return;
+    }
+    const r = canvas.getBoundingClientRect();
+    const tx = Math.floor(((e.clientX - r.left) / r.width) * viewCols + camX / TILE);
+    const ty = Math.floor(((e.clientY - r.top) / r.height) * rows());
     if (area().farm && plotAt(tx, ty) >= 0) return farmTap(plotAt(tx, ty));
     walkTo(tx, ty);
   });
+  canvas.addEventListener('pointercancel', () => (press = null));
   canvas.addEventListener('pointermove', (e) => {
     if (!build || e.pointerType === 'touch') return;
     const r = canvas.getBoundingClientRect();
@@ -1363,6 +1382,27 @@ function backOut() {
 }
 
 /** Shortest path to a tapped tile (or next to it, when it's something solid, a person or a ghost). */
+/** A swipe: walk that way until something is in the way (stepping into a door, a road or whoever stands there). */
+function swipeWalk(dx: number, dy: number) {
+  let x = pos.x;
+  let y = pos.y;
+  for (let i = 0; i < 40; i++) {
+    const nx = x + dx;
+    const ny = y + dy;
+    if (!walkable(nx, ny) || npcAt(nx, ny) || doorAt(nx, ny) || EXIT_KEYS.includes(at(nx, ny))) {
+      // Right up against it: step (or bump) into it.
+      if (x === pos.x && y === pos.y) {
+        path = [];
+        return step(dx, dy);
+      }
+      break;
+    }
+    x = nx;
+    y = ny;
+  }
+  walkTo(x, y);
+}
+
 function walkTo(tx: number, ty: number) {
   const C = cols();
   const key = (x: number, y: number) => y * C + x;

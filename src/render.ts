@@ -268,7 +268,8 @@ export class Renderer {
           this.burstParticles(g.player.x, g.player.y, '#ff4d5a', 14);
           break;
         case 'timestop':
-          this.banner('TIME STOPS', '#9fe8ff');
+          // It comes round every few turns: a word over the hero, not a banner across the board.
+          this.floaters.push(this.floater(g.player.x, g.player.y - 0.6, 'TIME STOPS', '#9fe8ff', 1));
           break;
         case 'reaperrise':
           this.banner('DEATH HAS COME FOR YOU', '#d3b0ff');
@@ -283,8 +284,8 @@ export class Renderer {
           if (!this.quiet) this.shake = Math.max(this.shake, 2);
           break;
         case 'toll':
-          this.banner('THE BELL TOLLS', '#f2c14e');
-          if (!this.quiet) this.shake = 5;
+          this.floaters.push(this.floater(g.player.x, g.player.y - 0.6, 'THE BELL TOLLS', '#f2c14e', 1));
+          if (!this.quiet) this.shake = Math.max(this.shake, 3);
           break;
         case 'death': {
           this.shake = 8;
@@ -314,7 +315,7 @@ export class Renderer {
     const b = this.bannerText;
     if (!b || this.quiet) return;
     b.t += dt;
-    const life = 1.8;
+    const life = 1.3;
     if (b.t > life) {
       this.bannerText = null;
       return;
@@ -326,14 +327,15 @@ export class Renderer {
     const fade = b.t > life - 0.4 ? (life - b.t) / 0.4 : 1;
     ctx.save();
     ctx.globalAlpha = fade;
-    ctx.translate(BOARD_W / 2, 28);
-    ctx.font = '20px "Pirata One", serif';
+    // Small and along the top edge, so it never sits over the fight.
+    ctx.translate(BOARD_W / 2, 11);
+    ctx.font = '13px "Pirata One", serif';
     // Long names shrink to fit the board.
     const fit = Math.min(1, (BOARD_W - 6) / ctx.measureText(b.text).width);
     ctx.scale((0.6 + 0.4 * grow) * fit, (0.6 + 0.4 * grow) * fit);
     ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(0,0,0,0.6)';
-    ctx.fillRect(-BOARD_W / 2 / fit, -15, BOARD_W / fit, 22);
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.fillRect(-BOARD_W / 2 / fit, -10, BOARD_W / fit, 15);
     ctx.fillStyle = '#000';
     ctx.fillText(b.text, 1, 3);
     ctx.fillStyle = b.color;

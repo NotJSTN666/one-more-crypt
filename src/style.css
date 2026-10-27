@@ -1660,7 +1660,8 @@ body.tutorial #relic-bar {
   height: auto;
   border: 1px solid var(--line);
   image-rendering: pixelated;
-  touch-action: manipulation;
+  /* Swipes walk the hero, so the page mustn't scroll or zoom under the finger. */
+  touch-action: none;
   cursor: pointer;
 }
 
