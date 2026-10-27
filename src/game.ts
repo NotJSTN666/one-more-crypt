@@ -123,6 +123,8 @@ export type GameEvent =
   | { t: 'wavecleared'; wave: number; bonus: number }
   /** Horde: the kill bar is full, and a relic (or the Soul Forge) is on offer. */
   | { t: 'surge' }
+  | { t: 'spark'; x: number; y: number }
+  | { t: 'drop'; kind: FeatureKind }
   | { t: 'toll' }
   | { t: 'ring'; x: number; y: number }
   | { t: 'fuse'; id: FusedId; from: [RelicId, RelicId] }
@@ -214,6 +216,8 @@ export interface RunConfig {
   lurk?: boolean;
   /** Horde: kills fill a bar, and a full bar brings a relic or the Soul Forge (log version 12 and later). */
   surge?: boolean;
+  /** Horde: each wave counts as a new floor for relics, floor drops, and no Skeleton Key (log version 13 and later). */
+  waves?: boolean;
 }
 
 export interface StoryConfig {
@@ -325,6 +329,8 @@ const DEEP_LOG_VERSION = 10;
 const LURK_LOG_VERSION = 11;
 /** Adds the Horde's kill-charged relic bar. */
 const SURGE_LOG_VERSION = 12;
+/** Adds the Horde's per-wave relic effects and floor drops. */
+const WAVES_LOG_VERSION = 13;
 export const REAPER_FLOOR = 150;
 
 // ---------- Horde ----------
@@ -343,6 +349,10 @@ export const HORDE_MAX_MULT = 5;
 export const SURGE_FIRST = 4;
 export const SURGE_STEP = 2;
 export const SURGE_MAX = 30;
+/** Surge charge from a spark an elite or boss leaves behind. */
+export const HORDE_SPARK = 3;
+/** The chance a held wave leaves a chest, shrine or fountain in the arena. */
+const HORDE_DROP_CHANCE = 0.4;
 /** Turns on a floor before Death rises: plenty at first, one fewer every 4 floors, none from floor 250. */
 export function reaperDelay(floor: number): number {
   return Math.max(0, 25 - Math.floor((floor - REAPER_FLOOR) / 4));
@@ -373,7 +383,11 @@ export class Game {
   stairs: Pos = { x: 3, y: 0 };
   stairsOpen = false;
   potion: Pos | null = null;
+  /** Horde: sparks dropped by elites and bosses; each one tops up the surge bar. */
+  sparks: Pos[] = [];
   feature: Feature | null = null;
+  /** Horde: a chest or fountain on the arena floor, set aside while the Soul Forge is open. */
+  private stashedFeature: Feature | null = null;
   warnings: Warning[] = [];
   enemies: Enemy[] = [];
   player = { x: START.x, y: START.y, hp: 10, maxHp: 10 };
@@ -548,6 +562,7 @@ export class Game {
   header(): string {
     const unlocked = UNLOCKABLE_RELICS.filter((id) => this.config.pool.includes(id));
     // Pools without any post-launch relic are logged as version 2 so they replay with the launch set.
+    if (this.config.waves) return `#${WAVES_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.surge) return `#${SURGE_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.lurk) return `#${LURK_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.deep) return `#${DEEP_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
@@ -1057,6 +1072,12 @@ export class Game {
       this.events.push({ t: 'potion' });
       this.heal(POTION_HEAL + 2 * this.r('flask') + this.r('chalice'));
     }
+    const spark = this.sparks.findIndex((p) => p.x === tx && p.y === ty);
+    if (spark >= 0) {
+      this.sparks.splice(spark, 1);
+      this.horde.charge += HORDE_SPARK;
+      this.events.push({ t: 'spark', x: tx, y: ty });
+    }
     if (this.vault && this.vault.x === tx && this.vault.y === ty) this.openVault();
     if (this.stairsOpen && tx === this.stairs.x && ty === this.stairs.y) {
       this.turns++;
@@ -1178,14 +1199,19 @@ export class Game {
     this.offer = this.makeOffer();
   }
 
+  /** Whether a relic can still turn up. The Horde has no chests worth a key. */
+  private inPool(r: RelicDef): boolean {
+    return this.config.pool.includes(r.id) && this.own(r.id) < r.maxStack && !(this.config.waves && r.id === 'key');
+  }
+
   private randomRelic(rng: Rng, filter: (r: RelicDef) => boolean): RelicDef | null {
-    const pool = RELICS.filter((r) => this.config.pool.includes(r.id) && this.own(r.id) < r.maxStack && filter(r));
+    const pool = RELICS.filter((r) => this.inPool(r) && filter(r));
     return pool.length ? weightedPick(rng, pool, (r) => RARITY_WEIGHT[r.rarity]) : null;
   }
 
   private makeOffer(): Offer {
     const rng = mulberry32(this.config.surge ? hashSeed(this.seed, 'surge', this.horde.level) : hashSeed(this.seed, 'relic', this.floor));
-    let pool = RELICS.filter((r) => this.config.pool.includes(r.id) && this.own(r.id) < r.maxStack);
+    let pool = RELICS.filter((r) => this.inPool(r));
     if (this.r('heretic')) {
       const dark = pool.filter((r) => r.rarity !== 'common');
       if (dark.length >= 3) pool = dark;
@@ -1298,13 +1324,20 @@ export class Game {
     this.log += FORGE_KEYS[index];
     this.feature.used = true;
     this.phase = 'play';
-    if (this.config.surge) this.feature = null;
+    if (this.config.surge) this.restoreFeature();
+  }
+
+  /** Horde: put back whatever was on the arena floor before the Soul Forge opened. */
+  private restoreFeature() {
+    this.feature = this.stashedFeature;
+    this.stashedFeature = null;
   }
 
   /** Horde: take the Soul Forge instead of a relic, when two relics you hold will fuse. */
   hordeForge() {
     if (this.phase !== 'choose' || !this.config.surge || !this.forgeOptions().length) return;
     this.offer = null;
+    this.stashedFeature = this.feature;
     this.feature = { x: -9, y: -9, kind: 'forge', used: false };
     this.phase = 'event';
     this.log += 'z';
@@ -1316,13 +1349,13 @@ export class Game {
     const f = this.feature;
     // Horde: walking away from the forge goes back to the same relics.
     if (this.config.surge && f.kind === 'forge' && !accept) {
-      this.feature = null;
+      this.restoreFeature();
       this.offer = this.makeOffer();
       this.phase = 'choose';
       this.log += 'x';
       return;
     }
-    const rng = mulberry32(hashSeed(this.seed, 'event', this.floor));
+    const rng = mulberry32(this.config.waves ? hashSeed(this.seed, 'wave-event', this.horde.wave, this.stats.fusions) : hashSeed(this.seed, 'event', this.floor));
     // The forge fuses through forge(); accepting only stokes it, when there's nothing to fuse in a deep run.
     if (accept && f.kind === 'forge' && !(this.config.deep && !this.forgeOptions().length)) return;
     if (accept && this.canAcceptEvent()) {
@@ -1416,6 +1449,7 @@ export class Game {
       if (this.config.surge) this.horde.charge += isBoss(e) ? 6 : e.elite ? 2 : 1;
       // Felling a Horde boss steadies you for what comes next.
       if (this.config.surge && isBoss(e)) this.heal(3);
+      if (this.config.waves && (e.elite || isBoss(e)) && !this.sparks.some((p) => p.x === e.x && p.y === e.y)) this.sparks.push({ x: e.x, y: e.y });
     }
     if (this.player.hp <= 3) this.stats.lowHpKills++;
     this.stats.kinds[e.kind] = (this.stats.kinds[e.kind] ?? 0) + 1;
@@ -1704,6 +1738,7 @@ export class Game {
       this.events.push({ t: 'wavecleared', wave: h.wave, bonus });
       // A potion after every second wave (every wave with the surge bar), somewhere in the arena.
       if ((this.config.surge || h.wave % 2 === 0) && !this.potion) this.potion = this.randomFreeTile(mulberry32(hashSeed(this.seed, 'horde-potion', h.wave)), 0);
+      if (this.config.waves) this.hordeDrop();
       h.next = Math.min(h.next, 2);
       if (!this.config.surge && h.wave % HORDE_GIFT_EVERY === 0) {
         this.offer = this.makeOffer();
@@ -1724,6 +1759,40 @@ export class Game {
     // With the surge bar, a boss wave is a duel: no new wave until the boss falls.
     if (this.config.surge && this.alive.some((e) => isBoss(e))) return;
     if (--h.next <= 0) this.spawnWave();
+  }
+
+  /** Horde: now and then a held wave leaves a chest, shrine or fountain behind. */
+  private hordeDrop() {
+    if (this.feature && !this.feature.used) return;
+    const rng = mulberry32(hashSeed(this.seed, 'horde-drop', this.horde.wave));
+    if (this.horde.wave < 2 || rng() >= HORDE_DROP_CHANCE) return;
+    const kind = weightedPick(rng, ['chest', 'shrine', 'fountain'] as FeatureKind[], (k) => (k === 'chest' ? 4 : k === 'shrine' ? 3 : 2));
+    const spot = this.randomFreeTile(rng, 1);
+    if (!spot) return;
+    this.feature = { ...spot, kind, used: false };
+    this.events.push({ t: 'drop', kind });
+  }
+
+  /** Horde: a new wave counts as a new floor for relics that work floor by floor. */
+  private waveStart(boss: boolean) {
+    this.harvestBonus = 0;
+    this.shieldCharges = this.r('mirror') + this.boons.ward;
+    if (this.r('vheart') && boss) this.phylacteryUsed = false;
+    if (this.hero === 'knight' && this.horde.wave > 1) this.heal(1);
+    const candle = this.r('candle');
+    if (candle) this.heal(candle * 2);
+    if (this.r('tome') && this.horde.wave % 3 === 0) {
+      const gift = this.randomRelic(mulberry32(hashSeed(this.seed, 'tome-wave', this.horde.wave)), () => true);
+      if (gift) this.addRelic(gift.id);
+    }
+    const hell = this.r('hellfire');
+    if (hell) {
+      for (const e of this.alive) this.damageEnemy(e, hell * 2, 'hellfire');
+      if (this.player.hp > 1) {
+        this.player.hp -= 1;
+        this.events.push({ t: 'hurt', amount: 1 });
+      }
+    }
   }
 
   private spawnWave() {
@@ -1777,6 +1846,7 @@ export class Game {
     }
     h.next = boss ? 12 : HORDE_GAP;
     this.events.push({ t: 'wave', wave: h.wave, boss });
+    if (this.config.waves) this.waveStart(boss);
     // Death joins late, and stays.
     if (h.wave >= HORDE_DEATH_WAVE && !this.reaper) {
       const at = this.farCorner();
@@ -2194,7 +2264,8 @@ export class Game {
     const deep = Number(m[1]) >= DEEP_LOG_VERSION;
     const lurk = Number(m[1]) >= LURK_LOG_VERSION;
     const surge = Number(m[1]) >= SURGE_LOG_VERSION;
-    const config: RunConfig = { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy, ...(depths ? { depths } : {}), ...(boons ? { boons } : {}), ...(reaper ? { reaper } : {}), ...(deep ? { deep } : {}), ...(lurk ? { lurk } : {}), ...(surge ? { surge } : {}) };
+    const waves = Number(m[1]) >= WAVES_LOG_VERSION;
+    const config: RunConfig = { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy, ...(depths ? { depths } : {}), ...(boons ? { boons } : {}), ...(reaper ? { reaper } : {}), ...(deep ? { deep } : {}), ...(lurk ? { lurk } : {}), ...(surge ? { surge } : {}), ...(waves ? { waves } : {}) };
     let rest = full.slice(m[0].length);
     // Version 7 adds one field: the isle's extra max HP.
     const isle = Number(m[1]) >= ISLE_LOG_VERSION ? /^(\d+)\|/.exec(rest) : null;

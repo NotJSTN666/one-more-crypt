@@ -3,7 +3,7 @@
 
 import { drawAura as drawAuraFx } from './aura';
 import { ELITES, type HeroId } from './content';
-import { ENEMY_INFO, Game, H, W, isBoss, type EnemyKind, type GameEvent, type Pos } from './game';
+import { ENEMY_INFO, Game, H, HORDE_SPARK, W, isBoss, type EnemyKind, type GameEvent, type Pos } from './game';
 import { hashSeed, mulberry32 } from './rng';
 import { heroSprite, relicColor } from './hero';
 import { LOOK_BY_ID, type Outfit } from './progression';
@@ -275,6 +275,10 @@ export class Renderer {
         case 'potion':
           this.burstParticles(g.player.x, g.player.y, '#ff4d5a', 14);
           break;
+        case 'spark':
+          this.burstParticles(ev.x, ev.y, '#5fe3ff', 14);
+          this.floaters.push(this.floater(ev.x, ev.y, `+${HORDE_SPARK} SURGE`, '#5fe3ff', 0.9));
+          break;
         case 'timestop':
           // It comes round every few turns: a word over the hero, not a banner across the board.
           this.floaters.push(this.floater(g.player.x, g.player.y - 0.6, 'TIME STOPS', '#9fe8ff', 1));
@@ -503,6 +507,7 @@ export class Renderer {
         });
       }
     }
+    this.drawSparks(g, dt);
     this.drawTelegraphs(g);
     this.updateCorpses(dt);
 
@@ -797,6 +802,33 @@ export class Renderer {
             ctx.fillRect(sx, sy - 1, 1, 1);
           }
         }
+      }
+    }
+  }
+
+  /** Horde sparks: a spinning cyan shard that tops up the surge bar. */
+  private drawSparks(g: Game, dt: number) {
+    const ctx = this.ctx;
+    for (const p of g.sparks) {
+      const cx = p.x * TILE + TILE / 2;
+      const cy = p.y * TILE + TILE / 2 + Math.round(Math.sin(this.time * 4 + p.x) * 1);
+      const pulse = 0.4 + 0.2 * Math.sin(this.time * 5 + p.y);
+      const glow = ctx.createRadialGradient(cx, cy, 1, cx, cy, TILE * 0.85);
+      glow.addColorStop(0, `rgba(95, 227, 255, ${pulse})`);
+      glow.addColorStop(1, 'rgba(95, 227, 255, 0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(cx - TILE, cy - TILE, TILE * 2, TILE * 2);
+      // A diamond that narrows and widens as it turns.
+      const w = Math.max(1, Math.round(3 * Math.abs(Math.cos(this.time * 3 + p.x))));
+      ctx.fillStyle = '#5fe3ff';
+      for (let i = -4; i <= 4; i++) {
+        const half = Math.round(w * (1 - Math.abs(i) / 5));
+        ctx.fillRect(Math.round(cx) - half, Math.round(cy) + i, half * 2 || 1, 1);
+      }
+      ctx.fillStyle = '#e8fbff';
+      ctx.fillRect(Math.round(cx) - 1, Math.round(cy) - 2, 1, 2);
+      if (Math.random() < dt * 4) {
+        this.particles.push({ x: cx - 3 + Math.random() * 6, y: cy, vx: (Math.random() - 0.5) * 4, vy: -12 - Math.random() * 6, color: '#9fefff', t: 0, life: 0.6, size: 1 });
       }
     }
   }

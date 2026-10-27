@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Game, HORDE_DEATH_WAVE, HORDE_GIFT_EVERY, SURGE_FIRST, SURGE_STEP, fullPool } from './game';
+import { Game, HORDE_DEATH_WAVE, HORDE_GIFT_EVERY, HORDE_SPARK, SURGE_FIRST, SURGE_STEP, fullPool } from './game';
 import { mulberry32 } from './rng';
 import { hordeHero, dailyHero } from './content';
 
@@ -102,5 +102,74 @@ describe('Horde surge', () => {
     expect(g.phase).toBe('play');
     expect(g.feature).toBeNull();
     expect(g.log.endsWith('zxz' + 'b')).toBe(true);
+  });
+});
+
+describe('Horde waves', () => {
+  const waves = (seed = 21) => new Game('horde', seed, 15, { hero: 'barbarian', pool: fullPool(), mercy: true, boons: true, surge: true, waves: true });
+  type Inner = { phase: string; offer: unknown; makeOffer(): { relics: { id: string }[] }; feature: unknown; stashedFeature: unknown };
+
+  it('logs as version 13 and never offers the Skeleton Key', () => {
+    const g = waves();
+    expect(g.header()).toMatch(/^#13\|/);
+    expect(Game.parseLog(g.header() + 'W').config.waves).toBe(true);
+    const inner = g as unknown as Inner;
+    for (let level = 0; level < 60; level++) {
+      g.horde.level = level;
+      expect(inner.makeOffer().relics.map((r) => r.id)).not.toContain('key');
+    }
+  });
+
+  it('treats each new wave as a new floor for floor-by-floor relics', () => {
+    const g = waves();
+    g.addRelic('candle' as never);
+    g.player.hp = 3;
+    g.act(0, 0);
+    g.act(0, 0);
+    expect(g.horde.wave).toBe(1);
+    expect(g.player.hp).toBe(5);
+  });
+
+  it('leaves sparks from elites that top up the surge bar', () => {
+    const g = waves();
+    g.act(0, 0);
+    g.act(0, 0);
+    const p = g.player;
+    g.sparks.push({ x: p.x + 1, y: p.y });
+    for (const e of g.enemies) if (e.x === p.x + 1 && e.y === p.y) e.dead = true;
+    const before = g.horde.charge;
+    g.act(1, 0);
+    expect(g.sparks.length).toBe(0);
+    expect(g.horde.charge).toBeGreaterThanOrEqual(before + HORDE_SPARK - g.horde.need);
+  });
+
+  it('puts a chest back on the floor after the Soul Forge, and replays exactly', () => {
+    const g = waves();
+    const inner = g as unknown as Inner;
+    const chest = { x: 2, y: 2, kind: 'chest', used: false };
+    inner.feature = chest;
+    g.addRelic('ember' as never);
+    g.addRelic('storm' as never);
+    if (g.forgeOptions().length) {
+      inner.offer = inner.makeOffer();
+      inner.phase = 'choose';
+      g.hordeForge();
+      g.forge(0);
+      expect(g.feature).toBe(chest);
+    }
+    const run = waves(88);
+    const rng = mulberry32(9);
+    for (let s = 0; s < 2500 && run.phase !== 'dead'; s++) {
+      if (run.phase === 'choose') run.choose(0);
+      else if (run.phase === 'event') run.resolveEvent(true);
+      else {
+        const p = run.player;
+        const t = run.alive.find((e) => !e.ally);
+        const d = t ? DIRS.find(([dx, dy]) => Math.abs(p.x + dx - t.x) + Math.abs(p.y + dy - t.y) < Math.abs(p.x - t.x) + Math.abs(p.y - t.y)) : undefined;
+        if (!(d && run.act(...d))) run.act(...(DIRS[Math.floor(rng() * 4)] ?? [0, 0]));
+      }
+    }
+    const again = Game.replay('horde', 88, 15, run.header() + run.log);
+    expect([again.horde.wave, again.horde.score, again.kills, again.player.hp, again.relicLog.join()]).toEqual([run.horde.wave, run.horde.score, run.kills, run.player.hp, run.relicLog.join()]);
   });
 });

@@ -492,6 +492,7 @@ function processEvents() {
       setMusicMood(ev.boss ? 'boss' : 'crypt');
     }
     if (ev.t === 'surge') renderer.banner('POWER SURGE!', '#5fe3ff');
+    if (ev.t === 'drop') renderer.banner(ev.kind === 'chest' ? 'A CHEST APPEARS' : ev.kind === 'shrine' ? 'A SHRINE RISES' : 'A FOUNTAIN SPRINGS UP', '#f2c14e');
     if (ev.t === 'wavecleared') renderer.banner(`WAVE ${ev.wave} HELD +${ev.bonus}`, '#7ee081');
     if (ev.t === 'reaper' && game.floor === REAPER_FLOOR) renderer.banner('DEATH WALKS THESE FLOORS', '#d3b0ff');
     if (ev.t === 'boon') renderer.banner(`${BOON_BY_ID[ev.id].name.toUpperCase()}`, '#b07cff');
@@ -557,6 +558,7 @@ function playSounds(events: GameEvent[]) {
     if (crumble.t === 'crumble' && crumble.open) sfx.relic();
   }
   if (has('vault')) sfx.relic();
+  if (has('spark')) sfx.relic();
   if (!events.some((e) => e.t !== 'floor')) sfx.step();
 }
 
@@ -821,7 +823,7 @@ function updateTip() {
   if (selectedRelic) {
     const def = RELIC_BY_ID[selectedRelic];
     const n = game.r(selectedRelic);
-    tip.innerHTML = `<b>${def.name}${n > 1 ? ` ×${n}` : ''}</b>: ${def.desc(n)}`;
+    tip.innerHTML = `<b>${def.name}${n > 1 ? ` ×${n}` : ''}</b>: ${relicText(def.desc(n))}`;
     return;
   }
   const elite = game.alive.find((e) => e.elite);
@@ -1299,7 +1301,7 @@ function showHelp(back: () => void) {
       <li>Shrines, chests and fountains offer <b>deals</b>. Step on them to choose.</li>
       <li>After each boss, a <b>Soul Forge</b> waits on the next floor. Fuse two of your relics into a stronger one.</li>
       <li>Every 20 floors the crypt becomes somewhere new, with its own ground and foes. In the <b>Flooded Catacombs</b>, foes wading through water lose every other turn. In the <b>Charnel Halls</b>, bone piles block the way: bump one to smash it, and some hide a potion. In the <b>Burning Depths</b>, lava burns anything that walks in, so lure foes into it. The <b>Abyss</b> is dark: you only see what's near you.</li>
-      <li><b>Horde</b>: one arena a day, the same for everyone, with the day's hero. Waves pour in from the edges, faster when you clear them quickly. Kill on turn after turn to build a score multiplier (up to ×5). Every kill fills the glowing surge bar; when it's full, pick a relic, a boon, or the Soul Forge to fuse two relics you hold. A boss comes every 5th wave. Death joins at wave 25. Play as often as you like: your best score of the day goes on the board.</li>
+      <li><b>Horde</b>: one arena a day, the same for everyone, with the day's hero. Waves pour in from the edges, faster when you clear them quickly. Kill on turn after turn to build a score multiplier (up to ×5). Every kill fills the glowing surge bar; when it's full, pick a relic, a boon, or the Soul Forge to fuse two relics you hold. Elites and bosses drop blue sparks that top up the bar, and a held wave can leave a chest, shrine or fountain behind. Relics that work floor by floor work wave by wave. A boss comes every 5th wave. Death joins at wave 25. Play as often as you like: your best score of the day goes on the board.</li>
       <li>From <b>floor 150</b>, <b>Death</b> comes for you. He waits in the far corner of each floor, with a countdown over him, then rises and walks straight at you, through walls. Nothing stops his touch: no shield, dodge or second life. Clear the floor and take the stairs before he reaches you. He rises sooner the deeper you go. The Bell-Ringer's toll and the Stopped Hourglass hold him still for a turn.</li>
       <li><b>Glowing foes</b> are elites, with a trait of their own (the tip under the map says which). They're worth extra Souls.</li>
       <li>Some walls are <b>cracked</b>. Bump one twice to find a secret vault: a rare relic and a heal, or two Abyss boons once the relics run out.</li>
@@ -1359,7 +1361,7 @@ function showChoice() {
       return `<button class="${r.rarity}" data-i="${i}">
         <span class="emoji">${r.emoji}</span>
         <span><span class="name">${r.name}</span><span class="tag">${r.rarity.toUpperCase()}${have ? ` · OWNED ×${have}` : ''}</span>
-        <span class="desc">${r.desc(have + 1)}</span></span>
+        <span class="desc">${relicText(r.desc(have + 1))}</span></span>
       </button>`;
     })
     .join('') + offer.boons
@@ -1451,7 +1453,7 @@ function showForge() {
       return `<button class="${ascend ? 'ascended' : 'fused'}" data-i="${i}">
         <span class="emoji">${known ? out.emoji : ascend ? '✨' : '❔'}</span>
         <span><span class="name">${known ? out.name : ascend ? 'Unknown ascension' : 'Unknown fusion'}</span><span class="tag">${a.emoji} ${esc(a.name)} + ${b.emoji} ${esc(b.name)}</span>
-        <span class="desc">${known ? out.desc(1) : 'Fuse them to discover what they become.'}</span></span>
+        <span class="desc">${known ? relicText(out.desc(1)) : 'Fuse them to discover what they become.'}</span></span>
       </button>`;
     })
     .join('');
@@ -1526,7 +1528,7 @@ function fusedCard(id: FusedId, first: boolean, grants: string) {
       <div class="fused-emoji">${def.emoji}</div>
       <p class="fused-kind">${first ? '✨ New discovery · ' : ''}${ascended ? 'Ascended relic' : 'Fused relic'}</p>
       <h2>${esc(def.name)}</h2>
-      <p class="fused-desc">${esc(def.desc(1))}</p>
+      <p class="fused-desc">${esc(relicText(def.desc(1)))}</p>
       <p class="fine">Forged from ${a.emoji} ${esc(a.name)} + ${b.emoji} ${esc(b.name)}</p>
       <p class="fine fused-grants">Counts as: ${grants}</p>
       <button class="btn primary" id="fused-ok">Continue</button>
@@ -2441,6 +2443,18 @@ function showRaidReward(n: number, then: () => void) {
 // One arena a day, the same for everyone, with the day's hero. Waves pour in; kills on turn
 // after turn build a multiplier. Unlimited tries: your best score of the day goes on the board.
 
+/** Relic text for the run under way: in the Horde, what works floor by floor works wave by wave. */
+function relicText(text: string): string {
+  if (game?.mode !== 'horde') return text;
+  return text
+    .replace(/when you enter a floor/g, 'when each wave starts')
+    .replace(/Entering a floor deals (\d+) damage to all foes/g, 'Each new wave takes $1 damage as it arrives')
+    .replace(/until the floor ends/g, 'until the next wave')
+    .replace(/Every 3rd floor you enter/g, 'Every 3rd wave')
+    .replace(/\bfloors\b/g, 'waves')
+    .replace(/\bfloor\b/g, 'wave');
+}
+
 function hordeButtonHtml(): string {
   const n = dailyNumber();
   const h = meta.horde.day === n ? meta.horde : null;
@@ -2455,7 +2469,7 @@ function startHorde() {
   challenge = null;
   storyRun = null;
   raidRun = null;
-  showGame(new Game('horde', hashSeed('horde', n), n, { hero: hordeHero(n), pool: fullPool(), mercy: true, boons: true, surge: true }));
+  showGame(new Game('horde', hashSeed('horde', n), n, { hero: hordeHero(n), pool: fullPool(), mercy: true, boons: true, surge: true, waves: true }));
   startClock();
   setMusicDepth(1);
   setMusicMood('crypt');
