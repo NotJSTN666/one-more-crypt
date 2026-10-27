@@ -205,6 +205,8 @@ export interface RunConfig {
   reaper?: boolean;
   /** The deep boons, and vaults that hold boons once the relics run out (log version 10 and later). */
   deep?: boolean;
+  /** Death stands in his corner from a floor's first turn, waiting, rather than appearing later (log version 11 and later). */
+  lurk?: boolean;
 }
 
 export interface StoryConfig {
@@ -312,6 +314,8 @@ const BOONS_LOG_VERSION = 8;
 const REAPER_LOG_VERSION = 9;
 /** Adds the deep boons, and vaults that hold boons once there are no relics left. */
 const DEEP_LOG_VERSION = 10;
+/** Adds Death waiting in plain sight from a floor's first turn. */
+const LURK_LOG_VERSION = 11;
 export const REAPER_FLOOR = 150;
 /** Turns on a floor before Death rises: plenty at first, one fewer every 4 floors, none from floor 250. */
 export function reaperDelay(floor: number): number {
@@ -360,7 +364,7 @@ export class Game {
   turns = 0;
   killedBy = '';
   /** Death, once he has risen on this floor (he can't be hurt), and the turns until he rises. */
-  reaper: { x: number; y: number; frozen: number } | null = null;
+  reaper: { x: number; y: number; frozen: number; waiting?: boolean } | null = null;
   reaperIn = 0;
   /** How the run ended (null while it goes on). */
   deathInfo: DeathInfo | null = null;
@@ -508,6 +512,7 @@ export class Game {
   header(): string {
     const unlocked = UNLOCKABLE_RELICS.filter((id) => this.config.pool.includes(id));
     // Pools without any post-launch relic are logged as version 2 so they replay with the launch set.
+    if (this.config.lurk) return `#${LURK_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.deep) return `#${DEEP_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.reaper) return `#${REAPER_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.boons) return `#${BOONS_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
@@ -523,6 +528,8 @@ export class Game {
     this.reaper = null;
     this.reaperIn = this.reaperDue() ? reaperDelay(floor) + 3 * this.boons.dusk : 0;
     if (this.reaperDue()) this.events.push({ t: 'reaper', turns: this.reaperIn });
+    // He's there from the start, waiting in the corner farthest from where you arrive.
+    if (this.reaperDue() && this.config.lurk) this.reaper = { ...this.farCorner(), frozen: 0, waiting: this.reaperIn > 0 };
     const rng = mulberry32(hashSeed(this.seed, 'floor', floor));
     this.generateLayout(rng);
     const thralls = this.allies;
@@ -1557,13 +1564,13 @@ export class Game {
   private reaperAct() {
     if (!this.reaperDue() || this.isOver()) return;
     const p = this.player;
-    if (!this.reaper) {
+    if (!this.reaper || this.reaper.waiting) {
       if (this.reaperIn > 0) this.reaperIn--;
       if (this.reaperIn > 0) return;
-      const corners = [{ x: 0, y: 0 }, { x: W - 1, y: 0 }, { x: 0, y: H - 1 }, { x: W - 1, y: H - 1 }];
-      const far = corners.reduce((a, b) => (Math.abs(b.x - p.x) + Math.abs(b.y - p.y) > Math.abs(a.x - p.x) + Math.abs(a.y - p.y) ? b : a));
-      this.reaper = { ...far, frozen: 0 };
-      this.events.push({ t: 'reaperrise', x: far.x, y: far.y });
+      // Rising where he waited, or (before log version 11) in the corner farthest from you now.
+      const at = this.reaper ?? this.farCorner();
+      this.reaper = { x: at.x, y: at.y, frozen: 0 };
+      this.events.push({ t: 'reaperrise', x: at.x, y: at.y });
       return;
     }
     const r = this.reaper;
@@ -1581,6 +1588,12 @@ export class Game {
       this.events.push({ t: 'reaperstep', x: r.x, y: r.y });
       if (r.x === p.x && r.y === p.y) return this.reap();
     }
+  }
+
+  private farCorner(): Pos {
+    const p = this.player;
+    const corners = [{ x: 0, y: 0 }, { x: W - 1, y: 0 }, { x: 0, y: H - 1 }, { x: W - 1, y: H - 1 }];
+    return corners.reduce((a, b) => (Math.abs(b.x - p.x) + Math.abs(b.y - p.y) > Math.abs(a.x - p.x) + Math.abs(a.y - p.y) ? b : a));
   }
 
   /** Death's touch: no shield, dodge or second life stops it. */
@@ -1990,7 +2003,8 @@ export class Game {
     const boons = Number(m[1]) >= BOONS_LOG_VERSION;
     const reaper = Number(m[1]) >= REAPER_LOG_VERSION;
     const deep = Number(m[1]) >= DEEP_LOG_VERSION;
-    const config: RunConfig = { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy, ...(depths ? { depths } : {}), ...(boons ? { boons } : {}), ...(reaper ? { reaper } : {}), ...(deep ? { deep } : {}) };
+    const lurk = Number(m[1]) >= LURK_LOG_VERSION;
+    const config: RunConfig = { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy, ...(depths ? { depths } : {}), ...(boons ? { boons } : {}), ...(reaper ? { reaper } : {}), ...(deep ? { deep } : {}), ...(lurk ? { lurk } : {}) };
     let rest = full.slice(m[0].length);
     // Version 7 adds one field: the isle's extra max HP.
     const isle = Number(m[1]) >= ISLE_LOG_VERSION ? /^(\d+)\|/.exec(rest) : null;

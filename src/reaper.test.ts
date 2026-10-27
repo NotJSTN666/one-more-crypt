@@ -49,3 +49,34 @@ describe('Death', () => {
     expect(g.killedBy).toBe('Death');
   });
 });
+
+describe('Death waiting in plain sight', () => {
+  const lurking = (floor: number) => {
+    const g = new Game('endless', 42, 0, { ...config(true), deep: true, lurk: true });
+    (g as unknown as { enterFloor(f: number): void }).enterFloor(floor);
+    for (const e of g.enemies) e.dead = true;
+    g.enemies = [];
+    return g;
+  };
+
+  it('stands in the far corner from the first turn, then rises where he waited', () => {
+    const g = lurking(REAPER_FLOOR);
+    expect(g.header()).toMatch(/^#11\|/);
+    expect(Game.parseLog(g.header() + 'W').config.lurk).toBe(true);
+    expect(g.reaper?.waiting).toBe(true);
+    const spot = { x: g.reaper!.x, y: g.reaper!.y };
+    expect(Math.abs(spot.x - g.player.x) + Math.abs(spot.y - g.player.y)).toBeGreaterThanOrEqual(6);
+    for (let i = 0; i < reaperDelay(REAPER_FLOOR) - 1; i++) g.act(0, 0);
+    expect(g.reaper).toMatchObject({ ...spot, waiting: true });
+    g.act(0, 0);
+    expect(g.reaper).toMatchObject(spot);
+    expect(g.reaper!.waiting).toBeUndefined();
+    for (let i = 0; i < 20 && g.phase !== 'dead'; i++) g.act(0, 0);
+    expect(g.killedBy).toBe('Death');
+  });
+
+  it('walks from the first turn once there is no wait left', () => {
+    const g = lurking(260);
+    expect(g.reaper?.waiting).toBe(false);
+  });
+});

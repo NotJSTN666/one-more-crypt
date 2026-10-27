@@ -366,10 +366,12 @@ export function runConfig(mode: Mode, dailyNo: number): RunConfig {
     if (dailyNo >= BOONS_DAILY) config.boons = true;
     if (dailyNo >= REAPER_DAILY) config.reaper = true;
     if (dailyNo >= DEEP_DAILY) config.deep = true;
+    // Death waiting in plain sight joins the Daily with the deep rules.
+    if (dailyNo >= DEEP_DAILY) config.lurk = true;
     return config;
   }
   const hero = heroUnlocked(meta.hero) ? meta.hero : 'knight';
-  const config: RunConfig = { hero, pool: basePool(meta.relics.filter((id) => UNLOCKABLE_RELICS.includes(id))), forge: true, mercy: true, depths: true, boons: true, reaper: true, deep: true };
+  const config: RunConfig = { hero, pool: basePool(meta.relics.filter((id) => UNLOCKABLE_RELICS.includes(id))), forge: true, mercy: true, depths: true, boons: true, reaper: true, deep: true, lurk: true };
   // The isle's buildings help in Endless (never the Daily).
   const { vigor } = islePerks(meta.isle);
   if (vigor) config.vigor = vigor;

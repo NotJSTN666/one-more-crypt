@@ -526,7 +526,7 @@ export class Renderer {
     }
     if (g.reaper) {
       seen.add(REAPER_ID);
-      this.drawReaper(g.reaper, this.smooth(REAPER_ID, g.reaper, k * 0.5), dt);
+      this.drawReaper(g.reaper, this.smooth(REAPER_ID, g.reaper, k * 0.5), dt, g.reaperIn);
     }
     for (const id of [...this.disp.keys()]) if (!seen.has(id)) this.disp.delete(id);
 
@@ -626,7 +626,7 @@ export class Renderer {
 
   /** Outside the story, an earned companion trots one step behind the hero. Looks only. */
   /** Death: drifting, dark-haloed, scythe in hand; pale while held still by a toll or stopped time. */
-  private drawReaper(r: { frozen: number }, d: Pos, dt: number) {
+  private drawReaper(r: { frozen: number; waiting?: boolean }, d: Pos, dt: number, turnsLeft: number) {
     const ctx = this.ctx;
     const cx = d.x * TILE + TILE / 2;
     const cy = d.y * TILE + TILE / 2;
@@ -640,8 +640,20 @@ export class Renderer {
     if (Math.random() < dt * 8) {
       this.particles.push({ x: cx - 5 + Math.random() * 10, y: cy + 4, vx: (Math.random() - 0.5) * 6, vy: -8 - Math.random() * 8, color: Math.random() < 0.5 ? '#3a1d55' : '#d3b0ff', t: 0, life: 0.9, size: 1 });
     }
-    const bob = Math.sin(this.time * 2) * 1.5;
-    this.drawSprite(REAPER_ID, sprites().reaper, d, dt, r.frozen > 0 ? 0.55 : 0.95, bob);
+    const bob = r.waiting ? 0 : Math.sin(this.time * 2) * 1.5;
+    this.drawSprite(REAPER_ID, sprites().reaper, d, dt, r.waiting ? 0.5 + 0.1 * pulse : r.frozen > 0 ? 0.55 : 0.95, bob);
+    // Waiting: how many turns until he walks, over his head.
+    if (r.waiting && turnsLeft > 0) {
+      ctx.font = '7px Silkscreen, monospace';
+      ctx.textAlign = 'center';
+      // Over his head, or under his feet when he waits on the top row.
+      const ty = cy < TILE ? cy + 14 : cy - 8;
+      ctx.fillStyle = '#000';
+      ctx.fillText(String(turnsLeft), cx + 0.5, ty + 0.5);
+      ctx.fillStyle = turnsLeft <= 3 ? '#ff4d5a' : '#d3b0ff';
+      ctx.fillText(String(turnsLeft), cx, ty);
+      ctx.textAlign = 'left';
+    }
   }
 
   private drawPet(g: Game, k: number, dt: number) {

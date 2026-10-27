@@ -803,7 +803,8 @@ function updateTip() {
   const elite = game.alive.find((e) => e.elite);
   const boss = game.alive.find((e) => isBoss(e));
   const feature = game.feature && !game.feature.used ? game.feature : null;
-  if (game.reaper) tip.innerHTML = game.stairsOpen ? '☠️ <b>Death is coming.</b> Run for the stairs!' : '☠️ <b>Death is coming.</b> His touch is the end. Clear the floor and reach the stairs.';
+  if (game.reaper?.waiting) tip.innerHTML = `☠️ Death waits in the corner. He walks in <b>${game.reaperIn} turn${game.reaperIn === 1 ? '' : 's'}</b>. Don't touch him.`;
+  else if (game.reaper) tip.innerHTML = game.stairsOpen ? '☠️ <b>Death is coming.</b> Run for the stairs!' : '☠️ <b>Death is coming.</b> His touch is the end. Clear the floor and reach the stairs.';
   else if (game.config.reaper && game.floor >= REAPER_FLOOR && game.reaperIn > 0)
     tip.innerHTML = `☠️ Death rises in <b>${game.reaperIn} turn${game.reaperIn === 1 ? '' : 's'}</b>. Be gone before he does.`;
   else if (game.config.reaper && game.floor >= REAPER_FLOOR - 5 && game.floor < REAPER_FLOOR) tip.innerHTML = `You hear footsteps behind you… <b>Death walks from floor ${REAPER_FLOOR}.</b>`;
@@ -1264,7 +1265,7 @@ function showHelp(back: () => void) {
       <li>Shrines, chests and fountains offer <b>deals</b>. Step on them to choose.</li>
       <li>After each boss, a <b>Soul Forge</b> waits on the next floor. Fuse two of your relics into a stronger one.</li>
       <li>Every 20 floors the crypt becomes somewhere new, with its own ground and foes. In the <b>Flooded Catacombs</b>, foes wading through water lose every other turn. In the <b>Charnel Halls</b>, bone piles block the way: bump one to smash it, and some hide a potion. In the <b>Burning Depths</b>, lava burns anything that walks in, so lure foes into it. The <b>Abyss</b> is dark: you only see what's near you.</li>
-      <li>From <b>floor 150</b>, <b>Death</b> comes for you. A few turns into each floor he rises in the far corner and walks straight at you, through walls. Nothing stops his touch: no shield, dodge or second life. Clear the floor and take the stairs before he reaches you. He rises sooner the deeper you go. The Bell-Ringer's toll and the Stopped Hourglass hold him still for a turn.</li>
+      <li>From <b>floor 150</b>, <b>Death</b> comes for you. He waits in the far corner of each floor, with a countdown over him, then rises and walks straight at you, through walls. Nothing stops his touch: no shield, dodge or second life. Clear the floor and take the stairs before he reaches you. He rises sooner the deeper you go. The Bell-Ringer's toll and the Stopped Hourglass hold him still for a turn.</li>
       <li><b>Glowing foes</b> are elites, with a trait of their own (the tip under the map says which). They're worth extra Souls.</li>
       <li>Some walls are <b>cracked</b>. Bump one twice to find a secret vault: a rare relic and a heal, or two Abyss boons once the relics run out.</li>
       <li>Deep in Endless every relic runs out. From then on, offers hold <b>Abyss boons</b>: more attack, shields, dodge, extra lives, max HP, healing on kills, and more time before Death rises.</li>
