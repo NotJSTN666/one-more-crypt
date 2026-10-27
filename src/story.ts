@@ -4,6 +4,7 @@
 
 import type { EnemyKind } from './game';
 import type { ZoneId } from './zones';
+import { onCanvasReset } from './sprites';
 
 export type Speaker = 'gravedigger' | 'aldric' | 'warden' | 'hound' | 'bess' | 'agnes' | 'pip' | 'hero' | 'narrator';
 /** People you can talk to in the world. */
@@ -499,6 +500,7 @@ const FIGURES: Record<NpcId, string[]> = {
 };
 
 const figureCache = new Map<NpcId, HTMLCanvasElement>();
+onCanvasReset(() => figureCache.clear());
 
 /** A person's little figure, ready to draw on the world map. */
 export function npcFigure(npc: NpcId): HTMLCanvasElement {

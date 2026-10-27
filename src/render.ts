@@ -55,6 +55,13 @@ export class Renderer {
   private scale = 1;
   private game: Game | null = null;
   private bg: HTMLCanvasElement | null = null;
+  /** Bumped when the phone may have wiped the cached floor, so it's drawn again. */
+  private bgEpoch = 0;
+
+  /** Redraw everything cached: the app was in the background. */
+  invalidate() {
+    this.bgEpoch++;
+  }
   private bgKey = '';
   private disp = new Map<number, Pos>();
   private flashes = new Map<number, number>();
@@ -449,7 +456,7 @@ export class Renderer {
     const dt = this.hitStop > 0 ? 0 : realDt;
     this.hitStop = Math.max(0, this.hitStop - realDt);
     this.time += dt;
-    const bgKey = `${g.seed}:${g.floor}:${g.terrain}`;
+    const bgKey = `${g.seed}:${g.floor}:${g.terrain}:${this.bgEpoch}`;
     if (this.bgKey !== bgKey) {
       this.bg = this.buildBackground(g);
       this.bgKey = bgKey;

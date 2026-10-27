@@ -11,7 +11,7 @@ import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } f
 import { hallFromLink, onVisitIsle, showHall, showPublicHall, soulRankHtml, titleName } from './hall';
 import { HEAD_BY_ID, LOOK_BY_ID, PODIUM, RAID_DECOR_BY_ID, RAID_KIND_LABEL, RAID_REWARDS, STORY_ALL, STREAK_HELMS, WEEKLY, WELCOME, rankFor, titleFxClass, welcomeLabel, type WelcomeReward } from './progression';
 import { Renderer } from './render';
-import { sprites } from './sprites';
+import { resetCanvases, sprites } from './sprites';
 import { RAID_JOIN_MIN, RAID_SUBMIT_MIN, RAID_TURNS, currentRaid, nextRaid, raidBossName, raidConfig, raidJoinable, raidTimeLabel, type RaidSlot } from './raid';
 import { hashSeed } from './rng';
 import { ONLINE, claimInvite, myInvites, raidHit, raidPlayer, raidState, type RaidState, challengeBoard, emailReminderOff, sendFeedback, setEmailReminder, type FeedbackKind, challengeNews, createChallenge, dailyBoard, endlessBoard, getChallenge, mySummons, noteRun, noteSummon, pingActivity, startActivityPings, submitChallengeRun, type Challenge, type ChallengeRow } from './online';
@@ -3087,6 +3087,13 @@ const firstTouch = () => {
 };
 window.addEventListener('pointerdown', firstTouch, true);
 window.addEventListener('keydown', firstTouch, true);
+// Back from the background: the phone may have wiped cached sprites, so bake them again.
+const refreshCanvases = () => {
+  resetCanvases();
+  renderer.invalidate();
+};
+document.addEventListener('visibilitychange', () => !document.hidden && refreshCanvases());
+window.addEventListener('pageshow', refreshCanvases);
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden || !game || tutorial) return;
   if ((game.mode === 'daily' || game.mode === 'endless') && game.phase !== 'dead') noteRun(game.mode, 'quit', game.floor);

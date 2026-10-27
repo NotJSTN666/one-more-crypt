@@ -151,6 +151,19 @@ function bakeLit(rows: string[], solid?: string): HTMLCanvasElement {
   return c;
 }
 
+// Phones can wipe hidden canvases while the app is in the background (Chrome on Android
+// does), which would leave baked sprites blank. Each cache registers a reset, and
+// everything is baked afresh when the game comes back into view.
+const resets: (() => void)[] = [];
+
+export function onCanvasReset(reset: () => void) {
+  resets.push(reset);
+}
+
+export function resetCanvases() {
+  for (const reset of resets) reset();
+}
+
 let cache: Record<SpriteName, Sprite> | null = null;
 
 export function sprites(): Record<SpriteName, Sprite> {
@@ -170,6 +183,10 @@ export interface EnemyFrames {
 }
 
 let frameCache: Record<EnemyKind, EnemyFrames> | null = null;
+onCanvasReset(() => {
+  cache = null;
+  frameCache = null;
+});
 
 /** Every enemy's animation frames: an idle loop and an attack pose. */
 export function enemyFrames(kind: EnemyKind): EnemyFrames {

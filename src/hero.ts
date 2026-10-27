@@ -3,7 +3,7 @@
 
 import type { HeroId } from './content';
 import { withFusions, type RelicId } from './relics';
-import { SPRITE_SIZE, type Sprite } from './sprites';
+import { SPRITE_SIZE, onCanvasReset, type Sprite } from './sprites';
 import { HEAD_BY_ID, LOOK_BY_ID } from './progression';
 
 const COL = {
@@ -233,6 +233,7 @@ function bake(hero: HeroId, relics: Relics, log: RelicId[], solid?: string, look
 // Recent sprites, rebuilt only when a hero's relics or look change. Several boards
 // (the game, the background ghosts, the Hall) draw heroes at once.
 const cache = new Map<string, Sprite>();
+onCanvasReset(() => cache.clear());
 
 /** Sprite for a hero's build and look. */
 export function heroSprite(hero: HeroId, relics: Relics, log: RelicId[], look = '', head = ''): Sprite {
