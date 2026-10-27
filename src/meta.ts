@@ -973,6 +973,7 @@ export function auraUnlocked(a: AuraDef): boolean {
   if ('story' in u) return storyDone(u.story);
   if ('raid' in u) return raidWins() >= u.raid;
   if ('invite' in u) return inviteMet(u.invite);
+  if ('feat' in u) return Boolean(meta.achievements[u.feat]);
   return meta.bought.includes(a.id);
 }
 

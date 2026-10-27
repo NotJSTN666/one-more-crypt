@@ -9,7 +9,7 @@ import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
 import { hallFromLink, onVisitIsle, showHall, showPublicHall, soulRankHtml, titleName } from './hall';
-import { HEAD_BY_ID, LOOK_BY_ID, PODIUM, RAID_DECOR_BY_ID, RAID_KIND_LABEL, RAID_REWARDS, STORY_ALL, STREAK_HELMS, WEEKLY, WELCOME, rankFor, titleFxClass, welcomeLabel, type WelcomeReward } from './progression';
+import { AURAS, HEADS, HEAD_BY_ID, LOOKS, LOOK_BY_ID, PODIUM, RAID_DECOR_BY_ID, RAID_KIND_LABEL, RAID_REWARDS, STORY_ALL, STREAK_HELMS, WEEKLY, WELCOME, rankFor, titleFxClass, welcomeLabel, type WelcomeReward } from './progression';
 import { Renderer } from './render';
 import { resetCanvases, sprites } from './sprites';
 import { RAID_JOIN_MIN, RAID_SUBMIT_MIN, RAID_TURNS, currentRaid, nextRaid, raidBossName, raidConfig, raidJoinable, raidTimeLabel, type RaidSlot } from './raid';
@@ -2444,6 +2444,16 @@ function showRaidReward(n: number, then: () => void) {
 // One arena a day, the same for everyone, with the day's hero. Waves pour in; kills on turn
 // after turn build a multiplier. Unlimited tries: your best score of the day goes on the board.
 
+/** Cloaks, headwear and auras that come with these achievements, to announce. */
+function featCosmetics(ids: string[]): { icon: string; title: string; detail: string }[] {
+  const won = (u: object | undefined) => Boolean(u && 'feat' in u && ids.includes((u as { feat: string }).feat));
+  return [
+    ...LOOKS.filter((l) => won(l.unlock)).map((l) => ({ icon: '🧥', title: l.name, detail: 'New cloak in the Wardrobe' })),
+    ...HEADS.filter((x) => won(x.unlock)).map((x) => ({ icon: '🪖', title: x.name, detail: 'New headwear in the Wardrobe' })),
+    ...AURAS.filter((a) => won(a.unlock)).map((a) => ({ icon: '✨', title: a.name, detail: 'New aura in the Wardrobe' })),
+  ];
+}
+
 /** Relic text for the run under way: in the Horde, what works floor by floor works wave by wave. */
 function relicText(text: string): string {
   if (game?.mode !== 'horde') return text;
@@ -2485,6 +2495,7 @@ function finishHorde() {
   const h = g.horde;
   const reward = finishHordeMeta(g.dailyNo, h.score, h.wave, g.kills, g.hordeFeats());
   celebrate(reward.feats);
+  celebrateNotes(featCosmetics(reward.feats.map((f) => f.id)));
   setMusicMood('fallen');
   window.clearTimeout(overlayTimer);
   const share = `🛡️ One More Crypt · Horde #${g.dailyNo}\nWave ${h.wave} · ${h.score.toLocaleString()} pts · ×${h.bestMult} combo\nCan you hold the crypt longer?\n${siteUrl()}?ref=horde`;

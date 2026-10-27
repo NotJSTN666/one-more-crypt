@@ -256,6 +256,9 @@ LOOKS.push({ id: 'kindred', name: 'Kindred Cloak', cloak: { p: '#c46a2e', P: '#5
 
 // Horde: for holding the crypt.
 LOOKS.push({ id: 'siegemantle', name: 'Siege Mantle', cloak: { p: '#6b6f7a', P: '#2e3038' }, aura: '#ff8a2a', unlock: { feat: 'horde20' }, how: 'Hold the crypt to wave 20 in Horde.' });
+LOOKS.push({ id: 'unmarked', name: 'Unmarked Mantle', cloak: { p: '#d9dde6', P: '#7f8798' }, aura: '#9fe8ff', unlock: { feat: 'hordeuntouched' }, how: 'Clear a Horde wave, at wave 10 or later, without taking a hit after it arrives.' });
+LOOKS.push({ id: 'siegelord', name: "Siege Lord's Mantle", cloak: { p: '#8a1f2c', P: '#c99a2e' }, aura: '#ffd23f', unlock: { feat: 'horde50k' }, how: 'Score 50,000 points in one Horde run.' });
+LOOKS.push({ id: 'macabre', name: 'Danse Macabre', cloak: { p: '#141119', P: '#e8dcc4' }, aura: '#d3b0ff', unlock: { feat: 'hordedanced' }, how: 'Hold 10 Horde waves with Death in the arena.' });
 
 // Death's own: for outrunning him.
 LOOKS.push({ id: 'reapershroud', name: "Reaper's Shroud", cloak: { p: '#1d1428', P: '#0a0710' }, aura: '#d3b0ff', unlock: { feat: 'outran' }, how: 'Reach floor 175 with Death on your heels.' });
@@ -526,6 +529,12 @@ export const HEADS: HeadDef[] = [
   { id: 'worldcrown', name: 'Crown of the World Boss', ...raid(29), pixels: [[3, 0, GOLD], [5, 0, '#fff2c0'], [6, 0, '#fff2c0'], [8, 0, GOLD], ...row(1, 3, 8, GOLD), ...row(2, 3, 8, '#141119'), [4, 2, '#5fe3ff'], [5, 2, RED], [6, 2, '#b5e07a'], [7, 2, '#b07cff'], [2, 1, '#a8781f'], [9, 1, '#a8781f']] },
   // Horde: wave 10.
   { id: 'gatehelm', name: "Gatekeeper's Helm", unlock: { feat: 'horde10' }, how: 'Hold the crypt to wave 10 in Horde.', pixels: [...row(1, 3, 8, STEEL), ...row(2, 3, 8, '#9aa3b5'), ...row(3, 3, 8, '#5d667a'), [4, 3, DARK], [5, 3, DARK], [6, 3, DARK], [7, 3, DARK], [5, 0, '#ff8a2a'], [6, 0, '#ffd23f'], [2, 2, '#5d667a'], [9, 2, '#5d667a']] },
+  // Horde: an unbroken chain of kills.
+  { id: 'warpaint', name: 'Warpaint Band', unlock: { feat: 'hordeunbroken' }, how: 'Reach the ×5 score multiplier in Horde.', pixels: [...row(2, 3, 8, RED), [4, 2, '#ffd23f'], [7, 2, '#ffd23f'], [9, 2, RED], [10, 3, RED], [10, 4, '#8a1f2c'], [9, 4, '#8a1f2c']] },
+  // Horde: 10,000 points in one run.
+  { id: 'defendercoif', name: "Defender's Coif", unlock: { feat: 'horde10k' }, how: 'Score 10,000 points in one Horde run.', pixels: [...row(0, 4, 7, '#9aa3b5'), ...row(1, 3, 8, STEEL), ...row(2, 2, 9, '#9aa3b5'), [4, 1, '#5d667a'], [6, 1, '#5d667a'], [3, 2, '#5d667a'], [5, 2, '#5d667a'], [7, 2, '#5d667a'], [2, 3, '#9aa3b5'], [9, 3, '#9aa3b5'], [2, 4, '#5d667a'], [9, 4, '#5d667a']] },
+  // Horde: 100,000 points in one run.
+  { id: 'hordecrown', name: 'Crown of the Horde', unlock: { feat: 'horde100k' }, how: 'Score 100,000 points in one Horde run.', pixels: [[3, 0, '#5d667a'], [5, 0, '#9aa3b5'], [6, 0, '#9aa3b5'], [8, 0, '#5d667a'], ...row(1, 3, 8, '#3a3346'), ...row(2, 3, 8, '#5d667a'), [4, 1, '#ff8a2a'], [5, 1, '#ffd23f'], [6, 1, '#ffd23f'], [7, 1, '#ff8a2a'], [2, 2, '#3a3346'], [9, 2, '#3a3346'], [5, 2, RED], [6, 2, RED]] },
   // Bring a friend: five friends brought.
   { id: 'lanternhood', name: 'Lantern Hood', unlock: { invite: 5 }, how: 'Bring 5 friends to the crypt.', pixels: [...row(1, 3, 8, '#5a2a12'), ...row(2, 2, 9, '#7a3a18'), [5, 0, '#3a3346'], [6, 0, '#3a3346'], [8, 0, '#3a3346'], [9, 1, '#ffd23f'], [10, 1, '#ff8a2a'], [9, 2, '#3a3346'], [10, 2, '#3a3346'], [4, 2, '#ffb35a'], [7, 2, '#ffb35a']] },
   // Death's own hood, skull and all: for cheating him.
@@ -591,6 +600,7 @@ export type AuraUnlock =
   | { story: number }
   | { raid: number }
   | { invite: number }
+  | { feat: string }
   | { cost: number; season?: SeasonId };
 
 export interface AuraDef {
@@ -632,6 +642,10 @@ export const AURAS: AuraDef[] = [
   { id: 'homecoming', name: 'Homecoming', style: 'souls', color: '#7cf5c4', unlock: { welcome: 5 }, how: 'Seven Nights, day 5: come back on a fifth day.' },
   { id: 'kindredflame', name: 'Kindred Flame', style: 'candle', color: '#ff8a2a', unlock: { invite: 3 }, how: 'Bring 3 friends to the crypt.' },
   // The Bell Tolls: felling world bosses together.
+  // Horde: earned holding the crypt, never sold.
+  { id: 'overcharge', name: 'Overcharge', style: 'storm', color: '#5fe3ff', unlock: { feat: 'hordeovercharged' }, how: 'Trigger 10 power surges in one Horde run.' },
+  { id: 'hordelegend', name: 'Legend of the Horde', style: 'sunburst', color: '#ff8a2a', unlock: { feat: 'horde100k' }, how: 'Score 100,000 points in one Horde run.' },
+  { id: 'deathsdance', name: "Death's Dance", style: 'bone', color: '#d3b0ff', unlock: { feat: 'hordedanced' }, how: 'Hold 10 Horde waves with Death in the arena.' },
   { id: 'raidember', name: 'Warcry Embers', style: 'ember', color: '#ff4d5a', ...raid(3) },
   { id: 'bellshards', name: 'Bell Shards', style: 'shards', color: '#c9a24a', ...raid(7) },
   { id: 'plaguecenser', name: 'Censer Smoke', style: 'mist', color: '#8fd47f', ...raid(11) },
