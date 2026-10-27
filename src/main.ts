@@ -2467,10 +2467,15 @@ function relicText(text: string): string {
     .replace(/\bfloor\b/g, 'wave');
 }
 
+/** The Horde button wears a NEW badge until this date. */
+const HORDE_NEW_UNTIL = Date.UTC(2026, 10, 17);
+
 function hordeButtonHtml(): string {
   const n = dailyNumber();
   const h = meta.horde.day === n ? meta.horde : null;
-  return `<button class="btn horde-btn" id="horde">🛡️ Horde #${n}<small>${
+  // A "NEW" badge for the first weeks of the mode.
+  const fresh = Date.now() < HORDE_NEW_UNTIL;
+  return `<button class="btn horde-btn" id="horde">${fresh ? '<span class="new-badge">NEW</span>' : ''}🛡️ Horde #${n}<small>${
     h ? `Your best today: wave ${h.wave} · ${h.best.toLocaleString()} pts` : `Hold the crypt as the ${HERO_BY_ID[hordeHero(n)].name} · unlimited tries`
   }</small></button>`;
 }
