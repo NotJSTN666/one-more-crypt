@@ -3221,3 +3221,78 @@ body.tutorial #relic-bar {
   font: inherit;
   font-size: 12px;
 }
+
+/* Title screen: sections of compact tiles under the main buttons */
+.title-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 18px 0 8px;
+  font-family: Silkscreen, ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.title-section::before,
+.title-section::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 78px;
+  padding: 10px 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-bottom: 3px solid #0a0610;
+  color: var(--text);
+  font-size: 13px;
+  text-align: center;
+}
+
+.tile:active {
+  transform: translateY(2px);
+  border-bottom-width: 1px;
+}
+
+.tile-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.tile-name {
+  letter-spacing: 0.06em;
+}
+
+.tile small {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  overflow-wrap: anywhere;
+}
+
+.tile.story-tile {
+  border-color: #3e8db5;
+}
+
+.tile.soon {
+  border-style: dashed;
+  opacity: 0.6;
+}

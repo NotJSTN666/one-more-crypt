@@ -862,8 +862,10 @@ function showTitle() {
         <div>Daily #${today} conquered</div>
         <div class="strip">${descentStrip(done.floor)}</div>
         <div class="sub" style="margin:0">Floor ${done.floor} · ${done.kills} kills</div>
-        <button class="btn x" id="share-today">Share on 𝕏</button>
-        ${discordBtn}
+        <div class="row">
+          <button class="btn x" id="share-today">Share on 𝕏</button>
+          <a class="btn discord" href="${DISCORD_URL}" target="_blank" rel="noopener">💬 Discord</a>
+        </div>
         <div class="sub" style="margin:6px 0 0">Next crypt opens in <span class="countdown">--:--:--</span></div>
       </div>`
     : resumable?.mode === 'daily'
@@ -879,36 +881,38 @@ function showTitle() {
   const continueBlock = resumable
     ? `<button class="btn primary" id="continue">▶ Continue ${resumable.mode === 'daily' ? `Daily #${resumable.dailyNo}` : 'Endless'}<small>${HERO_BY_ID[resumable.hero].name} · floor ${resumable.floor} · ${resumable.player.hp}/${resumable.player.maxHp} HP</small></button>`
     : '';
+  const ns = (n: number) => n.toLocaleString();
   showOverlay('title', `
     ${accountChip()}
     <h1 class="logo">One More Crypt</h1>
     <p class="tagline">One crypt. One try a day. How deep can you go?</p>
     ${onlineCountHtml()}
     ${continueBlock}
-    ${raid.phase !== 'soon' ? raidCardHtml(raid) : ''}
     ${dailyBlock}
-    ${welcomeTitleHtml()}
-    ${endlessNext ? endlessBtn : ''}
-    ${bountiesHtml(today)}
-    ${raid.phase === 'soon' ? raidCardHtml(raid) : ''}
-    ${storyButtonHtml()}
-    <button class="btn act2-btn" id="act2">🔔 Act II: The Plague Abbot<small>Coming soon · Something rings the bell below</small></button>
-    ${graveButtonHtml()}
-    <button class="btn hollow-btn" id="hollow">🌙 Enter the Hollow<small>Walk the graveyard. Ferry out to build your own isle.</small></button>
-    ${endlessNext ? '' : endlessBtn}
-    <div class="row">
-      <button class="btn" id="ossuary">🏛️ Ossuary<small>💀 ${meta.souls} Souls</small></button>
-      <button class="btn" id="grimoire">📖 Grimoire<small>Relics, combos, achievements</small></button>
-    </div>
-    <button class="btn" id="hall">🏰 The Crypt Hall<small style="color:${rankFor(meta.earned).color}">${esc(rankFor(meta.earned).name)} · trophies, titles, wardrobe</small></button>
-    ${ONLINE ? '<button class="btn" id="leaderboard">🏆 Leaderboards</button>' : ''}
-    ${ONLINE ? inviteButtonHtml() : ''}
-    <div class="row">
-      <button class="btn" id="help">How to play</button>
-      <button class="btn" id="feedback">💬 Feedback<small>Bugs, ideas, anything</small></button>
-    </div>
-    ${installMode() ? '<button class="btn install-btn" id="install">📲 Install the app<small>Play from your home screen, full screen</small></button>' : ''}
+    ${raid.phase !== 'soon' ? raidCardHtml(raid) : ''}
+    ${endlessBtn}
     ${streak > 1 ? `<div class="streak">🕯️ ${streak}-day streak</div>` : ''}
+    ${raid.phase === 'soon' ? raidCardHtml(raid) : ''}
+    ${welcomeTitleHtml()}
+    ${bountiesHtml(today)}
+    <h2 class="title-section">Adventure</h2>
+    <div class="tiles">
+      ${storyTileHtml()}
+      ${titleTile('hollow', '🌙', 'The Hollow', 'Graveyard & your isle')}
+      ${titleTile('act2', '🔔', 'Act II', 'Coming soon', 'soon')}
+      ${graveTileHtml()}
+    </div>
+    <h2 class="title-section">Your crypt</h2>
+    <div class="tiles">
+      ${titleTile('hall', '🏰', 'Crypt Hall', `<span style="color:${rankFor(meta.earned).color}">${esc(rankFor(meta.earned).name)}</span>`)}
+      ${titleTile('ossuary', '🏛️', 'Ossuary', `💀 ${ns(meta.souls)} Souls`)}
+      ${titleTile('grimoire', '📖', 'Grimoire', 'Relics & combos')}
+      ${ONLINE ? titleTile('leaderboard', '🏆', 'Leaderboards', 'Daily & Endless') : ''}
+      ${ONLINE ? titleTile('invite', '👥', 'Bring a friend', meta.invite.friends ? `${meta.invite.friends} brought` : 'You both get a cloak') : ''}
+      ${titleTile('feedback', '💬', 'Feedback', 'Bugs & ideas')}
+      ${titleTile('help', '❔', 'How to play', 'The basics')}
+      ${installMode() ? titleTile('install', '📲', 'Install app', 'Play full screen') : ''}
+    </div>
     <div class="foot-links">${followXHtml}${discordHtml}${kofiHtml}</div>
   `);
   on('#account', () => showProfile(showTitle));
@@ -2611,19 +2615,22 @@ function showStoryNews() {
   on('#news-later', showTitle);
 }
 
-function graveButtonHtml(): string {
-  if (!graveShiftOpen()) return `<button class="btn grave-btn soon" id="graveshift">🌾 Grave Shift<small>Coming soon · Keep the old plot behind Gravesend</small></button>`;
-  const s = meta.grave;
-  const ripe = s ? s.plots.filter((p) => CROP_BY_ID[p.crop] && isRipe(p, Date.now())).length : 0;
-  return `<button class="btn grave-btn" id="graveshift">🌾 Grave Shift<small>${s ? `🪙 ${s.obols} Obols${ripe ? ` · ${ripe} ready to harvest` : ''}` : 'Keep the old plot behind Gravesend'}</small></button>`;
+/** A compact square on the title screen: an icon, a name and one short line. */
+function titleTile(id: string, icon: string, name: string, sub: string, cls = ''): string {
+  return `<button class="tile ${cls}" id="${id}"><span class="tile-icon">${icon}</span><span class="tile-name">${name}</span><small>${sub}</small></button>`;
 }
 
-function storyButtonHtml(): string {
+function graveTileHtml(): string {
+  if (!graveShiftOpen()) return titleTile('graveshift', '🌾', 'Grave Shift', 'Coming soon', 'soon');
+  const s = meta.grave;
+  const ripe = s ? s.plots.filter((p) => CROP_BY_ID[p.crop] && isRipe(p, Date.now())).length : 0;
+  return titleTile('graveshift', '🌾', 'Grave Shift', s ? (ripe ? `${ripe} ready to harvest` : `🪙 ${s.obols} Obols`) : 'Tend the old plot');
+}
+
+function storyTileHtml(): string {
   const main = MAIN_QUESTS.filter((q) => meta.story.done.includes(q.n)).length;
   const next = MAIN_QUESTS.find((q) => !meta.story.done.includes(q.n));
-  return `<button class="btn story-btn" id="story">📖 Story: The Bell Beneath<small>${
-    !next ? 'Act I complete · Act II is coming' : main ? `${main}/${MAIN_QUESTS.length} · ${esc(next.title)}` : "Act I · Knock on Mortimer's door in the Hollow"
-  }</small></button>`;
+  return titleTile('story', '📖', 'Story', !next ? 'Act I complete' : main ? `Act I · ${main}/${MAIN_QUESTS.length}` : 'Start Act I', 'story-tile');
 }
 
 /** The Act II teaser: what's under the lid, and a way to tell us what you want down there. */
