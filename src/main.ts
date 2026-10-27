@@ -491,6 +491,7 @@ function processEvents() {
       if (ev.boss) sfx.toll();
       setMusicMood(ev.boss ? 'boss' : 'crypt');
     }
+    if (ev.t === 'surge') renderer.banner('POWER SURGE!', '#5fe3ff');
     if (ev.t === 'wavecleared') renderer.banner(`WAVE ${ev.wave} HELD +${ev.bonus}`, '#7ee081');
     if (ev.t === 'reaper' && game.floor === REAPER_FLOOR) renderer.banner('DEATH WALKS THESE FLOORS', '#d3b0ff');
     if (ev.t === 'boon') renderer.banner(`${BOON_BY_ID[ev.id].name.toUpperCase()}`, '#b07cff');
@@ -737,6 +738,16 @@ function updateHud(reset = false) {
   fill.style.width = `${pct}%`;
   fill.classList.toggle('low', p.hp <= 3);
   $('hp-text').textContent = `${p.hp}/${p.maxHp}`;
+  // Horde: kills fill the surge bar toward the next relic.
+  const surge = game.mode === 'horde' && Boolean(game.config.surge);
+  $('surge-bar').hidden = !surge;
+  if (surge) {
+    const h = game.horde;
+    const pct = Math.min(100, (h.charge / h.need) * 100);
+    $('surge-fill').style.width = `${pct}%`;
+    $('surge-bar').classList.toggle('near', pct >= 70);
+    $('surge-label').textContent = `⚡ ${Math.min(h.charge, h.need)}/${h.need}`;
+  }
   // In the Horde the floor counter shows the wave.
   $('floor').textContent = String(game.mode === 'horde' ? game.horde.wave : game.floor);
   $('atk').textContent = String(game.atk);
@@ -1285,7 +1296,7 @@ function showHelp(back: () => void) {
       <li>Shrines, chests and fountains offer <b>deals</b>. Step on them to choose.</li>
       <li>After each boss, a <b>Soul Forge</b> waits on the next floor. Fuse two of your relics into a stronger one.</li>
       <li>Every 20 floors the crypt becomes somewhere new, with its own ground and foes. In the <b>Flooded Catacombs</b>, foes wading through water lose every other turn. In the <b>Charnel Halls</b>, bone piles block the way: bump one to smash it, and some hide a potion. In the <b>Burning Depths</b>, lava burns anything that walks in, so lure foes into it. The <b>Abyss</b> is dark: you only see what's near you.</li>
-      <li><b>Horde</b>: one arena a day, the same for everyone, with the day's hero. Waves pour in from the edges, faster when you clear them quickly. Kill on turn after turn to build a score multiplier (up to ×5), pick a relic every 2 waves, and fight a boss every 5th. Death joins at wave 25. Play as often as you like: your best score of the day goes on the board.</li>
+      <li><b>Horde</b>: one arena a day, the same for everyone, with the day's hero. Waves pour in from the edges, faster when you clear them quickly. Kill on turn after turn to build a score multiplier (up to ×5). Every kill fills the glowing surge bar; when it's full, pick a relic, a boon, or the Soul Forge to fuse two relics you hold. A boss comes every 5th wave. Death joins at wave 25. Play as often as you like: your best score of the day goes on the board.</li>
       <li>From <b>floor 150</b>, <b>Death</b> comes for you. He waits in the far corner of each floor, with a countdown over him, then rises and walks straight at you, through walls. Nothing stops his touch: no shield, dodge or second life. Clear the floor and take the stairs before he reaches you. He rises sooner the deeper you go. The Bell-Ringer's toll and the Stopped Hourglass hold him still for a turn.</li>
       <li><b>Glowing foes</b> are elites, with a trait of their own (the tip under the map says which). They're worth extra Souls.</li>
       <li>Some walls are <b>cracked</b>. Bump one twice to find a secret vault: a rare relic and a heal, or two Abyss boons once the relics run out.</li>
@@ -1359,18 +1370,26 @@ function showChoice() {
       </button>`;
     })
     .join('');
+  const surge = game.mode === 'horde' && game.config.surge;
+  const canForge = surge && game.forgeOptions().length > 0;
   showOverlay('choose', `
-    <h2>Floor ${game.floor} cleared</h2>
-    <p class="sub">Claim a relic from the dead<span class="keys-hint"> · ↑↓ or W/S to choose, Enter or Space to take</span></p>
+    <h2>${surge ? '⚡ Power surge!' : game.mode === 'horde' ? `Wave ${game.horde.wave} held` : `Floor ${game.floor} cleared`}</h2>
+    <p class="sub">${surge ? 'The souls of the slain gather. Claim a relic' : 'Claim a relic from the dead'}<span class="keys-hint"> · ↑↓ or W/S to choose, Enter or Space to take</span></p>
     <p class="choice-hp ${low ? 'low' : ''}">❤ ${game.player.hp}/${game.player.maxHp} HP${low ? ' · Low on health. Resting may be the smart pick.' : ''}</p>
     ${tutorial ? `<div class="coach-inline"><span>5 / 5 · Relics</span>${RELIC_COACH}</div>` : ''}
     <div class="offer">${cards}</div>
+    ${canForge ? '<button class="btn forge-pick" id="to-forge">🔥 Soul Forge instead<small>Fuse two relics you hold into something greater</small></button>' : ''}
     <button class="btn ${low ? 'rest-urge' : ''}" id="rest">🔥 Rest instead<small>Heal ${offer.restHeal} HP (${game.player.hp}/${game.player.maxHp})</small></button>
   `);
   overlay.querySelectorAll<HTMLButtonElement>('.offer button').forEach((b) => {
     b.addEventListener('click', () => pickRelic(Number(b.dataset.i)));
   });
   on('#rest', () => pickRelic(-1));
+  on('#to-forge', () => {
+    game.hordeForge();
+    hideOverlay();
+    processEvents();
+  });
   choiceButtons().forEach((b, k) => b.addEventListener('mousemove', () => k !== choiceIndex && selectChoice(k)));
   // A button focused earlier (e.g. mute) would otherwise also react to Enter/Space.
   (document.activeElement as HTMLElement | null)?.blur();
@@ -1445,7 +1464,7 @@ function showForge() {
     <div class="offer event-offer">
       ${cards}
       ${!options.length && game.config.deep ? '<button class="fused" id="stoke"><span class="emoji">🔥</span><span><span class="name">Stoke the forge</span><span class="desc">Gain a random Abyss boon.</span></span></button>' : ''}
-      <button class="rare" id="leave"><span class="emoji">🚶</span><span><span class="name">${FEATURES.forge.leave}</span></span></button>
+      <button class="rare" id="leave"><span class="emoji">${game.config.surge ? '↩️' : '🚶'}</span><span><span class="name">${game.config.surge ? 'Back to the relics' : FEATURES.forge.leave}</span></span></button>
     </div>`);
   overlay.querySelectorAll<HTMLButtonElement>('.offer button[data-i]').forEach((b) => b.addEventListener('click', () => forgePick(Number(b.dataset.i))));
   on('#stoke', () => resolveEvent(true));
@@ -2433,7 +2452,7 @@ function startHorde() {
   challenge = null;
   storyRun = null;
   raidRun = null;
-  showGame(new Game('horde', hashSeed('horde', n), n, { hero: hordeHero(n), pool: fullPool(), mercy: true, boons: true }));
+  showGame(new Game('horde', hashSeed('horde', n), n, { hero: hordeHero(n), pool: fullPool(), mercy: true, boons: true, surge: true }));
   startClock();
   setMusicDepth(1);
   setMusicMood('crypt');

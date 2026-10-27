@@ -121,6 +121,8 @@ export type GameEvent =
   /** Horde: a wave pours in through the gates, or the last of one falls. */
   | { t: 'wave'; wave: number; boss: boolean }
   | { t: 'wavecleared'; wave: number; bonus: number }
+  /** Horde: the kill bar is full, and a relic (or the Soul Forge) is on offer. */
+  | { t: 'surge' }
   | { t: 'toll' }
   | { t: 'ring'; x: number; y: number }
   | { t: 'fuse'; id: FusedId; from: [RelicId, RelicId] }
@@ -210,6 +212,8 @@ export interface RunConfig {
   deep?: boolean;
   /** Death stands in his corner from a floor's first turn, waiting, rather than appearing later (log version 11 and later). */
   lurk?: boolean;
+  /** Horde: kills fill a bar, and a full bar brings a relic or the Soul Forge (log version 12 and later). */
+  surge?: boolean;
 }
 
 export interface StoryConfig {
@@ -319,6 +323,8 @@ const REAPER_LOG_VERSION = 9;
 const DEEP_LOG_VERSION = 10;
 /** Adds Death waiting in plain sight from a floor's first turn. */
 const LURK_LOG_VERSION = 11;
+/** Adds the Horde's kill-charged relic bar. */
+const SURGE_LOG_VERSION = 12;
 export const REAPER_FLOOR = 150;
 
 // ---------- Horde ----------
@@ -333,6 +339,10 @@ export const HORDE_GIFT_EVERY = 2;
 export const HORDE_DEATH_WAVE = 25;
 /** The highest score multiplier. */
 export const HORDE_MAX_MULT = 5;
+/** Kills to fill the bar the first time; each fill asks for a few more (up to the cap). */
+export const SURGE_FIRST = 6;
+export const SURGE_STEP = 3;
+export const SURGE_MAX = 30;
 /** Turns on a floor before Death rises: plenty at first, one fewer every 4 floors, none from floor 250. */
 export function reaperDelay(floor: number): number {
   return Math.max(0, 25 - Math.floor((floor - REAPER_FLOOR) / 4));
@@ -380,7 +390,7 @@ export class Game {
   turns = 0;
   killedBy = '';
   /** Horde: the wave under way, turns until the next, the score, and the run of turns with a kill. */
-  horde = { wave: 0, next: 2, score: 0, chain: 0, idle: 0, bestMult: 1, cleared: true };
+  horde = { wave: 0, next: 2, score: 0, chain: 0, idle: 0, bestMult: 1, cleared: true, charge: 0, need: SURGE_FIRST, level: 0 };
   /** Death, once he has risen on this floor (he can't be hurt), and the turns until he rises. */
   reaper: { x: number; y: number; frozen: number; waiting?: boolean } | null = null;
   reaperIn = 0;
@@ -533,6 +543,7 @@ export class Game {
   header(): string {
     const unlocked = UNLOCKABLE_RELICS.filter((id) => this.config.pool.includes(id));
     // Pools without any post-launch relic are logged as version 2 so they replay with the launch set.
+    if (this.config.surge) return `#${SURGE_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.lurk) return `#${LURK_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.deep) return `#${DEEP_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.reaper) return `#${REAPER_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
@@ -1168,7 +1179,7 @@ export class Game {
   }
 
   private makeOffer(): Offer {
-    const rng = mulberry32(hashSeed(this.seed, 'relic', this.floor));
+    const rng = mulberry32(this.config.surge ? hashSeed(this.seed, 'surge', this.horde.level) : hashSeed(this.seed, 'relic', this.floor));
     let pool = RELICS.filter((r) => this.config.pool.includes(r.id) && this.own(r.id) < r.maxStack);
     if (this.r('heretic')) {
       const dark = pool.filter((r) => r.rarity !== 'common');
@@ -1282,12 +1293,30 @@ export class Game {
     this.log += FORGE_KEYS[index];
     this.feature.used = true;
     this.phase = 'play';
+    if (this.config.surge) this.feature = null;
+  }
+
+  /** Horde: take the Soul Forge instead of a relic, when two relics you hold will fuse. */
+  hordeForge() {
+    if (this.phase !== 'choose' || !this.config.surge || !this.forgeOptions().length) return;
+    this.offer = null;
+    this.feature = { x: -9, y: -9, kind: 'forge', used: false };
+    this.phase = 'event';
+    this.log += 'z';
   }
 
   /** Accept or walk away from the floor event the player is standing on. */
   resolveEvent(accept: boolean) {
     if (this.phase !== 'event' || !this.feature) return;
     const f = this.feature;
+    // Horde: walking away from the forge goes back to the same relics.
+    if (this.config.surge && f.kind === 'forge' && !accept) {
+      this.feature = null;
+      this.offer = this.makeOffer();
+      this.phase = 'choose';
+      this.log += 'x';
+      return;
+    }
     const rng = mulberry32(hashSeed(this.seed, 'event', this.floor));
     // The forge fuses through forge(); accepting only stokes it, when there's nothing to fuse in a deep run.
     if (accept && f.kind === 'forge' && !(this.config.deep && !this.forgeOptions().length)) return;
@@ -1377,7 +1406,10 @@ export class Game {
     this.kills++;
     this.killsThisTurn++;
     if (this.boons.mend) this.heal(this.boons.mend);
-    if (this.mode === 'horde') this.horde.score += (isBoss(e) ? 250 : e.elite ? 30 : 10) * this.hordeMult();
+    if (this.mode === 'horde') {
+      this.horde.score += (isBoss(e) ? 250 : e.elite ? 30 : 10) * this.hordeMult();
+      if (this.config.surge) this.horde.charge += isBoss(e) ? 6 : e.elite ? 2 : 1;
+    }
     if (this.player.hp <= 3) this.stats.lowHpKills++;
     this.stats.kinds[e.kind] = (this.stats.kinds[e.kind] ?? 0) + 1;
     this.stats.maxKillsInTurn = Math.max(this.stats.maxKillsInTurn, this.killsThisTurn);
@@ -1666,11 +1698,21 @@ export class Game {
       // A potion after every second wave, somewhere in the arena.
       if (h.wave % 2 === 0 && !this.potion) this.potion = this.randomFreeTile(mulberry32(hashSeed(this.seed, 'horde-potion', h.wave)), 0);
       h.next = Math.min(h.next, 2);
-      if (h.wave % HORDE_GIFT_EVERY === 0) {
+      if (!this.config.surge && h.wave % HORDE_GIFT_EVERY === 0) {
         this.offer = this.makeOffer();
         this.phase = 'choose';
         return;
       }
+    }
+    // The bar is full: a relic, a boon, or the Soul Forge.
+    if (this.config.surge && h.charge >= h.need) {
+      h.charge -= h.need;
+      h.level++;
+      h.need = Math.min(SURGE_MAX, h.need + SURGE_STEP);
+      this.offer = this.makeOffer();
+      this.phase = 'choose';
+      this.events.push({ t: 'surge' });
+      return;
     }
     if (--h.next <= 0) this.spawnWave();
   }
@@ -2141,7 +2183,8 @@ export class Game {
     const reaper = Number(m[1]) >= REAPER_LOG_VERSION;
     const deep = Number(m[1]) >= DEEP_LOG_VERSION;
     const lurk = Number(m[1]) >= LURK_LOG_VERSION;
-    const config: RunConfig = { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy, ...(depths ? { depths } : {}), ...(boons ? { boons } : {}), ...(reaper ? { reaper } : {}), ...(deep ? { deep } : {}), ...(lurk ? { lurk } : {}) };
+    const surge = Number(m[1]) >= SURGE_LOG_VERSION;
+    const config: RunConfig = { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy, ...(depths ? { depths } : {}), ...(boons ? { boons } : {}), ...(reaper ? { reaper } : {}), ...(deep ? { deep } : {}), ...(lurk ? { lurk } : {}), ...(surge ? { surge } : {}) };
     let rest = full.slice(m[0].length);
     // Version 7 adds one field: the isle's extra max HP.
     const isle = Number(m[1]) >= ISLE_LOG_VERSION ? /^(\d+)\|/.exec(rest) : null;
@@ -2163,6 +2206,7 @@ export class Game {
       else if (ch === 'r') g.choose(-1);
       else if (ch === 'a' || ch === 'x') g.resolveEvent(ch === 'a');
       else if (FORGE_KEYS.includes(ch)) g.forge(FORGE_KEYS.indexOf(ch));
+      else if (ch === 'z') g.hordeForge();
       else g.choose(Number(ch));
     }
     g.events.length = 0;

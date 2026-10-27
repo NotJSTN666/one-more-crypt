@@ -3346,3 +3346,52 @@ body.tutorial #relic-bar {
   text-transform: uppercase;
   color: var(--muted);
 }
+
+/* Horde: the surge bar, filled by kills */
+#surge-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 4px;
+  font-family: var(--pixel);
+  font-size: 11px;
+  color: #9fe8ff;
+}
+
+#surge-bar[hidden] {
+  display: none;
+}
+
+.surge-track {
+  flex: 1;
+  height: 10px;
+  background: #0b0710;
+  border: 1px solid #3e8db5;
+  box-shadow: 0 0 8px rgba(95, 227, 255, 0.25);
+  overflow: hidden;
+}
+
+#surge-fill {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #3e8db5, #5fe3ff, #e8fbff);
+  box-shadow: 0 0 12px #5fe3ff;
+  transition: width 0.25s ease-out;
+}
+
+#surge-bar.near .surge-track {
+  animation: surge-glow 0.8s ease-in-out infinite;
+}
+
+@keyframes surge-glow {
+  50% { box-shadow: 0 0 16px rgba(95, 227, 255, 0.8); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #surge-bar.near .surge-track { animation: none; }
+}
+
+.btn.forge-pick {
+  border-color: #7fb4ff;
+  box-shadow: 0 0 10px rgba(127, 180, 255, 0.2);
+}
