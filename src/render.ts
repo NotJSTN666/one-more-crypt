@@ -275,6 +275,12 @@ export class Renderer {
         case 'potion':
           this.burstParticles(g.player.x, g.player.y, '#ff4d5a', 14);
           break;
+        case 'magnet':
+          // A streak from each pickup to the hero.
+          for (const f of ev.from) {
+            for (let i = 0; i <= 4; i++) this.burstParticles(f.x + ((ev.x - f.x) * i) / 4, f.y + ((ev.y - f.y) * i) / 4, '#c9a8ff', 2, 0.6);
+          }
+          break;
         case 'spark':
           this.burstParticles(ev.x, ev.y, '#5fe3ff', 14);
           this.floaters.push(this.floater(ev.x, ev.y, `+${HORDE_SPARK} SURGE`, '#5fe3ff', 0.9));

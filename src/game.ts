@@ -5,6 +5,7 @@
 import { ELITE_MODS, HERO_BY_ID, type EliteMod, type FeatureKind, type HeroId } from './content';
 import {
   ASCEND_FLOOR, ENDLESS_RELICS, FUSIONS, LEGACY_RELICS, RELICS, RELIC_BY_ID, RARITY_WEIGHT, UNLOCKABLE_RELICS, type FusedId, type FusionDef, type RelicDef, type RelicId, withFusions,
+  magnetRange,
 } from './relics';
 import { hashSeed, mulberry32, randInt, weightedPick, type Rng } from './rng';
 import { ZONES, zoneAt, type ZoneAt, type ZoneId } from './zones';
@@ -125,6 +126,7 @@ export type GameEvent =
   | { t: 'surge' }
   | { t: 'spark'; x: number; y: number }
   | { t: 'drop'; kind: FeatureKind }
+  | { t: 'magnet'; from: Pos[]; x: number; y: number }
   | { t: 'toll' }
   | { t: 'ring'; x: number; y: number }
   | { t: 'fuse'; id: FusedId; from: [RelicId, RelicId] }
@@ -218,6 +220,8 @@ export interface RunConfig {
   surge?: boolean;
   /** Horde: each wave counts as a new floor for relics, floor drops, and no Skeleton Key (log version 13 and later). */
   waves?: boolean;
+  /** Horde: the Grave Magnet can turn up (log version 14 and later). */
+  magnet?: boolean;
 }
 
 export interface StoryConfig {
@@ -238,7 +242,7 @@ export interface StoryConfig {
 /** Daily runs use every relic; Endless only the unlocked ones. */
 /** Every relic. `legacy` limits it to the launch set, for older runs and Daily #1. */
 export function fullPool(legacy = false): RelicId[] {
-  return RELICS.filter((r) => !r.endless && (!legacy || LEGACY_RELICS.includes(r.id))).map((r) => r.id);
+  return RELICS.filter((r) => !r.endless && !r.horde && (!legacy || LEGACY_RELICS.includes(r.id))).map((r) => r.id);
 }
 
 /** An Endless pool: the base relics plus the forbidden ones the player has unlocked. */
@@ -331,6 +335,8 @@ const LURK_LOG_VERSION = 11;
 const SURGE_LOG_VERSION = 12;
 /** Adds the Horde's per-wave relic effects and floor drops. */
 const WAVES_LOG_VERSION = 13;
+/** Adds the Horde-only Grave Magnet. */
+const MAGNET_LOG_VERSION = 14;
 export const REAPER_FLOOR = 150;
 
 // ---------- Horde ----------
@@ -562,6 +568,7 @@ export class Game {
   header(): string {
     const unlocked = UNLOCKABLE_RELICS.filter((id) => this.config.pool.includes(id));
     // Pools without any post-launch relic are logged as version 2 so they replay with the launch set.
+    if (this.config.magnet) return `#${MAGNET_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.waves) return `#${WAVES_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.surge) return `#${SURGE_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.lurk) return `#${LURK_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
@@ -1067,14 +1074,15 @@ export class Game {
     this.player.y = ty;
     this.playerEnters(tx, ty);
     if (this.isOver()) return true;
+    this.magnetPull(tx, ty);
     if (this.potion && this.potion.x === tx && this.potion.y === ty) {
       this.potion = null;
       this.events.push({ t: 'potion' });
       this.heal(POTION_HEAL + 2 * this.r('flask') + this.r('chalice'));
     }
-    const spark = this.sparks.findIndex((p) => p.x === tx && p.y === ty);
-    if (spark >= 0) {
-      this.sparks.splice(spark, 1);
+    for (let i = this.sparks.length - 1; i >= 0; i--) {
+      if (this.sparks[i].x !== tx || this.sparks[i].y !== ty) continue;
+      this.sparks.splice(i, 1);
       this.horde.charge += HORDE_SPARK;
       this.events.push({ t: 'spark', x: tx, y: ty });
     }
@@ -1201,7 +1209,8 @@ export class Game {
 
   /** Whether a relic can still turn up. The Horde has no chests worth a key. */
   private inPool(r: RelicDef): boolean {
-    return this.config.pool.includes(r.id) && this.own(r.id) < r.maxStack && !(this.config.waves && r.id === 'key');
+    const offered = r.horde ? Boolean(this.config.magnet) : this.config.pool.includes(r.id);
+    return offered && this.own(r.id) < r.maxStack && !(this.config.waves && r.id === 'key');
   }
 
   private randomRelic(rng: Rng, filter: (r: RelicDef) => boolean): RelicDef | null {
@@ -1761,6 +1770,29 @@ export class Game {
     if (--h.next <= 0) this.spawnWave();
   }
 
+  /** Grave Magnet: pickups within reach of where you step fly to you. */
+  private magnetPull(x: number, y: number) {
+    const reach = magnetRange(this.r('magnet'));
+    if (!reach) return;
+    const near = (p: Pos) => Math.abs(p.x - x) + Math.abs(p.y - y) <= reach && !(p.x === x && p.y === y);
+    const from: Pos[] = [];
+    if (this.potion && near(this.potion)) {
+      from.push(this.potion);
+      this.potion = { x, y };
+    }
+    this.sparks = this.sparks.map((p) => {
+      if (!near(p)) return p;
+      from.push(p);
+      return { x, y };
+    });
+    const f = this.feature;
+    if (f && !f.used && f.kind !== 'forge' && near(f)) {
+      from.push({ x: f.x, y: f.y });
+      this.feature = { ...f, x, y };
+    }
+    if (from.length) this.events.push({ t: 'magnet', from, x, y });
+  }
+
   /** Horde: now and then a held wave leaves a chest, shrine or fountain behind. */
   private hordeDrop() {
     if (this.feature && !this.feature.used) return;
@@ -2265,7 +2297,8 @@ export class Game {
     const lurk = Number(m[1]) >= LURK_LOG_VERSION;
     const surge = Number(m[1]) >= SURGE_LOG_VERSION;
     const waves = Number(m[1]) >= WAVES_LOG_VERSION;
-    const config: RunConfig = { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy, ...(depths ? { depths } : {}), ...(boons ? { boons } : {}), ...(reaper ? { reaper } : {}), ...(deep ? { deep } : {}), ...(lurk ? { lurk } : {}), ...(surge ? { surge } : {}), ...(waves ? { waves } : {}) };
+    const magnet = Number(m[1]) >= MAGNET_LOG_VERSION;
+    const config: RunConfig = { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy, ...(depths ? { depths } : {}), ...(boons ? { boons } : {}), ...(reaper ? { reaper } : {}), ...(deep ? { deep } : {}), ...(lurk ? { lurk } : {}), ...(surge ? { surge } : {}), ...(waves ? { waves } : {}), ...(magnet ? { magnet } : {}) };
     let rest = full.slice(m[0].length);
     // Version 7 adds one field: the isle's extra max HP.
     const isle = Number(m[1]) >= ISLE_LOG_VERSION ? /^(\d+)\|/.exec(rest) : null;

@@ -50,6 +50,8 @@ export type RelicId =
   | 'thunder'
   | 'leech'
   | 'glass'
+  // Horde-only
+  | 'magnet'
   // Fused at the Soul Forge, never offered
   | FusedId;
 
@@ -72,6 +74,8 @@ export interface RelicDef {
   desc: (n: number) => string;
   /** Only ever offered in Endless (once bought), so the daily crypt stays the same. */
   endless?: true;
+  /** Only ever offered in the Horde, so the other modes' offers stay the same. */
+  horde?: true;
 }
 
 export const RELICS: RelicDef[] = [
@@ -124,7 +128,14 @@ export const RELICS: RelicDef[] = [
   { id: 'thunder', name: 'Thunderhead', emoji: '🌩️', rarity: 'rare', maxStack: 2, endless: true, desc: (n) => `Every 5th turn, lightning strikes ${n * 2} random foes for 3 damage.` },
   { id: 'leech', name: 'Leech Ring', emoji: '💍', rarity: 'common', maxStack: 3, endless: true, desc: (n) => `Every 5th turn, heal ${n} HP.` },
   { id: 'glass', name: 'Glass Skull', emoji: '💀', rarity: 'cursed', maxStack: 1, endless: true, desc: () => `+4 attack, but your max HP is cut by a third.` },
+  // Horde-only. Kept out of every other pool.
+  { id: 'magnet', name: 'Grave Magnet', emoji: '🧲', rarity: 'common', maxStack: 3, horde: true, desc: (n) => `Potions, sparks, chests, shrines and fountains within ${magnetRange(n)} steps fly to you.` },
 ];
+
+/** How many steps away the Grave Magnet reaches with this many held. */
+export function magnetRange(n: number): number {
+  return n > 0 ? n + 1 : 0;
+}
 
 /** Relics that start locked in Endless and are bought in the Ossuary. */
 export const UNLOCKABLE_RELICS: RelicId[] = ['echo', 'necro', 'caltrops', 'key', 'mask', 'tome', 'wisp', 'doom', 'heretic', 'moon', 'headsman', 'grail', 'thunder', 'leech', 'glass'];

@@ -173,3 +173,49 @@ describe('Horde waves', () => {
     expect([again.horde.wave, again.horde.score, again.kills, again.player.hp, again.relicLog.join()]).toEqual([run.horde.wave, run.horde.score, run.kills, run.player.hp, run.relicLog.join()]);
   });
 });
+
+describe('Grave Magnet', () => {
+  const magnet = () => new Game('horde', 31, 15, { hero: 'barbarian', pool: fullPool(), mercy: true, boons: true, surge: true, waves: true, magnet: true });
+
+  it('is offered only in the Horde, from log version 14', () => {
+    expect(fullPool()).not.toContain('magnet');
+    const g = magnet();
+    expect(g.header()).toMatch(/^#14\|/);
+    expect(Game.parseLog(g.header() + 'W').config.magnet).toBe(true);
+    const inner = g as unknown as { makeOffer(): { relics: { id: string }[] } };
+    const seen = new Set<string>();
+    for (let level = 0; level < 80; level++) {
+      g.horde.level = level;
+      for (const r of inner.makeOffer().relics) seen.add(r.id);
+    }
+    expect(seen.has('magnet')).toBe(true);
+    const old = new Game('horde', 31, 15, { hero: 'barbarian', pool: fullPool(), mercy: true, boons: true, surge: true, waves: true });
+    const oldInner = old as unknown as { makeOffer(): { relics: { id: string }[] } };
+    for (let level = 0; level < 80; level++) {
+      old.horde.level = level;
+      expect(oldInner.makeOffer().relics.map((r) => r.id)).not.toContain('magnet');
+    }
+  });
+
+  it('pulls a potion, sparks and a chest within reach to where you step', () => {
+    const g = magnet();
+    g.addRelic('magnet' as never);
+    const p = g.player;
+    const startX = p.x;
+    g.player.hp = 5;
+    g.potion = { x: p.x + 3, y: p.y };
+    g.sparks.push({ x: p.x + 1, y: p.y - 2 });
+    g.sparks.push({ x: p.x - 4, y: p.y });
+    g.feature = { x: p.x + 1, y: p.y + 1, kind: 'chest', used: false };
+    const charge = g.horde.charge;
+    expect(g.act(1, 0)).toBe(true);
+    expect(g.player.x).toBe(startX + 1);
+    expect(g.potion).toBeNull();
+    expect(g.player.hp).toBeGreaterThan(5);
+    expect(g.horde.charge).toBe(charge + HORDE_SPARK);
+    // The far spark is out of reach.
+    expect(g.sparks).toEqual([{ x: startX - 4, y: g.player.y }]);
+    expect(g.phase).toBe('event');
+    expect(g.feature).toMatchObject({ x: g.player.x, y: g.player.y, kind: 'chest' });
+  });
+});
