@@ -85,7 +85,7 @@ export function isBoss(e: { kind: EnemyKind }): boolean {
 
 export type HitKind =
   | 'melee' | 'burn' | 'thorns' | 'bolt' | 'burst' | 'pierce' | 'whirl' | 'hellfire'
-  | 'spike' | 'mask' | 'ally' | 'claw';
+  | 'spike' | 'mask' | 'ally' | 'claw' | 'orbit' | 'dart';
 
 export type GameEvent =
   | { t: 'pattack'; dir: Pos }
@@ -101,6 +101,7 @@ export type GameEvent =
   | { t: 'block' }
   | { t: 'revive' }
   | { t: 'bolt'; from: Pos; to: Pos }
+  | { t: 'dart'; from: Pos; to: Pos; hit: boolean }
   | { t: 'burst'; x: number; y: number }
   | { t: 'shot'; from: Pos; to: Pos; hit: boolean }
   | { t: 'summon'; x: number; y: number }
@@ -224,6 +225,8 @@ export interface RunConfig {
   magnet?: boolean;
   /** Horde: the War Drum, Gravedigger's Spade and Reaper's Invitation can turn up (log version 15 and later). */
   armory?: boolean;
+  /** Horde: the Whirling Skulls and Bone Quiver can turn up (log version 16 and later). */
+  arsenal?: boolean;
 }
 
 /** Something the Grave Magnet pulled, and where from. */
@@ -346,6 +349,8 @@ const WAVES_LOG_VERSION = 13;
 const MAGNET_LOG_VERSION = 14;
 /** Adds the Horde-only War Drum, Gravedigger's Spade and Reaper's Invitation. */
 const ARMORY_LOG_VERSION = 15;
+/** Adds the Horde-only Whirling Skulls and Bone Quiver. */
+const ARSENAL_LOG_VERSION = 16;
 export const REAPER_FLOOR = 150;
 
 // ---------- Horde ----------
@@ -367,6 +372,19 @@ export const HORDE_MAX_MULT = 5;
 export const SURGE_FIRST = 4;
 export const SURGE_STEP = 2;
 export const SURGE_MAX = 30;
+/** Whirling Skulls: the ring two steps out, clockwise from the top left, and how hard and fast they sweep it. */
+export const ORBIT_RING: Pos[] = [
+  ...[-2, -1, 0, 1, 2].map((x) => ({ x, y: -2 })),
+  ...[-1, 0, 1, 2].map((y) => ({ x: 2, y })),
+  ...[1, 0, -1, -2].map((x) => ({ x, y: 2 })),
+  ...[1, 0, -1].map((y) => ({ x: -2, y })),
+];
+const ORBIT_SPEED = 2;
+const ORBIT_DMG = 2;
+/** Bone Quiver: every direction a dart can fly, its reach and its bite. */
+const ALL_DIRS: Pos[] = [{ x: 0, y: -1 }, { x: 1, y: -1 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }, { x: -1, y: 1 }, { x: -1, y: 0 }, { x: -1, y: -1 }];
+const DART_RANGE = 5;
+const DART_DMG = 2;
 /** Surge charge from a spark an elite or boss leaves behind. */
 export const HORDE_SPARK = 3;
 /** The chance a held wave leaves a chest, shrine or fountain in the arena. */
@@ -580,6 +598,7 @@ export class Game {
   header(): string {
     const unlocked = UNLOCKABLE_RELICS.filter((id) => this.config.pool.includes(id));
     // Pools without any post-launch relic are logged as version 2 so they replay with the launch set.
+    if (this.config.arsenal) return `#${ARSENAL_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.armory) return `#${ARMORY_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.magnet) return `#${MAGNET_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.waves) return `#${WAVES_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
@@ -1105,6 +1124,8 @@ export class Game {
       this.descend();
       return true;
     }
+    this.fireDarts();
+    if (this.isOver()) return true;
     // Rogue: every third step is taken unseen.
     this.steps++;
     if (this.hero === 'rogue' && this.steps % 3 === 0) {
@@ -1222,7 +1243,7 @@ export class Game {
 
   /** Whether a relic can still turn up. The Horde has no chests worth a key. */
   private inPool(r: RelicDef): boolean {
-    const hordeLevel = this.config.armory ? 15 : this.config.magnet ? 14 : 0;
+    const hordeLevel = this.config.arsenal ? 16 : this.config.armory ? 15 : this.config.magnet ? 14 : 0;
     const offered = r.horde ? hordeLevel >= r.horde : this.config.pool.includes(r.id);
     return offered && this.own(r.id) < r.maxStack && !(this.config.waves && r.id === 'key');
   }
@@ -1949,8 +1970,60 @@ export class Game {
     this.events.push({ t: 'death' });
   }
 
+  /** Where each Whirling Skull is on its ring: an index into ORBIT_RING, advanced every turn. */
+  orbitStep = 0;
+
+  /** The tiles the Whirling Skulls stand on now. */
+  orbitTiles(): Pos[] {
+    const n = this.r('orbit');
+    const out: Pos[] = [];
+    for (let i = 0; i < n; i++) {
+      const d = ORBIT_RING[(this.orbitStep + Math.round((i * ORBIT_RING.length) / n)) % ORBIT_RING.length];
+      out.push({ x: this.player.x + d.x, y: this.player.y + d.y });
+    }
+    return out;
+  }
+
+  /** Whirling Skulls: each sweeps two tiles round its ring, striking every foe it passes once. */
+  private sweepOrbit() {
+    const n = this.r('orbit');
+    if (!n) return;
+    const struck = new Set<Enemy>();
+    for (let step = 0; step < ORBIT_SPEED; step++) {
+      this.orbitStep = (this.orbitStep + 1) % ORBIT_RING.length;
+      for (const t of this.orbitTiles()) {
+        const foe = this.enemyAt(t.x, t.y);
+        if (!foe || struck.has(foe)) continue;
+        struck.add(foe);
+        this.damageEnemy(foe, ORBIT_DMG, 'orbit');
+      }
+    }
+  }
+
+  /** Bone Quiver: a dart in a random direction per relic, stopped by the first foe or wall. */
+  private fireDarts() {
+    const n = this.r('quiver');
+    for (let i = 0; i < n; i++) {
+      const d = ALL_DIRS[Math.floor(this.combat() * ALL_DIRS.length)];
+      const from = { x: this.player.x, y: this.player.y };
+      let to = from;
+      let foe: Enemy | undefined;
+      for (let k = 1; k <= DART_RANGE; k++) {
+        const x = from.x + d.x * k;
+        const y = from.y + d.y * k;
+        if (x < 0 || y < 0 || x >= W || y >= H || this.isWall(x, y)) break;
+        to = { x, y };
+        foe = this.enemyAt(x, y);
+        if (foe) break;
+      }
+      this.events.push({ t: 'dart', from, to, hit: Boolean(foe) });
+      if (foe) this.damageEnemy(foe, DART_DMG, 'dart');
+    }
+  }
+
   /** Relics that act on their own every turn. */
   private turnRelics() {
+    this.sweepOrbit();
     const wisp = this.r('wisp');
     if (wisp) {
       const targets = this.alive;
@@ -2340,7 +2413,8 @@ export class Game {
     const waves = Number(m[1]) >= WAVES_LOG_VERSION;
     const magnet = Number(m[1]) >= MAGNET_LOG_VERSION;
     const armory = Number(m[1]) >= ARMORY_LOG_VERSION;
-    const config: RunConfig = { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy, ...(depths ? { depths } : {}), ...(boons ? { boons } : {}), ...(reaper ? { reaper } : {}), ...(deep ? { deep } : {}), ...(lurk ? { lurk } : {}), ...(surge ? { surge } : {}), ...(waves ? { waves } : {}), ...(magnet ? { magnet } : {}), ...(armory ? { armory } : {}) };
+    const arsenal = Number(m[1]) >= ARSENAL_LOG_VERSION;
+    const config: RunConfig = { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy, ...(depths ? { depths } : {}), ...(boons ? { boons } : {}), ...(reaper ? { reaper } : {}), ...(deep ? { deep } : {}), ...(lurk ? { lurk } : {}), ...(surge ? { surge } : {}), ...(waves ? { waves } : {}), ...(magnet ? { magnet } : {}), ...(armory ? { armory } : {}), ...(arsenal ? { arsenal } : {}) };
     let rest = full.slice(m[0].length);
     // Version 7 adds one field: the isle's extra max HP.
     const isle = Number(m[1]) >= ISLE_LOG_VERSION ? /^(\d+)\|/.exec(rest) : null;

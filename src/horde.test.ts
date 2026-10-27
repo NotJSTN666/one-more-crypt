@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Game, HORDE_DEATH_WAVE, HORDE_GIFT_EVERY, HORDE_SPARK, INVITATION_DEATH_WAVE, SURGE_FIRST, SURGE_STEP, fullPool } from './game';
+import { Game, HORDE_DEATH_WAVE, HORDE_GIFT_EVERY, HORDE_SPARK, INVITATION_DEATH_WAVE, ORBIT_RING, SURGE_FIRST, SURGE_STEP, fullPool } from './game';
 import { mulberry32 } from './rng';
 import { hordeHero, dailyHero } from './content';
 
@@ -273,5 +273,66 @@ describe('Horde armory', () => {
     expect(g.hordeFeats()).toEqual([]);
     Object.assign(g.horde, { bestMult: 5, untouched: true, level: 10, deathWaves: 10, score: 60_000 });
     expect(g.hordeFeats()).toEqual(['hordeunbroken', 'hordeuntouched', 'hordeovercharged', 'hordedanced', 'horde10k', 'horde50k']);
+  });
+});
+
+describe('Horde arsenal', () => {
+  const arsenal = (seed = 51) => new Game('horde', seed, 15, { hero: 'barbarian', pool: fullPool(), mercy: true, boons: true, surge: true, waves: true, magnet: true, armory: true, arsenal: true });
+  type Inner = { makeOffer(): { relics: { id: string }[] }; enemies: { x: number; y: number; hp: number; dead: boolean; ally?: boolean }[] };
+
+  it('logs as version 16 and offers the skulls and quiver only from then', () => {
+    const g = arsenal();
+    expect(g.header()).toMatch(/^#16\|/);
+    expect(Game.parseLog(g.header() + 'W').config.arsenal).toBe(true);
+    const seen = new Set<string>();
+    for (let level = 0; level < 200; level++) {
+      g.horde.level = level;
+      for (const r of (g as unknown as Inner).makeOffer().relics) seen.add(r.id);
+    }
+    expect(seen.has('orbit') && seen.has('quiver')).toBe(true);
+  });
+
+  it('Whirling Skulls strike foes on the ring as they sweep round', () => {
+    expect(ORBIT_RING.length).toBe(16);
+    const g = arsenal();
+    g.act(0, 0);
+    g.act(0, 0);
+    g.addRelic('orbit' as never);
+    const ring = new Set(ORBIT_RING.map((d) => `${g.player.x + d.x},${g.player.y + d.y}`));
+    const before = g.horde.score + g.kills;
+    let hit = false;
+    for (let i = 0; i < 12 && g.phase === 'play'; i++) {
+      const onRing = g.alive.filter((e) => !e.ally && ring.has(`${e.x},${e.y}`)).map((e) => e.hp);
+      g.act(0, 0);
+      if (onRing.length && g.events.some((ev) => ev.t === 'hit' || ev.t === 'kill')) hit = true;
+    }
+    expect(g.orbitTiles().length).toBe(1);
+    expect(hit || g.horde.score + g.kills > before).toBe(true);
+  });
+
+  it('Bone Quiver fires a dart each step, and runs with both replay exactly', () => {
+    const g = arsenal();
+    g.addRelic('quiver' as never);
+    g.addRelic('quiver' as never);
+    g.events.length = 0;
+    const moved = g.act(1, 0) || g.act(-1, 0) || g.act(0, 1) || g.act(0, -1);
+    expect(moved).toBe(true);
+    expect(g.events.filter((e) => e.t === 'dart').length).toBe(2);
+    // Two identical runs with both relics must play out exactly the same.
+    const play = () => {
+      const run = arsenal(66);
+      run.addRelic('quiver' as never);
+      run.addRelic('orbit' as never);
+      const rng = mulberry32(4);
+      for (let s = 0; s < 2000 && run.phase !== 'dead'; s++) {
+        if (run.phase === 'choose') run.choose(0);
+        else if (run.phase === 'event') run.resolveEvent(true);
+        else run.act(...(DIRS[Math.floor(rng() * 4)] ?? [0, 0]));
+      }
+      return [run.horde.wave, run.horde.score, run.kills, run.turns, run.log];
+    };
+    const a = play();
+    expect(a[2]).toBeGreaterThan(0);
+    expect(play()).toEqual(a);
   });
 });

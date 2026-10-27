@@ -55,6 +55,8 @@ export type RelicId =
   | 'drum'
   | 'spade'
   | 'invitation'
+  | 'orbit'
+  | 'quiver'
   // Fused at the Soul Forge, never offered
   | FusedId;
 
@@ -78,7 +80,7 @@ export interface RelicDef {
   /** Only ever offered in Endless (once bought), so the daily crypt stays the same. */
   endless?: true;
   /** Only ever offered in the Horde, from this log version on, so the other modes' offers stay the same. */
-  horde?: 14 | 15;
+  horde?: 14 | 15 | 16;
 }
 
 export const RELICS: RelicDef[] = [
@@ -136,6 +138,8 @@ export const RELICS: RelicDef[] = [
   { id: 'drum', name: 'War Drum', emoji: '🥁', rarity: 'rare', maxStack: 1, horde: 15, desc: () => `Your score multiplier goes up to ×6, and your kill chain survives two quiet turns.` },
   { id: 'spade', name: "Gravedigger's Spade", emoji: '⛏️', rarity: 'rare', maxStack: 1, horde: 15, desc: () => `Every wave you hold leaves a chest, shrine or fountain behind.` },
   { id: 'invitation', name: "Reaper's Invitation", emoji: '💌', rarity: 'cursed', maxStack: 1, horde: 15, desc: () => `Death joins at wave 15 instead of 25, but every point you score is worth 1.5×.` },
+  { id: 'orbit', name: 'Whirling Skulls', emoji: '☠️', rarity: 'rare', maxStack: 3, horde: 16, desc: (n) => `${n === 1 ? 'A skull circles' : `${n} skulls circle`} you two steps out, striking each foe ${n === 1 ? 'it sweeps' : 'they sweep'} through for 2 damage.` },
+  { id: 'quiver', name: 'Bone Quiver', emoji: '🏹', rarity: 'common', maxStack: 3, horde: 16, desc: (n) => `Every step fires ${n === 1 ? 'a bone dart' : `${n} bone darts`} in random directions, each dealing 2 damage to the first foe within 5 steps.` },
 ];
 
 /** How many steps away the Grave Magnet reaches with this many held. */

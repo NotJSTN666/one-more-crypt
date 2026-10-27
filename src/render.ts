@@ -3,7 +3,7 @@
 
 import { drawAura as drawAuraFx } from './aura';
 import { ELITES, type HeroId } from './content';
-import { ENEMY_INFO, Game, H, HORDE_SPARK, W, isBoss, type EnemyKind, type GameEvent, type MagnetPull, type Pos } from './game';
+import { ENEMY_INFO, Game, H, HORDE_SPARK, ORBIT_RING, W, isBoss, type EnemyKind, type GameEvent, type MagnetPull, type Pos } from './game';
 import { hashSeed, mulberry32 } from './rng';
 import { heroSprite, relicColor } from './hero';
 import { LOOK_BY_ID, type Outfit } from './progression';
@@ -75,6 +75,11 @@ export class Renderer {
   private particles: Particle[] = [];
   /** Pickups the Grave Magnet is pulling in, flying from where they lay to the hero. */
   private flying: { kind: MagnetPull['kind']; x0: number; y0: number; x1: number; y1: number; t: number }[] = [];
+
+  /** Bone Quiver darts in flight. */
+  private darts: { x0: number; y0: number; x1: number; y1: number; t: number; hit: boolean }[] = [];
+  /** Where the Whirling Skulls are drawn on their ring, catching up with the game's step. */
+  private orbitShown = 0;
 
   /** Milliseconds until every pickup the magnet is pulling has landed. */
   pullingMs(): number {
@@ -161,6 +166,7 @@ export class Renderer {
           this.remain.clear();
           this.corpses = [];
           this.flying = [];
+          this.darts = [];
           this.lines = [];
           this.floaters = [];
           {
@@ -271,6 +277,9 @@ export class Renderer {
           break;
         case 'bolt':
           this.lines.push({ from: ev.from, to: ev.to, t: 0, life: 0.25, color: '#9fe8ff' });
+          break;
+        case 'dart':
+          this.darts.push({ x0: ev.from.x, y0: ev.from.y, x1: ev.to.x, y1: ev.to.y, t: 0, hit: ev.hit });
           break;
         case 'shot':
           this.lines.push({ from: ev.from, to: ev.to, t: 0, life: 0.18, color: '#e8dcc4' });
@@ -561,6 +570,8 @@ export class Renderer {
 
     this.drawLines(dt);
     this.drawRings(dt);
+    this.drawOrbit(g, dt);
+    this.drawDarts(dt);
     this.drawFlying(dt);
     this.drawParticles(dt);
     this.drawMotes(dt);
@@ -867,6 +878,79 @@ export class Renderer {
     }
     ctx.fillStyle = '#e8fbff';
     ctx.fillRect(Math.round(cx) - 1, Math.round(cy) - 2, 1, 2);
+  }
+
+  /** Whirling Skulls: bone skulls with a violet glow, gliding round the hero two steps out. */
+  private drawOrbit(g: Game, dt: number) {
+    const n = g.r('orbit');
+    if (!n) return;
+    const ring = ORBIT_RING.length;
+    // Glide toward the game's step, the short way round.
+    const behind = (g.orbitStep - this.orbitShown + ring) % ring;
+    this.orbitShown = behind < 0.02 ? g.orbitStep : (this.orbitShown + Math.min(behind, dt * 9)) % ring;
+    const hero = this.disp.get(PLAYER_ID) ?? g.player;
+    const ctx = this.ctx;
+    for (let i = 0; i < n; i++) {
+      const at = (this.orbitShown + Math.round((i * ring) / n)) % ring;
+      const a = ORBIT_RING[Math.floor(at)];
+      const b = ORBIT_RING[(Math.floor(at) + 1) % ring];
+      const f = at - Math.floor(at);
+      // Round the ring off into a circle so it reads as swirling.
+      const ang = (p: Pos) => Math.atan2(p.y, p.x);
+      let a0 = ang(a);
+      let a1 = ang(b);
+      if (a1 < a0 - Math.PI) a1 += Math.PI * 2;
+      if (a0 < a1 - Math.PI) a0 += Math.PI * 2;
+      const angle = a0 + (a1 - a0) * f;
+      const r = 2.15 + 0.1 * Math.sin(this.time * 6 + i);
+      const cx = (hero.x + Math.cos(angle) * r) * TILE + TILE / 2;
+      const cy = (hero.y + Math.sin(angle) * r) * TILE + TILE / 2;
+      const glow = ctx.createRadialGradient(cx, cy, 1, cx, cy, TILE * 0.7);
+      glow.addColorStop(0, 'rgba(176, 124, 255, 0.55)');
+      glow.addColorStop(1, 'rgba(176, 124, 255, 0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(cx - TILE, cy - TILE, TILE * 2, TILE * 2);
+      const x = Math.round(cx) - 3;
+      const y = Math.round(cy) - 3;
+      ctx.fillStyle = '#e8dcc4';
+      ctx.fillRect(x + 1, y, 5, 1);
+      ctx.fillRect(x, y + 1, 7, 3);
+      ctx.fillRect(x + 1, y + 4, 5, 1);
+      ctx.fillRect(x + 2, y + 5, 3, 1);
+      ctx.fillStyle = '#2a1640';
+      ctx.fillRect(x + 1, y + 2, 2, 2);
+      ctx.fillRect(x + 4, y + 2, 2, 2);
+      ctx.fillStyle = '#b07cff';
+      ctx.fillRect(x + 2, y + 2, 1, 1);
+      ctx.fillRect(x + 5, y + 2, 1, 1);
+      if (Math.random() < dt * 14) {
+        this.particles.push({ x: cx + (Math.random() - 0.5) * 4, y: cy + (Math.random() - 0.5) * 4, vx: 0, vy: -4, color: Math.random() < 0.5 ? '#b07cff' : '#d3b0ff', t: 0, life: 0.45, size: 1 });
+      }
+    }
+  }
+
+  /** Bone Quiver: a pale dart streaking out, splintering on whatever stops it. */
+  private drawDarts(dt: number) {
+    const ctx = this.ctx;
+    for (const d of this.darts) {
+      const len = Math.max(1, Math.abs(d.x1 - d.x0), Math.abs(d.y1 - d.y0));
+      d.t = Math.min(1, d.t + dt / (0.07 * len + 0.06));
+      const x = (d.x0 + (d.x1 - d.x0) * d.t) * TILE + TILE / 2;
+      const y = (d.y0 + (d.y1 - d.y0) * d.t) * TILE + TILE / 2;
+      const dx = Math.sign(d.x1 - d.x0);
+      const dy = Math.sign(d.y1 - d.y0);
+      // A fading trail, then the shaft and a bright tip.
+      for (let k = 1; k <= 7; k++) {
+        ctx.fillStyle = `rgba(232, 220, 196, ${0.5 - k * 0.06})`;
+        ctx.fillRect(Math.round(x - dx * k * 2) - 1, Math.round(y - dy * k * 2) - 1, 2, 2);
+      }
+      ctx.fillStyle = '#e8dcc4';
+      ctx.fillRect(Math.round(x) - 1, Math.round(y) - 1, 3, 3);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(Math.round(x + dx * 2), Math.round(y + dy * 2), 2, 2);
+      if (d.t >= 1) this.burstParticles(d.x1, d.y1, d.hit ? '#e8dcc4' : '#8a7f9a', d.hit ? 10 : 4, d.hit ? 1.2 : 0.6);
+    }
+    this.darts = this.darts.filter((d) => d.t < 1);
   }
 
   /** Grave Magnet pulls: each pickup speeds up as it nears the hero, trailing light, then pops. */
