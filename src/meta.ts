@@ -353,6 +353,8 @@ export const DEPTHS_DAILY = 6;
 export const BOONS_DAILY = 12;
 /** Death comes for deep runs from this Daily (the day after it was announced), and in every new Endless run. */
 export const REAPER_DAILY = 14;
+/** The deep boons and boon-filled vaults reach the Daily from this one (the day after they were added). */
+export const DEEP_DAILY = 15;
 
 /** The daily crypt is identical for everyone; Endless uses your hero and unlocks. */
 export function runConfig(mode: Mode, dailyNo: number): RunConfig {
@@ -363,10 +365,11 @@ export function runConfig(mode: Mode, dailyNo: number): RunConfig {
     if (dailyNo >= DEPTHS_DAILY) config.depths = true;
     if (dailyNo >= BOONS_DAILY) config.boons = true;
     if (dailyNo >= REAPER_DAILY) config.reaper = true;
+    if (dailyNo >= DEEP_DAILY) config.deep = true;
     return config;
   }
   const hero = heroUnlocked(meta.hero) ? meta.hero : 'knight';
-  const config: RunConfig = { hero, pool: basePool(meta.relics.filter((id) => UNLOCKABLE_RELICS.includes(id))), forge: true, mercy: true, depths: true, boons: true, reaper: true };
+  const config: RunConfig = { hero, pool: basePool(meta.relics.filter((id) => UNLOCKABLE_RELICS.includes(id))), forge: true, mercy: true, depths: true, boons: true, reaper: true, deep: true };
   // The isle's buildings help in Endless (never the Daily).
   const { vigor } = islePerks(meta.isle);
   if (vigor) config.vigor = vigor;

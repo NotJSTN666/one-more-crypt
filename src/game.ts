@@ -143,7 +143,7 @@ export interface Offer {
 // Deep in Endless every relic runs out. From then on the offer fills its empty places
 // with boons: small upgrades that can be taken again and again (some up to a limit).
 
-export type BoonId = 'edge' | 'ward' | 'veil' | 'candle' | 'tithe';
+export type BoonId = 'edge' | 'ward' | 'veil' | 'candle' | 'tithe' | 'vigor' | 'mend' | 'dusk';
 
 export interface BoonDef {
   id: BoonId;
@@ -152,6 +152,8 @@ export interface BoonDef {
   /** How many times it can be taken; 0 for no limit. */
   max: number;
   desc: string;
+  /** Only in runs with the deep boons (log version 10 and later). */
+  deep?: boolean;
 }
 
 export const BOONS: BoonDef[] = [
@@ -160,6 +162,10 @@ export const BOONS: BoonDef[] = [
   { id: 'veil', name: 'Shade Step', emoji: '🌫️', max: 5, desc: '+5% chance to dodge attacks (up to 60% in all).' },
   { id: 'candle', name: 'Grave Candle', emoji: '🕯️', max: 2, desc: 'Survive one more killing blow this run, at 1 HP.' },
   { id: 'tithe', name: 'Soul Tithe', emoji: '💀', max: 0, desc: '+25 Souls when this run ends.' },
+  // The deep boons: more to choose between once the relics are long gone.
+  { id: 'vigor', name: 'Grave Vigor', emoji: '❤️', max: 10, desc: '+2 max HP, and heal 2.', deep: true },
+  { id: 'mend', name: 'Bloodmend', emoji: '🩸', max: 2, desc: 'Heal 1 HP for every foe you slay.', deep: true },
+  { id: 'dusk', name: 'Grave Dusk', emoji: '🌘', max: 3, desc: 'Death rises 3 turns later on every floor.', deep: true },
 ];
 
 export const BOON_BY_ID = Object.fromEntries(BOONS.map((b) => [b.id, b])) as Record<BoonId, BoonDef>;
@@ -197,6 +203,8 @@ export interface RunConfig {
   boons?: boolean;
   /** Death comes for you from REAPER_FLOOR on (log version 9 and later). */
   reaper?: boolean;
+  /** The deep boons, and vaults that hold boons once the relics run out (log version 10 and later). */
+  deep?: boolean;
 }
 
 export interface StoryConfig {
@@ -302,6 +310,8 @@ const ISLE_LOG_VERSION = 7;
 const BOONS_LOG_VERSION = 8;
 /** Adds Death: from REAPER_FLOOR he rises on every floor and hunts you through the walls. */
 const REAPER_LOG_VERSION = 9;
+/** Adds the deep boons, and vaults that hold boons once there are no relics left. */
+const DEEP_LOG_VERSION = 10;
 export const REAPER_FLOOR = 150;
 /** Turns on a floor before Death rises: plenty at first, one fewer every 4 floors, none from floor 250. */
 export function reaperDelay(floor: number): number {
@@ -341,7 +351,7 @@ export class Game {
   /** Relics in the order taken, for the share card. */
   relicLog: RelicId[] = [];
   /** Abyss boons taken, by kind. */
-  boons: Record<BoonId, number> = { edge: 0, ward: 0, veil: 0, candle: 0, tithe: 0 };
+  boons: Record<BoonId, number> = { edge: 0, ward: 0, veil: 0, candle: 0, tithe: 0, vigor: 0, mend: 0, dusk: 0 };
   /** Grave Candles already burnt. */
   private candlesUsed = 0;
   phase: Phase = 'play';
@@ -498,6 +508,7 @@ export class Game {
   header(): string {
     const unlocked = UNLOCKABLE_RELICS.filter((id) => this.config.pool.includes(id));
     // Pools without any post-launch relic are logged as version 2 so they replay with the launch set.
+    if (this.config.deep) return `#${DEEP_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.reaper) return `#${REAPER_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.boons) return `#${BOONS_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.vigor) return `#${ISLE_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor}|`;
@@ -510,7 +521,7 @@ export class Game {
   private enterFloor(floor: number) {
     this.floor = floor;
     this.reaper = null;
-    this.reaperIn = this.reaperDue() ? reaperDelay(floor) : 0;
+    this.reaperIn = this.reaperDue() ? reaperDelay(floor) + 3 * this.boons.dusk : 0;
     if (this.reaperDue()) this.events.push({ t: 'reaper', turns: this.reaperIn });
     const rng = mulberry32(hashSeed(this.seed, 'floor', floor));
     this.generateLayout(rng);
@@ -803,6 +814,13 @@ export class Game {
     const rng = mulberry32(hashSeed(this.seed, 'vault', this.floor));
     const relic = this.randomRelic(rng, (r) => r.rarity === 'rare') ?? this.randomRelic(rng, (r) => r.rarity === 'common');
     if (relic) this.addRelic(relic.id);
+    // No relics left to find: the vault holds two boons instead.
+    else if (this.config.deep) {
+      for (let i = 0; i < 2; i++) {
+        const open = this.openBoons();
+        if (open.length) this.takeBoon(open[Math.floor(rng() * open.length)]);
+      }
+    }
     this.heal(POTION_HEAL);
     this.stats.vaults++;
   }
@@ -1143,7 +1161,7 @@ export class Game {
     // Out of relics: the empty places go to Abyss boons.
     const boons: BoonId[] = [];
     if (this.config.boons && picks.length < 3) {
-      const open = BOONS.filter((b) => !b.max || this.boons[b.id] < b.max).map((b) => b.id);
+      const open = this.openBoons();
       while (picks.length + boons.length < 3 && open.length) boons.push(open.splice(Math.floor(rng() * open.length), 1)[0]);
     }
     return { relics: picks, boons, restHeal: this.r('grail') ? this.player.maxHp : REST_HEAL + 2 * this.r('chalice') };
@@ -1170,7 +1188,16 @@ export class Game {
 
   private takeBoon(id: BoonId) {
     this.boons[id]++;
+    if (id === 'vigor') {
+      this.player.maxHp += 2;
+      this.heal(2);
+    }
     this.events.push({ t: 'boon', id });
+  }
+
+  /** Boons that can still be taken in this run (the deep ones only from log version 10, Grave Dusk only with Death). */
+  private openBoons(): BoonId[] {
+    return BOONS.filter((b) => (!b.deep || (this.config.deep && (b.id !== 'dusk' || this.config.reaper))) && (!b.max || this.boons[b.id] < b.max)).map((b) => b.id);
   }
 
   /** Whether the current floor event's offer can be taken. */
@@ -1307,6 +1334,7 @@ export class Game {
 
     this.kills++;
     this.killsThisTurn++;
+    if (this.boons.mend) this.heal(this.boons.mend);
     if (this.player.hp <= 3) this.stats.lowHpKills++;
     this.stats.kinds[e.kind] = (this.stats.kinds[e.kind] ?? 0) + 1;
     this.stats.maxKillsInTurn = Math.max(this.stats.maxKillsInTurn, this.killsThisTurn);
@@ -1947,7 +1975,8 @@ export class Game {
     const depths = Number(m[1]) >= DEPTHS_LOG_VERSION;
     const boons = Number(m[1]) >= BOONS_LOG_VERSION;
     const reaper = Number(m[1]) >= REAPER_LOG_VERSION;
-    const config: RunConfig = { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy, ...(depths ? { depths } : {}), ...(boons ? { boons } : {}), ...(reaper ? { reaper } : {}) };
+    const deep = Number(m[1]) >= DEEP_LOG_VERSION;
+    const config: RunConfig = { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy, ...(depths ? { depths } : {}), ...(boons ? { boons } : {}), ...(reaper ? { reaper } : {}), ...(deep ? { deep } : {}) };
     let rest = full.slice(m[0].length);
     // Version 7 adds one field: the isle's extra max HP.
     const isle = Number(m[1]) >= ISLE_LOG_VERSION ? /^(\d+)\|/.exec(rest) : null;

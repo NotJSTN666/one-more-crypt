@@ -1262,7 +1262,8 @@ function showHelp(back: () => void) {
       <li>Every 20 floors the crypt becomes somewhere new, with its own ground and foes. In the <b>Flooded Catacombs</b>, foes wading through water lose every other turn. In the <b>Charnel Halls</b>, bone piles block the way: bump one to smash it, and some hide a potion. In the <b>Burning Depths</b>, lava burns anything that walks in, so lure foes into it. The <b>Abyss</b> is dark: you only see what's near you.</li>
       <li>From <b>floor 150</b>, <b>Death</b> comes for you. A few turns into each floor he rises in the far corner and walks straight at you, through walls. Nothing stops his touch: no shield, dodge or second life. Clear the floor and take the stairs before he reaches you. He rises sooner the deeper you go. The Bell-Ringer's toll and the Stopped Hourglass hold him still for a turn.</li>
       <li><b>Glowing foes</b> are elites, with a trait of their own (the tip under the map says which). They're worth extra Souls.</li>
-      <li>Some walls are <b>cracked</b>. Bump one twice to find a secret vault.</li>
+      <li>Some walls are <b>cracked</b>. Bump one twice to find a secret vault: a rare relic and a heal, or two Abyss boons once the relics run out.</li>
+      <li>Deep in Endless every relic runs out. From then on, offers hold <b>Abyss boons</b>: more attack, shields, dodge, extra lives, max HP, healing on kills, and more time before Death rises.</li>
       <li><b>Spikes</b> hurt anything that steps on them, foes included.</li>
       <li>Every run earns <b>Souls</b>. Spend them in the <b>Ossuary</b> on new heroes, relics and cosmetics.</li>
       <li><b>Enter the Hollow</b> to walk the graveyard: every building is a way in (the daily, Endless, the Ossuary, your Hall, the Wardrobe), and the old graves hold stories.</li>
