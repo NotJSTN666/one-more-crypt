@@ -496,7 +496,12 @@ export class Game {
   get zone(): ZoneAt {
     const look = this.config.story?.look;
     if (look) return { def: ZONES[look], tier: 1, start: this.config.story!.start, title: ZONES[look].name };
-    return zoneAt(this.floor);
+    return zoneAt(this.lookFloor);
+  }
+
+  /** The floor the arena looks like. The Horde stays in one room while its foes grow tougher. */
+  get lookFloor(): number {
+    return this.mode === 'horde' ? 1 : this.floor;
   }
 
   isSpike(x: number, y: number): boolean {

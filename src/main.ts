@@ -749,7 +749,10 @@ function updateHud(reset = false) {
     $('surge-label').textContent = `⚡ ${Math.min(h.charge, h.need)}/${h.need}`;
   }
   // In the Horde the floor counter shows the wave.
-  $('floor').textContent = String(game.mode === 'horde' ? game.horde.wave : game.floor);
+  const horde = game.mode === 'horde';
+  $('floor').textContent = String(horde ? game.horde.wave : game.floor);
+  $('floor-icon').textContent = horde ? 'Wave' : '⛧';
+  $('floor-stat').title = horde ? 'Wave' : 'Floor';
   $('atk').textContent = String(game.atk);
   $('kills').textContent = String(game.kills);
 

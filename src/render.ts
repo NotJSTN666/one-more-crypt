@@ -153,7 +153,8 @@ export class Renderer {
           {
             const boss = g.enemies.find((e) => isBoss(e));
             const title = boss ? ENEMY_INFO[boss.kind].name.replace(/^The /, '').toUpperCase() : `FLOOR ${ev.floor}`;
-            this.floaters.push(this.floater(3, 3, title, '#f2c14e', 1.6));
+            // The Horde has its own title card and wave banners.
+            if (g.mode !== 'horde') this.floaters.push(this.floater(3, 3, title, '#f2c14e', 1.6));
             // Crossing into a new depth zone gets its name across the board.
             const zone = zoneAt(ev.floor);
             if (zone.start === ev.floor && ev.floor > 1) {
@@ -456,7 +457,7 @@ export class Renderer {
     const dt = this.hitStop > 0 ? 0 : realDt;
     this.hitStop = Math.max(0, this.hitStop - realDt);
     this.time += dt;
-    const bgKey = `${g.seed}:${g.floor}:${g.terrain}:${this.bgEpoch}`;
+    const bgKey = `${g.seed}:${g.lookFloor}:${g.terrain}:${this.bgEpoch}`;
     if (this.bgKey !== bgKey) {
       this.bg = this.buildBackground(g);
       this.bgKey = bgKey;
@@ -1096,7 +1097,7 @@ export class Renderer {
     c.width = BOARD_W;
     c.height = BOARD_H;
     const ctx = c.getContext('2d')!;
-    const rng = mulberry32(hashSeed(g.seed, 'decor', g.floor));
+    const rng = mulberry32(hashSeed(g.seed, 'decor', g.lookFloor));
     this.candles = [];
     const boss = g.isBossFloor();
     const zone = zoneLook(g.zone);
@@ -1236,7 +1237,7 @@ export class Renderer {
     const look = deepLook(g.zone);
     if (!look) return;
     // Its own random stream, so the first pass's decoration stays exactly as it was.
-    const rng = mulberry32(hashSeed(g.seed, 'deeplook', g.floor));
+    const rng = mulberry32(hashSeed(g.seed, 'deeplook', g.lookFloor));
     const px1 = (x: number, y: number, c: string, a = 1) => {
       ctx.globalAlpha = a;
       ctx.fillStyle = c;
