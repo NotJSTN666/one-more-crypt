@@ -13,6 +13,8 @@ import {
   dailyStanding,
   endlessWeekPlace,
   dailyBoard,
+  hordeBoard,
+  type HordeRow,
   endlessBoard,
   type EndlessPeriod,
   linkEmail,
@@ -745,7 +747,7 @@ function statGrid(s: Stats): string {
 
 // ---------- leaderboards ----------
 
-type Tab = 'today' | 'yesterday' | 'endless';
+type Tab = 'today' | 'yesterday' | 'endless' | 'horde';
 
 /** Rows shown at first, and after tapping Show more. */
 const BOARD_FIRST = 25;
@@ -763,6 +765,7 @@ export function showLeaderboard(back: () => void, tab: Tab = 'today', limit = BO
     ['today', `Daily #${today}`],
     ['yesterday', `#${today - 1}`],
     ['endless', 'Endless'],
+    ['horde', '🛡️ Horde'],
   ];
   showOverlay('board', `
     <button class="back-top" id="back-top" aria-label="Back">← Back</button>
@@ -780,7 +783,7 @@ export function showLeaderboard(back: () => void, tab: Tab = 'today', limit = BO
           ).join('')}</div>`
         : ''
     }
-    <p class="fine">${tab === 'endless' && period !== 'all' ? `Best endless run ${period === 'week' ? 'since Monday' : 'since midnight'} (Central Time). ` : ''}Tap a name to visit their Crypt Hall.</p>
+    <p class="fine">${tab === 'horde' ? `Today's Horde #${today}: everyone's best score. ` : ''}${tab === 'endless' && period !== 'all' ? `Best endless run ${period === 'week' ? 'since Monday' : 'since midnight'} (Central Time). ` : ''}Tap a name to visit their Crypt Hall.</p>
     <div id="board-body" class="board"><p class="sub">Summoning the dead…</p></div>
     ${signedIn() ? '' : '<button class="btn" id="join">Claim a name to join</button>'}
     <button class="btn primary" id="back">Back</button>`);
@@ -795,6 +798,22 @@ export function showLeaderboard(back: () => void, tab: Tab = 'today', limit = BO
   on('#join', () => showLogin(() => showLeaderboard(back, tab, BOARD_FIRST, period)));
 
   const uid = session.account?.id ?? null;
+  if (tab === 'horde') {
+    void hordeBoard(today)
+      .then((rows) => {
+        const body = document.getElementById('board-body');
+        if (screen !== 'board' || !body) return;
+        body.innerHTML = hordeBoardHtml(rows ?? []);
+        body.querySelectorAll<HTMLElement>('[data-hall]').forEach((li) =>
+          li.addEventListener('click', () => showPublicHall(li.dataset.hall!, () => showLeaderboard(back, 'horde'))),
+        );
+      })
+      .catch(() => {
+        const body = document.getElementById('board-body');
+        if (body) body.innerHTML = '<p class="sub">Could not reach the board. Try again in a moment.</p>';
+      });
+    return;
+  }
   const fill = (n: number) => {
     const load: Promise<Board> =
       tab === 'endless' ? endlessBoard(uid, n, period) : dailyBoard(tab === 'today' ? today : today - 1, uid, n);
@@ -836,6 +855,25 @@ function boardPortrait(r: BoardRow): string {
     portraits.set(key, url);
   }
   return url;
+}
+
+/** Today's Horde: each player's best score, with the wave it reached. */
+function hordeBoardHtml(rows: HordeRow[]): string {
+  if (!rows.length) return '<p class="sub">Nobody has held the crypt yet today. Be the first.</p>';
+  const me = playerName();
+  return `
+    <p class="sub">${rows.length} ${rows.length === 1 ? 'defender' : 'defenders'} on the board</p>
+    <ol>${rows
+      .map((r, i) => {
+        const hero = (HERO_BY_ID[r.hero as HeroId] ? r.hero : 'knight') as HeroId;
+        return `<li class="${r.name === me ? 'me' : ''}" data-hall="${esc(r.name)}" tabindex="0" title="Visit ${esc(r.name)}'s Hall">
+          <span class="rank">${i < 3 ? ['🥇', '🥈', '🥉'][i] : `#${i + 1}`}</span>
+          <img class="board-hero" src="${heroPortrait(hero, {}, [], 2)}" alt="" width="24" height="24" />
+          <span class="who">${esc(r.name)}<small>${esc(HERO_BY_ID[hero].name)}</small></span>
+          <span class="depth">${r.score.toLocaleString()}<small>wave ${r.wave} · ${r.kills} kills</small></span>
+        </li>`;
+      })
+      .join('')}</ol>`;
 }
 
 function boardHtml(b: Board, uid: string | null, tab: Tab, canShowMore: boolean, champs: Set<string>, period: EndlessPeriod = 'all'): string {
