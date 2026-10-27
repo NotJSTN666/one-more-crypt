@@ -1,10 +1,10 @@
 import './style.css';
 import { audioRunning, fusionSound, isMusicEnabled, isMuted, onAudioState, setMusicDepth, setMusicEnabled, setMusicMood, setMuted, sfx, unlockAudio } from './audio';
 import { dailyNumber, formatCountdown, msUntilNextDaily } from './daily';
-import { ELITES, FEATURES, HERO_BY_ID, dailyHero, type ComboDef, type HeroId } from './content';
+import { ELITES, FEATURES, HERO_BY_ID, dailyHero, hordeHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait } from './hero';
 import { BOON_BY_ID, ENEMY_INFO, REAPER_FLOOR, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode } from './game';
-import { acceptQuest, checkRun, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, type RunReward } from './meta';
+import { acceptQuest, checkRun, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, finishHordeMeta, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
@@ -14,7 +14,7 @@ import { Renderer } from './render';
 import { resetCanvases, sprites } from './sprites';
 import { RAID_JOIN_MIN, RAID_SUBMIT_MIN, RAID_TURNS, currentRaid, nextRaid, raidBossName, raidConfig, raidJoinable, raidTimeLabel, type RaidSlot } from './raid';
 import { hashSeed } from './rng';
-import { ONLINE, claimInvite, myInvites, raidHit, raidPlayer, raidState, type RaidState, challengeBoard, emailReminderOff, sendFeedback, setEmailReminder, type FeedbackKind, challengeNews, createChallenge, dailyBoard, endlessBoard, getChallenge, mySummons, noteRun, noteSummon, pingActivity, startActivityPings, submitChallengeRun, type Challenge, type ChallengeRow } from './online';
+import { ONLINE, submitHorde, hordeBoard, claimInvite, myInvites, raidHit, raidPlayer, raidState, type RaidState, challengeBoard, emailReminderOff, sendFeedback, setEmailReminder, type FeedbackKind, challengeNews, createChallenge, dailyBoard, endlessBoard, getChallenge, mySummons, noteRun, noteSummon, pingActivity, startActivityPings, submitChallengeRun, type Challenge, type ChallengeRow } from './online';
 import {
   ACT_TITLE, LORE, LORE_COUNT, MAIN_QUESTS, QUESTS, QUEST_BY_N, SPEAKERS, conversation, facePortrait, houndStats, npcMarker, npcPresent, petName, questStatus,
   type Line, type NpcId, type Quest, type StoryState,
@@ -276,7 +276,8 @@ function savedSeconds(): number {
 
 function saveRun() {
   // Story chapters are short, and start over rather than resume.
-  if (!game || game.phase === 'dead' || game.mode === 'story') return;
+  // Story chapters and Horde runs are short, and start over rather than resume.
+  if (!game || game.phase === 'dead' || game.mode === 'story' || game.mode === 'horde') return;
   try {
     const run: SavedRun = { mode: game.mode, seed: game.seed, dailyNo: game.dailyNo, log: game.header() + game.log, seconds: Math.round(runSeconds), ...(challenge ? { challenge } : {}) };
     localStorage.setItem(RUN_KEY, JSON.stringify(run));
@@ -485,6 +486,12 @@ function processEvents() {
   // Progress: codex entries, combos, fusions and achievements.
   for (const ev of events) {
     if (ev.t === 'reaperrise') sfx.toll();
+    if (ev.t === 'wave') {
+      renderer.banner(ev.boss ? `BOSS WAVE ${ev.wave}` : `WAVE ${ev.wave}`, ev.boss ? '#ff4d5a' : '#f2c14e');
+      if (ev.boss) sfx.toll();
+      setMusicMood(ev.boss ? 'boss' : 'crypt');
+    }
+    if (ev.t === 'wavecleared') renderer.banner(`WAVE ${ev.wave} HELD +${ev.bonus}`, '#7ee081');
     if (ev.t === 'reaper' && game.floor === REAPER_FLOOR) renderer.banner('DEATH WALKS THESE FLOORS', '#d3b0ff');
     if (ev.t === 'boon') renderer.banner(`${BOON_BY_ID[ev.id].name.toUpperCase()}`, '#b07cff');
     if (ev.t === 'fuse') {
@@ -500,7 +507,8 @@ function processEvents() {
     }
     celebrate(achievements, combos);
   }
-  if (game.phase !== 'dead') celebrate(checkRun(game));
+  // (The Horde's depth isn't a floor reached, so floor feats don't count there.)
+  if (game.phase !== 'dead' && game.mode !== 'horde') celebrate(checkRun(game));
   updateHud();
   if (raidRun && (game.phase === 'dead' || game.phase === 'won' || game.turns >= RAID_TURNS)) {
     if (game.phase === 'dead') setMusicMood('silent');
@@ -514,7 +522,8 @@ function processEvents() {
     overlayTimer = window.setTimeout(showEvent, 250);
   } else if (game.phase === 'dead') {
     setMusicMood('silent');
-    if (game.mode === 'story') finishStory(false);
+    if (game.mode === 'horde') finishHorde();
+    else if (game.mode === 'story') finishStory(false);
     else finishRun();
     return;
   } else if (game.phase === 'won') {
@@ -728,7 +737,8 @@ function updateHud(reset = false) {
   fill.style.width = `${pct}%`;
   fill.classList.toggle('low', p.hp <= 3);
   $('hp-text').textContent = `${p.hp}/${p.maxHp}`;
-  $('floor').textContent = String(game.floor);
+  // In the Horde the floor counter shows the wave.
+  $('floor').textContent = String(game.mode === 'horde' ? game.horde.wave : game.floor);
   $('atk').textContent = String(game.atk);
   $('kills').textContent = String(game.kills);
 
@@ -803,7 +813,11 @@ function updateTip() {
   const elite = game.alive.find((e) => e.elite);
   const boss = game.alive.find((e) => isBoss(e));
   const feature = game.feature && !game.feature.used ? game.feature : null;
-  if (game.reaper?.waiting) tip.innerHTML = `☠️ Death waits in the corner. He walks in <b>${game.reaperIn} turn${game.reaperIn === 1 ? '' : 's'}</b>. Don't touch him.`;
+  if (game.mode === 'horde') {
+    const h = game.horde;
+    const mult = game.hordeMult();
+    tip.innerHTML = `🛡️ Wave <b>${h.wave}</b>${game.alive.length ? '' : ` · next in <b>${h.next}</b>`} · <b style="color:${mult > 1 ? '#f2c14e' : 'inherit'}">×${mult}</b> · <b>${h.score.toLocaleString()}</b> pts${game.reaper ? ' · ☠️ Death walks' : ''}`;
+  } else if (game.reaper?.waiting) tip.innerHTML = `☠️ Death waits in the corner. He walks in <b>${game.reaperIn} turn${game.reaperIn === 1 ? '' : 's'}</b>. Don't touch him.`;
   else if (game.reaper) tip.innerHTML = game.stairsOpen ? '☠️ <b>Death is coming.</b> Run for the stairs!' : '☠️ <b>Death is coming.</b> His touch is the end. Clear the floor and reach the stairs.';
   else if (game.config.reaper && game.floor >= REAPER_FLOOR && game.reaperIn > 0)
     tip.innerHTML = `☠️ Death rises in <b>${game.reaperIn} turn${game.reaperIn === 1 ? '' : 's'}</b>. Be gone before he does.`;
@@ -891,6 +905,7 @@ function showTitle() {
     ${dailyBlock}
     ${raid.phase !== 'soon' ? raidCardHtml(raid) : ''}
     ${endlessBtn}
+    ${hordeButtonHtml()}
     ${streak > 1 ? `<div class="streak">🕯️ ${streak}-day streak</div>` : ''}
     ${raid.phase === 'soon' ? raidCardHtml(raid) : ''}
     ${welcomeTitleHtml()}
@@ -933,6 +948,7 @@ function showTitle() {
   on('#story', () => playStory());
   on('#act2', () => showActTwo(showTitle));
   on('#raid', () => showRaid(showTitle));
+  on('#horde', () => withTutorialOffer(() => startHorde()));
   on('#invite', () => showInvite(showTitle));
   on('#help', () => showHelp(showTitle));
   on('#feedback', () => showFeedback(showTitle));
@@ -1269,6 +1285,7 @@ function showHelp(back: () => void) {
       <li>Shrines, chests and fountains offer <b>deals</b>. Step on them to choose.</li>
       <li>After each boss, a <b>Soul Forge</b> waits on the next floor. Fuse two of your relics into a stronger one.</li>
       <li>Every 20 floors the crypt becomes somewhere new, with its own ground and foes. In the <b>Flooded Catacombs</b>, foes wading through water lose every other turn. In the <b>Charnel Halls</b>, bone piles block the way: bump one to smash it, and some hide a potion. In the <b>Burning Depths</b>, lava burns anything that walks in, so lure foes into it. The <b>Abyss</b> is dark: you only see what's near you.</li>
+      <li><b>Horde</b>: one arena a day, the same for everyone, with the day's hero. Waves pour in from the edges, faster when you clear them quickly. Kill on turn after turn to build a score multiplier (up to ×5), pick a relic every 2 waves, and fight a boss every 5th. Death joins at wave 25. Play as often as you like: your best score of the day goes on the board.</li>
       <li>From <b>floor 150</b>, <b>Death</b> comes for you. He waits in the far corner of each floor, with a countdown over him, then rises and walks straight at you, through walls. Nothing stops his touch: no shield, dodge or second life. Clear the floor and take the stairs before he reaches you. He rises sooner the deeper you go. The Bell-Ringer's toll and the Stopped Hourglass hold him still for a turn.</li>
       <li><b>Glowing foes</b> are elites, with a trait of their own (the tip under the map says which). They're worth extra Souls.</li>
       <li>Some walls are <b>cracked</b>. Bump one twice to find a secret vault: a rare relic and a heal, or two Abyss boons once the relics run out.</li>
@@ -1553,14 +1570,15 @@ function showPause() {
   const daily = game.mode === 'daily';
   const story = game.mode === 'story' && storyRun;
   const raidFight = game.mode === 'story' && raidRun;
+  const hordeFight = game.mode === 'horde';
   showOverlay('pause', `
     <h2>Paused</h2>
-    <p class="sub">${daily ? `Daily #${game.dailyNo}` : story ? esc(story.quest.dungeon.name) : raidFight ? 'The Bell Tolls' : 'Endless'} · Floor ${game.floor}</p>
+    <p class="sub">${daily ? `Daily #${game.dailyNo}` : story ? esc(story.quest.dungeon.name) : raidFight ? 'The Bell Tolls' : hordeFight ? `Horde #${game.dailyNo}` : 'Endless'} · ${hordeFight ? `Wave ${game.horde.wave}` : `Floor ${game.floor}`}</p>
     ${onlineCountHtml()}
     <button class="btn primary" id="resume">Resume</button>
     <button class="btn" id="help">How to play</button>
     <button class="btn" id="music">🎵 Music: ${isMusicEnabled() ? 'On' : 'Off'}</button>
-    <button class="btn" id="abandon">${raidFight ? 'End the fight<small>Your damage so far still counts</small>' : `Abandon run<small>${daily ? "Counts as today's attempt" : story ? 'Back to Gravesend' : 'Back to the title'}</small>`}</button>
+    <button class="btn" id="abandon">${hordeFight ? 'End the run<small>Your score so far still counts</small>' : raidFight ? 'End the fight<small>Your damage so far still counts</small>' : `Abandon run<small>${daily ? "Counts as today's attempt" : story ? 'Back to Gravesend' : 'Back to the title'}</small>`}</button>
   `);
   on('#resume', hideOverlay);
   on('#music', () => {
@@ -1579,6 +1597,10 @@ function showPause() {
   });
   on('#abandon', () => {
     if (raidFight) return finishRaid(false);
+    if (hordeFight) {
+      game.phase = 'dead';
+      return finishHorde();
+    }
     clearRun();
     if (daily) {
       game.phase = 'dead';
@@ -2391,6 +2413,89 @@ function showRaidReward(n: number, then: () => void) {
     back();
   });
   on('#back', back);
+}
+
+// ---------- Horde ----------
+// One arena a day, the same for everyone, with the day's hero. Waves pour in; kills on turn
+// after turn build a multiplier. Unlimited tries: your best score of the day goes on the board.
+
+function hordeButtonHtml(): string {
+  const n = dailyNumber();
+  const h = meta.horde.day === n ? meta.horde : null;
+  return `<button class="btn horde-btn" id="horde">🛡️ Horde #${n}<small>${
+    h ? `Your best today: wave ${h.wave} · ${h.best.toLocaleString()} pts` : `Hold the crypt as the ${HERO_BY_ID[hordeHero(n)].name} · unlimited tries`
+  }</small></button>`;
+}
+
+function startHorde() {
+  unlockAudio();
+  const n = dailyNumber();
+  challenge = null;
+  storyRun = null;
+  raidRun = null;
+  showGame(new Game('horde', hashSeed('horde', n), n, { hero: hordeHero(n), pool: fullPool(), mercy: true, boons: true }));
+  startClock();
+  setMusicDepth(1);
+  setMusicMood('crypt');
+  hideOverlay();
+  sfx.stairs();
+  renderer.banner('HOLD THE CRYPT', '#f2c14e');
+}
+
+/** The run is over: score, Souls, today's best, and the day's board. */
+function finishHorde() {
+  const g = game;
+  const h = g.horde;
+  const reward = finishHordeMeta(g.dailyNo, h.score, h.wave, g.kills);
+  celebrate(reward.feats);
+  setMusicMood('fallen');
+  window.clearTimeout(overlayTimer);
+  const share = `🛡️ One More Crypt · Horde #${g.dailyNo}\nWave ${h.wave} · ${h.score.toLocaleString()} pts · ×${h.bestMult} combo\nCan you hold the crypt longer?\n${siteUrl()}?ref=horde`;
+  overlayTimer = window.setTimeout(() => {
+    showOverlay('horde-results', `
+      <div class="podium-medal">🛡️</div>
+      <h2 class="podium-title">${reward.best ? 'New best!' : 'The crypt is overrun'}</h2>
+      <p class="sub">Horde #${g.dailyNo} · the ${esc(HERO_BY_ID[g.hero].name)}${g.killedBy ? ` · slain by ${esc(killedByPhrase(g.killedBy))}` : ''}</p>
+      <div class="horde-score"><b>${h.score.toLocaleString()}</b><span>points</span></div>
+      <div class="run-stats">
+        <div><b>${h.wave}</b><span>Wave</span></div>
+        <div><b>${g.kills}</b><span>Kills</span></div>
+        <div><b>×${h.bestMult}</b><span>Best combo</span></div>
+      </div>
+      <p class="fine">Today's best: wave ${meta.horde.wave} · ${meta.horde.best.toLocaleString()} pts</p>
+      <div class="souls-earned"><b>+${reward.souls} Souls</b><span>💀 ${meta.souls} to spend in the Ossuary</span></div>
+      <button class="btn primary" id="horde-again">🛡️ Go again<small>Same arena, same hero</small></button>
+      ${ONLINE ? `<h3 class="shop-head">Today's Horde board</h3><p class="fine" id="horde-rank">${signedIn() ? 'Posting your run…' : 'Sign in to put your best on the board.'}</p><ol class="raid-top" id="horde-board"><li class="fine">Loading…</li></ol>` : ''}
+      <div class="row">
+        <button class="btn x" id="horde-share">Share on 𝕏</button>
+        <button class="btn" id="horde-copy">Copy result</button>
+      </div>
+      ${ONLINE && !signedIn() ? '<button class="btn" id="join">Claim a name for the board</button>' : ''}
+      <button class="btn" id="title">Title</button>`);
+    on('#horde-again', () => startHorde());
+    on('#horde-share', () => window.open(xIntentUrl(share), '_blank', 'noopener'));
+    on('#horde-copy', async () => toast((await copyText(share)) ? 'Copied!' : 'Copy failed'));
+    on('#join', () => showLogin(() => showTitle(), 'claim'));
+    on('#title', () => {
+      newGame('endless');
+      showTitle();
+    });
+    if (ONLINE) void loadHordeBoard(g, reward.best);
+  }, 900);
+}
+
+async function loadHordeBoard(g: Game, best: boolean) {
+  const rank = document.getElementById('horde-rank');
+  if (signedIn() && best) {
+    const posted = await submitHorde({ daily_no: g.dailyNo, score: g.horde.score, wave: g.horde.wave, kills: g.kills, hero: g.hero, log: g.header() + g.log }).catch(() => null);
+    if (rank?.isConnected) rank.textContent = posted ? `You're #${posted.rank} today.` : 'Could not post your run. Your best is saved here.';
+  } else if (signedIn() && rank) rank.textContent = 'Only your best run of the day goes on the board.';
+  const rows = await hordeBoard(g.dailyNo).catch(() => null);
+  const list = document.getElementById('horde-board');
+  if (!list) return;
+  list.innerHTML = rows?.length
+    ? rows.slice(0, 10).map((r, i) => `<li><span>${['🥇', '🥈', '🥉'][i] ?? `${i + 1}.`} ${esc(r.name)} <small>wave ${r.wave}</small></span><b>${r.score.toLocaleString()}</b></li>`).join('')
+    : '<li class="fine">No one on the board yet. Be the first.</li>';
 }
 
 // ---------- Bring a friend ----------

@@ -94,6 +94,8 @@ export interface Meta {
   grave: GraveState | null;
   /** The Bell Tolls: tolls fought in, world bosses felled together, and tolls that got away. */
   raid: RaidProgress;
+  /** Horde: your best run of the day (its daily number), for the title screen and NEW BEST. */
+  horde: { day: number; best: number; wave: number };
   /** Bring a friend: who invited you (and whether your first run counted for them), and friends you've brought. */
   invite: { from: string; claimed: boolean; friends: number };
 }
@@ -152,7 +154,7 @@ function empty(): Meta {
     podiums: {}, podiumChecked: 0, bought: [], streak: { best: 0, count: 0, last: 0 },
     bounties: { day: 0, ids: [], progress: [], done: [] },
     weekly: {}, weeklyChecked: '',
-    story: emptyStory(), pet: '', summonsSeen: '', patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null, raid: { joined: [], won: [], lost: [] }, invite: { from: '', claimed: false, friends: 0 },
+    story: emptyStory(), pet: '', summonsSeen: '', patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null, raid: { joined: [], won: [], lost: [] }, invite: { from: '', claimed: false, friends: 0 }, horde: { day: 0, best: 0, wave: 0 },
   };
 }
 
@@ -1243,4 +1245,28 @@ export function noteFriends(n: number): number {
     saveMeta();
   }
   return fresh;
+}
+
+// ---------- Horde ----------
+
+/** A Horde run is over: Souls for how long you held, the wave feats, and whether it's today's best. */
+export function finishHordeMeta(dailyNo: number, score: number, wave: number, kills: number): { souls: number; best: boolean; feats: AchievementDef[] } {
+  const souls = Math.min(500, wave * 10 + Math.floor(kills / 2));
+  meta.souls += souls;
+  meta.earned += souls;
+  const feats: AchievementDef[] = [];
+  for (const [id, need] of [['horde10', 10], ['horde20', 20], ['horde30', 30]] as const) {
+    const def = ACHIEVEMENT_BY_ID[id];
+    if (def && wave >= need && !meta.achievements[id]) {
+      meta.achievements[id] = Date.now();
+      meta.souls += def.souls;
+      meta.earned += def.souls;
+      feats.push(def);
+    }
+  }
+  const h = meta.horde.day === dailyNo ? meta.horde : { day: dailyNo, best: 0, wave: 0 };
+  const best = score > h.best;
+  meta.horde = best ? { day: dailyNo, best: score, wave } : h;
+  saveMeta();
+  return { souls, best, feats };
 }

@@ -254,6 +254,9 @@ LOOKS.push(
 // Bring a friend: the first is shared with the friend you brought.
 LOOKS.push({ id: 'kindred', name: 'Kindred Cloak', cloak: { p: '#c46a2e', P: '#5a2a12' }, aura: '#ffb35a', unlock: { invite: 1 }, how: 'Bring a friend to the crypt (they get it too). Find your link under Bring a friend.' });
 
+// Horde: for holding the crypt.
+LOOKS.push({ id: 'siegemantle', name: 'Siege Mantle', cloak: { p: '#6b6f7a', P: '#2e3038' }, aura: '#ff8a2a', unlock: { feat: 'horde20' }, how: 'Hold the crypt to wave 20 in Horde.' });
+
 // Death's own: for outrunning him.
 LOOKS.push({ id: 'reapershroud', name: "Reaper's Shroud", cloak: { p: '#1d1428', P: '#0a0710' }, aura: '#d3b0ff', unlock: { feat: 'outran' }, how: 'Reach floor 175 with Death on your heels.' });
 
@@ -521,6 +524,8 @@ export const HEADS: HeadDef[] = [
   { id: 'crestplume', name: 'Banner Crest', ...raid(22), pixels: [...row(1, 4, 7, '#5d667a'), ...row(2, 3, 8, '#8a8a96'), [4, 0, '#701826'], [5, 0, RED], [6, 0, RED], [7, 0, '#ff6b6b'], [8, 1, RED], [9, 2, '#701826']] },
   { id: 'embercirclet', name: 'Ember Circlet', ...raid(26), pixels: [...row(2, 3, 8, '#3a1a12'), [3, 1, '#d23a46'], [4, 1, '#ff8a2a'], [6, 1, '#ffd23f'], [8, 1, '#ff8a2a'], [6, 0, '#ff8a2a'], [5, 2, '#ffd23f'], [6, 2, '#ffd23f']] },
   { id: 'worldcrown', name: 'Crown of the World Boss', ...raid(29), pixels: [[3, 0, GOLD], [5, 0, '#fff2c0'], [6, 0, '#fff2c0'], [8, 0, GOLD], ...row(1, 3, 8, GOLD), ...row(2, 3, 8, '#141119'), [4, 2, '#5fe3ff'], [5, 2, RED], [6, 2, '#b5e07a'], [7, 2, '#b07cff'], [2, 1, '#a8781f'], [9, 1, '#a8781f']] },
+  // Horde: wave 10.
+  { id: 'gatehelm', name: "Gatekeeper's Helm", unlock: { feat: 'horde10' }, how: 'Hold the crypt to wave 10 in Horde.', pixels: [...row(1, 3, 8, STEEL), ...row(2, 3, 8, '#9aa3b5'), ...row(3, 3, 8, '#5d667a'), [4, 3, DARK], [5, 3, DARK], [6, 3, DARK], [7, 3, DARK], [5, 0, '#ff8a2a'], [6, 0, '#ffd23f'], [2, 2, '#5d667a'], [9, 2, '#5d667a']] },
   // Bring a friend: five friends brought.
   { id: 'lanternhood', name: 'Lantern Hood', unlock: { invite: 5 }, how: 'Bring 5 friends to the crypt.', pixels: [...row(1, 3, 8, '#5a2a12'), ...row(2, 2, 9, '#7a3a18'), [5, 0, '#3a3346'], [6, 0, '#3a3346'], [8, 0, '#3a3346'], [9, 1, '#ffd23f'], [10, 1, '#ff8a2a'], [9, 2, '#3a3346'], [10, 2, '#3a3346'], [4, 2, '#ffb35a'], [7, 2, '#ffb35a']] },
   // Death's own hood, skull and all: for cheating him.

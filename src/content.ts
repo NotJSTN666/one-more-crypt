@@ -40,6 +40,11 @@ export function dailyHero(dailyNo: number): HeroId {
   return DAILY_HEROES[(dailyNo - 1 + DAILY_HEROES.length * 100) % DAILY_HEROES.length];
 }
 
+/** The day's Horde hero: the same for everyone, never the same as the Daily's. */
+export function hordeHero(dailyNo: number): HeroId {
+  return DAILY_HEROES[(dailyNo + 2 + DAILY_HEROES.length * 100) % DAILY_HEROES.length];
+}
+
 // ---------- elites ----------
 
 export type EliteMod = 'shielded' | 'swift' | 'vampiric' | 'splitting' | 'explosive';
@@ -158,6 +163,10 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'deathsdoor', name: "At Death's Door", desc: 'Reach floor 150, where Death walks.', souls: 300 },
   { id: 'outran', name: 'Outran Death', desc: 'Reach floor 175 with Death on your heels.', souls: 600 },
   { id: 'cheated', name: 'Cheated Death', desc: 'Reach floor 200 with Death on your heels.', souls: 1000 },
+  // Horde.
+  { id: 'horde10', name: 'Holdfast', desc: 'Hold the crypt to wave 10 in Horde.', souls: 200 },
+  { id: 'horde20', name: 'Siegebreaker', desc: 'Hold the crypt to wave 20 in Horde.', souls: 500 },
+  { id: 'horde30', name: 'Last One Standing', desc: 'Hold the crypt to wave 30 in Horde, with Death in the arena.', souls: 1000 },
   { id: 'butcher', name: 'Butcher', desc: 'Slay 100 foes in one run.', souls: 60 },
   { id: 'massacre', name: 'Massacre', desc: 'Slay 5 foes in a single turn.', souls: 60 },
   { id: 'annihilate', name: 'Annihilate', desc: 'Deal 50 or more damage in one hit.', souls: 60 },

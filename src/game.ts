@@ -118,6 +118,9 @@ export type GameEvent =
   | { t: 'reaper'; turns: number }
   | { t: 'reaperrise'; x: number; y: number }
   | { t: 'reaperstep'; x: number; y: number }
+  /** Horde: a wave pours in through the gates, or the last of one falls. */
+  | { t: 'wave'; wave: number; boss: boolean }
+  | { t: 'wavecleared'; wave: number; bonus: number }
   | { t: 'toll' }
   | { t: 'ring'; x: number; y: number }
   | { t: 'fuse'; id: FusedId; from: [RelicId, RelicId] }
@@ -128,7 +131,7 @@ export type GameEvent =
   | { t: 'vault'; x: number; y: number }
   | { t: 'lava'; x: number; y: number };
 
-export type Mode = 'daily' | 'endless' | 'story';
+export type Mode = 'daily' | 'endless' | 'story' | 'horde';
 /** `won` ends a story chapter: its last floor is cleared. */
 export type Phase = 'play' | 'choose' | 'event' | 'dead' | 'won';
 
@@ -317,6 +320,19 @@ const DEEP_LOG_VERSION = 10;
 /** Adds Death waiting in plain sight from a floor's first turn. */
 const LURK_LOG_VERSION = 11;
 export const REAPER_FLOOR = 150;
+
+// ---------- Horde ----------
+// One arena, the same for everyone each day. Waves pour in through its edges, faster
+// when you clear them quickly; kills on turn after turn build a multiplier for the score.
+
+/** Turns between waves (a cleared arena brings the next one sooner). */
+export const HORDE_GAP = 10;
+/** Every so many waves, a relic (or boon) to choose. */
+export const HORDE_GIFT_EVERY = 2;
+/** Death joins from this wave, and stays. */
+export const HORDE_DEATH_WAVE = 25;
+/** The highest score multiplier. */
+export const HORDE_MAX_MULT = 5;
 /** Turns on a floor before Death rises: plenty at first, one fewer every 4 floors, none from floor 250. */
 export function reaperDelay(floor: number): number {
   return Math.max(0, 25 - Math.floor((floor - REAPER_FLOOR) / 4));
@@ -363,6 +379,8 @@ export class Game {
   kills = 0;
   turns = 0;
   killedBy = '';
+  /** Horde: the wave under way, turns until the next, the score, and the run of turns with a kill. */
+  horde = { wave: 0, next: 2, score: 0, chain: 0, idle: 0, bestMult: 1, cleared: true };
   /** Death, once he has risen on this floor (he can't be hurt), and the turns until he rises. */
   reaper: { x: number; y: number; frozen: number; waiting?: boolean } | null = null;
   reaperIn = 0;
@@ -414,6 +432,7 @@ export class Game {
       if (story.ghost) this.summonGhost(story.ghost);
     } else {
       this.enterFloor(1);
+      if (mode === 'horde') this.openArena();
     }
   }
 
@@ -503,6 +522,8 @@ export class Game {
   }
 
   isBossFloor(f = this.floor): boolean {
+    // The Horde's depth only sets how tough its waves are; bosses come with every fifth wave.
+    if (this.mode === 'horde') return false;
     const story = this.config.story;
     if (story) return story.boss?.floor === f;
     return f % 5 === 0;
@@ -1185,7 +1206,7 @@ export class Game {
     }
     this.offer = null;
     this.phase = 'play';
-    this.enterFloor(this.floor + 1);
+    if (this.mode !== 'horde') this.enterFloor(this.floor + 1);
   }
 
   private takeBoon(id: BoonId) {
@@ -1356,6 +1377,7 @@ export class Game {
     this.kills++;
     this.killsThisTurn++;
     if (this.boons.mend) this.heal(this.boons.mend);
+    if (this.mode === 'horde') this.horde.score += (isBoss(e) ? 250 : e.elite ? 30 : 10) * this.hordeMult();
     if (this.player.hp <= 3) this.stats.lowHpKills++;
     this.stats.kinds[e.kind] = (this.stats.kinds[e.kind] ?? 0) + 1;
     this.stats.maxKillsInTurn = Math.max(this.stats.maxKillsInTurn, this.killsThisTurn);
@@ -1495,6 +1517,7 @@ export class Game {
   }
 
   private checkCleared() {
+    if (this.mode === 'horde') return;
     if (!this.stairsOpen && this.alive.length === 0) {
       this.stairsOpen = true;
       this.warnings = [];
@@ -1552,11 +1575,13 @@ export class Game {
     this.enemies = this.enemies.filter((e) => !e.dead);
     this.checkCleared();
     this.reaperAct();
+    if (this.mode === 'horde') this.hordeTick();
   }
 
   // ---------- Death ----------
 
   private reaperDue(): boolean {
+    if (this.mode === 'horde') return this.horde.wave >= HORDE_DEATH_WAVE;
     return Boolean(this.config.reaper) && this.floor >= REAPER_FLOOR;
   }
 
@@ -1578,6 +1603,8 @@ export class Game {
       r.frozen--;
       return;
     }
+    // In the Horde he walks every other turn: something to keep away from while you fight.
+    if (this.mode === 'horde' && this.turns % 2) return;
     // From floor 275 he quickens: two steps every other turn.
     const steps = this.floor >= REAPER_FLOOR + 125 && this.turns % 2 === 0 ? 2 : 1;
     for (let i = 0; i < steps; i++) {
@@ -1594,6 +1621,116 @@ export class Game {
     const p = this.player;
     const corners = [{ x: 0, y: 0 }, { x: W - 1, y: 0 }, { x: 0, y: H - 1 }, { x: W - 1, y: H - 1 }];
     return corners.reduce((a, b) => (Math.abs(b.x - p.x) + Math.abs(b.y - p.y) > Math.abs(a.x - p.x) + Math.abs(a.y - p.y) ? b : a));
+  }
+
+  // ---------- Horde ----------
+
+  /** The arena: the first floor's layout, emptied, with no stairs. The first wave comes in two turns. */
+  private openArena() {
+    this.enemies = [];
+    this.potion = null;
+    this.feature = null;
+    this.secret = null;
+    this.vault = null;
+    this.stairs = { x: -9, y: -9 };
+    this.horde.next = 2;
+    // Into the fight with two relics and a little extra life.
+    for (let i = 0; i < 2; i++) {
+      const gift = this.randomRelic(mulberry32(hashSeed(this.seed, 'horde-gift', i)), (r) => r.rarity === 'common' || r.rarity === 'rare');
+      if (gift) this.addRelic(gift.id);
+    }
+    this.changeMaxHp(4);
+    this.heal(4);
+  }
+
+  /** The score multiplier: up by one for every two turns in a row with a kill. */
+  hordeMult(): number {
+    return Math.min(HORDE_MAX_MULT, 1 + Math.floor(this.horde.chain / 2));
+  }
+
+  /** After each turn: keep the kill chain, reward a cleared wave, and bring the next one. */
+  private hordeTick() {
+    const h = this.horde;
+    // One quiet turn is forgiven; two break the chain.
+    if (this.killsThisTurn > 0) {
+      h.chain++;
+      h.idle = 0;
+    } else if (++h.idle > 1) h.chain = 0;
+    h.bestMult = Math.max(h.bestMult, this.hordeMult());
+    if (this.isOver()) return;
+    if (!h.cleared && this.alive.length === 0) {
+      h.cleared = true;
+      const bonus = 50 * h.wave;
+      h.score += bonus;
+      this.events.push({ t: 'wavecleared', wave: h.wave, bonus });
+      // A potion after every second wave, somewhere in the arena.
+      if (h.wave % 2 === 0 && !this.potion) this.potion = this.randomFreeTile(mulberry32(hashSeed(this.seed, 'horde-potion', h.wave)), 0);
+      h.next = Math.min(h.next, 2);
+      if (h.wave % HORDE_GIFT_EVERY === 0) {
+        this.offer = this.makeOffer();
+        this.phase = 'choose';
+        return;
+      }
+    }
+    if (--h.next <= 0) this.spawnWave();
+  }
+
+  private spawnWave() {
+    const h = this.horde;
+    h.wave++;
+    h.cleared = false;
+    // Foes are as tough as they would be this deep in the crypt.
+    this.floor = 1 + Math.floor(h.wave * 0.7);
+    const rng = mulberry32(hashSeed(this.seed, 'wave', h.wave));
+    const boss = h.wave % 5 === 0;
+    const room = MAX_ENEMIES - this.alive.length;
+    const count = Math.min(room, boss ? 2 + Math.floor(h.wave / 10) : 2 + Math.floor(h.wave * 0.45));
+    // They come in at the edges, never right beside you.
+    const p = this.player;
+    const spots: Pos[] = [];
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const edge = x === 0 || y === 0 || x === W - 1 || y === H - 1;
+        if (!edge || this.isWall(x, y) || this.unitAt(x, y) || Math.abs(x - p.x) + Math.abs(y - p.y) < 3) continue;
+        spots.push({ x, y });
+      }
+    }
+    for (let i = spots.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [spots[i], spots[j]] = [spots[j], spots[i]];
+    }
+    const all: { kind: EnemyKind; from: number; w: number }[] = [
+      { kind: 'ghoul', from: 1, w: 10 },
+      { kind: 'bat', from: 1, w: 7 },
+      { kind: 'archer', from: 2, w: 6 },
+      { kind: 'brute', from: 4, w: 4 },
+      { kind: 'wraith', from: 6, w: 5 },
+      { kind: 'boneknight', from: 10, w: 4 },
+      { kind: 'imp', from: 14, w: 4 },
+      { kind: 'voideye', from: 18, w: 4 },
+    ];
+    const roster = all.filter((r) => h.wave >= r.from);
+    const eliteChance = Math.min(0.4, 0.03 * h.wave);
+    for (let i = 0; i < count && i < spots.length; i++) {
+      const s = spots[i];
+      if (boss && i === 0) {
+        const kind = (['boss', 'abbot', 'lich'] as EnemyKind[])[(h.wave / 5 - 1) % 3];
+        const e = this.makeEnemy(kind, s.x, s.y);
+        e.maxHp = e.hp = ENEMY_INFO[kind].hp + 4 * h.wave;
+        e.dmg = ENEMY_INFO[kind].dmg + Math.floor(h.wave / 8);
+        continue;
+      }
+      const e = this.makeEnemy(weightedPick(rng, roster, (r) => r.w).kind, s.x, s.y);
+      if (rng() < eliteChance) this.makeElite(e, ELITE_MODS[Math.floor(rng() * ELITE_MODS.length)]);
+    }
+    h.next = boss ? 12 : HORDE_GAP;
+    this.events.push({ t: 'wave', wave: h.wave, boss });
+    // Death joins late, and stays.
+    if (h.wave >= HORDE_DEATH_WAVE && !this.reaper) {
+      const at = this.farCorner();
+      this.reaper = { x: at.x, y: at.y, frozen: 0 };
+      this.events.push({ t: 'reaperrise', x: at.x, y: at.y });
+    }
   }
 
   /** Death's touch: no shield, dodge or second life stops it. */

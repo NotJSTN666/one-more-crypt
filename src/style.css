@@ -3296,3 +3296,53 @@ body.tutorial #relic-bar {
   border-style: dashed;
   opacity: 0.6;
 }
+
+/* Horde */
+.btn.horde-btn {
+  border-color: #c99a2e;
+  background: linear-gradient(180deg, rgba(122, 52, 20, 0.45), rgba(30, 14, 8, 0.45));
+  box-shadow: 0 0 14px rgba(255, 138, 42, 0.15);
+}
+
+.horde-score {
+  display: grid;
+  justify-items: center;
+  margin: 8px 0 12px;
+}
+
+.horde-score b {
+  font-family: var(--pixel);
+  font-size: 40px;
+  color: var(--gold);
+  line-height: 1;
+  text-shadow: 0 0 18px rgba(242, 193, 78, 0.35);
+}
+
+.horde-score span {
+  font-family: var(--pixel);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.run-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 10px;
+  text-align: center;
+}
+
+.run-stats b {
+  display: block;
+  font-family: var(--pixel);
+  font-size: 22px;
+}
+
+.run-stats span {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}

@@ -666,3 +666,36 @@ export async function myInvites(): Promise<number | null> {
   const { data, error } = await sb.rpc('my_invites');
   return error ? null : Math.max(0, Math.floor(Number(data) || 0));
 }
+
+// ---------- Horde ----------
+
+export interface HordeRow {
+  name: string;
+  score: number;
+  wave: number;
+  kills: number;
+  hero: string;
+}
+
+/** Post a Horde run to today's board. Returns your place on it (your best counts), or null if it couldn't be posted. */
+export async function submitHorde(run: { daily_no: number; score: number; wave: number; kills: number; hero: string; log: string }): Promise<{ rank: number; best: number } | null> {
+  const sb = await client();
+  const { data, error } = await sb.rpc('submit_horde', { p_daily: run.daily_no, p_score: run.score, p_wave: run.wave, p_kills: run.kills, p_hero: run.hero, p_log: run.log });
+  if (error || !data) return null;
+  const d = data as Record<string, unknown>;
+  return { rank: Math.max(0, Math.floor(Number(d.rank) || 0)), best: Math.max(0, Math.floor(Number(d.best) || 0)) };
+}
+
+/** A day's Horde board: everyone's best run, highest score first. */
+export async function hordeBoard(dailyNo: number): Promise<HordeRow[] | null> {
+  const sb = await client();
+  const { data, error } = await sb.rpc('horde_board', { p_daily: dailyNo });
+  if (error) return null;
+  return (Array.isArray(data) ? data : []).map((r: Record<string, unknown>) => ({
+    name: String(r.name ?? ''),
+    score: Math.floor(Number(r.score) || 0),
+    wave: Math.floor(Number(r.wave) || 0),
+    kills: Math.floor(Number(r.kills) || 0),
+    hero: String(r.hero ?? ''),
+  }));
+}
