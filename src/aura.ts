@@ -263,6 +263,12 @@ function drawBack(ctx: Ctx, a: AuraDef, cx: number, feet: number, mid: number, w
       orbit(t, 4, 1.1, (i, x, y, front) => !front && shard(px, cx + x * w * 0.85, mid + y * w * 0.3, k, i, t));
       break;
     }
+    case 'favour':
+      // The Keeper's blessing: warm white light and gold motes drifting up.
+      bodyGlow(ctx, cx, mid, w * 1.05, '#fff2c0', 0.22 * pulse);
+      bodyGlow(ctx, cx, mid, w * 0.7, a.color, 0.18 * pulse);
+      rising(t, 6, 2.2, (i, p) => px(cx + Math.sin(i * 2.2 + p * 4) * w * 0.5, feet - p * w * 1.4, k, i % 2 ? '#ffffff' : a.color, (1 - p) * (0.6 + 0.4 * Math.sin(t * 7 + i))));
+      break;
     case 'reaper': {
       // Death's own shadow: a dark pall, black smoke curling up, and his scythe looming behind.
       bodyGlow(ctx, cx, mid, w * 1.2, '#0a0612', 0.75);
@@ -337,6 +343,29 @@ function drawFront(_ctx: Ctx, a: AuraDef, cx: number, feet: number, mid: number,
     case 'crown':
       orbit(t, 8, 1.4, (i, x, y, front) => front && px(cx + x * w * 0.42 - k / 2, feet - w * 1.06 + y * w * 0.09, k, i % 2 ? '#fff2c0' : '#ff4d5a'));
       break;
+    case 'favour': {
+      // A golden halo over the head, a glint running round it, and twinkling stars circling.
+      const hy = feet - w * 1.17 + Math.sin(t * 1.6) * k * 0.5;
+      const dots = 14;
+      const glint = (t * 1.2) % 1;
+      for (let i = 0; i < dots; i++) {
+        const ang = (i / dots) * Math.PI * 2;
+        const near = Math.abs(((i / dots - glint + 1.5) % 1) - 0.5) < 0.08;
+        px(cx + Math.cos(ang) * w * 0.32 - k / 2, hy + Math.sin(ang) * w * 0.08 - k / 2, k, near ? '#ffffff' : a.color, Math.sin(ang) < 0 ? 0.75 : 1);
+      }
+      orbit(t, 3, 1.3, (i, x, y, front) => {
+        if (!front) return;
+        const sx = cx + x * w * 0.72;
+        const sy = mid + y * w * 0.3 + Math.sin(t * 3 + i) * k;
+        const tw = 0.55 + 0.45 * Math.sin(t * 6 + i * 2);
+        px(sx - k / 2, sy - k / 2, k, '#ffffff', tw);
+        px(sx - k * 1.5, sy - k / 2, k, a.color, tw * 0.7);
+        px(sx + k / 2, sy - k / 2, k, a.color, tw * 0.7);
+        px(sx - k / 2, sy - k * 1.5, k, a.color, tw * 0.7);
+        px(sx - k / 2, sy + k / 2, k, a.color, tw * 0.7);
+      });
+      break;
+    }
     case 'reaper':
       // Pale souls drawn in toward the hero, fading as they arrive.
       orbit(t, 3, 0.9, (i, x, y, front) => {

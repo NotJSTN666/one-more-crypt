@@ -588,7 +588,7 @@ export interface Outfit {
 export type AuraStyle =
   | 'candle' | 'ember' | 'tide' | 'bone' | 'abyss' | 'void' | 'rays' | 'sunburst' | 'flame'
   | 'wisps' | 'snow' | 'storm' | 'mist' | 'souls' | 'crown' | 'eternity' | 'rainbow' | 'bell'
-  | 'shards' | 'blades' | 'banner' | 'eclipse' | 'reaper';
+  | 'shards' | 'blades' | 'banner' | 'eclipse' | 'reaper' | 'favour';
 
 export type AuraUnlock =
   | { floor: number }
@@ -601,6 +601,7 @@ export type AuraUnlock =
   | { raid: number }
   | { invite: number }
   | { feat: string }
+  | { gift: string }
   | { cost: number; season?: SeasonId };
 
 export interface AuraDef {
@@ -641,12 +642,14 @@ export const AURAS: AuraDef[] = [
   { id: 'gravesendlight', name: 'Light of Gravesend', style: 'candle', color: '#9fe8ff', unlock: { story: STORY_ALL }, how: 'Finish every quest in Act I of the story, side quests too.' },
   { id: 'homecoming', name: 'Homecoming', style: 'souls', color: '#7cf5c4', unlock: { welcome: 5 }, how: 'Seven Nights, day 5: come back on a fifth day.' },
   { id: 'kindredflame', name: 'Kindred Flame', style: 'candle', color: '#ff8a2a', unlock: { invite: 3 }, how: 'Bring 3 friends to the crypt.' },
-  // The Bell Tolls: felling world bosses together.
   // Horde: earned holding the crypt, never sold.
   { id: 'overcharge', name: 'Overcharge', style: 'storm', color: '#5fe3ff', unlock: { feat: 'hordeovercharged' }, how: 'Trigger 10 power surges in one Horde run.' },
   { id: 'hordelegend', name: 'Legend of the Horde', style: 'sunburst', color: '#ff8a2a', unlock: { feat: 'horde100k' }, how: 'Score 100,000 points in one Horde run.' },
   { id: 'deathsdance', name: "Death's Dance", style: 'bone', color: '#d3b0ff', unlock: { feat: 'hordedanced' }, how: 'Hold 10 Horde waves with Death in the arena.' },
   { id: 'deathsshadow', name: "Death's Shadow", style: 'reaper', color: '#9a6bff', unlock: { feat: 'horde30' }, how: 'Hold the crypt to wave 30 in Horde, with Death in the arena.' },
+  // Given by hand by the Crypt Keeper, never earned or sold.
+  { id: 'keepersfavour', name: "Keeper's Favour", style: 'favour', color: '#ffd27a', unlock: { gift: 'keepersfavour' }, how: "A rare gift from the Crypt Keeper. It can't be earned or bought." },
+  // The Bell Tolls: felling world bosses together.
   { id: 'raidember', name: 'Warcry Embers', style: 'ember', color: '#ff4d5a', ...raid(3) },
   { id: 'bellshards', name: 'Bell Shards', style: 'shards', color: '#c9a24a', ...raid(7) },
   { id: 'plaguecenser', name: 'Censer Smoke', style: 'mist', color: '#8fd47f', ...raid(11) },

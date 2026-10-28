@@ -98,6 +98,8 @@ export interface Meta {
   horde: { day: number; best: number; wave: number };
   /** Bring a friend: who invited you (and whether your first run counted for them), and friends you've brought. */
   invite: { from: string; claimed: boolean; friends: number };
+  /** Rare items the Crypt Keeper (the developer) gifted this player by hand. */
+  gifts: string[];
 }
 
 export interface RaidProgress {
@@ -154,7 +156,7 @@ function empty(): Meta {
     podiums: {}, podiumChecked: 0, bought: [], streak: { best: 0, count: 0, last: 0 },
     bounties: { day: 0, ids: [], progress: [], done: [] },
     weekly: {}, weeklyChecked: '',
-    story: emptyStory(), pet: '', summonsSeen: '', patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null, raid: { joined: [], won: [], lost: [] }, invite: { from: '', claimed: false, friends: 0 }, horde: { day: 0, best: 0, wave: 0 },
+    story: emptyStory(), pet: '', summonsSeen: '', patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null, raid: { joined: [], won: [], lost: [] }, invite: { from: '', claimed: false, friends: 0 }, horde: { day: 0, best: 0, wave: 0 }, gifts: [],
   };
 }
 
@@ -184,6 +186,7 @@ function load(): Meta {
     m.welcome = cleanWelcome(m.welcome);
     m.raid = cleanRaid(m.raid);
     m.invite = cleanInvite(m.invite);
+    m.gifts = ids(m.gifts);
     m.grave = m.grave ? cleanGraveState(m.grave, Date.now()) : null;
     m.story = m.story?.v === STORY_V ? { ...emptyStory(), ...m.story } : { ...emptyStory(), choices: m.story?.choices ?? {}, bond: m.story?.bond ?? 0 };
     return m;
@@ -245,6 +248,7 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   const or = cleanRaid(other.raid);
   meta.raid = cleanRaid({ joined: [...meta.raid.joined, ...or.joined], won: [...meta.raid.won, ...or.won], lost: [...meta.raid.lost, ...or.lost] });
   meta.shame = { ...(other.shame ?? {}), ...meta.shame };
+  meta.gifts = [...new Set([...meta.gifts, ...ids(other.gifts)])];
   // Grave Shift is one plot: whichever device changed it last wins.
   if (other.grave && typeof other.grave === 'object' && (Number(other.grave.at) || 0) > (meta.grave?.at ?? -1)) meta.grave = cleanGraveState(other.grave, Date.now());
   meta.duels = [...new Set([...meta.duels, ...(Array.isArray(other.duels) ? other.duels.map(String) : [])])];
@@ -974,6 +978,7 @@ export function auraUnlocked(a: AuraDef): boolean {
   if ('raid' in u) return raidWins() >= u.raid;
   if ('invite' in u) return inviteMet(u.invite);
   if ('feat' in u) return Boolean(meta.achievements[u.feat]);
+  if ('gift' in u) return meta.gifts.includes(u.gift);
   return meta.bought.includes(a.id);
 }
 
@@ -1251,6 +1256,12 @@ export function noteFriends(n: number): number {
 // ---------- Horde ----------
 
 /** A Horde run is over: Souls for how long you held, the wave feats, and whether it's today's best. */
+/** A gift from the Crypt Keeper arrived: keep it. */
+export function receiveGift(item: string) {
+  if (!meta.gifts.includes(item)) meta.gifts.push(item);
+  saveMeta();
+}
+
 export function finishHordeMeta(dailyNo: number, score: number, wave: number, kills: number, earned: string[] = []): { souls: number; best: boolean; feats: AchievementDef[] } {
   const souls = Math.min(500, wave * 10 + Math.floor(kills / 2));
   meta.souls += souls;

@@ -485,6 +485,37 @@ export async function pingActivity(played = false): Promise<void> {
   }
 }
 
+// ---------- gifts from the Crypt Keeper ----------
+
+export interface Gift {
+  id: number;
+  item: string;
+}
+
+/** Gifts waiting for this player (their account, or this device if they play as a guest). */
+export async function waitingGifts(): Promise<Gift[]> {
+  if (!ONLINE) return [];
+  try {
+    const sb = await client();
+    const { data, error } = await sb.rpc('my_gifts', { p_device: deviceId() });
+    if (error || !Array.isArray(data)) return [];
+    return (data as { id: unknown; item: unknown }[]).map((g) => ({ id: Number(g.id), item: String(g.item) })).filter((g) => g.id > 0 && g.item);
+  } catch {
+    return [];
+  }
+}
+
+/** Mark a gift as received, so it isn't given again. */
+export async function claimGift(id: number): Promise<void> {
+  if (!ONLINE) return;
+  try {
+    const sb = await client();
+    await sb.rpc('claim_gift', { p_id: id, p_device: deviceId() });
+  } catch {
+    // It stays waiting and is offered again next time; receiving it twice is harmless.
+  }
+}
+
 /** Opened from the home screen as the installed app, rather than in a browser tab. */
 function runningAsApp(): boolean {
   try {

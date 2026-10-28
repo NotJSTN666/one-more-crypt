@@ -2,25 +2,25 @@ import './style.css';
 import { audioRunning, fusionSound, isMusicEnabled, isMuted, onAudioState, setMusicDepth, setMusicEnabled, setMusicMood, setMuted, sfx, unlockAudio } from './audio';
 import { dailyNumber, formatCountdown, msUntilNextDaily } from './daily';
 import { ELITES, FEATURES, HERO_BY_ID, dailyHero, hordeHero, type ComboDef, type HeroId } from './content';
-import { heroPortrait } from './hero';
+import { heroPortrait, heroSprite } from './hero';
 import { BOON_BY_ID, ENEMY_INFO, REAPER_FLOOR, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode } from './game';
-import { acceptQuest, checkRun, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, finishHordeMeta, type RunReward } from './meta';
+import { acceptQuest, checkRun, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, finishHordeMeta, receiveGift, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
 import { hallFromLink, onVisitIsle, showHall, showPublicHall, soulRankHtml, titleName } from './hall';
-import { AURAS, HEADS, HEAD_BY_ID, LOOKS, LOOK_BY_ID, PODIUM, RAID_DECOR_BY_ID, RAID_KIND_LABEL, RAID_REWARDS, STORY_ALL, STREAK_HELMS, WEEKLY, WELCOME, rankFor, titleFxClass, welcomeLabel, type WelcomeReward } from './progression';
+import { AURAS, AURA_BY_ID, HEADS, HEAD_BY_ID, LOOKS, LOOK_BY_ID, PODIUM, RAID_DECOR_BY_ID, RAID_KIND_LABEL, RAID_REWARDS, STORY_ALL, STREAK_HELMS, WEEKLY, WELCOME, rankFor, titleFxClass, welcomeLabel, type WelcomeReward } from './progression';
 import { Renderer } from './render';
 import { resetCanvases, sprites } from './sprites';
 import { RAID_JOIN_MIN, RAID_SUBMIT_MIN, RAID_TURNS, currentRaid, nextRaid, raidBossName, raidConfig, raidJoinable, raidTimeLabel, type RaidSlot } from './raid';
 import { hashSeed } from './rng';
-import { ONLINE, submitHorde, hordeBoard, claimInvite, myInvites, raidHit, raidPlayer, raidState, type RaidState, challengeBoard, emailReminderOff, sendFeedback, setEmailReminder, type FeedbackKind, challengeNews, createChallenge, dailyBoard, endlessBoard, getChallenge, mySummons, noteRun, noteSummon, pingActivity, setPresenceSource, startActivityPings, submitChallengeRun, type Challenge, type ChallengeRow } from './online';
+import { ONLINE, submitHorde, hordeBoard, claimInvite, myInvites, raidHit, raidPlayer, raidState, type RaidState, challengeBoard, emailReminderOff, sendFeedback, setEmailReminder, type FeedbackKind, challengeNews, createChallenge, dailyBoard, endlessBoard, getChallenge, mySummons, noteRun, noteSummon, pingActivity, setPresenceSource, startActivityPings, waitingGifts, claimGift, submitChallengeRun, type Challenge, type ChallengeRow } from './online';
 import {
   ACT_TITLE, LORE, LORE_COUNT, MAIN_QUESTS, QUESTS, QUEST_BY_N, SPEAKERS, conversation, facePortrait, houndStats, npcMarker, npcPresent, petName, questStatus,
   type Line, type NpcId, type Quest, type StoryState,
 } from './story';
 import { EPITAPHS, hollowKey, setHollowSpot, showHollow, showIsleVisit, type HollowHooks, type HollowPlace } from './hollow';
-import { auraClass } from './aura';
+import { auraClass, drawAura } from './aura';
 import { islePerks, type IsleState } from './isle';
 import { CROP_BY_ID, FARM_SPAWN, isRipe } from './graveshift';
 import { showGraveRequests, showGraveShop } from './graveshift-ui';
@@ -976,6 +976,7 @@ function showTitle() {
     });
   });
   tickCountdowns();
+  void checkGifts();
   // Finished on yesterday's podium? Celebrate once the result is in.
   // A world boss you fought in fell (or got away) while you were gone.
   if (unsettledRaids().length) void checkRaidRewards();
@@ -2429,6 +2430,73 @@ function showRaidReward(n: number, then: () => void) {
 // ---------- Horde ----------
 // One arena a day, the same for everyone, with the day's hero. Waves pour in; kills on turn
 // after turn build a multiplier. Unlimited tries: your best score of the day goes on the board.
+
+// ---------- gifts from the Crypt Keeper ----------
+
+let giftChecking = false;
+let lastGiftCheck = 0;
+
+/** On the title screen, now and then: has the Crypt Keeper sent this player something? */
+async function checkGifts() {
+  if (!ONLINE || giftChecking || screen !== 'title' || Date.now() - lastGiftCheck < 20_000) return;
+  lastGiftCheck = Date.now();
+  giftChecking = true;
+  try {
+    const gifts = (await waitingGifts()).filter((g) => AURA_BY_ID[g.item]);
+    if (!gifts.length || screen !== 'title') return;
+    const item = gifts[0].item;
+    receiveGift(item);
+    // The same item sent twice is still one gift.
+    for (const g of gifts.filter((x) => x.item === item)) void claimGift(g.id);
+    showGift(item);
+  } finally {
+    giftChecking = false;
+  }
+}
+
+/** The surprise: your hero, wearing the gift, turning in its light. */
+function showGift(item: string) {
+  const aura = AURA_BY_ID[item];
+  sfx.relic();
+  showOverlay('gift', `
+    <div class="gift-burst" aria-hidden="true"></div>
+    <h2 class="gift-title">🎁 A gift from the Crypt Keeper</h2>
+    <canvas id="gift-hero" class="gift-hero" width="160" height="176" aria-label="Your hero wearing ${esc(aura.name)}"></canvas>
+    <p class="sub">You've been chosen. <b class="gift-name">${esc(aura.name)}</b> is yours.</p>
+    <p class="fine">${esc(aura.how)} Find it in the Wardrobe any time.</p>
+    <button class="btn primary" id="wear">✨ Wear it now</button>
+    <button class="btn" id="back">Later</button>`);
+  const canvas = overlay.querySelector<HTMLCanvasElement>('#gift-hero');
+  if (canvas) {
+    const ctx = canvas.getContext('2d')!;
+    const outfit = outfitFor(meta.hero);
+    const sprite = heroSprite(meta.hero, {}, [], outfit.look, outfit.head).normal;
+    const start = performance.now();
+    const frame = () => {
+      if (!canvas.isConnected) return;
+      const t = (performance.now() - start) / 1000;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.imageSmoothingEnabled = false;
+      drawAura(ctx, item, 80, 150, 96, t, 'back');
+      ctx.globalAlpha = 1;
+      ctx.drawImage(sprite, 32, 54, 96, 96);
+      drawAura(ctx, item, 80, 150, 96, t, 'front');
+      ctx.globalAlpha = 1;
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  }
+  on('#wear', () => {
+    equipOutfit(meta.hero, 'aura', item);
+    toast(`Your ${HERO_BY_ID[meta.hero].name} wears ${aura.name}`);
+    showTitle();
+  });
+  on('#back', () => showTitle());
+}
+
+setInterval(() => {
+  if (!document.hidden) void checkGifts();
+}, 30_000);
 
 /** Cloaks, headwear and auras that come with these achievements, to announce. */
 function featCosmetics(ids: string[]): { icon: string; title: string; detail: string }[] {

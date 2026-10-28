@@ -713,3 +713,14 @@ alter table public.presence enable row level security;
 create or replace function public.presence_ping(p_device text, p_doing text, p_detail text, p_hero text) returns void language sql security definer set search_path = public as $$ insert into public.presence (device, user_id, doing, detail, hero, updated_at) values (p_device, auth.uid(), left(coalesce(p_doing, ''), 24), left(coalesce(p_detail, ''), 40), left(coalesce(p_hero, ''), 16), now()) on conflict (device) do update set user_id = excluded.user_id, doing = excluded.doing, detail = excluded.detail, hero = excluded.hero, updated_at = now(); $$;
 revoke all on function public.presence_ping(text, text, text, text) from public;
 grant execute on function public.presence_ping(text, text, text, text) to anon, authenticated;
+
+-- Gifts from the Crypt Keeper: rare items given by hand from the stats dashboard. A gift
+-- goes to an account (so it follows the player) or, for a guest, to their device.
+create table if not exists public.gifts (id bigserial primary key, user_id uuid, device text, item text not null, created_at timestamptz not null default now(), claimed_at timestamptz);
+alter table public.gifts enable row level security;
+create or replace function public.my_gifts(p_device text) returns json language sql stable security definer set search_path = public as $$ select coalesce(json_agg(json_build_object('id', g.id, 'item', g.item) order by g.id), '[]'::json) from public.gifts g where g.claimed_at is null and ((auth.uid() is not null and g.user_id = auth.uid()) or (g.user_id is null and g.device = p_device)) $$;
+create or replace function public.claim_gift(p_id bigint, p_device text) returns void language sql security definer set search_path = public as $$ update public.gifts set claimed_at = now() where id = p_id and claimed_at is null and ((auth.uid() is not null and user_id = auth.uid()) or (user_id is null and device = p_device)) $$;
+revoke all on function public.my_gifts(text) from public;
+revoke all on function public.claim_gift(bigint, text) from public;
+grant execute on function public.my_gifts(text) to anon, authenticated;
+grant execute on function public.claim_gift(bigint, text) to anon, authenticated;

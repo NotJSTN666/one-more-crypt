@@ -3676,3 +3676,51 @@ body.tutorial #relic-bar {
   color: var(--gold);
   box-shadow: 0 0 10px rgba(242, 193, 78, 0.25);
 }
+
+/* ---------- a gift from the Crypt Keeper ---------- */
+
+.gift-title {
+  color: var(--gold);
+  text-shadow: 0 0 18px rgba(242, 193, 78, 0.7), 0 3px 0 #000;
+  animation: gift-shine 2.4s ease-in-out infinite;
+}
+
+@keyframes gift-shine {
+  50% { text-shadow: 0 0 30px rgba(255, 242, 192, 1), 0 0 60px rgba(242, 193, 78, 0.5), 0 3px 0 #000; }
+}
+
+.gift-hero {
+  display: block;
+  margin: 4px auto 8px;
+  width: 160px;
+  height: 176px;
+  image-rendering: pixelated;
+}
+
+.gift-name {
+  color: var(--gold);
+}
+
+/* Slow golden rays turning behind the panel. */
+.gift-burst {
+  position: fixed;
+  left: 50%;
+  top: 40%;
+  width: 140vmax;
+  height: 140vmax;
+  margin: -70vmax 0 0 -70vmax;
+  pointer-events: none;
+  z-index: -1;
+  background: repeating-conic-gradient(from 0deg, rgba(242, 193, 78, 0.1) 0deg 8deg, transparent 8deg 22deg);
+  -webkit-mask: radial-gradient(circle, #000 0%, transparent 55%);
+  mask: radial-gradient(circle, #000 0%, transparent 55%);
+  animation: gift-rays 24s linear infinite;
+}
+
+@keyframes gift-rays {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gift-title, .gift-burst { animation: none; }
+}
