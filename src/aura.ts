@@ -263,6 +263,17 @@ function drawBack(ctx: Ctx, a: AuraDef, cx: number, feet: number, mid: number, w
       orbit(t, 4, 1.1, (i, x, y, front) => !front && shard(px, cx + x * w * 0.85, mid + y * w * 0.3, k, i, t));
       break;
     }
+    case 'reaper': {
+      // Death's own shadow: a dark pall, black smoke curling up, and his scythe looming behind.
+      bodyGlow(ctx, cx, mid, w * 1.2, '#0a0612', 0.75);
+      bodyGlow(ctx, cx, mid, w * 0.95, a.color, 0.16 * pulse);
+      rising(t, 8, 2.4, (i, p) => {
+        const x = cx + Math.sin(i * 2.7 + p * 5 + t) * w * (0.35 + p * 0.25);
+        px(x, feet - p * w * 1.5, i % 3 === 0 ? k * 2 : k, i % 2 ? '#1d1428' : '#2a1640', (1 - p) * 0.9);
+      });
+      scythe(px, cx + w * 0.5, feet, w, k, Math.sin(t * 0.9) * 0.12, a.color);
+      break;
+    }
     case 'rainbow': {
       // the rainbow flows round the hero: a ring of colour under the feet and colours rising
       const segs = 28;
@@ -326,6 +337,15 @@ function drawFront(_ctx: Ctx, a: AuraDef, cx: number, feet: number, mid: number,
     case 'crown':
       orbit(t, 8, 1.4, (i, x, y, front) => front && px(cx + x * w * 0.42 - k / 2, feet - w * 1.06 + y * w * 0.09, k, i % 2 ? '#fff2c0' : '#ff4d5a'));
       break;
+    case 'reaper':
+      // Pale souls drawn in toward the hero, fading as they arrive.
+      orbit(t, 3, 0.9, (i, x, y, front) => {
+        if (!front) return;
+        const pull = 0.75 + 0.25 * Math.sin(t * 1.5 + i * 2);
+        px(cx + x * w * 0.8 * pull, mid + y * w * 0.3, k, '#e8fbff', 0.55 + 0.35 * Math.sin(t * 4 + i));
+        px(cx + x * w * 0.8 * pull - k, mid + y * w * 0.3 + k, k, a.color, 0.5);
+      });
+      break;
     case 'souls':
       rising(t, 5, 2.2, (i, p) => {
         const ang = t * 2.5 + i * 1.3;
@@ -336,6 +356,35 @@ function drawFront(_ctx: Ctx, a: AuraDef, cx: number, feet: number, mid: number,
         }
       });
       break;
+  }
+}
+
+/**
+ * Death's scythe standing behind the hero: a long haft from the ground, a curved pale
+ * blade at the top, leaning by `sway` radians about its foot.
+ */
+function scythe(px: Px, footX: number, feet: number, w: number, k: number, sway: number, color: string) {
+  const len = w * 1.5;
+  const at = (along: number, side: number) => ({
+    x: footX + Math.sin(sway) * along + Math.cos(sway) * side,
+    y: feet - Math.cos(sway) * along + Math.sin(sway) * side,
+  });
+  for (let d = 0; d <= len; d += k) {
+    const p = at(d, 0);
+    px(p.x, p.y, k, d > len - k * 2 ? '#3a3346' : '#4a3a2a', 0.85);
+  }
+  // The blade sweeps out to the left from the top of the haft, curving down to a point.
+  const steps = 10;
+  for (let i = 0; i <= steps; i++) {
+    const q = i / steps;
+    const ang = Math.PI * (0.5 + q * 0.75);
+    const r = w * 0.55;
+    const p = at(len - r * 0.35 + Math.sin(ang) * r * 0.35, Math.cos(ang) * r);
+    px(p.x, p.y, k, q > 0.8 ? '#ffffff' : '#c9d1e0', 0.9);
+    if (q < 0.85) {
+      const e = at(len - r * 0.35 + Math.sin(ang) * r * 0.35 - k, Math.cos(ang) * r * 0.86);
+      px(e.x, e.y, k, color, 0.55);
+    }
   }
 }
 
