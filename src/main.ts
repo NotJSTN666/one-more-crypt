@@ -1584,6 +1584,8 @@ function resolveEvent(accept: boolean) {
 function pickRelic(i: number) {
   if (game.phase !== 'choose') return;
   clockInput();
+  // Mark the pick, so it can fly up as the screen leaves.
+  overlay.querySelector(i < 0 ? '#rest' : `.offer [data-i="${i}"]`)?.classList.add('picked');
   game.choose(i);
   hideOverlay();
   sfx.stairs();

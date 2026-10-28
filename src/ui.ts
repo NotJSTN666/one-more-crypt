@@ -39,7 +39,30 @@ overlay.addEventListener(
   true,
 );
 
+const calm = matchMedia('(prefers-reduced-motion: reduce)');
+
+/**
+ * Leave a copy of the screen that's going away, animating out on top, so screens hand over
+ * instead of snapping. With `veil`, the dark backdrop fades too (nothing new is coming).
+ */
+function ghostOut(veil: boolean) {
+  const panel = overlay.querySelector<HTMLElement>(':scope > .panel');
+  if (calm.matches || overlay.hidden || !panel) return;
+  const rect = panel.getBoundingClientRect();
+  const ghost = document.createElement('div');
+  ghost.className = `overlay-ghost ${veil ? 'veil' : ''} ${overlay.classList.contains('menu') ? 'menu' : 'run'} screen-${screen}`;
+  ghost.setAttribute('aria-hidden', 'true');
+  const copy = panel.cloneNode(true) as HTMLElement;
+  copy.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;margin:0`;
+  ghost.appendChild(copy);
+  document.body.appendChild(ghost);
+  window.setTimeout(() => ghost.remove(), 650);
+}
+
 export function showOverlay(name: string, html: string) {
+  // The same screen drawn again (a count ticking up, a tab switched) updates in place.
+  const fresh = name !== screen || overlay.hidden;
+  if (fresh) ghostOut(false);
   screen = name;
   overlayShownAt = performance.now();
   const menu = !RUN_SCREENS.includes(name);
@@ -49,10 +72,17 @@ export function showOverlay(name: string, html: string) {
   overlay.innerHTML = `<div class="panel">${topBack ? '<button class="back-top" data-top-back aria-label="Back">← Back</button>' : ''}${html}</div>`;
   overlay.hidden = false;
   overlay.scrollTop = 0;
+  if (fresh) {
+    // Restart the entrance: a reveal for run screens, a gentle rise for menus.
+    overlay.classList.remove('enter');
+    void overlay.offsetWidth;
+    overlay.classList.add('enter');
+  }
   overlay.querySelector('[data-top-back]')?.addEventListener('click', () => overlay.querySelector<HTMLElement>('#back')?.click());
 }
 
 export function hideOverlay() {
+  ghostOut(true);
   screen = '';
   document.body.classList.remove('menu');
   overlay.classList.remove('menu');

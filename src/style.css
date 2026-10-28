@@ -471,6 +471,8 @@ h2.dead {
 }
 
 .offer button {
+  position: relative;
+  overflow: hidden;
   display: grid;
   grid-template-columns: 44px 1fr;
   align-items: center;
@@ -480,12 +482,7 @@ h2.dead {
   border: 1px solid var(--line);
   border-left: 4px solid var(--line);
   padding: 12px;
-  animation: rise 0.35s ease-out backwards;
 }
-
-.offer button:nth-child(2) { animation-delay: 0.06s; }
-.offer button:nth-child(3) { animation-delay: 0.12s; }
-.offer button:nth-child(4) { animation-delay: 0.18s; }
 
 @keyframes rise {
   from {
@@ -1187,12 +1184,18 @@ body.menu #app {
 #overlay.menu .streak,
 #overlay.menu .follow-x,
 #overlay.menu .tip-note,
-#overlay.menu .online-count {
+#overlay.menu .online-count,
+.overlay-ghost.menu .tagline,
+.overlay-ghost.menu .sub,
+.overlay-ghost.menu .fine,
+.overlay-ghost.menu .online-count {
   text-shadow: 0 1px 3px #000, 0 0 10px #000;
 }
 
 #overlay.menu .btn,
-#overlay.menu .card {
+#overlay.menu .card,
+.overlay-ghost.menu .btn,
+.overlay-ghost.menu .card {
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55);
 }
 
@@ -3445,3 +3448,182 @@ body.tutorial #relic-bar {
   box-shadow: 0 0 10px rgba(127, 180, 255, 0.2);
 }
 #floor-icon { font-style: normal; }
+
+
+/* ---------- screen transitions ---------- */
+
+/* Menus rise gently into place. */
+#overlay.enter.menu > .panel {
+  animation: menu-in 0.34s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+@keyframes menu-in {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+}
+
+/* Run screens (relics, events, the forge, pause): the board dims, a flare of light, then the panel. */
+#overlay.enter:not(.menu) {
+  animation: veil-in 0.4s ease-out both;
+}
+
+#overlay.enter:not(.menu)::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 42%, rgba(242, 193, 78, 0.38), rgba(210, 58, 70, 0.12) 35%, transparent 65%);
+  animation: flare 0.8s ease-out both;
+}
+
+@keyframes veil-in {
+  from { background-color: rgba(5, 2, 9, 0); backdrop-filter: blur(0); }
+}
+
+@keyframes flare {
+  0% { opacity: 0; transform: scale(0.6); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.4); }
+}
+
+#overlay.enter:not(.menu) > .panel {
+  animation: run-in 0.48s cubic-bezier(0.2, 1.25, 0.35, 1) both;
+}
+
+@keyframes run-in {
+  0% { opacity: 0; transform: translateY(22px) scale(0.88); filter: blur(4px) brightness(1.8); }
+  60% { opacity: 1; filter: blur(0) brightness(1.15); }
+  100% { transform: none; filter: none; }
+}
+
+/* The heading spreads out of a glow. */
+#overlay.enter:not(.menu) > .panel > h2 {
+  animation: heading-in 0.6s ease-out 0.08s both;
+}
+
+@keyframes heading-in {
+  0% { opacity: 0; letter-spacing: 0.35em; text-shadow: 0 0 24px rgba(242, 193, 78, 1); }
+  100% { text-shadow: 0 0 0 rgba(242, 193, 78, 0); }
+}
+
+/* Relic cards deal in one after another, flipping up, each catching the light as it lands. */
+.offer {
+  perspective: 800px;
+}
+
+#overlay.enter .offer button {
+  animation: card-in 0.5s cubic-bezier(0.2, 1.3, 0.4, 1) both;
+  transform-origin: 50% 100%;
+}
+
+#overlay.enter .offer button:nth-child(1) { animation-delay: 0.16s; }
+#overlay.enter .offer button:nth-child(2) { animation-delay: 0.26s; }
+#overlay.enter .offer button:nth-child(3) { animation-delay: 0.36s; }
+#overlay.enter .offer button:nth-child(4) { animation-delay: 0.46s; }
+
+@keyframes card-in {
+  0% { opacity: 0; transform: translateY(28px) rotateX(60deg) scale(0.92); }
+  70% { opacity: 1; transform: translateY(-3px) rotateX(-4deg) scale(1.01); }
+  100% { transform: none; }
+}
+
+#overlay.enter .offer button::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 -50%;
+  width: 40%;
+  pointer-events: none;
+  background: linear-gradient(100deg, transparent, rgba(255, 242, 192, 0.28), transparent);
+  transform: skewX(-20deg);
+  animation: card-sheen 0.7s ease-out both;
+}
+
+#overlay.enter .offer button:nth-child(1)::after { animation-delay: 0.5s; }
+#overlay.enter .offer button:nth-child(2)::after { animation-delay: 0.6s; }
+#overlay.enter .offer button:nth-child(3)::after { animation-delay: 0.7s; }
+#overlay.enter .offer button:nth-child(4)::after { animation-delay: 0.8s; }
+
+@keyframes card-sheen {
+  from { left: -50%; }
+  to { left: 130%; }
+}
+
+/* Rarer finds flash their colour as they land. */
+#overlay.enter .offer .rare { animation-name: card-in, glow-rare; animation-duration: 0.5s, 1.2s; }
+#overlay.enter .offer .cursed { animation-name: card-in, glow-cursed; animation-duration: 0.5s, 1.2s; }
+#overlay.enter .offer .boon { animation-name: card-in, glow-boon; animation-duration: 0.5s, 1.2s; }
+
+@keyframes glow-rare { 40% { box-shadow: 0 0 18px rgba(159, 232, 255, 0.55); } }
+@keyframes glow-cursed { 40% { box-shadow: 0 0 18px rgba(210, 58, 70, 0.6); } }
+@keyframes glow-boon { 40% { box-shadow: 0 0 18px rgba(176, 124, 255, 0.6); } }
+
+/* The buttons under the cards follow them in. */
+#overlay.enter:not(.menu) > .panel > .btn {
+  animation: rise 0.4s ease-out 0.5s both;
+}
+
+/* ---------- leaving ---------- */
+
+.overlay-ghost {
+  position: fixed;
+  inset: 0;
+  z-index: 11;
+  pointer-events: none;
+}
+
+.overlay-ghost.veil::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 2, 9, 0.88);
+  animation: veil-out 0.38s ease-in forwards;
+}
+
+.overlay-ghost.veil.menu::before {
+  background: radial-gradient(ellipse at 50% 40%, rgba(5, 2, 9, 0.35) 0%, rgba(5, 2, 9, 0.55) 60%, rgba(5, 2, 9, 0.75) 100%);
+}
+
+@keyframes veil-out {
+  to { opacity: 0; }
+}
+
+.overlay-ghost > .panel {
+  animation: ghost-out 0.24s ease-in forwards;
+}
+
+@keyframes ghost-out {
+  to { opacity: 0; transform: translateY(-10px) scale(0.97); }
+}
+
+/* A relic screen leaving: the pick swells and flies up in a burst of light, the rest fall away. */
+.overlay-ghost.run > .panel:has(.picked) {
+  animation: none;
+}
+
+.overlay-ghost.run > .panel:has(.picked) > :not(.offer),
+.overlay-ghost.run .offer button:not(.picked) {
+  animation: fall-away 0.3s ease-in forwards;
+}
+
+.overlay-ghost.run .picked {
+  position: relative;
+  z-index: 1;
+  animation: picked-out 0.55s cubic-bezier(0.3, 0, 0.6, 1) forwards !important;
+}
+
+@keyframes fall-away {
+  to { opacity: 0; transform: translateY(14px) scale(0.96); }
+}
+
+@keyframes picked-out {
+  0% { transform: none; box-shadow: 0 0 0 rgba(242, 193, 78, 0); }
+  35% { transform: scale(1.06); box-shadow: 0 0 26px rgba(242, 193, 78, 0.9); filter: brightness(1.4); opacity: 1; }
+  100% { transform: translateY(-60px) scale(0.7); box-shadow: 0 0 40px rgba(242, 193, 78, 0); filter: brightness(2); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #overlay.enter, #overlay.enter::before, #overlay.enter > .panel, #overlay.enter > .panel > h2,
+  #overlay.enter .offer button, #overlay.enter .offer button::after, #overlay.enter > .panel > .btn {
+    animation: none !important;
+  }
+  .overlay-ghost { display: none; }
+}
