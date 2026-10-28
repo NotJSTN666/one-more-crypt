@@ -91,6 +91,7 @@ function newGame(mode: Mode) {
 function showGame(g: Game) {
   game = g;
   runCombos = [];
+  turnLog = [];
   renderer.outfit = outfitFor(game.hero);
   renderer.pet = meta.pet;
   renderer.setGame(game);
@@ -476,6 +477,7 @@ function waitHint() {
 function processEvents() {
   const events = game.events.splice(0);
   renderer.consume(events);
+  noteTurn(events);
   playSounds(events);
   if (tutorial) return tutorialEvents(events);
   if (events.some((e) => e.t === 'floor')) {
@@ -778,6 +780,13 @@ function updateHud(reset = false) {
   if (reset || unique.join() !== knownSet) {
     const bar = $('relic-bar');
     bar.innerHTML = '';
+    // First in the row: your build at a glance, and what happened in the last few turns.
+    const build = document.createElement('button');
+    build.className = 'relic-chip build-chip';
+    build.textContent = '📜';
+    build.setAttribute('aria-label', 'Your build and the last few turns');
+    build.addEventListener('click', () => showBuild('build'));
+    bar.appendChild(build);
     unique.forEach((id, i) => {
       const def = RELIC_BY_ID[id];
       const chip = document.createElement('button');
@@ -806,7 +815,7 @@ function updateHud(reset = false) {
   } else {
     // counts may change without new relic types
     unique.forEach((id, i) => {
-      const chip = $('relic-bar').children[i];
+      const chip = $('relic-bar').children[i + 1];
       const n = game.own(id);
       let c = chip?.querySelector('.count');
       if (n > 1 && chip) {
@@ -2506,6 +2515,101 @@ function showGift(item: string) {
 setInterval(() => {
   if (!document.hidden) void checkGifts();
 }, 30_000);
+
+// ---------- your build, and the last few turns ----------
+
+/** What happened, turn by turn, for the report: the newest last. */
+let turnLog: { turn: number; lines: string[] }[] = [];
+const LOG_TURNS = 4;
+
+const HIT_BY: Record<string, string> = {
+  melee: 'You hit', pierce: 'Your shot hit', burn: 'Burning hurt', thorns: 'Thorns hit', bolt: 'Your wisp hit',
+  burst: 'A bursting corpse hit', whirl: 'Your Whirling Blade hit', hellfire: 'Hellfire hit', spike: 'Spikes hit',
+  mask: 'Your Plague Mask hit', ally: 'Your thrall hit', claw: 'A foe clawed', orbit: 'Your Whirling Skulls hit', dart: 'A bone dart hit',
+};
+
+function foeName(id: number, fallen: Map<number, string>): string {
+  const e = game.enemies.find((x) => x.id === id);
+  // Foes slain this turn are already cleared away: name them from their death.
+  if (!e) return fallen.get(id) ?? 'a foe';
+  const name = ENEMY_INFO[e.kind].name;
+  if (e.ally) return `your thrall ${name}`;
+  return e.elite ? `the ${ELITES[e.elite].name} ${name}` : name;
+}
+
+/** Turn this turn's events into plain lines for the report. */
+function noteTurn(events: GameEvent[]) {
+  const lines: string[] = [];
+  const fallen = new Map<number, string>();
+  for (const ev of events) if (ev.t === 'kill') fallen.set(ev.id, ENEMY_INFO[ev.kind].name);
+  for (const ev of events) {
+    if (ev.t === 'hit') lines.push(`⚔️ ${HIT_BY[ev.kind] ?? 'Hit'} ${foeName(ev.id, fallen)} for ${ev.amount}${ev.crit ? ' (critical, ×3)' : ''}`);
+    else if (ev.t === 'kill') lines.push(`☠️ ${ev.ally ? 'Your thrall' : ENEMY_INFO[ev.kind].name} ${ev.ally ? 'fell' : 'was slain'}`);
+    else if (ev.t === 'hurt') lines.push(`💔 ${ev.src ? `${ev.src[0].toUpperCase()}${ev.src.slice(1)}` : 'Something'} hit you for ${ev.amount}`);
+    else if (ev.t === 'dodge') lines.push(`💨 You dodged ${ev.src ?? 'a blow'}`);
+    else if (ev.t === 'block') lines.push(`🛡️ Your shield blocked ${ev.src ?? 'a blow'}`);
+    else if (ev.t === 'heal' && ev.amount > 0) lines.push(`💚 You healed ${ev.amount}`);
+    else if (ev.t === 'revive') lines.push('✨ Death denied: you rose again');
+    else if (ev.t === 'potion') lines.push('🧪 You drank a potion');
+    else if (ev.t === 'timestop') lines.push('⏳ Time stopped: every foe frozen');
+    else if (ev.t === 'summon') lines.push('🦴 A boss raised a minion');
+    else if (ev.t === 'relic') lines.push(`🎁 Took ${RELIC_BY_ID[ev.id].name}`);
+  }
+  if (!lines.length) return;
+  const last = turnLog[turnLog.length - 1];
+  if (last && last.turn === game.turns) last.lines.push(...lines);
+  else turnLog.push({ turn: game.turns, lines });
+  if (turnLog.length > LOG_TURNS) turnLog = turnLog.slice(-LOG_TURNS);
+}
+
+/** Your build at a glance, or the last few turns blow by blow. */
+function showBuild(tab: 'build' | 'log') {
+  if (game.phase !== 'play') return;
+  const g = game;
+  const pct = (n: number) => `${Math.round(n * 100)}%`;
+  const crit = Math.min(1, 0.15 * g.r('dice'));
+  const healKill = g.r('fang') + g.boons.mend;
+  const stat = (label: string, value: string, note = '') => `<div class="build-stat"><b>${value}</b><span>${label}</span>${note ? `<small>${note}</small>` : ''}</div>`;
+  const stats = [
+    stat('Attack', String(g.atk)),
+    stat('Health', `${g.player.hp}/${g.player.maxHp}`),
+    stat('Critical', crit ? pct(crit) : '–', crit ? '×3 damage' : ''),
+    stat('Dodge', g.dodgeChance() ? pct(g.dodgeChance()) : '–'),
+    stat('Hits on you', g.r('scale') || g.r('moon') ? `${g.r('scale') ? `−${g.r('scale')}` : ''}${g.r('moon') ? ' +1' : ''}` : '–', g.r('scale') ? 'never below 1' : ''),
+    stat('Shields', `${g.shield}`, `${g.r('mirror') + g.boons.ward} a floor`),
+    stat('Heal per kill', healKill ? `+${healKill}` : '–'),
+  ].join('');
+  const hero = HERO_BY_ID[g.hero];
+  const owned = [...new Set(g.relicLog)].map((id) => {
+    const def = RELIC_BY_ID[id];
+    const n = g.r(id);
+    return `<li><span class="build-emoji">${def.emoji}</span><span><b>${esc(def.name)}${n > 1 ? ` ×${n}` : ''}</b><small>${esc(relicText(def.desc(n)))}</small></span></li>`;
+  }).join('');
+  const boons = (Object.keys(g.boons) as (keyof typeof g.boons)[]).filter((id) => g.boons[id] > 0).map((id) => {
+    const b = BOON_BY_ID[id];
+    return `<li><span class="build-emoji">${b.emoji}</span><span><b>${esc(b.name)}${g.boons[id] > 1 ? ` ×${g.boons[id]}` : ''}</b><small>${esc(b.desc)}</small></span></li>`;
+  }).join('');
+  const log = turnLog.length
+    ? [...turnLog].reverse().map((t) => `<div class="log-turn"><h4>Turn ${t.turn}${t.turn === g.turns ? ' · just now' : ''}</h4><ul>${t.lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul></div>`).join('')
+    : '<p class="fine">Nothing has happened yet. Make a move.</p>';
+  showOverlay('build', `
+    <h2>📜 ${tab === 'build' ? 'Your build' : 'Last turns'}</h2>
+    ${tab === 'log' ? '<p class="fine">The last few turns where something happened, newest first. Quiet steps are left out.</p>' : ''}
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tab-build" aria-selected="${tab === 'build'}">Build</button>
+      <button role="tab" id="tab-log" aria-selected="${tab === 'log'}">Last turns</button>
+    </div>
+    ${tab === 'build'
+      ? `<div class="build-stats">${stats}</div>
+    <p class="fine build-perk"><b>${esc(hero.name)}</b>: ${esc(hero.perkDesc)}</p>
+    ${owned ? `<h3 class="shop-head">Relics</h3><ul class="build-list">${owned}</ul>` : '<p class="fine">No relics yet.</p>'}
+    ${boons ? `<h3 class="shop-head">Abyss boons</h3><ul class="build-list">${boons}</ul>` : ''}`
+      : `<div class="build-log">${log}</div>`}
+    <button class="btn primary" id="back">Back to the crypt</button>`);
+  on('#tab-build', () => showBuild('build'));
+  on('#tab-log', () => showBuild('log'));
+  on('#back', hideOverlay);
+}
 
 /** Cloaks, headwear and auras that come with these achievements, to announce. */
 function featCosmetics(ids: string[]): { icon: string; title: string; detail: string }[] {

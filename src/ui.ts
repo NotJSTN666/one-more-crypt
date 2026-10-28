@@ -11,7 +11,7 @@ export let screen = '';
 export let overlayShownAt = 0;
 
 /** Screens shown during a run keep the board visible behind them; the rest are menus. */
-const RUN_SCREENS = ['choose', 'event', 'pause', 'fused'];
+const RUN_SCREENS = ['choose', 'event', 'pause', 'fused', 'build'];
 
 /** Long screens get a small Back pinned at the top, so leaving doesn't mean scrolling to the end. */
 const TOP_BACK = ['hall', 'act2', 'hall-public', 'help', 'heroes', 'ossuary', 'grimoire', 'profile', 'wardrobe'];

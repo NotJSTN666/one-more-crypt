@@ -95,12 +95,13 @@ export type GameEvent =
   | { t: 'hit'; id: number; x: number; y: number; amount: number; kind: HitKind; crit?: boolean }
   | { t: 'eblock'; id: number; x: number; y: number }
   | { t: 'kill'; id: number; x: number; y: number; kind: EnemyKind; ally?: boolean; elite?: EliteMod | null }
-  | { t: 'hurt'; amount: number }
+  /** You took damage; `src` names what did it, for the turn report. */
+  | { t: 'hurt'; amount: number; src?: string }
   | { t: 'heal'; amount: number }
   | { t: 'maxhp'; amount: number }
-  | { t: 'dodge' }
+  | { t: 'dodge'; src?: string }
   | { t: 'boon'; id: BoonId }
-  | { t: 'block' }
+  | { t: 'block'; src?: string }
   | { t: 'revive' }
   | { t: 'bolt'; from: Pos; to: Pos }
   | { t: 'dart'; from: Pos; to: Pos; hit: boolean }
@@ -682,7 +683,7 @@ export class Game {
       for (const e of this.alive) this.damageEnemy(e, hell * 2, 'hellfire');
       if (this.player.hp > 1) {
         this.player.hp -= 1;
-        this.events.push({ t: 'hurt', amount: 1 });
+        this.events.push({ t: 'hurt', amount: 1, src: 'your Hellfire Pact' });
       }
       this.checkCleared();
     }
@@ -1432,7 +1433,7 @@ export class Game {
           const cut = Math.min(2, this.player.hp - 1);
           if (cut > 0) {
             this.player.hp -= cut;
-            this.events.push({ t: 'hurt', amount: cut });
+            this.events.push({ t: 'hurt', amount: cut, src: 'the chest' });
           }
         }
         const gifts = this.r('key') ? 2 : 1;
@@ -1592,25 +1593,31 @@ export class Game {
     }
   }
 
+  /** The chance a blow misses you: Grave Dust, the Rogue's footwork and Shade Step. */
+  dodgeChance(): number {
+    const veil = this.boons.veil * 0.05;
+    return Math.min(veil ? 0.6 : 0.5, this.r('dust') * 0.2 + (this.hero === 'rogue' ? 0.15 : 0) + veil);
+  }
+
   private hurtPlayer(amount: number, src: Enemy | null, cause = 'the dark') {
     if (this.phase === 'dead') return;
-    const veil = this.boons.veil * 0.05;
-    const dodge = Math.min(veil ? 0.6 : 0.5, this.r('dust') * 0.2 + (this.hero === 'rogue' ? 0.15 : 0) + veil);
+    const from = src ? ENEMY_INFO[src.kind].name : cause;
+    const dodge = this.dodgeChance();
     if (dodge && this.combat() < dodge) {
-      this.events.push({ t: 'dodge' });
+      this.events.push({ t: 'dodge', src: from });
       this.stats.dodges++;
       return;
     }
     if (this.shieldCharges > 0) {
       this.shieldCharges--;
-      this.events.push({ t: 'block' });
+      this.events.push({ t: 'block', src: from });
       return;
     }
     amount = Math.max(1, amount - this.r('scale')) + this.r('moon');
     const hpBefore = this.player.hp;
     this.player.hp -= amount;
     this.hurtThisFloor = true;
-    this.events.push({ t: 'hurt', amount });
+    this.events.push({ t: 'hurt', amount, src: from });
     if (src?.elite === 'vampiric') src.hp = Math.min(src.maxHp, src.hp + 1);
     if (src && this.r('thorns')) this.damageEnemy(src, this.r('thorns'), 'thorns');
     if (this.player.hp <= 0) {
@@ -1898,7 +1905,7 @@ export class Game {
       for (const e of this.alive) this.damageEnemy(e, hell * 2, 'hellfire');
       if (this.player.hp > 1) {
         this.player.hp -= 1;
-        this.events.push({ t: 'hurt', amount: 1 });
+        this.events.push({ t: 'hurt', amount: 1, src: 'your Hellfire Pact' });
       }
     }
   }

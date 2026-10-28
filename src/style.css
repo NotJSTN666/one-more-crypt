@@ -3758,3 +3758,103 @@ body.tutorial #relic-bar {
 @media (prefers-reduced-motion: reduce) {
   .gift-title, .gift-burst { animation: none; }
 }
+
+/* ---------- your build, and the last few turns ---------- */
+
+.relic-chip.build-chip {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  border-color: #c99a2e;
+  background: linear-gradient(180deg, rgba(242, 193, 78, 0.16), rgba(0, 0, 0, 0.2)), var(--panel);
+}
+
+.build-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.build-stat {
+  padding: 8px 6px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  text-align: center;
+}
+
+.build-stat b {
+  display: block;
+  font-size: 18px;
+  color: var(--gold);
+}
+
+.build-stat span {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+}
+
+.build-stat small {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--read);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.build-perk {
+  text-align: left;
+}
+
+.build-list,
+.build-log ul {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  text-align: left;
+}
+
+.build-list li {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 7px 0;
+  border-bottom: 1px dashed var(--line);
+}
+
+.build-emoji {
+  font-size: 20px;
+  text-align: center;
+}
+
+.build-list b {
+  display: block;
+  font-size: 12px;
+}
+
+.build-list small,
+.build-log li {
+  display: block;
+  font-family: var(--read);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.build-log {
+  text-align: left;
+}
+
+.build-log h4 {
+  margin: 10px 0 4px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--gold);
+}
+
+.build-log li {
+  padding: 3px 0;
+  color: var(--text);
+}
