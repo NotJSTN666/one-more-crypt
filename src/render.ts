@@ -23,6 +23,9 @@ interface Mote { x: number; y: number; vx: number; vy: number; t: number; life: 
 interface Line { from: Pos; to: Pos; t: number; life: number; color: string }
 interface Corpse { kind: EnemyKind; x: number; y: number; t: number }
 interface Lunge { dx: number; dy: number; t: number }
+/** A blade's arc across a struck foe, and the ring of a blow landing. */
+interface Slash { x: number; y: number; ang: number; t: number; crit: boolean }
+interface Impact { x: number; y: number; t: number; life: number; color: string; r: number }
 
 const PLAYER_ID = 0;
 /** The cosmetic companion that trails the hero outside the story. */
@@ -73,6 +76,10 @@ export class Renderer {
   private strikes = new Map<number, number>();
   private floaters: Floater[] = [];
   private particles: Particle[] = [];
+  private slashes: Slash[] = [];
+  private impacts: Impact[] = [];
+  /** A white flash over the board for crits and big kills. */
+  private critFlash = 0;
   /** Pickups the Grave Magnet is pulling in, flying from where they lay to the hero. */
   private flying: { kind: MagnetPull['kind']; x0: number; y0: number; x1: number; y1: number; t: number }[] = [];
 
@@ -167,6 +174,8 @@ export class Renderer {
           this.corpses = [];
           this.flying = [];
           this.darts = [];
+          this.slashes = [];
+          this.impacts = [];
           this.lines = [];
           this.floaters = [];
           {
@@ -211,13 +220,21 @@ export class Renderer {
             melee: '#ffffff', burn: '#ff8a2a', thorns: '#7f9a52', bolt: '#9fe8ff',
             burst: '#d23a46', pierce: '#ffffff', whirl: '#c9d1e0', hellfire: '#ff5a2a',
             spike: '#c9d1e0', mask: '#7f9a52', ally: '#7ee081', claw: '#ff4d5a',
+            orbit: '#d3b0ff', dart: '#e8dcc4',
           };
+          // Your own blows cut a visible arc across the foe, angled from where you stand.
+          if (ev.kind === 'melee' || ev.kind === 'pierce' || ev.kind === 'whirl') {
+            const ang = Math.atan2(ev.y - g.player.y, ev.x - g.player.x);
+            this.slashes.push({ x: ev.x, y: ev.y, ang, t: 0, crit: Boolean(ev.crit) });
+          }
+          this.impacts.push({ x: ev.x, y: ev.y, t: 0, life: ev.crit ? 0.32 : 0.2, color: ev.crit ? '#f2c14e' : colors[ev.kind] ?? '#ffffff', r: ev.crit ? 13 : 8 });
           const f = this.floater(ev.x, ev.y, `${ev.amount}${ev.crit ? '!' : ''}`, ev.crit ? '#f2c14e' : colors[ev.kind], 0.8);
           f.y -= (stack++ % 3) * 4;
           this.floaters.push(f);
           if (ev.crit) {
-            this.shake = Math.max(this.shake, 3);
-            this.hitStop = Math.max(this.hitStop, 0.07);
+            this.shake = Math.max(this.shake, 4);
+            this.hitStop = Math.max(this.hitStop, 0.08);
+            this.critFlash = Math.max(this.critFlash, 0.5);
           }
           this.burstParticles(ev.x, ev.y, ev.kind === 'burn' ? '#ff8a2a' : '#d23a46', 4);
           break;
@@ -227,7 +244,19 @@ export class Renderer {
           this.corpses.push({ kind: ev.kind, x: d.x, y: d.y, t: 0 });
           this.shatter(ev.kind, d, this.facing.get(ev.id) ?? 1, isBoss(ev) ? 1.6 : 1);
           this.burstParticles(ev.x, ev.y, ev.ally ? '#7ee081' : ev.kind === 'wraith' ? '#9fe8ff' : '#e8dcc4', 6);
-          if (isBoss(ev)) this.hitStop = Math.max(this.hitStop, 0.18);
+          if (isBoss(ev)) {
+            this.hitStop = Math.max(this.hitStop, 0.18);
+            this.critFlash = Math.max(this.critFlash, 0.8);
+          }
+          // The foe's soul rises out of it, and a ring of force rolls outward.
+          this.impacts.push({ x: ev.x, y: ev.y, t: 0, life: 0.35, color: ev.elite ? ELITES[ev.elite].color : '#e8dcc4', r: isBoss(ev) ? 26 : 14 });
+          if (!ev.ally && !this.quiet) {
+            const sx = ev.x * TILE + TILE / 2;
+            const sy = ev.y * TILE + TILE / 2;
+            for (let i = 0; i < (isBoss(ev) ? 10 : 4); i++) {
+              this.particles.push({ x: sx + (Math.random() - 0.5) * 6, y: sy - 2, vx: (Math.random() - 0.5) * 6, vy: -14 - Math.random() * 10, color: Math.random() < 0.5 ? '#9fe8ff' : '#e8fbff', t: 0, life: 0.8 + Math.random() * 0.5, size: 1, grav: -0.15 });
+            }
+          }
           if (ev.elite) this.burstParticles(ev.x, ev.y, ELITES[ev.elite].color, 14, 1.5);
           this.shake = Math.max(this.shake, isBoss(ev) ? 6 : 1.5);
           break;
@@ -569,22 +598,35 @@ export class Renderer {
     for (const id of [...this.disp.keys()]) if (!seen.has(id)) this.disp.delete(id);
 
     this.drawLines(dt);
+    this.drawImpacts(dt);
+    this.drawSlashes(dt);
     this.drawRings(dt);
     this.drawOrbit(g, dt);
     this.drawDarts(dt);
     this.drawFlying(dt);
     this.drawParticles(dt);
     this.drawMotes(dt);
+    this.drawFog();
     this.drawLighting(g);
     this.drawWeather(g, dt);
     this.drawFloaters(dt);
     this.drawBanner(dt);
     this.drawEnter(g, realDt);
 
-    this.hurtFlash = Math.max(0, this.hurtFlash - dt * 3);
+    this.hurtFlash = Math.max(0, this.hurtFlash - dt * 4);
     this.healFlash = Math.max(0, this.healFlash - dt * 2);
     if (this.hurtFlash > 0) {
-      ctx.fillStyle = `rgba(200, 20, 40, ${this.hurtFlash * 0.28})`;
+      const edge = ctx.createRadialGradient(BOARD_W / 2, BOARD_H / 2, BOARD_W * 0.38, BOARD_W / 2, BOARD_H / 2, BOARD_W * 0.78);
+      edge.addColorStop(0, 'rgba(200, 20, 40, 0)');
+      edge.addColorStop(1, `rgba(220, 20, 40, ${this.hurtFlash * 0.45})`);
+      ctx.fillStyle = edge;
+      ctx.fillRect(-10, -10, BOARD_W + 20, BOARD_H + 20);
+      ctx.fillStyle = `rgba(200, 20, 40, ${this.hurtFlash * 0.06})`;
+      ctx.fillRect(-10, -10, BOARD_W + 20, BOARD_H + 20);
+    }
+    this.critFlash = Math.max(0, this.critFlash - dt * 5);
+    if (this.critFlash > 0 && !this.quiet) {
+      ctx.fillStyle = `rgba(255, 245, 220, ${this.critFlash * 0.25})`;
       ctx.fillRect(-10, -10, BOARD_W + 20, BOARD_H + 20);
     }
     for (const [id, t] of this.flashes) {
@@ -642,7 +684,7 @@ export class Renderer {
     const y = Math.round(d.y * TILE + PAD + oy + bob - hop);
     // soft shadow, smaller while airborne
     const sw = SPRITE_SIZE - 3 - Math.round(hop) - (bob ? 2 : 0);
-    ctx.globalAlpha = 0.4 * alpha;
+    ctx.globalAlpha = 0.55 * alpha;
     ctx.fillStyle = '#000';
     ctx.beginPath();
     ctx.ellipse(Math.round(d.x * TILE + PAD + ox) + SPRITE_SIZE / 2, Math.round(d.y * TILE + PAD + oy) + SPRITE_SIZE - 0.5, sw / 2, 1.5, 0, 0, Math.PI * 2);
@@ -1184,21 +1226,71 @@ export class Renderer {
     }
     const ctx = this.ctx;
     this.floaters = this.floaters.filter((f) => (f.t += dt) < f.life);
-    ctx.font = '8px Silkscreen, monospace';
     ctx.textAlign = 'center';
     for (const f of this.floaters) {
       const p = f.t / f.life;
-      const y = Math.round(f.y - p * 8);
+      // Numbers pop in big and settle; crits ("4!") stay larger.
+      const big = f.text.endsWith('!');
+      const pop = f.t < 0.1 ? 1 + (1 - f.t / 0.1) * 0.7 : 1;
+      const size = Math.round((big ? 10 : 8) * pop);
+      ctx.font = `${size}px Silkscreen, monospace`;
+      const y = Math.round(f.y - p * 8 - (pop - 1) * 3);
       const half = ctx.measureText(f.text).width / 2;
       const x = Math.round(Math.min(BOARD_W - half - 1, Math.max(half + 1, f.x)));
       ctx.globalAlpha = p > 0.7 ? 1 - (p - 0.7) / 0.3 : 1;
       ctx.fillStyle = '#000';
-      ctx.fillText(f.text, x + 1, y + 1);
+      for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1]]) ctx.fillText(f.text, x + ox, y + oy);
       ctx.fillStyle = f.color;
       ctx.fillText(f.text, x, y);
     }
     ctx.globalAlpha = 1;
     ctx.textAlign = 'left';
+  }
+
+  /** Blade arcs: a bright crescent that sweeps across the foe and thins away. */
+  private drawSlashes(dt: number) {
+    const ctx = this.ctx;
+    for (const s of this.slashes) {
+      s.t += dt / (s.crit ? 0.22 : 0.16);
+      const p = Math.min(1, s.t);
+      const cx = s.x * TILE + TILE / 2;
+      const cy = s.y * TILE + TILE / 2;
+      // The arc sweeps across, perpendicular to the blow.
+      const mid = s.ang + Math.PI / 2;
+      const span = 1.6;
+      const from = mid - span / 2 + p * 0.5;
+      const to = from + span * Math.min(1, p * 2.2);
+      ctx.save();
+      ctx.globalAlpha = 1 - p;
+      ctx.strokeStyle = s.crit ? '#ffe08a' : '#ffffff';
+      ctx.lineWidth = s.crit ? 2.5 : 1.6;
+      ctx.lineCap = 'round';
+      ctx.shadowColor = s.crit ? '#f2c14e' : '#ffffff';
+      ctx.shadowBlur = 6;
+      ctx.beginPath();
+      ctx.arc(cx - Math.cos(s.ang) * 3, cy - Math.sin(s.ang) * 3, s.crit ? 9 : 7, from, to);
+      ctx.stroke();
+      ctx.restore();
+    }
+    this.slashes = this.slashes.filter((s) => s.t < 1);
+  }
+
+  /** Rings of force where a blow lands or a foe falls. */
+  private drawImpacts(dt: number) {
+    const ctx = this.ctx;
+    for (const im of this.impacts) {
+      im.t += dt;
+      const p = Math.min(1, im.t / im.life);
+      ctx.save();
+      ctx.globalAlpha = (1 - p) * 0.8;
+      ctx.strokeStyle = im.color;
+      ctx.lineWidth = Math.max(0.5, 2 * (1 - p));
+      ctx.beginPath();
+      ctx.arc(im.x * TILE + TILE / 2, im.y * TILE + TILE / 2, 2 + im.r * (1 - Math.pow(1 - p, 3)), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+    this.impacts = this.impacts.filter((im) => im.t < im.life);
   }
 
   /** Wall candles: flickering flames that throw a warm glow on the floor around them. */
@@ -1266,12 +1358,39 @@ export class Renderer {
     ctx.restore();
   }
 
+  /** Low fog drifting across the floor in slow, soft banks. */
+  private drawFog() {
+    if (this.quiet) return;
+    const ctx = this.ctx;
+    for (let i = 0; i < 3; i++) {
+      const t = this.time * (0.05 + i * 0.02) + i * 2.1;
+      const x = ((Math.sin(t) * 0.5 + 0.5) * 1.4 - 0.2) * BOARD_W;
+      const y = (0.3 + i * 0.25 + Math.sin(t * 1.7) * 0.08) * BOARD_H;
+      const r = BOARD_W * (0.45 + i * 0.1);
+      const fog = ctx.createRadialGradient(x, y, 0, x, y, r);
+      fog.addColorStop(0, 'rgba(140, 125, 170, 0.07)');
+      fog.addColorStop(1, 'rgba(140, 125, 170, 0)');
+      ctx.fillStyle = fog;
+      ctx.fillRect(0, 0, BOARD_W, BOARD_H);
+    }
+  }
+
   private drawLighting(g: Game) {
     const ctx = this.ctx;
     const d = this.disp.get(PLAYER_ID) ?? g.player;
     const cx = d.x * TILE + TILE / 2;
     const cy = d.y * TILE + TILE / 2;
     const flicker = Math.sin(this.time * 9) * 1.5 + Math.sin(this.time * 23) * 0.8;
+    // The hero carries a little warm light of their own.
+    if (!this.quiet) {
+      ctx.globalCompositeOperation = 'lighter';
+      const warm = ctx.createRadialGradient(cx, cy - 2, 1, cx, cy - 2, 30 + flicker);
+      warm.addColorStop(0, 'rgba(255, 170, 90, 0.13)');
+      warm.addColorStop(1, 'rgba(255, 140, 60, 0)');
+      ctx.fillStyle = warm;
+      ctx.fillRect(cx - 40, cy - 40, 80, 80);
+      ctx.globalCompositeOperation = 'source-over';
+    }
     // Candles and lanterns push the darkness back.
     const light = Math.min(5, g.r('candle') + g.r('lantern'));
     const zone = zoneLook(g.zone);
@@ -1285,6 +1404,20 @@ export class Renderer {
     grad.addColorStop(1, dark ? 'rgba(3, 1, 8, 0.9)' : zone.light[1]);
     ctx.fillStyle = grad;
     ctx.fillRect(-10, -10, BOARD_W + 20, BOARD_H + 20);
+    // A soft vignette, so the board sinks into the dark at its edges.
+    const edge = 10;
+    for (const [x0, y0, x1, y1, rx, ry, rw, rh] of [
+      [0, 0, 0, edge, 0, 0, BOARD_W, edge],
+      [0, BOARD_H, 0, BOARD_H - edge, 0, BOARD_H - edge, BOARD_W, edge],
+      [0, 0, edge, 0, 0, 0, edge, BOARD_H],
+      [BOARD_W, 0, BOARD_W - edge, 0, BOARD_W - edge, 0, edge, BOARD_H],
+    ]) {
+      const v = ctx.createLinearGradient(x0, y0, x1, y1);
+      v.addColorStop(0, 'rgba(4, 2, 8, 0.55)');
+      v.addColorStop(1, 'rgba(4, 2, 8, 0)');
+      ctx.fillStyle = v;
+      ctx.fillRect(rx, ry, rw, rh);
+    }
     if (this.healFlash > 0) {
       ctx.fillStyle = `rgba(126, 224, 129, ${this.healFlash * 0.15})`;
       ctx.fillRect(-10, -10, BOARD_W + 20, BOARD_H + 20);
@@ -1328,11 +1461,31 @@ export class Renderer {
           ctx.fillStyle = 'rgba(255,220,170,0.04)';
           ctx.fillRect(px, py, TILE, 1);
         } else {
-          ctx.fillStyle = 'rgba(0,0,0,0.35)';
-          ctx.fillRect(px, py + TILE - 1, TILE, 1);
-          ctx.fillRect(px + TILE - 1, py, 1, TILE);
-          ctx.fillStyle = 'rgba(255,255,255,0.03)';
-          ctx.fillRect(px, py, TILE, 1);
+          // Flagstones: one slab or two, each with a lit top-left edge, a shadowed
+          // bottom-right edge, dark grout between, a little grit and a worn middle.
+          const split = rng();
+          const slabs: [number, number, number, number][] =
+            split < 0.18 ? [[0, 0, TILE, 8], [0, 8, TILE, 8]] : split < 0.32 ? [[0, 0, 8, TILE], [8, 0, 8, TILE]] : [[0, 0, TILE, TILE]];
+          for (const [sx, sy, sw, sh] of slabs) {
+            const x0 = px + sx;
+            const y0 = py + sy;
+            // Each slab a shade lighter or darker than its neighbours.
+            ctx.fillStyle = rng() < 0.4 ? `rgba(255,240,220,${0.01 + rng() * 0.025})` : `rgba(0,0,0,${0.06 + rng() * 0.14})`;
+            ctx.fillRect(x0, y0, sw, sh);
+            ctx.fillStyle = 'rgba(255,240,220,0.045)';
+            ctx.fillRect(x0, y0, sw - 1, 1);
+            ctx.fillRect(x0, y0 + 1, 1, sh - 2);
+            ctx.fillStyle = 'rgba(0,0,0,0.28)';
+            ctx.fillRect(x0 + 1, y0 + sh - 2, sw - 2, 1);
+            ctx.fillRect(x0 + sw - 2, y0 + 1, 1, sh - 2);
+            ctx.fillStyle = 'rgba(0,0,0,0.55)';
+            ctx.fillRect(x0, y0 + sh - 1, sw, 1);
+            ctx.fillRect(x0 + sw - 1, y0, 1, sh);
+          }
+          for (let k = 0; k < 4; k++) {
+            ctx.fillStyle = rng() < 0.7 ? 'rgba(0,0,0,0.28)' : 'rgba(255,240,220,0.06)';
+            ctx.fillRect(px + 1 + Math.floor(rng() * 13), py + 1 + Math.floor(rng() * 13), 1, 1);
+          }
         }
         const r = rng();
         if (r < 0.12) {
@@ -1362,6 +1515,32 @@ export class Renderer {
           const by = py + 4 + Math.floor(rng() * 5);
           ctx.fillRect(bx, by, 3, 2);
           ctx.fillRect(bx + 1, by - 1, 2, 4);
+        }
+      }
+    }
+    // Ambient shade: floor darkens into the corners where it meets a wall at its side.
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (wallAt(x, y)) continue;
+        const px = x * TILE;
+        const py = y * TILE;
+        const shade = (alpha: number, rx: number, ry: number, rw: number, rh: number) => {
+          ctx.fillStyle = `rgba(0,0,0,${alpha})`;
+          ctx.fillRect(rx, ry, rw, rh);
+        };
+        if (x > 0 && wallAt(x - 1, y)) {
+          shade(0.32, px, py, 1, TILE);
+          shade(0.18, px + 1, py, 1, TILE);
+          shade(0.08, px + 2, py, 1, TILE);
+        }
+        if (x + 1 < W && wallAt(x + 1, y)) {
+          shade(0.32, px + TILE - 1, py, 1, TILE);
+          shade(0.18, px + TILE - 2, py, 1, TILE);
+          shade(0.08, px + TILE - 3, py, 1, TILE);
+        }
+        if (y + 1 < H && wallAt(x, y + 1)) {
+          shade(0.2, px, py + TILE - 1, TILE, 1);
+          shade(0.08, px, py + TILE - 2, TILE, 1);
         }
       }
     }
@@ -1405,13 +1584,36 @@ export class Renderer {
           ctx.fillStyle = wall.top;
           ctx.fillRect(px + 2 + Math.floor(rng() * 10), py + 4 + Math.floor(rng() * 6), 2, 1);
         } else {
-          // bricks
+          // bricks, each its own shade, with a lit top edge and the odd chip
           for (let row = 0; row < 3; row++) {
             const by = py + 4 + row * 4;
-            ctx.fillRect(px, by + 3, TILE, 1);
             const off = row % 2 ? 4 : 0;
+            for (let bx = px + off - 8; bx < px + TILE; bx += 8) {
+              const x0 = Math.max(px, bx + 1);
+              const x1 = Math.min(px + TILE, bx + 8);
+              if (x1 <= x0) continue;
+              ctx.fillStyle = rng() < 0.5 ? `rgba(255,240,220,${rng() * 0.07})` : `rgba(0,0,0,${rng() * 0.18})`;
+              ctx.fillRect(x0, by, x1 - x0, 3);
+              ctx.fillStyle = 'rgba(255,240,220,0.06)';
+              ctx.fillRect(x0, by, x1 - x0, 1);
+              if (rng() < 0.12) {
+                ctx.fillStyle = 'rgba(0,0,0,0.35)';
+                ctx.fillRect(x0 + Math.floor(rng() * Math.max(1, x1 - x0 - 1)), by + 1, 1, 1);
+              }
+            }
+            ctx.fillStyle = wall.brick;
+            ctx.fillRect(px, by + 3, TILE, 1);
             for (let bx = px + off; bx < px + TILE; bx += 8) ctx.fillRect(bx, by, 1, 3);
           }
+        }
+        // Sides that face open floor fall into shadow, so walls read as solid blocks.
+        if (x > 0 && !wallAt(x - 1, y)) {
+          ctx.fillStyle = 'rgba(0,0,0,0.3)';
+          ctx.fillRect(px, py + 1, 1, TILE - 1);
+        }
+        if (x + 1 < W && !wallAt(x + 1, y)) {
+          ctx.fillStyle = 'rgba(0,0,0,0.4)';
+          ctx.fillRect(px + TILE - 1, py + 1, 1, TILE - 1);
         }
         if (rng() < 0.25) {
           ctx.fillStyle = wall.moss;

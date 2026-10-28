@@ -12,6 +12,8 @@
   --heal: #7ee081;
   --pixel: 'Silkscreen', ui-monospace, monospace;
   --gothic: 'Pirata One', Georgia, serif;
+  /* Readable text (descriptions, notes): a pixel face with lower case, to sit with the titles. */
+  --read: 'Pixelify Sans', system-ui, sans-serif;
 }
 
 * {
@@ -161,7 +163,15 @@ button {
   display: block;
   image-rendering: pixelated;
   border: 2px solid #000;
-  box-shadow: 0 0 0 2px var(--line), 0 10px 40px rgba(0, 0, 0, 0.8), 0 0 60px rgba(112, 24, 38, 0.25);
+  /* A carved stone frame: dark lip, worn gold inlay, a lit stone ridge, then the dark around it. */
+  box-shadow:
+    0 0 0 1px rgba(201, 154, 46, 0.35),
+    0 0 0 3px #2a2131,
+    0 0 0 4px #4d3f57,
+    0 0 0 5px #6b5a75,
+    0 0 0 6px #140d1a,
+    0 12px 40px rgba(0, 0, 0, 0.85),
+    0 0 70px rgba(112, 24, 38, 0.3);
   touch-action: none;
 }
 
@@ -328,6 +338,16 @@ button {
   color: var(--blood);
   letter-spacing: 2px;
   text-shadow: 0 0 24px rgba(210, 58, 70, 0.6), 0 4px 0 #000;
+  animation: logo-breathe 4s ease-in-out infinite;
+}
+
+/* The name glows like embers, slowly brightening and fading. */
+@keyframes logo-breathe {
+  50% { text-shadow: 0 0 34px rgba(255, 77, 90, 0.85), 0 0 70px rgba(210, 58, 70, 0.35), 0 4px 0 #000; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo { animation: none; }
 }
 
 .tagline {
@@ -361,12 +381,21 @@ h2.dead {
   width: 100%;
   padding: 14px 16px;
   margin: 8px 0;
-  background: var(--panel-2);
+  /* Carved stone: lit from above, a bevelled lip, a dark inner edge. */
+  background: linear-gradient(180deg, rgba(255, 240, 220, 0.045), rgba(0, 0, 0, 0.14)), var(--panel-2);
   border: 1px solid var(--line);
   border-bottom: 4px solid #0a0610;
+  box-shadow: inset 0 1px 0 rgba(255, 240, 220, 0.08), inset 0 0 0 1px rgba(0, 0, 0, 0.35);
   font-size: 14px;
   text-decoration: none;
   color: var(--text);
+  transition: border-color 0.15s, filter 0.15s;
+}
+
+.btn:hover,
+.tile:hover {
+  border-color: #6b5a75;
+  filter: brightness(1.12);
 }
 
 .btn:active {
@@ -420,8 +449,9 @@ h2.dead {
 }
 
 .card {
-  background: var(--panel);
+  background: linear-gradient(180deg, rgba(255, 240, 220, 0.03), rgba(0, 0, 0, 0.12)), var(--panel);
   border: 1px solid var(--line);
+  box-shadow: inset 0 1px 0 rgba(255, 240, 220, 0.06), inset 0 0 0 1px rgba(0, 0, 0, 0.35), 0 6px 18px rgba(0, 0, 0, 0.35);
   padding: 14px;
   margin: 8px 0;
 }
@@ -531,12 +561,12 @@ h2.dead {
   color: var(--muted);
   margin-top: 4px;
   line-height: 1.35;
-  font-family: system-ui, sans-serif;
+  font-family: var(--read);
 }
 
 .help {
   text-align: left;
-  font-family: system-ui, sans-serif;
+  font-family: var(--read);
   font-size: 14px;
   line-height: 1.5;
 }
@@ -556,7 +586,7 @@ h2.dead {
   font-size: 12px;
   color: var(--muted);
   text-align: left;
-  font-family: system-ui, sans-serif;
+  font-family: var(--read);
 }
 
 .foes b {
@@ -679,7 +709,7 @@ h2.dead {
 }
 
 .fine {
-  font-family: system-ui, sans-serif;
+  font-family: var(--read);
   font-size: 12px;
   line-height: 1.4;
   color: var(--muted);
@@ -856,7 +886,7 @@ details.card summary {
   font-size: 11px;
   color: var(--muted);
   margin-top: 2px;
-  font-family: system-ui, sans-serif;
+  font-family: var(--read);
 }
 
 .board .depth {
@@ -995,7 +1025,7 @@ details.card summary {
 .hero-info .desc,
 .shop-info .desc {
   display: block;
-  font-family: system-ui, sans-serif;
+  font-family: var(--read);
   font-size: 12px;
   color: var(--muted);
   margin-top: 4px;
@@ -1250,7 +1280,7 @@ body.menu #app {
 
 .howto p {
   margin: 0;
-  font-family: system-ui, sans-serif;
+  font-family: var(--read);
   font-size: 13px;
   line-height: 1.45;
   color: var(--text);
@@ -1381,7 +1411,7 @@ kbd {
 
 #coach-text {
   margin: 4px 0 0;
-  font-family: system-ui, sans-serif;
+  font-family: var(--read);
   font-size: 14px;
   line-height: 1.4;
   color: var(--text);
@@ -1402,7 +1432,7 @@ body.tutorial #relic-bar {
   border: 1px solid var(--gold);
   border-radius: 4px;
   background: rgba(20, 13, 28, 0.92);
-  font-family: system-ui, sans-serif;
+  font-family: var(--read);
   font-size: 13px;
   line-height: 1.4;
   text-align: left;
@@ -1548,7 +1578,7 @@ body.tutorial #relic-bar {
 }
 
 .look-card .desc {
-  font-family: system-ui, sans-serif;
+  font-family: var(--read);
   font-size: 10px;
   color: var(--muted);
   line-height: 1.25;
@@ -1677,7 +1707,7 @@ body.tutorial #relic-bar {
   background: rgba(20, 13, 28, 0.95);
   border: 1px solid #9fe8ff;
   box-shadow: 0 0 24px rgba(159, 232, 255, 0.25);
-  font-family: system-ui, sans-serif;
+  font-family: var(--read);
   font-size: 14px;
   line-height: 1.45;
   color: var(--text);
@@ -1992,7 +2022,7 @@ body.tutorial #relic-bar {
 }
 
 .fused-desc {
-  font-family: system-ui, sans-serif;
+  font-family: var(--read);
   font-size: 15px;
   line-height: 1.45;
   color: var(--text);
@@ -2182,7 +2212,7 @@ body.tutorial #relic-bar {
   align-items: center;
   gap: 10px;
   margin: 10px 0 0;
-  font-family: system-ui, sans-serif;
+  font-family: var(--read);
   font-size: 14px;
   cursor: pointer;
 }
@@ -2224,7 +2254,7 @@ body.tutorial #relic-bar {
 
 .tomorrow span {
   display: block;
-  font-family: system-ui, sans-serif;
+  font-family: var(--read);
   font-size: 13px;
   color: var(--muted);
 }
@@ -2255,7 +2285,7 @@ body.tutorial #relic-bar {
   gap: 10px;
   padding: 6px 0;
   border-bottom: 1px dashed var(--line);
-  font-family: system-ui, sans-serif;
+  font-family: var(--read);
   font-size: 13px;
 }
 
@@ -2335,7 +2365,7 @@ body.tutorial #relic-bar {
 .chapter-info span,
 .chapter-info small {
   display: block;
-  font-family: system-ui, sans-serif;
+  font-family: var(--read);
   font-size: 13px;
   color: var(--muted);
 }
@@ -2382,7 +2412,7 @@ body.tutorial #relic-bar {
 
 .talk p {
   margin: 4px 0 0;
-  font-family: system-ui, sans-serif;
+  font-family: var(--read);
   font-size: 16px;
   line-height: 1.5;
   color: var(--text);
@@ -2399,7 +2429,7 @@ body.tutorial #relic-bar {
 
 .talk-prompt,
 .talk-quip {
-  font-family: system-ui, sans-serif;
+  font-family: var(--read);
   font-size: 15px;
   line-height: 1.5;
   color: var(--text);
@@ -2441,7 +2471,7 @@ body.tutorial #relic-bar {
 }
 
 .shade small {
-  font-family: system-ui, sans-serif;
+  font-family: var(--read);
   font-size: 12px;
   color: var(--muted);
 }
@@ -2489,7 +2519,7 @@ body.tutorial #relic-bar {
 
 .quest span {
   display: block;
-  font-family: system-ui, sans-serif;
+  font-family: var(--read);
   font-size: 13px;
   line-height: 1.45;
   color: var(--muted);
@@ -2942,7 +2972,7 @@ body.tutorial #relic-bar {
   border: 1px solid var(--line);
   background: #0d0814;
   color: var(--text);
-  font: 15px/1.4 system-ui, sans-serif;
+  font: 15px/1.4 var(--read);
 }
 
 .fb-count {
@@ -3244,7 +3274,16 @@ body.tutorial #relic-bar {
   content: '';
   flex: 1;
   height: 1px;
-  background: var(--line);
+  background: linear-gradient(90deg, transparent, #6b5a75);
+}
+
+.title-section::after {
+  background: linear-gradient(90deg, #6b5a75, transparent);
+}
+
+/* Section names in worn bone, between lines that fade out to either side. */
+.title-section {
+  color: #c9b99a;
 }
 
 .tiles {
@@ -3261,9 +3300,11 @@ body.tutorial #relic-bar {
   gap: 3px;
   min-height: 78px;
   padding: 10px 8px;
-  background: var(--panel-2);
+  background: radial-gradient(ellipse at 50% 0%, rgba(255, 240, 220, 0.07), transparent 70%), linear-gradient(180deg, rgba(255, 240, 220, 0.03), rgba(0, 0, 0, 0.16)), var(--panel-2);
   border: 1px solid var(--line);
   border-bottom: 3px solid #0a0610;
+  box-shadow: inset 0 1px 0 rgba(255, 240, 220, 0.08), inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+  transition: border-color 0.15s, filter 0.15s;
   color: var(--text);
   font-size: 13px;
   text-align: center;
