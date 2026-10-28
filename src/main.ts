@@ -894,10 +894,7 @@ function showTitle() {
         <div>Daily #${today} conquered</div>
         <div class="strip">${descentStrip(done.floor)}</div>
         <div class="sub" style="margin:0">Floor ${done.floor} · ${done.kills} kills</div>
-        <div class="row">
-          <button class="btn x" id="share-today">Share on 𝕏</button>
-          <a class="btn discord" href="${DISCORD_URL}" target="_blank" rel="noopener">💬 Discord</a>
-        </div>
+        <a class="btn discord" href="${DISCORD_URL}" target="_blank" rel="noopener">💬 Discord</a>
         <div class="sub" style="margin:6px 0 0">Next crypt opens in <span class="countdown">--:--:--</span></div>
       </div>`
     : resumable?.mode === 'daily'
@@ -977,7 +974,6 @@ function showTitle() {
       if (screen === 'title') showTitle();
     });
   });
-  on('#share-today', () => done && share(done, `Daily #${today}`));
   tickCountdowns();
   // Finished on yesterday's podium? Celebrate once the result is in.
   // A world boss you fought in fell (or got away) while you were gone.
