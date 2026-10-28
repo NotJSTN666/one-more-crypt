@@ -941,7 +941,6 @@ function showTitle() {
       ${ONLINE ? titleTile('invite', '👥', 'Bring a friend', meta.invite.friends ? `${meta.invite.friends} brought` : 'You both get a cloak') : ''}
       ${titleTile('feedback', '💬', 'Feedback', 'Bugs & ideas')}
       ${titleTile('help', '❔', 'How to play', 'The basics')}
-      ${installMode() ? titleTile('install', '📲', 'Install app', 'Play full screen') : ''}
     </div>
     <div class="foot-links">${followXHtml}${discordHtml}${kofiHtml}</div>
   `);
@@ -1066,7 +1065,9 @@ function showInstallHelp(back: () => void) {
 
 function accountChip(): string {
   const mute = `<button class="account-chip mute-chip" id="title-mute" aria-label="${isMuted() ? 'Sound off. Turn it on' : 'Sound on. Mute'}">${isMuted() ? '🔇' : '🔊'}</button>`
-    + `<button class="account-chip mute-chip kofi-chip" id="title-kofi" aria-label="Support One More Crypt">☕️</button>`;
+    + `<button class="account-chip mute-chip kofi-chip" id="title-kofi" aria-label="Support One More Crypt">☕️</button>`
+    // Install, up top beside the sound, wherever the browser can add the game to the home screen.
+    + (installMode() ? `<button class="account-chip install-chip" id="install" aria-label="Install the app">📲 Install</button>` : '');
   if (ONLINE && !session.ready) return `<div class="account-row">${mute}</div>`;
   const name = playerName();
   const title = titleName(meta.title);

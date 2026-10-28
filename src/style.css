@@ -617,6 +617,7 @@ h2.dead {
 
 .account-row {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   align-items: center;
   gap: 6px;
@@ -3667,4 +3668,11 @@ body.tutorial #relic-bar {
     animation: none !important;
   }
   .overlay-ghost { display: none; }
+}
+
+/* Install, in the top bar: a gold edge so it reads as an offer, not a setting. */
+.account-chip.install-chip {
+  border-color: #c99a2e;
+  color: var(--gold);
+  box-shadow: 0 0 10px rgba(242, 193, 78, 0.25);
 }
