@@ -28,7 +28,7 @@ import { showWardrobe } from './wardrobe';
 import { IMPACT, playFusion } from './fusefx';
 import { howToHtml, startHowTo } from './howto';
 import { RELIC_COACH, TUTORIAL } from './tutorial';
-import { DISCORD_URL, KOFI_URL, copyText, descentStrip, discordHtml, followXHtml, kofiHtml, playTime, shareText, siteUrl, xIntentUrl } from './share';
+import { DISCORD_URL, KOFI_URL, copyText, descentStrip, discordHtml, followXHtml, kofiHtml, playTime, shareText, siteUrl } from './share';
 import { installMode, onInstallChange, promptInstall, setupInstall } from './install';
 import { bountiesHtml, progressBounties } from './bounties';
 import { enableReminders, loadReminders, reminderPrefs, remindersAvailable, remindersNeedInstall, timeZone } from './push';
@@ -1012,16 +1012,12 @@ function showPodium(won: PodiumFinish[], back: () => void) {
       ${others.map((w) => `<li>${PODIUM.find((p) => p.place === w.place)!.medal} Also ${ORDINAL[w.place]} in Daily #${w.dailyNo}</li>`).join('')}
     </ul>
     <button class="btn primary" id="wear">Wear it now</button>
-    <button class="btn x" id="share-podium">Share on 𝕏</button>
     <button class="btn" id="back">Continue</button>`);
   on('#wear', () => {
     equipOutfit(meta.hero, 'head', prize.head);
     toast(`Your ${HERO_BY_ID[meta.hero].name} wears the ${head.name}`);
     back();
   });
-  on('#share-podium', () =>
-    window.open(xIntentUrl(`${prize.medal} I placed ${ORDINAL[best.place]} of ${best.total} in One More Crypt Daily #${best.dailyNo}.\nOne crypt. One try a day. Can you take the crown?\n${siteUrl()}`), '_blank', 'noopener'),
-  );
   on('#back', back);
 }
 
@@ -1044,7 +1040,6 @@ function showWeekly(won: WeeklyFinish[], back: () => void) {
       <li>♾️ A new week has begun. Defend your place.</li>
     </ul>
     ${head ? '<button class="btn primary" id="wear">Wear it now</button>' : ''}
-    <button class="btn x" id="share-weekly">Share on 𝕏</button>
     <button class="btn ${head ? '' : 'primary'}" id="back">Continue</button>`);
   on('#wear', () => {
     if (!head) return;
@@ -1052,9 +1047,6 @@ function showWeekly(won: WeeklyFinish[], back: () => void) {
     toast(`Your ${HERO_BY_ID[meta.hero].name} wears the ${head.name}`);
     back();
   });
-  on('#share-weekly', () =>
-    window.open(xIntentUrl(`${prize.medal} I placed ${ORDINAL[best.place]} of ${best.total} on the One More Crypt Endless board this week.\nHow deep can you go?\n${siteUrl()}`), '_blank', 'noopener'),
-  );
   on('#back', back);
 }
 
@@ -1979,12 +1971,10 @@ function showChallengeShare(code: string, line: string, back: () => void, passin
     <input class="challenge-link" readonly value="${esc(url)}" aria-label="Challenge link" />
     ${native ? '<button class="btn primary" id="native-share">📤 Share</button>' : ''}
     <button class="btn ${native ? '' : 'primary'}" id="copy-link">🔗 Copy link</button>
-    <button class="btn x" id="x-share">Share on 𝕏</button>
     <p class="fine">You'll hear about it here when someone beats you.</p>
     <button class="btn" id="back">Back</button>`);
   on('#native-share', () => void navigator.share({ title: 'One More Crypt challenge', text, url }).catch(() => undefined));
   on('#copy-link', async () => toast((await copyText(`${text}\n${url}`)) ? 'Link copied!' : 'Copy failed'));
-  on('#x-share', () => window.open(`https://x.com/intent/post?${new URLSearchParams({ text: `${text}\n${url}` }).toString()}`, '_blank', 'noopener'));
   on('#back', back);
 }
 
@@ -2512,14 +2502,10 @@ function finishHorde() {
       <div class="souls-earned"><b>+${reward.souls} Souls</b><span>💀 ${meta.souls} to spend in the Ossuary</span></div>
       <button class="btn primary" id="horde-again">🛡️ Go again<small>Same arena, same hero</small></button>
       ${ONLINE ? `<h3 class="shop-head">Today's Horde board</h3><p class="fine" id="horde-rank">${signedIn() ? 'Posting your run…' : 'Sign in to put your best on the board.'}</p><ol class="raid-top" id="horde-board"><li class="fine">Loading…</li></ol>` : ''}
-      <div class="row">
-        <button class="btn x" id="horde-share">Share on 𝕏</button>
-        <button class="btn" id="horde-copy">Copy result</button>
-      </div>
+      <button class="btn" id="horde-copy">Copy result</button>
       ${ONLINE && !signedIn() ? '<button class="btn" id="join">Claim a name for the board</button>' : ''}
       <button class="btn" id="title">Title</button>`);
     on('#horde-again', () => startHorde());
-    on('#horde-share', () => window.open(xIntentUrl(share), '_blank', 'noopener'));
     on('#horde-copy', async () => toast((await copyText(share)) ? 'Copied!' : 'Copy failed'));
     on('#join', () => showLogin(() => showTitle(), 'claim'));
     on('#title', () => {

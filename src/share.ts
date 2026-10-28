@@ -57,13 +57,6 @@ export const discordHtml = `<a class="follow-x discord" href="${DISCORD_URL}" ta
 /** The tip jar: free, no ads, tips keep the domain and servers running. */
 export const kofiHtml = `<a class="follow-x kofi" href="${KOFI_URL}" target="_blank" rel="noopener">☕ Keep the crypt open</a>`;
 
-export function xIntentUrl(text: string): string {
-  // Everything goes in `text`, the link included. X's app ignores `via` and handles a
-  // separate `url` field its own way, which left a gap at the top of the post.
-  const params = new URLSearchParams({ text: `${text.trim()}\n${siteUrl()}` });
-  return `https://x.com/intent/post?${params.toString()}`;
-}
-
 export async function copyText(text: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text);
