@@ -450,6 +450,20 @@ export function noteRun(mode: 'daily' | 'endless' | 'title', event: FunnelEvent,
 
 let lastPing = 0;
 
+/** What the player is up to, for the live "who's playing" list on the stats dashboard. */
+export interface Presence {
+  doing: string;
+  detail: string;
+  hero: string;
+}
+
+let presenceNow: () => Presence = () => ({ doing: 'title', detail: '', hero: '' });
+
+/** Tell the check-ins what the player is doing right now. */
+export function setPresenceSource(fn: () => Presence) {
+  presenceNow = fn;
+}
+
 /**
  * Check in: one row per device per day, with no personal data. `played` marks that a
  * run was started today. Errors are ignored; stats are best effort.
@@ -463,6 +477,9 @@ export async function pingActivity(played = false): Promise<void> {
     const { error } = await sb.rpc('ping', { p_device: deviceId(), p_played: played, p_app: runningAsApp() });
     // A server without the app column yet: count the visit anyway.
     if (error) await sb.rpc('ping', { p_device: deviceId(), p_played: played });
+    // Who's playing, and what: a signed-in player's name comes from their account on the server.
+    const now = presenceNow();
+    await sb.rpc('presence_ping', { p_device: deviceId(), p_doing: now.doing, p_detail: now.detail, p_hero: now.hero });
   } catch {
     // Offline or not set up yet: the game doesn't care.
   }

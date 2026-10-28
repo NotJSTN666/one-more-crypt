@@ -705,3 +705,11 @@ grant execute on function public.challenge_board(text) to anon, authenticated;
 create or replace function public.challenge_news(p_since timestamptz) returns table (code text, name text, floor int, my_floor int, at timestamptz) language sql stable security definer set search_path = public as $$ select c.code, p.name, r.floor, c.floor, r.created_at from public.challenge_runs r join public.challenges c on c.code = r.code join public.profiles p on p.id = r.user_id where c.user_id = auth.uid() and r.user_id <> auth.uid() and r.created_at > p_since and (r.floor, r.kills, -r.turns) > (c.floor, c.kills, -c.turns) order by r.created_at desc limit 20 $$;
 grant execute on function public.challenge_news(timestamptz) to authenticated;
 notify pgrst, 'reload schema';
+
+-- Who's playing right now, for the stats dashboard: one row per device, refreshed by each
+-- check-in. The name comes from the signed-in account, never from the client.
+create table if not exists public.presence (device text primary key check (length(device) between 8 and 64), user_id uuid, doing text not null default '', detail text not null default '', hero text not null default '', updated_at timestamptz not null default now());
+alter table public.presence enable row level security;
+create or replace function public.presence_ping(p_device text, p_doing text, p_detail text, p_hero text) returns void language sql security definer set search_path = public as $$ insert into public.presence (device, user_id, doing, detail, hero, updated_at) values (p_device, auth.uid(), left(coalesce(p_doing, ''), 24), left(coalesce(p_detail, ''), 40), left(coalesce(p_hero, ''), 16), now()) on conflict (device) do update set user_id = excluded.user_id, doing = excluded.doing, detail = excluded.detail, hero = excluded.hero, updated_at = now(); $$;
+revoke all on function public.presence_ping(text, text, text, text) from public;
+grant execute on function public.presence_ping(text, text, text, text) to anon, authenticated;

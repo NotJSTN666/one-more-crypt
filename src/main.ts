@@ -14,7 +14,7 @@ import { Renderer } from './render';
 import { resetCanvases, sprites } from './sprites';
 import { RAID_JOIN_MIN, RAID_SUBMIT_MIN, RAID_TURNS, currentRaid, nextRaid, raidBossName, raidConfig, raidJoinable, raidTimeLabel, type RaidSlot } from './raid';
 import { hashSeed } from './rng';
-import { ONLINE, submitHorde, hordeBoard, claimInvite, myInvites, raidHit, raidPlayer, raidState, type RaidState, challengeBoard, emailReminderOff, sendFeedback, setEmailReminder, type FeedbackKind, challengeNews, createChallenge, dailyBoard, endlessBoard, getChallenge, mySummons, noteRun, noteSummon, pingActivity, startActivityPings, submitChallengeRun, type Challenge, type ChallengeRow } from './online';
+import { ONLINE, submitHorde, hordeBoard, claimInvite, myInvites, raidHit, raidPlayer, raidState, type RaidState, challengeBoard, emailReminderOff, sendFeedback, setEmailReminder, type FeedbackKind, challengeNews, createChallenge, dailyBoard, endlessBoard, getChallenge, mySummons, noteRun, noteSummon, pingActivity, setPresenceSource, startActivityPings, submitChallengeRun, type Challenge, type ChallengeRow } from './online';
 import {
   ACT_TITLE, LORE, LORE_COUNT, MAIN_QUESTS, QUESTS, QUEST_BY_N, SPEAKERS, conversation, facePortrait, houndStats, npcMarker, npcPresent, petName, questStatus,
   type Line, type NpcId, type Quest, type StoryState,
@@ -3346,6 +3346,13 @@ updateMuteIcon();
 fitBoard();
 newGame('endless');
 // Starts restoring any session in the background; must run before the first screen draws.
+setPresenceSource(() => {
+  const inRun = Boolean(game) && !document.body.classList.contains('menu') && game.phase !== 'dead';
+  if (!inRun) return { doing: screen || 'title', detail: '', hero: '' };
+  const doing = game.mode === 'story' ? (raidRun ? 'raid' : 'story') : game.mode;
+  const detail = game.mode === 'horde' ? `Wave ${game.horde.wave}` : raidRun ? `Turn ${game.turns}` : `Floor ${game.floor}`;
+  return { doing, detail, hero: game.hero };
+});
 startActivityPings();
 // The notification key, so anyone (account or not) can be offered tomorrow's reminder.
 void loadReminders().catch(() => undefined);
