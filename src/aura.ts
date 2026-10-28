@@ -263,6 +263,11 @@ function drawBack(ctx: Ctx, a: AuraDef, cx: number, feet: number, mid: number, w
       orbit(t, 4, 1.1, (i, x, y, front) => !front && shard(px, cx + x * w * 0.85, mid + y * w * 0.3, k, i, t));
       break;
     }
+    case 'zapper':
+      // A bug zapper's cold blue glow, and the bugs drawn to it.
+      bodyGlow(ctx, cx, mid, w * 1.0, a.color, 0.2 * pulse);
+      zapperBugs(ctx, px, cx, mid, w, k, t, false, a.color);
+      break;
     case 'favour':
       // The Keeper's blessing: warm white light and gold motes drifting up.
       bodyGlow(ctx, cx, mid, w * 1.05, '#fff2c0', 0.22 * pulse);
@@ -302,7 +307,7 @@ function drawBack(ctx: Ctx, a: AuraDef, cx: number, feet: number, mid: number, w
   }
 }
 
-function drawFront(_ctx: Ctx, a: AuraDef, cx: number, feet: number, mid: number, w: number, k: number, t: number, px: Px) {
+function drawFront(ctx: Ctx, a: AuraDef, cx: number, feet: number, mid: number, w: number, k: number, t: number, px: Px) {
   switch (a.style) {
     case 'bell':
       orbit(t, 4, 1.2, (i, x, y, front) => front && px(cx + x * w * 0.62 - k / 2, mid + y * w * 0.22 - k / 2, k, i % 2 ? '#ffffff' : '#9fe8ff', 0.85));
@@ -366,6 +371,9 @@ function drawFront(_ctx: Ctx, a: AuraDef, cx: number, feet: number, mid: number,
       });
       break;
     }
+    case 'zapper':
+      zapperBugs(ctx, px, cx, mid, w, k, t, true, a.color);
+      break;
     case 'reaper':
       // Pale souls drawn in toward the hero, fading as they arrive.
       orbit(t, 3, 0.9, (i, x, y, front) => {
@@ -385,6 +393,57 @@ function drawFront(_ctx: Ctx, a: AuraDef, cx: number, feet: number, mid: number,
         }
       });
       break;
+  }
+}
+
+const ZAP_PERIOD = 1.6;
+
+/**
+ * Bugs buzzing round the hero on wobbling paths; every so often the nearest one is zapped:
+ * a jagged blue arc leaps out, it flashes white and drops away, and a new one buzzes in.
+ */
+function zapperBugs(ctx: Ctx, px: Px, cx: number, mid: number, w: number, k: number, t: number, front: boolean, color: string) {
+  const n = 4;
+  const cycle = Math.floor(t / ZAP_PERIOD);
+  const p = (t % ZAP_PERIOD) / ZAP_PERIOD;
+  const doomed = cycle % n;
+  for (let i = 0; i < n; i++) {
+    const ang = t * (1.1 + i * 0.23) + (i * Math.PI * 2) / n;
+    const inFront = Math.sin(ang) >= 0;
+    if (inFront !== front) continue;
+    const wob = Math.sin(t * 9 + i * 3) * w * 0.06;
+    let x = cx + Math.cos(ang) * w * (0.62 + 0.1 * Math.sin(t * 2 + i));
+    let y = mid + Math.sin(ang) * w * 0.3 + wob;
+    if (i === doomed && p > 0.55) {
+      // Zapped: it flashes, then tumbles down out of the air.
+      const fall = (p - 0.55) / 0.45;
+      y += fall * w * 0.5;
+      x += Math.sin(fall * 12) * k;
+      px(x - k / 2, y - k / 2, k, fall < 0.25 ? '#ffffff' : '#3d4a2a', 1 - fall);
+      continue;
+    }
+    if (i === doomed && p > 0.4) {
+      // The arc: a jagged line from the hero to the bug.
+      ctx.strokeStyle = p < 0.48 ? '#ffffff' : color;
+      ctx.lineWidth = Math.max(1, k * 0.6);
+      ctx.globalAlpha = 0.9;
+      ctx.beginPath();
+      ctx.moveTo(cx, mid);
+      for (let s = 1; s <= 4; s++) {
+        const q = s / 4;
+        const jx = s < 4 ? (Math.sin(t * 40 + s * 7) * k * 1.5) : 0;
+        const jy = s < 4 ? (Math.cos(t * 37 + s * 5) * k * 1.5) : 0;
+        ctx.lineTo(cx + (x - cx) * q + jx, mid + (y - mid) * q + jy);
+      }
+      ctx.stroke();
+      px(x - k, y - k, k * 2, '#ffffff', 0.9);
+      continue;
+    }
+    // A bug: green body, wings that flicker.
+    px(x - k / 2, y - k / 2, k, '#7fbf3f', 1);
+    const flap = Math.sin(t * 30 + i) > 0;
+    px(x - k * 1.5, y - k * (flap ? 1.5 : 0.5), k, '#d9f2ff', 0.7);
+    px(x + k / 2, y - k * (flap ? 1.5 : 0.5), k, '#d9f2ff', 0.7);
   }
 }
 

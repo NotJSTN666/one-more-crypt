@@ -626,6 +626,7 @@ function unlockMet(u: Unlock): boolean {
   if ('welcome' in u) return meta.welcome.claimed >= u.welcome;
   if ('raid' in u) return raidWins() >= u.raid;
   if ('invite' in u) return inviteMet(u.invite);
+  if ('gift' in u) return meta.gifts.includes(u.gift);
   return (meta.bestiaryTier[u.beast] ?? 0) > u.tier;
 }
 
@@ -917,6 +918,7 @@ export function titleUnlocked(id: string): boolean {
   if (kind === 'story') return storyDone(key === 'all' || key === 'bell' ? STORY_ALL : Number(key));
   if (kind === 'shame') return Boolean(meta.shame[key]);
   if (kind === 'feat') return Boolean(meta.achievements[key]);
+  if (kind === 'gift') return meta.gifts.includes(key);
   if (kind === 'beast') return (meta.bestiaryTier[key as EnemyKind] ?? 0) > TITLE_TIER;
   if (kind === 'rank') return meta.earned >= (SOUL_RANKS.find((r) => r.name === key)?.souls ?? Infinity);
   return false;

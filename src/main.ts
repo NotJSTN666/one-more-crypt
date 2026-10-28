@@ -4,12 +4,12 @@ import { dailyNumber, formatCountdown, msUntilNextDaily } from './daily';
 import { ELITES, FEATURES, HERO_BY_ID, dailyHero, hordeHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait, heroSprite } from './hero';
 import { BOON_BY_ID, ENEMY_INFO, REAPER_FLOOR, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode } from './game';
-import { acceptQuest, checkRun, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, finishHordeMeta, receiveGift, type RunReward } from './meta';
+import { acceptQuest, checkRun, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, finishHordeMeta, receiveGift, equipTitle, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
 import { hallFromLink, onVisitIsle, showHall, showPublicHall, soulRankHtml, titleName } from './hall';
-import { AURAS, AURA_BY_ID, HEADS, HEAD_BY_ID, LOOKS, LOOK_BY_ID, PODIUM, RAID_DECOR_BY_ID, RAID_KIND_LABEL, RAID_REWARDS, STORY_ALL, STREAK_HELMS, WEEKLY, WELCOME, rankFor, titleFxClass, welcomeLabel, type WelcomeReward } from './progression';
+import { AURAS, AURA_BY_ID, GIFT_BY_ID, HEADS, TITLE_BY_ID, HEAD_BY_ID, LOOKS, LOOK_BY_ID, PODIUM, RAID_DECOR_BY_ID, RAID_KIND_LABEL, RAID_REWARDS, STORY_ALL, STREAK_HELMS, WEEKLY, WELCOME, rankFor, titleFxClass, welcomeLabel, type WelcomeReward } from './progression';
 import { Renderer } from './render';
 import { resetCanvases, sprites } from './sprites';
 import { RAID_JOIN_MIN, RAID_SUBMIT_MIN, RAID_TURNS, currentRaid, nextRaid, raidBossName, raidConfig, raidJoinable, raidTimeLabel, type RaidSlot } from './raid';
@@ -2460,7 +2460,7 @@ async function checkGifts() {
   lastGiftCheck = Date.now();
   giftChecking = true;
   try {
-    const gifts = (await waitingGifts()).filter((g) => AURA_BY_ID[g.item]);
+    const gifts = (await waitingGifts()).filter((g) => GIFT_BY_ID[g.item]);
     if (!gifts.length || screen !== 'title') return;
     const item = gifts[0].item;
     receiveGift(item);
@@ -2474,39 +2474,52 @@ async function checkGifts() {
 
 /** The surprise: your hero, wearing the gift, turning in its light. */
 function showGift(item: string) {
-  const aura = AURA_BY_ID[item];
+  const gift = GIFT_BY_ID[item];
+  const aura = gift.aura ? AURA_BY_ID[gift.aura] : null;
+  const head = gift.head ? HEAD_BY_ID[gift.head] : null;
+  const title = gift.title ? TITLE_BY_ID[gift.title] : null;
+  const parts = [
+    head ? `<li>🎩 <b>${esc(head.name)}</b>: headwear</li>` : '',
+    aura ? `<li>✨ <b>${esc(aura.name)}</b>: an aura</li>` : '',
+    title ? `<li>📜 <b>${esc(title.name)}</b>: a title for your name</li>` : '',
+  ].join('');
   sfx.relic();
   showOverlay('gift', `
     <div class="gift-burst" aria-hidden="true"></div>
     <h2 class="gift-title">🎁 A gift from the Crypt Keeper</h2>
-    <canvas id="gift-hero" class="gift-hero" width="160" height="176" aria-label="Your hero wearing ${esc(aura.name)}"></canvas>
-    <p class="sub">You've been chosen. <b class="gift-name">${esc(aura.name)}</b> is yours.</p>
-    <p class="fine">${esc(aura.how)} Find it in the Wardrobe any time.</p>
+    <canvas id="gift-hero" class="gift-hero" width="160" height="176" aria-label="Your hero wearing ${esc(gift.name)}"></canvas>
+    <p class="sub">You've been chosen. <b class="gift-name">${esc(gift.name)}</b> is yours.</p>
+    <p class="fine">${esc(gift.why)}</p>
+    ${head || title ? `<ul class="podium-rewards">${parts}</ul>` : ''}
+    <p class="fine">Find it in the Wardrobe any time. Cosmetic only.</p>
     <button class="btn primary" id="wear">✨ Wear it now</button>
     <button class="btn" id="back">Later</button>`);
   const canvas = overlay.querySelector<HTMLCanvasElement>('#gift-hero');
   if (canvas) {
     const ctx = canvas.getContext('2d')!;
     const outfit = outfitFor(meta.hero);
-    const sprite = heroSprite(meta.hero, {}, [], outfit.look, outfit.head).normal;
+    const sprite = heroSprite(meta.hero, {}, [], outfit.look, gift.head ?? outfit.head).normal;
+    const auraId = gift.aura ?? outfit.aura;
     const start = performance.now();
     const frame = () => {
       if (!canvas.isConnected) return;
       const t = (performance.now() - start) / 1000;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.imageSmoothingEnabled = false;
-      drawAura(ctx, item, 80, 150, 96, t, 'back');
+      drawAura(ctx, auraId, 80, 150, 96, t, 'back');
       ctx.globalAlpha = 1;
       ctx.drawImage(sprite, 32, 54, 96, 96);
-      drawAura(ctx, item, 80, 150, 96, t, 'front');
+      drawAura(ctx, auraId, 80, 150, 96, t, 'front');
       ctx.globalAlpha = 1;
       requestAnimationFrame(frame);
     };
     requestAnimationFrame(frame);
   }
   on('#wear', () => {
-    equipOutfit(meta.hero, 'aura', item);
-    toast(`Your ${HERO_BY_ID[meta.hero].name} wears ${aura.name}`);
+    if (gift.aura) equipOutfit(meta.hero, 'aura', gift.aura);
+    if (gift.head) equipOutfit(meta.hero, 'head', gift.head);
+    if (gift.title) equipTitle(gift.title);
+    toast(`Your ${HERO_BY_ID[meta.hero].name} wears ${gift.name}`);
     showTitle();
   });
   on('#back', () => showTitle());

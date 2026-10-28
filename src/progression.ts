@@ -134,6 +134,8 @@ export const TITLES: TitleDef[] = [
   })),
   ...SOUL_RANKS.slice(1).map((r) => ({ id: `rank:${r.name}`, name: r.name, how: `Earn ${r.souls.toLocaleString()} Souls in total.` })),
   { id: 'podium:1', name: 'Crypt Champion', how: 'Finish 1st in a Daily Descent.' },
+  // Gifted by hand by the Crypt Keeper.
+  { id: 'gift:exterminator', name: 'Bug Exterminator', how: 'A gift from the Crypt Keeper, for hunting down bugs and reporting them.' },
   // Deaths of Shame: silly ways to fall, each worn as a title.
   ...SHAME.map((d) => ({ id: `shame:${d.id}`, name: d.title, how: d.how })),
   // Story mode only.
@@ -171,6 +173,7 @@ export type TitleFx = 'prism' | 'gold' | 'eternal' | 'sovereign' | 'soul' | 'aby
 
 export const TITLE_FX: Record<string, TitleFx> = {
   'invite:10': 'gold',
+  'gift:exterminator': 'arcane',
   'patron:1': 'prism',
   'story:bell': 'gold',
   'story:all': 'gold',
@@ -207,7 +210,7 @@ export interface LookDef {
   /** Colour of the drifting aura motes, if any. */
   aura: string | null;
   /** What unlocks it: an achievement, a Soul Rank (index) or a Bestiary tier. */
-  unlock: { feat: string } | { rank: number } | { beast: EnemyKind; tier: number } | { costume: string } | { podium: number } | { cost: number; season?: SeasonId } | { streak: number } | { weekly: number } | { story: number } | { season: SeasonId } | { shame: number } | { welcome: number } | { raid: number } | { invite: number };
+  unlock: { feat: string } | { rank: number } | { beast: EnemyKind; tier: number } | { costume: string } | { podium: number } | { cost: number; season?: SeasonId } | { streak: number } | { weekly: number } | { story: number } | { season: SeasonId } | { shame: number } | { welcome: number } | { raid: number } | { invite: number } | { gift: string };
   how: string;
 }
 
@@ -535,6 +538,8 @@ export const HEADS: HeadDef[] = [
   { id: 'defendercoif', name: "Defender's Coif", unlock: { feat: 'horde10k' }, how: 'Score 10,000 points in one Horde run.', pixels: [...row(0, 4, 7, '#9aa3b5'), ...row(1, 3, 8, STEEL), ...row(2, 2, 9, '#9aa3b5'), [4, 1, '#5d667a'], [6, 1, '#5d667a'], [3, 2, '#5d667a'], [5, 2, '#5d667a'], [7, 2, '#5d667a'], [2, 3, '#9aa3b5'], [9, 3, '#9aa3b5'], [2, 4, '#5d667a'], [9, 4, '#5d667a']] },
   // Horde: 100,000 points in one run.
   { id: 'hordecrown', name: 'Crown of the Horde', unlock: { feat: 'horde100k' }, how: 'Score 100,000 points in one Horde run.', pixels: [[3, 0, '#5d667a'], [5, 0, '#9aa3b5'], [6, 0, '#9aa3b5'], [8, 0, '#5d667a'], ...row(1, 3, 8, '#3a3346'), ...row(2, 3, 8, '#5d667a'), [4, 1, '#ff8a2a'], [5, 1, '#ffd23f'], [6, 1, '#ffd23f'], [7, 1, '#ff8a2a'], [2, 2, '#3a3346'], [9, 2, '#3a3346'], [5, 2, RED], [6, 2, RED]] },
+  // A gift from the Crypt Keeper, for hunting down bugs.
+  { id: 'bughelm', name: "Exterminator's Mask", unlock: { gift: 'exterminator' }, how: 'A gift from the Crypt Keeper, for hunting down bugs and reporting them.', pixels: [...row(1, 3, 8, '#4a5a30'), ...row(2, 2, 9, '#3d4a2a'), [3, 3, '#1a1520'], [4, 3, '#7fe0ff'], [5, 3, '#1a1520'], [6, 3, '#1a1520'], [7, 3, '#7fe0ff'], [8, 3, '#1a1520'], ...row(4, 4, 7, '#5d667a'), [4, 5, '#9aa3b5'], [5, 5, '#3a3346'], [6, 5, '#3a3346'], [7, 5, '#9aa3b5'], [5, 0, '#ffd23f'], [6, 0, '#ffd23f']] },
   // Bring a friend: five friends brought.
   { id: 'lanternhood', name: 'Lantern Hood', unlock: { invite: 5 }, how: 'Bring 5 friends to the crypt.', pixels: [...row(1, 3, 8, '#5a2a12'), ...row(2, 2, 9, '#7a3a18'), [5, 0, '#3a3346'], [6, 0, '#3a3346'], [8, 0, '#3a3346'], [9, 1, '#ffd23f'], [10, 1, '#ff8a2a'], [9, 2, '#3a3346'], [10, 2, '#3a3346'], [4, 2, '#ffb35a'], [7, 2, '#ffb35a']] },
   // Death's own hood, skull and all: for cheating him.
@@ -588,7 +593,7 @@ export interface Outfit {
 export type AuraStyle =
   | 'candle' | 'ember' | 'tide' | 'bone' | 'abyss' | 'void' | 'rays' | 'sunburst' | 'flame'
   | 'wisps' | 'snow' | 'storm' | 'mist' | 'souls' | 'crown' | 'eternity' | 'rainbow' | 'bell'
-  | 'shards' | 'blades' | 'banner' | 'eclipse' | 'reaper' | 'favour';
+  | 'shards' | 'blades' | 'banner' | 'eclipse' | 'reaper' | 'favour' | 'zapper';
 
 export type AuraUnlock =
   | { floor: number }
@@ -649,6 +654,7 @@ export const AURAS: AuraDef[] = [
   { id: 'deathsshadow', name: "Death's Shadow", style: 'reaper', color: '#9a6bff', unlock: { feat: 'horde30' }, how: 'Hold the crypt to wave 30 in Horde, with Death in the arena.' },
   // Given by hand by the Crypt Keeper, never earned or sold.
   { id: 'keepersfavour', name: "Keeper's Favour", style: 'favour', color: '#ffd27a', unlock: { gift: 'keepersfavour' }, how: "A rare gift from the Crypt Keeper. It can't be earned or bought." },
+  { id: 'bugzapper', name: 'Bug Zapper', style: 'zapper', color: '#5fe3ff', unlock: { gift: 'exterminator' }, how: 'A gift from the Crypt Keeper, for hunting down bugs and reporting them.' },
   // The Bell Tolls: felling world bosses together.
   { id: 'raidember', name: 'Warcry Embers', style: 'ember', color: '#ff4d5a', ...raid(3) },
   { id: 'bellshards', name: 'Bell Shards', style: 'shards', color: '#c9a24a', ...raid(7) },
@@ -727,3 +733,23 @@ export const RAID_REWARDS: { n: number; kind: RaidRewardKind; id: string; name: 
 ].sort((a, b) => a.n - b.n);
 
 export const RAID_KIND_LABEL: Record<RaidRewardKind, string> = { look: '🎨 Cloak', head: '🎩 Headwear', aura: '✨ Aura', decor: '🏰 Hall piece' };
+
+// ---------- gifts from the Crypt Keeper ----------
+
+/** Rare sets the Crypt Keeper sends by hand from the stats dashboard: cosmetic only. */
+export interface GiftDef {
+  id: string;
+  name: string;
+  /** Why it's given, shown in the pop-up. */
+  why: string;
+  aura?: string;
+  head?: string;
+  title?: string;
+}
+
+export const GIFTS: GiftDef[] = [
+  { id: 'keepersfavour', name: "Keeper's Favour", why: "A rare gift from the Crypt Keeper. It can't be earned or bought.", aura: 'keepersfavour' },
+  { id: 'exterminator', name: 'Bug Exterminator', why: 'For hunting down bugs in the crypt and reporting them. Thank you!', head: 'bughelm', aura: 'bugzapper', title: 'gift:exterminator' },
+];
+
+export const GIFT_BY_ID = Object.fromEntries(GIFTS.map((g) => [g.id, g])) as Record<string, GiftDef>;
