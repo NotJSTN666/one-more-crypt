@@ -1683,7 +1683,6 @@ function showDeath(r: RunResult, best: boolean) {
               : 'Daily done. Endless has no limit and no daily reset.'
           }<span class="endless-record"></span></p>
     <button class="btn primary" id="again">Endless Descent<small>The crypt never ends. Keep descending.<span class="keys-hint"> · Enter or R</span></small></button>
-    <button class="btn x" id="share">Share on 𝕏</button>
     ${ONLINE ? `<button class="btn challenge-btn" id="challenge">⚔️ Challenge a friend<small>Today's crypt, your hero. Can they beat floor ${r.floor}?</small></button>` : ''}
     ${discordBtn}
     <div class="row">
@@ -1735,7 +1734,6 @@ function showDeath(r: RunResult, best: boolean) {
     }, 'claim'),
   );
   const beat = () => (daily ? lastBeat : null);
-  on('#share', () => share(r, lastLabel, beat()));
   on('#challenge', () => makeChallenge(r, backHere));
   on('#retry-challenge', () => ch && startChallenge(ch));
   on('#pass-challenge', () => ch && showChallengeShare(ch.code, `${ch.name} reached floor ${ch.floor}`, backHere, true));
@@ -2108,10 +2106,6 @@ function showEndlessRecord() {
     overlay.querySelectorAll('.endless-tease .endless-record').forEach((el) => (el.textContent = text));
     overlay.querySelectorAll('#endless .endless-record').forEach((el) => (el.textContent = ` · Record: floor ${rec.floor}`));
   });
-}
-
-function share(r: RunResult, label: string, beat: number | null = null) {
-  window.open(xIntentUrl(shareText(r, label, beat)), '_blank', 'noopener');
 }
 
 function tickCountdowns() {
