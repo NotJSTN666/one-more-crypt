@@ -1701,7 +1701,7 @@ function showDeath(r: RunResult, best: boolean) {
       <button class="btn" id="copy">Copy result</button>
       <button class="btn" id="again">Endless<small class="keys-hint">Enter or R</small></button>
     </div>`
-          : `${reminderPromptHtml()}${installNudgeHtml()}<button class="btn x" id="share">Share on 𝕏</button>
+          : `${reminderPromptHtml()}${installNudgeHtml()}
     ${ONLINE ? `<button class="btn challenge-btn" id="challenge">⚔️ Challenge a friend<small>Same crypt, same hero. Can they beat floor ${r.floor}?</small></button>` : ''}
     ${discordBtn}
     <div class="row">
