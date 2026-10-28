@@ -935,6 +935,7 @@ function showTitle() {
     <h2 class="title-section">Your crypt</h2>
     <div class="tiles">
       ${titleTile('hall', '🏰', 'Crypt Hall', `<span style="color:${rankFor(meta.earned).color}">${esc(rankFor(meta.earned).name)}</span>`)}
+      ${titleTile('wardrobe', '🎨', 'Wardrobe', 'Dress your heroes')}
       ${titleTile('ossuary', '🏛️', 'Ossuary', `💀 ${ns(meta.souls)} Souls`)}
       ${titleTile('grimoire', '📖', 'Grimoire', 'Relics & combos')}
       ${ONLINE ? titleTile('leaderboard', '🏆', 'Leaderboards', 'Daily & Endless') : ''}
@@ -965,6 +966,7 @@ function showTitle() {
   on('#horde', () => withTutorialOffer(() => startHorde()));
   on('#invite', () => showInvite(showTitle));
   on('#help', () => showHelp(showTitle));
+  on('#wardrobe', () => showWardrobe(showTitle));
   on('#feedback', () => showFeedback(showTitle));
   on('#install', () => {
     if (installMode() === 'ios') return showInstallHelp(showTitle);
