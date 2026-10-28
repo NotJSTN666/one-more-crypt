@@ -47,6 +47,8 @@ export interface Enemy {
   shield: number;
   /** Story mode: another player's hero, summoned to fight alongside. */
   ghost?: GhostInfo;
+  /** Story bosses: frost can't take hold again until they have acted this many times. */
+  thaw?: number;
 }
 
 /** Who a summoned ghost is, and how they're dressed. */
@@ -363,6 +365,8 @@ export const HORDE_GAP = 10;
 export const HORDE_GIFT_EVERY = 2;
 /** Death joins from this wave, and stays. */
 export const HORDE_DEATH_WAVE = 25;
+/** Story and world bosses act this many times after a freeze before frost works on them again. */
+const BOSS_THAW = 3;
 /** With the Reaper's Invitation, Death comes this much sooner, and points are worth this much more. */
 export const INVITATION_DEATH_WAVE = 15;
 const INVITATION_RATE = 1.5;
@@ -1185,6 +1189,19 @@ export class Game {
     return undefined;
   }
 
+  /**
+   * Freeze a foe struck by frost. In the story and the world boss, a boss shakes the frost
+   * off and must act three times before it takes hold again, so hits every turn can't hold it
+   * still for good.
+   */
+  private frostbite(e: Enemy, turns: number) {
+    if (this.mode === 'story' && isBoss(e)) {
+      if (e.turns < (e.thaw ?? 0)) return;
+      e.thaw = e.turns + BOSS_THAW;
+    }
+    e.frozen = Math.max(e.frozen, turns);
+  }
+
   private playerAttack(e: Enemy, dir: Pos, ranged = false) {
     if (ranged) this.events.push({ t: 'shot', from: { x: this.player.x, y: this.player.y }, to: { x: e.x, y: e.y }, hit: false });
     else this.events.push({ t: 'pattack', dir });
@@ -1215,7 +1232,7 @@ export class Game {
         e.burn = 3;
         e.burnDmg = Math.max(e.burnDmg, this.r('ember'));
       }
-      if (this.r('frost')) e.frozen = Math.max(e.frozen, this.r('frost'));
+      if (this.r('frost')) this.frostbite(e, this.r('frost'));
     }
     for (let k = 1; k <= this.r('pike'); k++) {
       const behind = this.enemyAt(e.x + dir.x * k, e.y + dir.y * k);

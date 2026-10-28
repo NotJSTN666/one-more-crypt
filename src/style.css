@@ -175,11 +175,45 @@ button {
   touch-action: none;
 }
 
+/* One row that scrolls sideways, so a long run's relics never push the controls down. */
 #relic-bar {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 4px;
-  min-height: 34px;
+  height: 38px;
+  min-height: 38px;
+  padding-bottom: 2px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+#relic-bar::-webkit-scrollbar {
+  display: none;
+}
+
+/* More relics than fit: the row fades at its edge to show it scrolls. */
+#relic-bar.overflowing {
+  -webkit-mask: linear-gradient(90deg, #000 85%, transparent);
+  mask: linear-gradient(90deg, #000 85%, transparent);
+}
+
+#relic-bar > .relic-chip {
+  flex: 0 0 auto;
+}
+
+/* With a mouse and room to spare, relics can wrap onto more lines instead. */
+@media (pointer: fine) and (min-width: 900px) {
+  #relic-bar {
+    flex-wrap: wrap;
+    height: auto;
+    overflow: visible;
+  }
+  #relic-bar.overflowing {
+    -webkit-mask: none;
+    mask: none;
+  }
 }
 
 .relic-chip {

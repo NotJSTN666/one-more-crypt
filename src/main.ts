@@ -798,8 +798,11 @@ function updateHud(reset = false) {
       }
       bar.appendChild(chip);
     });
+    // A new relic scrolls into view at the end of the row.
+    if (!reset && unique.length > knownRelics) bar.scrollLeft = bar.scrollWidth;
     knownRelics = unique.length;
     knownSet = unique.join();
+    bar.classList.toggle('overflowing', bar.scrollWidth > bar.clientWidth + 1);
   } else {
     // counts may change without new relic types
     unique.forEach((id, i) => {
@@ -1066,8 +1069,13 @@ function showInstallHelp(back: () => void) {
   on('#back', back);
 }
 
+/** The sound button from the title screen, for screens where people stay a while. */
+function muteChipHtml(): string {
+  return `<button class="account-chip mute-chip" id="title-mute" aria-label="${isMuted() ? 'Sound off. Turn it on' : 'Sound on. Mute'}">${isMuted() ? '🔇' : '🔊'}</button>`;
+}
+
 function accountChip(): string {
-  const mute = `<button class="account-chip mute-chip" id="title-mute" aria-label="${isMuted() ? 'Sound off. Turn it on' : 'Sound on. Mute'}">${isMuted() ? '🔇' : '🔊'}</button>`
+  const mute = muteChipHtml()
     + `<button class="account-chip mute-chip kofi-chip" id="title-kofi" aria-label="Support One More Crypt">☕️</button>`
     // Install, up top beside the sound, wherever the browser can add the game to the home screen.
     + (installMode() ? `<button class="account-chip install-chip" id="install" aria-label="Install the app">📲 Install</button>` : '');
@@ -1227,6 +1235,7 @@ function showFeedback(back: () => void, preset?: FeedbackKind, prompt?: string) 
   }
   let kind: FeedbackKind | null = null;
   showOverlay('feedback', `
+    <div class="account-row">${muteChipHtml()}</div>
     <h2>💬 Feedback</h2>
     <p class="sub">Found a bug, have an idea, or something feels off? Every message is read.</p>
     <div class="fb-kinds" role="radiogroup" aria-label="What kind of feedback">

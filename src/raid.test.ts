@@ -45,3 +45,30 @@ describe('The Bell Tolls', () => {
     for (const r of RAID_REWARDS) expect(all.filter((id) => id === r.id)).toHaveLength(1);
   });
 });
+
+describe('Frost on the world boss', () => {
+  it("can't hold the boss still for good: a ranger shooting it every turn still lets it act", () => {
+    const slot = { id: '2026-10-28-12', start: 0, kind: 'boss' as const };
+    const { seed, config } = raidConfig(slot, 'ranger');
+    const g = new Game('story', seed, 0, config);
+    const inner = g as unknown as { player: { x: number; y: number }; enemies: { kind: string; x: number; y: number; dead: boolean; turns: number }[] };
+    // This toll's starting relics include the Frost Sigil.
+    expect(g.r('frost')).toBeGreaterThan(0);
+    for (const e of inner.enemies) if (e.kind !== 'boss') e.dead = true;
+    inner.player.x = 0;
+    inner.player.y = 0;
+    const boss = inner.enemies.find((e) => e.kind === 'boss')!;
+    let shots = 0;
+    const before = boss.turns;
+    for (let t = 0; t < 24 && g.phase === 'play'; t++) {
+      const dx = Math.sign(boss.x), dy = Math.sign(boss.y);
+      if ((boss.x === 0 || boss.y === 0) && g.bowTarget(dx, dy)) {
+        g.act(dx, dy);
+        shots++;
+      } else g.act(0, 0);
+    }
+    expect(shots).toBeGreaterThan(8);
+    // Frozen by every arrow, it used to never act; now it gets three turns for every one frozen.
+    expect(boss.turns - before).toBeGreaterThan(14);
+  });
+});
