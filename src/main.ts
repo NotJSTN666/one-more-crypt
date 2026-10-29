@@ -1448,25 +1448,29 @@ function showChoice() {
   sfx.relic();
   const offer = game.offer;
   const low = game.player.hp * 10 <= game.player.maxHp * 4;
-  const cards = offer.relics
-    .map((r, i) => {
+  // Shown in alphabetical order, so the same picks are always in the same place. Each card
+  // keeps its index in the offer, which is what the run log records.
+  const cards = [
+    ...offer.relics.map((r, i) => {
       const have = game.own(r.id);
-      return `<button class="${r.rarity}" data-i="${i}">
+      return { name: r.name, html: `<button class="${r.rarity}" data-i="${i}">
         <span class="emoji">${r.emoji}</span>
         <span><span class="name">${r.name}</span><span class="tag">${r.rarity.toUpperCase()}${have ? ` · OWNED ×${have}` : ''}</span>
         <span class="desc">${relicText(r.desc(have + 1))}</span></span>
-      </button>`;
-    })
-    .join('') + offer.boons
-    .map((id, k) => {
+      </button>` };
+    }),
+    ...offer.boons.map((id, k) => {
       const b = BOON_BY_ID[id];
       const have = game.boons[id];
-      return `<button class="boon" data-i="${offer.relics.length + k}">
+      return { name: b.name, html: `<button class="boon" data-i="${offer.relics.length + k}">
         <span class="emoji">${b.emoji}</span>
         <span><span class="name">${b.name}</span><span class="tag">ABYSS BOON${have ? ` · TAKEN ×${have}` : ''}${b.max ? ` · MAX ${b.max}` : ''}</span>
         <span class="desc">${b.desc}</span></span>
-      </button>`;
-    })
+      </button>` };
+    }),
+  ]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((c) => c.html)
     .join('');
   const surge = game.mode === 'horde' && game.config.surge;
   const canForge = surge && game.forgeOptions().length > 0;
@@ -1478,7 +1482,9 @@ function showChoice() {
     <div class="offer">${cards}</div>
     ${canForge ? '<button class="btn forge-pick" id="to-forge">🔥 Soul Forge instead<small>Fuse two relics you hold into something greater</small></button>' : ''}
     <button class="btn ${low ? 'rest-urge' : ''}" id="rest">🔥 Rest instead<small>Heal ${offer.restHeal} HP (${game.player.hp}/${game.player.maxHp})</small></button>
+    ${yourRelicsBtn()}
   `);
+  on('#see-build', () => showBuild('build', showChoice));
   overlay.querySelectorAll<HTMLButtonElement>('.offer button').forEach((b) => {
     b.addEventListener('click', () => pickRelic(Number(b.dataset.i)));
   });
@@ -1559,11 +1565,15 @@ function showForge() {
       : game.config.deep
         ? '<p class="fine">Nothing you hold will fuse. Stoke the fire instead, and the forge gives you an Abyss boon.</p>'
         : '<p class="fine">None of your relics answer the forge. Fusions need two particular relics held together, like 🔥 Ember Brand and ⚡ Storm Rune.</p>'}
+    ${game.config.surge ? '<button class="btn" id="leave-top">↩️ Back to the relics<small>Pick a relic instead</small></button>' : ''}
     <div class="offer event-offer">
       ${cards}
       ${!options.length && game.config.deep ? '<button class="fused" id="stoke"><span class="emoji">🔥</span><span><span class="name">Stoke the forge</span><span class="desc">Gain a random Abyss boon.</span></span></button>' : ''}
       <button class="rare" id="leave"><span class="emoji">${game.config.surge ? '↩️' : '🚶'}</span><span><span class="name">${game.config.surge ? 'Back to the relics' : FEATURES.forge.leave}</span></span></button>
-    </div>`);
+    </div>
+    ${yourRelicsBtn()}`);
+  on('#leave-top', () => resolveEvent(false));
+  on('#see-build', () => showBuild('build', showForge));
   overlay.querySelectorAll<HTMLButtonElement>('.offer button[data-i]').forEach((b) => b.addEventListener('click', () => forgePick(Number(b.dataset.i))));
   on('#stoke', () => resolveEvent(true));
   on('#leave', () => resolveEvent(false));
@@ -2657,8 +2667,15 @@ function noteTurn(events: GameEvent[]) {
 }
 
 /** Your build at a glance, or the last few turns blow by blow. */
-function showBuild(tab: 'build' | 'log') {
-  if (game.phase !== 'play') return;
+/** A button to look over the relics and boons you hold, from a choice screen. */
+function yourRelicsBtn(): string {
+  const n = new Set(game.relicLog).size;
+  return n ? `<button class="link-btn" id="see-build">📜 Your relics (${n})</button>` : '';
+}
+
+/** Your build and the last turns. From a relic or forge screen, `back` returns to it. */
+function showBuild(tab: 'build' | 'log', back?: () => void) {
+  if (game.phase !== 'play' && !back) return;
   const g = game;
   const pct = (n: number) => `${Math.round(n * 100)}%`;
   const crit = Math.min(1, 0.15 * g.r('dice'));
@@ -2699,10 +2716,10 @@ function showBuild(tab: 'build' | 'log') {
     ${owned ? `<h3 class="shop-head">Relics</h3><ul class="build-list">${owned}</ul>` : '<p class="fine">No relics yet.</p>'}
     ${boons ? `<h3 class="shop-head">Abyss boons</h3><ul class="build-list">${boons}</ul>` : ''}`
       : `<div class="build-log">${log}</div>`}
-    <button class="btn primary" id="back">Back to the crypt</button>`);
-  on('#tab-build', () => showBuild('build'));
-  on('#tab-log', () => showBuild('log'));
-  on('#back', hideOverlay);
+    <button class="btn primary" id="back">${back ? 'Back to the choice' : 'Back to the crypt'}</button>`);
+  on('#tab-build', () => showBuild('build', back));
+  on('#tab-log', () => showBuild('log', back));
+  on('#back', () => (back ? back() : hideOverlay()));
 }
 
 /** Cloaks, headwear and auras that come with these achievements, to announce. */
