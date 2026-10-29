@@ -5,6 +5,7 @@
 // homes to walk into, people to talk to, and quests that send you down into dungeons.
 
 import { drawAura } from './aura';
+import { darken, grave, groundFor, hash, lighten, night, paintGround, tree, type Light } from './hollow-art';
 import { dailyHero } from './content';
 import {
   HOME_CATS, ISLE_CATS, ISLE_DOCK, ISLE_ITEM, ISLE_ITEMS, ISLE_MAP, LAND, ROOM_ENTRY, ROOM_H, ROOM_MAP, ROOM_W, drawIsleGround, drawIsleItem, drawIsleItems, fits,
@@ -18,7 +19,7 @@ import {
 } from './graveshift';
 import { buyLand, graveState, meta, outfitFor, pickUpIsleItem, placeIsleItem, saveMeta } from './meta';
 import { LOOK_BY_ID } from './progression';
-import { enemyFrames } from './sprites';
+import { enemyFrames, onCanvasReset } from './sprites';
 import { npcFigure, type NpcId } from './story';
 import { esc, overlay, screen, showOverlay, staleTap, toast } from './ui';
 
@@ -202,7 +203,7 @@ interface Building {
   roof: string;
   glow: string;
   label?: () => string;
-  kind?: 'house' | 'stairs' | 'mine' | 'tower' | 'chapel' | 'ruin';
+  kind?: 'house' | 'stairs' | 'mine' | 'tower' | 'chapel' | 'ruin' | 'lid';
 }
 
 interface Area {
@@ -290,7 +291,7 @@ const AREAS: Record<string, Area> = {
     buildings: [
       { letter: 'P', wall: '#4b4259', roof: '#2f2838', glow: '#9fe8ff', label: () => 'CHAPEL', kind: 'chapel' },
       { letter: 'U', wall: '#3a3346', roof: '#241f2c', glow: '#ff4d5a', label: () => 'TOWER', kind: 'tower' },
-      { letter: 'V', wall: '#323c34', roof: '#1e261f', glow: '#9be36a', label: () => 'THE LID', kind: 'stairs' },
+      { letter: 'V', wall: '#4a4f48', roof: '#2a2e28', glow: '#9be36a', label: () => 'THE LID', kind: 'lid' },
     ],
     doors: { p: { interior: 'chapel-in' }, u: { interior: 'lodge', gate: 4 }, v: { dungeon: 21 } },
     exits: { '<': { to: 'village', x: 19, y: 4 }, _: { to: 'cloister', x: 9, y: 1 } },
@@ -1639,51 +1640,110 @@ function render(ctx: CanvasRenderingContext2D, t: number) {
     ctx.globalAlpha = 1;
   }
 
-  // light: moonlight and fireflies outside, a warm glow inside
+  // light: the night outside, lit by windows, doors, fires and you; a warm glow inside
   const W = cols() * TILE;
   const H = rows() * TILE;
+  const outdoors = !area().interior && !area().isle && !area().farm && areaId !== 'home';
+  if (outdoors) {
+    lights.push({ x: hx + 6, y: hy + 8, r: 34, color: '#ffc27a', a: 0.12 });
+    night(ctx, W, H, groundFor(areaId), lights, t);
+    weather(ctx, px, W, H, t);
+  } else if (area().interior && areaId !== 'home') {
+    night(ctx, W, H, INDOORS, lights, t);
+  }
   const vx = camX + (viewCols * TILE) / 2;
   const v = ctx.createRadialGradient(vx, H / 2, 40, vx, H / 2, area().interior ? 120 : 190);
   v.addColorStop(0, area().interior ? 'rgba(255,170,90,0.06)' : 'rgba(7,4,11,0)');
-  v.addColorStop(1, 'rgba(7,4,11,0.55)');
+  v.addColorStop(1, outdoors ? 'rgba(7,4,11,0.45)' : 'rgba(7,4,11,0.55)');
   ctx.fillStyle = v;
   ctx.fillRect(0, 0, W, H);
   if (!area().interior) {
-    for (let i = 0; i < 10; i++) {
+    // fireflies, each with a little halo
+    for (let i = 0; i < 12; i++) {
       const fx = (Math.sin(t * 0.3 + i * 1.7) * 0.5 + 0.5) * W;
       const fy = (Math.cos(t * 0.23 + i * 2.3) * 0.5 + 0.5) * H;
-      ctx.globalAlpha = 0.4 + 0.4 * Math.sin(t * 3 + i);
-      px(fx, fy, 1, 1, i % 3 ? '#b5e07a' : '#f2c14e');
+      const a = 0.4 + 0.4 * Math.sin(t * 3 + i);
+      const col = areaId === 'cloister' ? '#9be36a' : i % 3 ? '#b5e07a' : '#f2c14e';
+      ctx.globalAlpha = a * 0.25;
+      px(fx - 1, fy - 1, 3, 3, col);
+      ctx.globalAlpha = a;
+      px(fx, fy, 1, 1, col);
     }
     ctx.globalAlpha = 1;
   }
 }
 
+/** Indoors: a dim room, lit by its fire and window, with dust rather than fog. */
+const INDOORS = { ...groundFor(''), tint: 'rgba(14, 8, 24, 0.22)', fog: '255, 200, 150' };
+
+/** Each place's own air: leaves in the woods, wisps over the graves, plague haze in the cloister. */
+function weather(ctx: CanvasRenderingContext2D, px: Px, W: number, H: number, t: number) {
+  if (areaId === 'kennels') {
+    for (let i = 0; i < 14; i++) {
+      const p = (t * (0.05 + (i % 4) * 0.012) + i / 14) % 1;
+      const x = ((i * 47) % W) + Math.sin(t * 1.5 + i) * 10 + p * 30;
+      ctx.globalAlpha = 0.7 * Math.min(1, (1 - p) * 4);
+      px(x % W, p * H, 2, 1, i % 3 ? '#7a5a2a' : '#a8894a');
+    }
+  } else if (areaId === 'graveyard' || areaId === 'chapel') {
+    for (let i = 0; i < 5; i++) {
+      const p = (t * 0.07 + i / 5) % 1;
+      const x = ((i * 89 + 40) % W) + Math.sin(t * 0.9 + i * 2) * 14;
+      const y = H * (0.25 + ((i * 37) % 60) / 100) - p * 30;
+      ctx.globalAlpha = 0.35 * Math.sin(p * Math.PI);
+      px(x, y, 2, 2, '#bfefff');
+      ctx.globalAlpha = 0.12 * Math.sin(p * Math.PI);
+      px(x - 2, y - 2, 6, 6, '#9fe8ff');
+    }
+  } else if (areaId === 'cloister') {
+    for (let i = 0; i < 6; i++) {
+      const s = t * 0.03 + i * 0.37;
+      const x = ((s % 1.4) - 0.2) * W;
+      const y = H * ((i * 0.17 + 0.1) % 1);
+      const r = 30 + (i % 3) * 12;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, 'rgba(130, 200, 90, 0.08)');
+      g.addColorStop(1, 'rgba(130, 200, 90, 0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+/** Each outdoor area's still ground, painted once. */
+let groundCache: { key: string; canvas: HTMLCanvasElement } | null = null;
+onCanvasReset(() => (groundCache = null));
+/** Light sources found while drawing this frame: windows, doors, fires. */
+let lights: Light[] = [];
+
 function renderOutside(ctx: CanvasRenderingContext2D, px: Px, t: number) {
   const C = cols();
   const R = rows();
   const map = area().map;
-  // ground
+  const g = groundFor(areaId);
+  lights = [];
+  // ground: grass, cobbles, shores and the fence, from the cache
+  if (groundCache?.key !== areaId) {
+    const canvas = document.createElement('canvas');
+    canvas.width = C * TILE;
+    canvas.height = R * TILE;
+    paintGround(canvas.getContext('2d')!, map, (c) => c === ':' || Boolean(area().doors[c]) || EXIT_KEYS.includes(c), g);
+    groundCache = { key: areaId, canvas };
+  }
+  ctx.drawImage(groundCache.canvas, 0, 0);
+  // the water moves: slow ripples, and the moon glinting now and then
   for (let y = 0; y < R; y++) {
     for (let x = 0; x < C; x++) {
-      const c = map[y][x];
+      if (map[y][x] !== '~') continue;
       const X = x * TILE;
       const Y = y * TILE;
-      const n = (x * 7 + y * 13) % 5;
-      if (c === ':' || area().doors[c] || EXIT_KEYS.includes(c)) {
-        px(X, Y, TILE, TILE, '#2a2433');
-        px(X + 1 + n, Y + 2, 5, 4, '#332c3e');
-        px(X + 8, Y + 9 - (n % 3), 6, 4, '#332c3e');
-      } else if (c === '~') {
-        px(X, Y, TILE, TILE, '#10202c');
-        const w = Math.sin(t * 2 + x + y) > 0 ? 1 : 0;
-        px(X + 2 + w, Y + 5, 5, 1, '#1f4a63');
-        px(X + 8 - w, Y + 11, 5, 1, '#1f4a63');
-      } else {
-        px(X, Y, TILE, TILE, n % 2 ? '#141a17' : '#161d19');
-        if (n === 0) px(X + 4, Y + 10, 1, 2, '#2c3a2f');
-        if (n === 3) px(X + 11, Y + 5, 1, 2, '#2c3a2f');
-      }
+      const w = Math.sin(t * 1.4 + x * 0.9 + y * 1.7);
+      ctx.globalAlpha = 0.5 + 0.3 * w;
+      px(X + 4 + Math.round(w * 2), Y + 6, 5, 1, '#1f4a63');
+      px(X + 8 - Math.round(w * 2), Y + 11, 4, 1, '#1a3f55');
+      ctx.globalAlpha = 1;
+      if (Math.sin(t * 2.3 + hash(x, y) * 40) > 0.96) px(X + 3 + Math.floor(hash(x, y, 1) * 9), Y + 8, 2, 1, '#cfe8ff');
     }
   }
   // roads at the edges: a faint arrow, so it's clear the world goes on
@@ -1710,36 +1770,20 @@ function renderOutside(ctx: CanvasRenderingContext2D, px: Px, t: number) {
       const X = x * TILE;
       const Y = y * TILE;
       const epitaph = areaId === 'graveyard' && EPITAPHS[c];
-      if (c === '#') {
-        px(X, Y + 4, TILE, 2, '#3a3346');
-        px(X, Y + 11, TILE, 2, '#3a3346');
-        for (const bx of [2, 7, 12]) {
-          px(X + bx, Y + 1, 2, 14, '#4b4259');
-          px(X + bx, Y, 2, 1, '#6b6680');
-        }
-      } else if (c === 'T') {
-        px(X + 7, Y + 4, 2, 12, '#2a2018');
-        px(X + 3, Y + 5, 4, 1, '#2a2018');
-        px(X + 3, Y + 3, 1, 2, '#2a2018');
-        px(X + 9, Y + 7, 4, 1, '#2a2018');
-        px(X + 12, Y + 4, 1, 3, '#2a2018');
+      if (c === 'T') {
+        tree(px, X, Y, x, y, g, t);
       } else if ((c === '+' && !area().farm) || epitaph) {
-        const read = epitaph && meta.epitaphs.includes(c);
-        px(X + 4, Y + 4, 8, 10, '#4b4259');
-        px(X + 5, Y + 3, 6, 1, '#4b4259');
-        px(X + 6, Y + 6, 4, 1, '#2f2838');
-        px(X + 7, Y + 5, 2, 5, '#2f2838');
-        px(X + 3, Y + 14, 10, 1, '#0b0710');
-        if (epitaph && !read) {
+        const unread = Boolean(epitaph) && !meta.epitaphs.includes(c);
+        if (unread) {
           // unread epitaphs glow faintly
-          ctx.globalAlpha = 0.35 + 0.25 * Math.sin(t * 2 + x);
-          px(X + 2, Y + 2, 12, 13, '#9fe8ff');
+          ctx.globalAlpha = 0.25 + 0.2 * Math.sin(t * 2 + x);
+          px(X + 2, Y + 1, 12, 14, '#9fe8ff');
           ctx.globalAlpha = 1;
-          px(X + 4, Y + 4, 8, 10, '#5d667a');
-          px(X + 7, Y + 5, 2, 5, '#2f2838');
-          px(X + 6, Y + 6, 4, 1, '#2f2838');
+          lights.push({ x: X + 8, y: Y + 8, r: 20, color: '#9fe8ff', a: 0.12 + 0.06 * Math.sin(t * 2 + x) });
         }
+        grave(px, X, Y, x, y, unread);
       } else if (c === 'W') {
+        lights.push({ x: X + 8, y: Y + 8, r: 60 + Math.sin(t * 9) * 3, color: '#ff8a3a', a: 0.32 });
         const f = Math.sin(t * 9) > 0 ? 1 : 0;
         const glow = ctx.createRadialGradient(X + 8, Y + 8, 2, X + 8, Y + 8, 40);
         glow.addColorStop(0, 'rgba(255,140,60,0.35)');
@@ -1751,7 +1795,10 @@ function renderOutside(ctx: CanvasRenderingContext2D, px: Px, t: number) {
         px(X + 6, Y + 8, 4, 4, '#f2c14e');
         px(X + 7, Y + 4 - f, 2, 3, '#ff8a2a');
       } else if (c === '@') {
+        px(X + 1, Y + 14, 14, 2, 'rgba(0,0,0,0.35)');
         px(X + 2, Y + 5, 12, 10, '#4b4259');
+        for (let i = 0; i < 3; i++) px(X + 2, Y + 7 + i * 3, 12, 1, '#3a3346');
+        px(X + 2, Y + 5, 12, 1, '#6b6680');
         px(X + 4, Y + 7, 8, 6, '#0b1a24');
         ctx.globalAlpha = 0.5 + 0.3 * Math.sin(t * 2);
         px(X + 5, Y + 9, 6, 1, '#1f4a63');
@@ -1928,26 +1975,102 @@ function blocks(letter: string) {
 function drawBlock(ctx: CanvasRenderingContext2D, px: Px, bd: Building, b: { X: number; Y: number; W: number; H: number }, t: number) {
   const kind = bd.kind ?? 'house';
   const dx = b.X + b.W / 2 - 4;
+  // Every building sits in its own shadow, cast down and to the right.
+  px(b.X + 4, b.Y + b.H - 1, b.W - 2, 3, 'rgba(0,0,0,0.4)');
+  px(b.X + b.W - 2, b.Y + 12, 3, b.H - 11, 'rgba(0,0,0,0.28)');
   const door = (glow: string) => {
     if (!glow) {
+      px(dx, b.Y + b.H - 10, 8, 10, darken(bd.wall, 14));
       px(dx + 1, b.Y + b.H - 9, 6, 9, '#141119');
       return;
     }
     const pulse = 0.6 + 0.4 * Math.sin(t * 2.4 + b.X);
-    ctx.globalAlpha = pulse;
+    ctx.globalAlpha = pulse * 0.8;
     px(dx - 2, b.Y + b.H - 13, 12, 13, glow);
     ctx.globalAlpha = 1;
+    // a stone frame and lintel, the dark doorway, and light spilling out onto the path
+    px(dx - 1, b.Y + b.H - 12, 10, 12, lighten(bd.wall, 22));
+    px(dx - 1, b.Y + b.H - 12, 10, 1, lighten(bd.wall, 40));
     px(dx, b.Y + b.H - 11, 8, 11, '#07040b');
+    ctx.globalAlpha = 0.35 * pulse;
+    px(dx + 1, b.Y + b.H - 3, 6, 3, glow);
+    ctx.globalAlpha = 1;
+    lights.push({ x: dx + 4, y: b.Y + b.H, r: 30, color: glow, a: 0.2 + 0.08 * pulse });
   };
-  if (kind === 'stairs') {
-    // a stone arch over steps going down
+  /** A lit window: frame, glass, cross-bars, sill, and a pool of light below. */
+  const window_ = (wx: number, wy: number) => {
+    const f = 0.75 + 0.25 * Math.sin(t * 1.1 + wx * 0.3);
+    px(wx - 1, wy - 1, 7, 6, '#1a1520');
+    ctx.globalAlpha = f;
+    px(wx, wy, 5, 4, '#f2c14e');
+    px(wx, wy, 2, 2, '#ffe39a');
+    ctx.globalAlpha = 1;
+    px(wx + 2, wy, 1, 4, '#5a3a1a');
+    px(wx, wy + 2, 5, 1, '#5a3a1a');
+    px(wx - 1, wy + 4, 7, 1, lighten(bd.wall, 25));
+    lights.push({ x: wx + 2, y: wy + 3, r: 22, color: '#f2b04e', a: 0.16 * f });
+  };
+  if (kind === 'lid') {
+    // The Warden's lid: a great stone disc carved with a bell, pushed a little aside,
+    // and the plague light leaking up through the gap.
+    const cx = b.X + b.W / 2;
+    const cy = b.Y + b.H / 2 + 2;
+    const r = Math.min(b.W, b.H) / 2 - 2;
+    const disc = (ox: number, oy: number, rad: number, c: string) => {
+      for (let dy = -rad; dy <= rad; dy++) {
+        const w = Math.round(Math.sqrt(rad * rad - dy * dy));
+        px(ox - w, oy + dy, w * 2, 1, c);
+      }
+    };
+    disc(cx, cy + 1, r + 1, '#07040b');
+    const glow = 0.5 + 0.3 * Math.sin(t * 1.8);
+    ctx.globalAlpha = glow;
+    disc(cx - 5, cy + 1, r - 3, bd.glow);
+    ctx.globalAlpha = 1;
+    disc(cx + 3, cy + 1, r, darken(bd.wall, 18));
+    disc(cx + 3, cy, r, bd.wall);
+    disc(cx + 3, cy - 1, r - 2, lighten(bd.wall, 14));
+    disc(cx + 3, cy, r - 4, bd.wall);
+    // the carved bell
+    px(cx + 1, cy - 6, 4, 2, darken(bd.wall, 22));
+    px(cx, cy - 4, 6, 4, darken(bd.wall, 22));
+    px(cx - 1, cy, 8, 2, darken(bd.wall, 22));
+    px(cx + 2, cy + 2, 2, 2, darken(bd.wall, 22));
+    // a crack across it, glowing
+    ctx.globalAlpha = glow;
+    for (let i = 0; i < 7; i++) px(cx - 6 + i * 2, cy + 4 - (i % 3), 2, 1, bd.glow);
+    ctx.globalAlpha = 1;
+    for (let i = 0; i < 3; i++) {
+      const p = (t * 0.3 + i / 3) % 1;
+      ctx.globalAlpha = 0.5 * (1 - p);
+      px(cx - r + 2 + i * 3 + Math.sin(p * 6 + i) * 2, cy - p * 18, 2, 2, bd.glow);
+    }
+    ctx.globalAlpha = 1;
+    lights.push({ x: cx - r, y: cy, r: 26, color: bd.glow, a: 0.1 * glow + 0.05 });
+  } else if (kind === 'stairs') {
+    // a stone arch over steps going down into the light
     px(b.X + 2, b.Y + 4, b.W - 4, b.H - 4, bd.wall);
     px(b.X + 4, b.Y + 2, b.W - 8, 2, bd.wall);
+    for (let y = b.Y + 7, r = 0; y < b.Y + b.H; y += 4, r++) {
+      px(b.X + 2, y, 4, 1, darken(bd.wall, 12));
+      px(b.X + b.W - 6, y, 4, 1, darken(bd.wall, 12));
+    }
+    px(b.X + 2, b.Y + 4, 1, b.H - 4, lighten(bd.wall, 14));
+    px(b.X + 4, b.Y + 2, b.W - 8, 1, lighten(bd.wall, 20));
     px(b.X + 6, b.Y + 8, b.W - 12, b.H - 8, '#07040b');
-    for (let i = 0; i < 4; i++) px(b.X + 7, b.Y + 12 + i * 4, b.W - 14, 1, '#2a2433');
-    ctx.globalAlpha = 0.25 + 0.2 * Math.sin(t * 2);
-    px(b.X + 6, b.Y + 8, b.W - 12, b.H - 8, bd.glow);
+    const deep = b.H - 10;
+    for (let i = 0; i * 4 < deep; i++) {
+      const c = lighten('#1c1823', Math.max(0, 22 - i * 5));
+      px(b.X + 6, b.Y + 9 + i * 4, b.W - 12, 3, c);
+      px(b.X + 6, b.Y + 9 + i * 4, b.W - 12, 1, lighten(c, 12));
+    }
+    const a = 0.18 + 0.1 * Math.sin(t * 2);
+    ctx.globalAlpha = a;
+    px(b.X + 6, b.Y + b.H - 8, b.W - 12, 8, bd.glow);
+    ctx.globalAlpha = a * 0.5;
+    px(b.X + 6, b.Y + b.H - 14, b.W - 12, 6, bd.glow);
     ctx.globalAlpha = 1;
+    lights.push({ x: b.X + b.W / 2, y: b.Y + b.H - 4, r: 28, color: bd.glow, a: 0.16 + 0.06 * Math.sin(t * 2) });
   } else if (kind === 'mine') {
     px(b.X + 2, b.Y + 6, b.W - 4, b.H - 6, '#2a2018');
     px(b.X + 4, b.Y + 4, 3, b.H - 4, bd.roof);
@@ -1956,10 +2079,15 @@ function drawBlock(ctx: CanvasRenderingContext2D, px: Px, bd: Building, b: { X: 
     px(b.X + 8, b.Y + 10, b.W - 16, b.H - 10, '#07040b');
     px(b.X + 6, b.Y + 13, b.W - 12, 1, '#8a857a');
     px(b.X + 6, b.Y + 19, b.W - 12, 1, '#8a857a');
+    lights.push({ x: b.X + b.W / 2, y: b.Y + b.H - 4, r: 26, color: bd.glow, a: 0.14 });
   } else if (kind === 'tower') {
     px(b.X + 6, b.Y + 6, b.W - 12, b.H - 6, bd.wall);
     for (let i = 0; i < 3; i++) px(b.X + 6 + i * 6, b.Y + 2, 4, 4, bd.wall);
-    for (let y = b.Y + 10; y < b.Y + b.H; y += 6) px(b.X + 6, y, b.W - 12, 1, 'rgba(0,0,0,0.25)');
+    for (let y = b.Y + 10, r = 0; y < b.Y + b.H; y += 6, r++) {
+      px(b.X + 6, y, b.W - 12, 1, 'rgba(0,0,0,0.25)');
+      for (let x = b.X + 6 + (r % 2 ? 4 : 8); x < b.X + b.W - 6; x += 8) px(x, y - 5, 1, 5, 'rgba(0,0,0,0.18)');
+    }
+    px(b.X + 6, b.Y + 6, 1, b.H - 6, lighten(bd.wall, 12));
     ctx.globalAlpha = 0.6 + 0.4 * Math.sin(t * 1.3);
     px(b.X + b.W / 2 - 1, b.Y + 14, 3, 5, bd.glow);
     ctx.globalAlpha = 1;
@@ -1969,13 +2097,30 @@ function drawBlock(ctx: CanvasRenderingContext2D, px: Px, bd: Building, b: { X: 
     // a broken roof, open to the sky on one side
     for (let i = 0; i < 9; i++) px(b.X + i * 2, b.Y + 10 - i, b.W / 2 - i * 2 + 6, 1, bd.roof);
     px(b.X + b.W - 18, b.Y + 4, 2, 6, bd.roof);
+    // bare rafters where the roof fell in
+    for (let k = 0; k < 3; k++) {
+      const rx = b.X + b.W / 2 + 8 + k * 8;
+      for (let i = 0; i < 6; i++) px(rx - i, b.Y + 9 - i, 1, 1, darken(bd.roof, 6));
+    }
+    // tall pointed windows either side, glowing faintly
+    for (const wx of [b.X + 8, b.X + b.W - 12]) {
+      px(wx, b.Y + 16, 4, 8, '#141119');
+      px(wx + 1, b.Y + 15, 2, 1, '#141119');
+      ctx.globalAlpha = 0.35 + 0.2 * Math.sin(t * 1.3 + wx);
+      px(wx + 1, b.Y + 17, 2, 6, bd.glow);
+      ctx.globalAlpha = 1;
+    }
     // the cross on the gable
     px(b.X + b.W / 2 - 1, b.Y - 4, 2, 9, '#c9c3b2');
     px(b.X + b.W / 2 - 4, b.Y - 1, 8, 2, '#c9c3b2');
     // a round window, glowing cold
+    for (let y = b.Y + 14, r = 0; y < b.Y + b.H; y += 5, r++) px(b.X + 2, y, b.W - 4, 1, darken(bd.wall, 10));
     ctx.globalAlpha = 0.5 + 0.3 * Math.sin(t * 1.7);
     px(b.X + b.W / 2 - 3, b.Y + 16, 6, 6, bd.glow);
     ctx.globalAlpha = 1;
+    px(b.X + b.W / 2, b.Y + 16, 1, 6, darken(bd.wall, 25));
+    px(b.X + b.W / 2 - 3, b.Y + 18, 6, 1, darken(bd.wall, 25));
+    lights.push({ x: b.X + b.W / 2, y: b.Y + 19, r: 26, color: bd.glow, a: 0.14 });
     door(bd.glow);
   } else if (kind === 'ruin') {
     px(b.X + 2, b.Y + 8, b.W - 4, b.H - 8, bd.wall);
@@ -1983,19 +2128,53 @@ function drawBlock(ctx: CanvasRenderingContext2D, px: Px, bd: Building, b: { X: 
     px(b.X + b.W - 10, b.Y + 9, 6, 4, '#07040b');
     door(bd.glow);
   } else {
+    // walls of laid stone, darker under the eaves
     px(b.X + 2, b.Y + 8, b.W - 4, b.H - 8, bd.wall);
-    for (let y = b.Y + 12; y < b.Y + b.H; y += 6) px(b.X + 2, y, b.W - 4, 1, 'rgba(0,0,0,0.25)');
-    // pointed roof
-    for (let i = 0; i < 8; i++) px(b.X + i * 2, b.Y + 8 - i, b.W - i * 4, 1, bd.roof);
-    px(b.X, b.Y + 8, b.W, 2, bd.roof);
-    // lit windows on homes people live in
+    const joint = darken(bd.wall, 12);
+    for (let y = b.Y + 13, r = 0; y < b.Y + b.H; y += 4, r++) {
+      px(b.X + 2, y, b.W - 4, 1, joint);
+      for (let x = b.X + 2 + (r % 2 ? 3 : 7); x < b.X + b.W - 2; x += 8) px(x, y - 3, 1, 3, joint);
+    }
+    px(b.X + 2, b.Y + 10, b.W - 4, 2, darken(bd.wall, 20));
+    px(b.X + 2, b.Y + 8, 1, b.H - 8, lighten(bd.wall, 10));
+    // a chimney on homes people live in, with smoke
     if (bd.glow && b.W >= 48) {
-      ctx.globalAlpha = 0.55 + 0.25 * Math.sin(t * 1.1 + b.X);
-      px(b.X + 6, b.Y + 13, 5, 4, '#f2c14e');
-      px(b.X + b.W - 11, b.Y + 13, 5, 4, '#f2c14e');
+      const cx = b.X + 10;
+      px(cx, b.Y - 2, 4, 7, darken(bd.wall, 8));
+      px(cx - 1, b.Y - 3, 6, 1, lighten(bd.wall, 12));
+      for (let i = 0; i < 3; i++) {
+        const p = (t * 0.35 + i / 3 + b.X * 0.01) % 1;
+        ctx.globalAlpha = 0.3 * (1 - p);
+        px(cx + Math.sin(p * 5 + i) * 2, b.Y - 5 - p * 14, 3, 3, '#8a857a');
+      }
       ctx.globalAlpha = 1;
     }
+    // a pitched roof of shingles, lit along the ridge and the left-hand slope
+    for (let i = 0; i < 8; i++) {
+      const w = b.W - i * 4;
+      px(b.X + i * 2, b.Y + 8 - i, w, 1, i % 2 ? darken(bd.roof, 12) : bd.roof);
+      px(b.X + i * 2, b.Y + 8 - i, 2, 1, lighten(bd.roof, 22));
+      px(b.X + i * 2 + w - 2, b.Y + 8 - i, 2, 1, darken(bd.roof, 22));
+    }
+    px(b.X + 16, b.Y + 1, b.W - 32, 1, lighten(bd.roof, 28));
+    px(b.X - 1, b.Y + 8, b.W + 2, 2, darken(bd.roof, 18));
+    px(b.X - 1, b.Y + 8, b.W + 2, 1, lighten(bd.roof, 8));
+    // lit windows on homes people live in
+    if (bd.glow && b.W >= 48) {
+      window_(b.X + 6, b.Y + 14);
+      window_(b.X + b.W - 11, b.Y + 14);
+    }
     door(bd.glow);
+    // a lantern by the door
+    if (bd.glow) {
+      const f = 0.7 + 0.3 * Math.sin(t * 7 + b.X);
+      px(dx + 10, b.Y + b.H - 13, 1, 2, '#2a2433');
+      px(dx + 9, b.Y + b.H - 11, 3, 3, '#3a2818');
+      ctx.globalAlpha = f;
+      px(dx + 10, b.Y + b.H - 10, 1, 1, '#ffd23f');
+      ctx.globalAlpha = 1;
+      lights.push({ x: dx + 10, y: b.Y + b.H - 9, r: 18, color: '#ffb35a', a: 0.18 * f });
+    }
   }
   const label = bd.label?.();
   if (label) sign(ctx, label, b.X + b.W / 2, b.Y - 1, bd.glow || '#8a857a');
@@ -2005,9 +2184,9 @@ function drawBlock(ctx: CanvasRenderingContext2D, px: Px, bd: Building, b: { X: 
 function graveyardDetails(ctx: CanvasRenderingContext2D, px: Px, t: number) {
   const rb = box('R');
   const cloak = LOOK_BY_ID[outfitFor(meta.hero).look]?.cloak ?? { p: '#3b4f7d', P: '#22304f' };
-  px(rb.X + 6, rb.Y + 11, 6, 1, '#a8894a');
-  px(rb.X + 7, rb.Y + 12, 4, 6, cloak.p);
-  px(rb.X + 9, rb.Y + 12, 2, 6, cloak.P);
+  px(rb.X + 12, rb.Y + 12, 6, 1, '#a8894a');
+  px(rb.X + 13, rb.Y + 13, 4, 6, cloak.p);
+  px(rb.X + 15, rb.Y + 13, 2, 6, cloak.P);
   const f = box('F');
   for (let i = 0; i < 3; i++) {
     const p = (t * 0.6 + i / 3) % 1;
@@ -2016,14 +2195,19 @@ function graveyardDetails(ctx: CanvasRenderingContext2D, px: Px, t: number) {
   }
   ctx.globalAlpha = 1;
   const o = box('O');
-  px(o.X + 8, o.Y + 12, 6, 5, '#e8dcc4');
-  px(o.X + 9, o.Y + 14, 1, 1, '#07040b');
-  px(o.X + 12, o.Y + 14, 1, 1, '#07040b');
+  // a skull over the door, on the gable
+  const sx = o.X + o.W / 2 - 3;
+  px(sx, o.Y + 2, 6, 5, '#e8dcc4');
+  px(sx + 1, o.Y + 4, 1, 1, '#07040b');
+  px(sx + 4, o.Y + 4, 1, 1, '#07040b');
+  px(sx + 2, o.Y + 7, 2, 1, '#c9c3b2');
   const hb = box('H');
-  px(hb.X + 8, hb.Y + 12, 7, 2, '#f2c14e');
-  px(hb.X + 8, hb.Y + 10, 1, 2, '#f2c14e');
-  px(hb.X + 11, hb.Y + 10, 1, 2, '#f2c14e');
-  px(hb.X + 14, hb.Y + 10, 1, 2, '#f2c14e');
+  // a crown on the gable
+  const cx = hb.X + hb.W / 2 - 4;
+  px(cx, hb.Y + 5, 7, 2, '#f2c14e');
+  px(cx, hb.Y + 3, 1, 2, '#f2c14e');
+  px(cx + 3, hb.Y + 3, 1, 2, '#f2c14e');
+  px(cx + 6, hb.Y + 3, 1, 2, '#f2c14e');
   // chimney smoke from Mortimer's cottage: the kettle is always on
   const mb = box('M');
   px(mb.X + mb.W - 12, mb.Y + 1, 3, 5, '#3a2818');
@@ -2049,28 +2233,56 @@ function renderInside(ctx: CanvasRenderingContext2D, px: Px, t: number) {
   const R = rows();
   const map = area().map;
   const floor = area().floor ?? '#2a2433';
+  lights = [];
+  // one window in the back wall, looking out on the night
+  const win = [Math.floor(C / 2) - 2, Math.floor(C / 2) + 2].find((x) => map[1]?.[x] === '.') ?? -1;
   for (let y = 0; y < R; y++) {
     for (let x = 0; x < C; x++) {
       const c = map[y][x];
       const X = x * TILE;
       const Y = y * TILE;
       if (c === '#' && y === 0) {
-        // the back wall, with a skirting board
-        px(X, Y, TILE, TILE, '#241f2c');
-        px(X, Y + 3, TILE, 1, '#2f2838');
-        px(X, Y + 9, TILE, 1, '#2f2838');
+        // the back wall: dark planks above, panelling below, a skirting board
+        px(X, Y, TILE, TILE, '#2a2230');
+        for (let i = 0; i < TILE; i += 4) px(X + i, Y, 1, 8, '#211a27');
+        px(X, Y, TILE, 2, '#1a1420');
+        px(X, Y + 8, TILE, 1, '#3a3044');
+        px(X, Y + 9, TILE, 5, '#30283a');
+        px(X + 1, Y + 10, 6, 3, '#2a2233');
+        px(X + 9, Y + 10, 6, 3, '#2a2233');
         px(X, Y + 14, TILE, 2, '#141119');
+        if (x === win) {
+          px(X + 3, Y + 1, 10, 9, '#3a2818');
+          px(X + 4, Y + 2, 8, 7, '#0d1a2a');
+          px(X + 9, Y + 3, 2, 2, '#e8e2c8');
+          px(X + 5, Y + 6, 1, 1, '#9fb4d8');
+          px(X + 7, Y + 2, 1, 7, '#3a2818');
+          px(X + 4, Y + 5, 8, 1, '#3a2818');
+          px(X + 3, Y + 10, 10, 1, '#5a4030');
+          lights.push({ x: X + 8, y: Y + 14, r: 22, color: '#7fa0d8', a: 0.08 });
+        }
       } else if (c === '#') {
         px(X, Y, TILE, TILE, '#141119');
         if (y === R - 1) px(X, Y, TILE, 2, '#241f2c');
+        // a corner post where the side walls meet the floor
+        if (y > 0 && y < R - 1) px(x === 0 ? X + TILE - 2 : X, Y, 2, TILE, '#221b28');
       } else {
-        // floorboards
-        px(X, Y, TILE, TILE, floor);
-        px(X, Y + ((x * 5) % 4) * 4, TILE, 1, 'rgba(0,0,0,0.25)');
-        px(X + ((y * 7) % 12), Y, 1, TILE, 'rgba(0,0,0,0.15)');
+        // floorboards: long planks, each its own shade, ends staggered
+        for (let r = 0; r < 4; r++) {
+          const shade = hash(x, y * 4 + r, 21);
+          const col = shade < 0.33 ? darken(floor, 6) : shade < 0.66 ? floor : lighten(floor, 5);
+          px(X, Y + r * 4, TILE, 4, col);
+          px(X, Y + r * 4 + 3, TILE, 1, darken(floor, 14));
+          if (hash(x, y * 4 + r, 22) < 0.35) px(X + Math.floor(hash(x, y * 4 + r, 23) * 14), Y + r * 4, 1, 3, darken(floor, 14));
+          if (hash(x, y * 4 + r, 24) < 0.08) px(X + 4 + Math.floor(hash(x, r, 25) * 8), Y + r * 4 + 1, 1, 1, darken(floor, 20));
+        }
       }
     }
   }
+  // the floor darkens toward the walls
+  px(TILE, TILE, (C - 2) * TILE, 3, 'rgba(0,0,0,0.3)');
+  px(TILE, TILE, 3, (R - 2) * TILE, 'rgba(0,0,0,0.25)');
+  px((C - 1) * TILE - 3, TILE, 3, (R - 2) * TILE, 'rgba(0,0,0,0.25)');
   for (let y = 0; y < R; y++) {
     for (let x = 0; x < C; x++) {
       const c = map[y][x];
@@ -2125,11 +2337,9 @@ function furniture(ctx: CanvasRenderingContext2D, px: Px, c: string, X: number, 
       const blue = areaId === 'smithy';
       px(X + 5, Y + 8 - fl, 6, 5 + fl, blue ? '#5fe3ff' : '#ff8a2a');
       px(X + 6, Y + 10, 4, 3, blue ? '#e8fbff' : '#f2c14e');
-      const glow = ctx.createRadialGradient(X + 8, Y + 10, 2, X + 8, Y + 10, 36);
-      glow.addColorStop(0, blue ? 'rgba(95,227,255,0.25)' : 'rgba(255,140,60,0.3)');
-      glow.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = glow;
-      ctx.fillRect(X - 28, Y - 28, 72, 72);
+      px(X + 1, Y + 1, 14, 1, '#4b4259');
+      px(X + 3, Y + 4, 10, 1, '#2a2433');
+      lights.push({ x: X + 8, y: Y + 11, r: 56 + Math.sin(t * 9) * 2, color: blue ? '#5fe3ff' : '#ff8a3a', a: 0.26 });
       break;
     }
     case 's':
