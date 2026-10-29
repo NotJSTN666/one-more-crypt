@@ -1047,15 +1047,7 @@ function showTitle() {
   on('#story', () => playStory());
   on('#act2', () => showActTwo(showTitle));
   on('#raid', () => showRaid(showTitle));
-  on('#horde', () => {
-    const saved = savedHorde();
-    if (saved) resumeHorde(saved.game, saved.seconds);
-    else withTutorialOffer(() => startHorde());
-  });
-  on('#horde-new', () => {
-    if (!window.confirm('Start over? Your unfinished Horde run will be lost.')) return;
-    startHorde();
-  });
+  wireHordeButton();
   on('#invite', () => showInvite(showTitle));
   on('#help', () => showHelp(showTitle));
   on('#wardrobe', () => showWardrobe(showTitle));
@@ -1784,10 +1776,11 @@ function showDeath(r: RunResult, best: boolean) {
         ? `${streakTeaseHtml()}${tomorrowHtml()}${reminderPromptHtml()}${installNudgeHtml()}${ONLINE ? '<p class="podium-tease">🥇 Finish in the top 3 when the day ends to win exclusive headwear and Souls.</p>' : ''}
     <p class="endless-tease">${
             save.bestEndless
-              ? `Daily done. Endless is open: beat your best of <b>floor ${save.bestEndless}</b>.`
-              : 'Daily done. Endless has no limit and no daily reset.'
+              ? `Daily done. Beat your Endless best of <b>floor ${save.bestEndless}</b>, or hold the crypt in today's Horde.`
+              : "Daily done. Endless has no limit, and today's Horde has unlimited tries."
           }<span class="endless-record"></span></p>
     <button class="btn primary" id="again">Endless Descent<small>The crypt never ends. Keep descending.<span class="keys-hint"> · Enter or R</span></small></button>
+    ${hordeButtonHtml()}
     ${ONLINE ? `<button class="btn challenge-btn" id="challenge">⚔️ Challenge a friend<small>Today's crypt, your hero. Can they beat floor ${r.floor}?</small></button>` : ''}
     ${discordBtn}
     <div class="row">
@@ -1845,6 +1838,7 @@ function showDeath(r: RunResult, best: boolean) {
   if (ch) void fillChallengeBoard(ch);
   on('#copy', async () => toast((await copyText(shareText(r, lastLabel, beat()) + '\n' + siteUrl())) ? 'Copied!' : 'Copy failed'));
   on('#again', () => showHeroSelect(() => startRun('endless'), backHere));
+  if (daily) wireHordeButton();
   if (daily) showEndlessRecord();
   on('#ossuary', () => showOssuary(backHere));
   on('#hall', () => openHall(backHere));
@@ -2761,6 +2755,19 @@ function hordeButtonHtml(): string {
   return `<button class="btn horde-btn" id="horde">${fresh ? '<span class="new-badge">NEW</span>' : ''}🛡️ Horde #${n}<small>${
     h ? `Your best today: wave ${h.wave} · ${h.best.toLocaleString()} pts` : `Hold the crypt as the ${HERO_BY_ID[hordeHero(n)].name} · unlimited tries`
   }</small></button>`;
+}
+
+/** The Horde button (on the title and after the Daily): continue today's run, or start one. */
+function wireHordeButton() {
+  on('#horde', () => {
+    const saved = savedHorde();
+    if (saved) resumeHorde(saved.game, saved.seconds);
+    else withTutorialOffer(() => startHorde());
+  });
+  on('#horde-new', () => {
+    if (!window.confirm('Start over? Your unfinished Horde run will be lost.')) return;
+    startHorde();
+  });
 }
 
 function startHorde() {
