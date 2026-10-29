@@ -5,7 +5,7 @@
 export type ZoneId =
   | 'crypt' | 'flooded' | 'ossuary' | 'burning' | 'abyss'
   // Story dungeons that are somewhere in particular.
-  | 'kennel' | 'well' | 'mine' | 'cellar';
+  | 'kennel' | 'well' | 'mine' | 'cellar' | 'cloister';
 
 export interface ZoneDef {
   id: ZoneId;
@@ -141,6 +141,18 @@ export const ZONES: Record<ZoneId, ZoneDef> = {
     light: ['rgba(255, 180, 90, 0.1)', 'rgba(10, 5, 2, 0.58)'],
     mote: '#e8c890',
     floorStyle: 'boards',
+  },
+  cloister: {
+    id: 'cloister',
+    name: 'The Sunken Cloister',
+    color: '#9be36a',
+    hint: '<b>Plague mist</b> hides foes and bites if you linger. Candles and tolls clear it.',
+    key: -4,
+    floor: ['#18201a', '#1b241c', '#151c16'],
+    bossFloor: ['#22201a', '#26231c', '#1e1c16'],
+    wall: { base: '#323c34', top: '#526256', face: '#3f4c42', front: '#232b25', edge: '#111712', brick: '#29322b', moss: '#5a8a3a' },
+    light: ['rgba(170, 230, 120, 0.07)', 'rgba(2, 8, 3, 0.66)'],
+    mote: '#9be36a',
   },
 };
 

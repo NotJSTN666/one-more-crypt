@@ -21,7 +21,9 @@ export interface Pos {
 export type EnemyKind =
   | 'ghoul' | 'bat' | 'archer' | 'brute' | 'wraith' | 'boss' | 'abbot' | 'lich' | 'thrall' | 'hound'
   // Depth-zone residents (log version 6 and later).
-  | 'drowned' | 'boneknight' | 'imp' | 'voideye';
+  | 'drowned' | 'boneknight' | 'imp' | 'voideye'
+  // Act II of the story.
+  | 'monk';
 
 export interface Enemy {
   id: number;
@@ -49,6 +51,8 @@ export interface Enemy {
   ghost?: GhostInfo;
   /** Story bosses: frost can't take hold again until they have acted this many times. */
   thaw?: number;
+  /** Act II: asleep until you end a turn beside it, or strike it. */
+  asleep?: boolean;
 }
 
 /** Who a summoned ghost is, and how they're dressed. */
@@ -74,6 +78,7 @@ export const ENEMY_INFO: Record<EnemyKind, { name: string; hp: number; dmg: numb
   boneknight: { name: 'Bone Knight', hp: 3, dmg: 2 },
   imp: { name: 'Ember Imp', hp: 2, dmg: 1 },
   voideye: { name: 'Void Eye', hp: 2, dmg: 2 },
+  monk: { name: 'Plague Monk', hp: 3, dmg: 1 },
 };
 
 export const BOSS_KINDS: EnemyKind[] = ['boss', 'abbot', 'lich'];
@@ -124,7 +129,9 @@ export type GameEvent =
   | { t: 'reaperrise'; x: number; y: number }
   | { t: 'reaperstep'; x: number; y: number }
   /** Horde: a wave pours in through the gates, or the last of one falls. */
-  | { t: 'wave'; wave: number; boss: boolean }
+  | { t: 'wave'; wave: number; boss: boolean; of?: number }
+  /** Act II: a sleeping foe wakes; `alarm` when another's waking did it. */
+  | { t: 'wake'; id: number; x: number; y: number; alarm?: boolean }
   | { t: 'wavecleared'; wave: number; bonus: number }
   /** Horde: the kill bar is full, and a relic (or the Soul Forge) is on offer. */
   | { t: 'surge' }
@@ -250,6 +257,14 @@ export interface StoryConfig {
   boss?: { floor: number; kind: EnemyKind; hp?: number; dmg?: number };
   /** The place this dungeon is: its look, and ground such as water or bone piles. */
   look?: ZoneId;
+  /** Act II: patches of plague mist on each floor. */
+  mist?: number;
+  /** Act II: plague monks join the floors' foes. */
+  monks?: boolean;
+  /** Act II: the last floor is a hold-out, with this many waves in all before the stairs open. */
+  holdout?: number;
+  /** Act II: the foes are asleep and the stairs open from the start. Sneak through, or wake them. */
+  sleepers?: boolean;
 }
 
 /** Daily runs use every relic; Endless only the unlocked ones. */
@@ -366,6 +381,10 @@ export const HORDE_GAP = 10;
 export const HORDE_GIFT_EVERY = 2;
 /** Death joins from this wave, and stays. */
 export const HORDE_DEATH_WAVE = 25;
+/** Act II: the plague mist bites on every this-many-th turn in a row you end in it. */
+export const MIST_BITE = 3;
+/** How far the Bell-Ringer's toll blows the mist back. */
+const MIST_TOLL_REACH = 2;
 /** Story and world bosses act this many times after a freeze before frost works on them again. */
 const BOSS_THAW = 3;
 /** With the Reaper's Invitation, Death comes this much sooner, and points are worth this much more. */
@@ -415,6 +434,12 @@ export class Game {
   water: boolean[] = [];
   lava: boolean[] = [];
   bones: boolean[] = [];
+  /** Act II: plague mist. Hides foes inside it, and hurts you if you linger. */
+  mist: boolean[] = [];
+  /** Turns in a row you have ended in the mist. */
+  private mistTurns = 0;
+  /** Act II: a hold-out floor's progress, the wave under way and how many in all. */
+  holdout: { wave: number; of: number } | null = null;
   /** A cracked wall with a vault behind it, and how many more blows it takes. */
   secret: (Pos & { hp: number }) | null = null;
   /** The opened vault's treasure, waiting to be picked up. */
@@ -637,6 +662,9 @@ export class Game {
     this.water = [];
     this.lava = [];
     this.bones = [];
+    this.mist = new Array(W * H).fill(false);
+    this.mistTurns = 0;
+    this.holdout = null;
     this.secret = null;
     this.vault = null;
     this.spawnEnemies(rng);
@@ -659,15 +687,27 @@ export class Game {
     // Zone ground and secret vaults draw on their own seeds, so the rest of the floor is as it was.
     if (this.config.depths || this.config.story?.look) this.placeZoneGround();
     if (this.config.depths) this.placeSecret();
+    const story = this.config.story;
+    if (story?.mist) this.placeMist(story.mist);
     this.player.x = START.x;
     this.player.y = START.y;
     this.placeThralls(thralls);
     if (this.config.story?.pet && !thralls.some((t) => t.kind === 'hound')) this.callHound();
     this.stairsOpen = false;
+    // Act II's dormitory: everyone is asleep, and the way down is open if you can reach it.
+    if (story?.sleepers && !this.isBossFloor()) {
+      for (const e of this.enemies) if (!e.ally) e.asleep = true;
+      this.stairsOpen = true;
+    }
     this.harvestBonus = 0;
     this.hurtThisFloor = false;
     this.shieldCharges = this.r('mirror') + this.boons.ward;
     this.events.push({ t: 'floor', floor });
+    // Act II's Vespers: the last floor's foes are the first wave of several.
+    if (story?.holdout && floor === story.end) {
+      this.holdout = { wave: 1, of: story.holdout };
+      this.events.push({ t: 'wave', wave: 1, boss: false, of: story.holdout });
+    }
     if (floor === 5 && !this.stats.turnsTo5) this.stats.turnsTo5 = this.turns;
 
     if (this.r('vheart') && this.isBossFloor()) this.phylacteryUsed = false;
@@ -786,6 +826,7 @@ export class Game {
       const kind = resident[this.zone.def.id];
       if (kind) roster.push({ kind, from: 1, w: 8 });
     }
+    if (this.config.story?.monks) roster.push({ kind: 'monk', from: 1, w: 14 });
     const pool = roster.filter((p) => f >= p.from);
     const count = Math.min(MAX_ENEMIES - 1, 2 + Math.floor(f / 2));
     const eliteChance = f >= 3 ? Math.min(0.35, 0.06 + 0.025 * f) : 0;
@@ -1489,13 +1530,29 @@ export class Game {
     }
     e.hp -= amount;
     this.events.push({ t: 'hit', id: e.id, x: e.x, y: e.y, amount, kind, crit });
+    if (e.asleep) this.wake(e, false);
     if (e.hp <= 0) this.killEnemy(e);
+  }
+
+  /** A sleeper wakes, and its cry wakes the others close by. */
+  private wake(e: Enemy, alarm: boolean) {
+    if (!e.asleep) return;
+    e.asleep = false;
+    this.events.push({ t: 'wake', id: e.id, x: e.x, y: e.y, alarm });
+    for (const o of this.enemies) {
+      if (o !== e && o.asleep && !o.dead && Math.abs(o.x - e.x) + Math.abs(o.y - e.y) <= 2) this.wake(o, true);
+    }
   }
 
   private killEnemy(e: Enemy) {
     e.dead = true;
     e.hp = 0;
     this.events.push({ t: 'kill', id: e.id, x: e.x, y: e.y, kind: e.kind, ally: e.ally, elite: e.elite });
+    // A plague monk breaks into a puff of mist where it stood.
+    if (e.kind === 'monk' && this.config.story?.mist && !this.isWall(e.x, e.y)) {
+      this.mist[e.y * W + e.x] = true;
+      this.terrain++;
+    }
     // An Ember Imp bursts into a pool of lava.
     if (e.kind === 'imp' && !this.isWall(e.x, e.y) && !(e.x === this.stairs.x && e.y === this.stairs.y)) {
       this.lava[e.y * W + e.x] = true;
@@ -1657,8 +1714,90 @@ export class Game {
     }
   }
 
+  // ---------- Act II: plague mist and the Vespers hold-out ----------
+
+  /** Whether a tile is in the plague mist. */
+  inMist(x: number, y: number): boolean {
+    return Boolean(this.mist[y * W + x]);
+  }
+
+  /** A few patches of mist, each spreading over several tiles, never on the stairs or where you arrive. */
+  private placeMist(patches: number) {
+    const rng = mulberry32(hashSeed(this.seed, 'mist', this.floor));
+    const open: Pos[] = [];
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (this.isWall(x, y) || (x === START.x && y === START.y) || (x === this.stairs.x && y === this.stairs.y)) continue;
+        open.push({ x, y });
+      }
+    }
+    for (let p = 0; p < patches && open.length; p++) {
+      let at: Pos | undefined = open[Math.floor(rng() * open.length)];
+      for (let n = randInt(rng, 3, 5); at && n > 0; n--) {
+        this.mist[at.y * W + at.x] = true;
+        const from: Pos = at;
+        const next = open.filter((t) => Math.abs(t.x - from.x) + Math.abs(t.y - from.y) === 1 && !this.mist[t.y * W + t.x]);
+        at = next.length ? next[Math.floor(rng() * next.length)] : undefined;
+      }
+    }
+  }
+
+  /** Burn the mist away within `reach` of you. */
+  private clearMist(reach: number) {
+    let cleared = false;
+    for (let y = this.player.y - reach; y <= this.player.y + reach; y++) {
+      for (let x = this.player.x - reach; x <= this.player.x + reach; x++) {
+        if (!this.inBounds(x, y) || !this.mist[y * W + x]) continue;
+        this.mist[y * W + x] = false;
+        cleared = true;
+      }
+    }
+    if (cleared) this.terrain++;
+  }
+
+  /** Candles keep the mist off you; linger in it and the plague bites every few turns. */
+  private mistTurn() {
+    if (!this.config.story?.mist || this.isOver()) return;
+    if (this.r('candle')) this.clearMist(1);
+    if (!this.inMist(this.player.x, this.player.y)) {
+      this.mistTurns = 0;
+      return;
+    }
+    this.mistTurns++;
+    if (this.mistTurns % MIST_BITE === 0) this.hurtPlayer(1, null, 'the plague mist');
+  }
+
+  /** Vespers: the bell tolls and the next wave of the choir pours in from the edges. */
+  private vespersWave() {
+    const h = this.holdout!;
+    h.wave++;
+    const rng = mulberry32(hashSeed(this.seed, 'vespers', this.floor, h.wave));
+    const p = this.player;
+    const spots: Pos[] = [];
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const edge = x === 0 || y === 0 || x === W - 1 || y === H - 1;
+        if (edge && !this.isWall(x, y) && !this.unitAt(x, y) && Math.abs(x - p.x) + Math.abs(y - p.y) >= 3) spots.push({ x, y });
+      }
+    }
+    for (let i = spots.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [spots[i], spots[j]] = [spots[j], spots[i]];
+    }
+    const roster: { kind: EnemyKind; w: number }[] = [{ kind: 'monk', w: 6 }, { kind: 'ghoul', w: 3 }, { kind: 'archer', w: 2 }];
+    const count = Math.min(MAX_ENEMIES - 1, 2 + h.wave, spots.length);
+    for (let i = 0; i < count; i++) this.makeEnemy(weightedPick(rng, roster, (r) => r.w).kind, spots[i].x, spots[i].y);
+    this.events.push({ t: 'toll' });
+    this.events.push({ t: 'wave', wave: h.wave, boss: false, of: h.of });
+  }
+
   private checkCleared() {
     if (this.mode === 'horde') return;
+    // Vespers: the stairs wait until the last wave of the choir is down.
+    if (this.holdout && this.holdout.wave < this.holdout.of) {
+      if (this.alive.length === 0) this.vespersWave();
+      return;
+    }
     if (!this.stairsOpen && this.alive.length === 0) {
       this.stairsOpen = true;
       this.warnings = [];
@@ -1698,6 +1837,11 @@ export class Game {
     const ghostDist = this.distanceMap(this.player, true);
     for (const e of [...this.enemies]) {
       if (e.dead || e.ally) continue;
+      // A sleeper stirs only if you end your turn right beside it.
+      if (e.asleep) {
+        if (this.adjacentToPlayer(e)) this.wake(e, false);
+        continue;
+      }
       if (e.burn > 0) {
         e.burn--;
         this.damageEnemy(e, e.burnDmg, 'burn');
@@ -1714,6 +1858,7 @@ export class Game {
       if (this.isOver()) break;
     }
     this.enemies = this.enemies.filter((e) => !e.dead);
+    this.mistTurn();
     this.checkCleared();
     this.reaperAct();
     if (this.mode === 'horde') this.hordeTick();
@@ -2065,6 +2210,8 @@ export class Game {
         e.frozen = Math.max(e.frozen, 1);
         this.damageEnemy(e, 1, 'burst');
       }
+      // The bell's ring blows the plague mist back.
+      this.clearMist(MIST_TOLL_REACH);
       // Even Death stops to listen.
       if (this.reaper && Math.abs(this.reaper.x - this.player.x) + Math.abs(this.reaper.y - this.player.y) <= 2) this.reaper.frozen = Math.max(this.reaper.frozen, 1);
     }
@@ -2169,6 +2316,7 @@ export class Game {
     }
     switch (e.kind) {
       case 'ghoul':
+      case 'monk':
         this.meleeOrMove(e, dist, false);
         break;
       case 'bat':

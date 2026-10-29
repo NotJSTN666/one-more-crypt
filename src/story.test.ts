@@ -81,3 +81,68 @@ describe('quests', () => {
     expect(npcMarker('agnes', state({ done: [1] }))).toBe('!');
   });
 });
+
+describe('Act II', () => {
+  const act2 = (n: number) => {
+    const d = QUEST_BY_N[n].dungeon;
+    return new Game('story', 7 + n, 0, {
+      hero: 'knight',
+      pool: fullPool(),
+      story: { start: d.floors[0], end: d.floors[1], gifts: 0, look: d.look, mist: d.mist, monks: d.monks, holdout: d.holdout, sleepers: d.sleepers },
+    });
+  };
+
+  it('fills cloister floors with plague mist that bites every third turn', () => {
+    const g = act2(31);
+    expect(g.mist.some(Boolean)).toBe(true);
+    for (const e of g.enemies) e.dead = true;
+    g.mist[g.player.y * 7 + g.player.x] = true;
+    const hp = g.player.hp;
+    for (let t = 0; t < 3; t++) g.act(0, 0);
+    expect(g.player.hp).toBe(hp - 1);
+  });
+
+  it('holds the Vespers stairs shut until the last wave falls', () => {
+    const g = act2(22);
+    const [, end] = QUEST_BY_N[22].dungeon.floors;
+    while (g.floor < end) {
+      clearFloor(g);
+      g.choose(-1);
+    }
+    expect(g.holdout).toEqual({ wave: 1, of: 4 });
+    for (let w = 1; w < 4; w++) {
+      for (const e of g.enemies) e.dead = true;
+      g.act(0, 0);
+      expect(g.holdout!.wave).toBe(w + 1);
+      expect(g.stairsOpen).toBe(false);
+      expect(g.enemies.some((e) => !e.dead)).toBe(true);
+    }
+    for (const e of g.enemies) e.dead = true;
+    g.act(0, 0);
+    expect(g.stairsOpen).toBe(true);
+  });
+
+  it('puts the Dormitory to sleep with the stairs open, and wakes a sleeper you stand beside', () => {
+    const g = act2(33);
+    expect(g.stairsOpen).toBe(true);
+    const foes = g.enemies.filter((e) => !e.ally && !e.dead);
+    expect(foes.length).toBeGreaterThan(0);
+    expect(foes.every((e) => e.asleep)).toBe(true);
+    const e = foes[0];
+    for (const o of foes.slice(1)) o.dead = true;
+    g.player.x = e.x === 0 ? 1 : e.x - 1;
+    g.player.y = e.y;
+    (g as unknown as { walls: boolean[] }).walls[g.player.y * 7 + g.player.x] = false;
+    g.act(0, 0);
+    expect(e.asleep).toBe(false);
+  });
+
+  it('only counts Act I towards the Bell-Ringer', () => {
+    expect(QUESTS.filter((q) => q.act === 2).map((q) => q.n)).toEqual([21, 22, 31, 32, 33]);
+    expect(questStatus(QUEST_BY_N[21], state({ done: [1, 2, 3] }))).toBe('locked');
+    expect(questStatus(QUEST_BY_N[21], state({ done: [1, 2, 3, 4] }))).toBe('available');
+    expect(conversation('ambrose', state({ done: [21] })).accept).toBe(22);
+  });
+});
+
+const state = (s: Partial<StoryState>): StoryState => ({ done: [], active: [], cleared: [], ...s });

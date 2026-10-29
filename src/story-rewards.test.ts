@@ -25,6 +25,6 @@ describe('story-only rewards', () => {
     const story = [...LOOKS, ...HEADS, ...AURAS].filter((x) => x.unlock && 'story' in x.unlock);
     expect(story.length).toBeGreaterThanOrEqual(11);
     for (const x of story) expect('cost' in x.unlock!).toBe(false);
-    expect(TITLES.filter((t) => t.id.startsWith('story:')).length).toBe(7);
+    expect(TITLES.filter((t) => t.id.startsWith('story:')).length).toBe(11);
   });
 });

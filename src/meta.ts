@@ -6,7 +6,7 @@ import { Game, REAPER_FLOOR, TITHE_SOULS, UNDEAD, basePool, fullPool, type Mode,
 import { cleanGraveState, newGraveState, type GraveState } from './graveshift';
 import { ISLE_ITEM, LAND, cleanIsle, emptyIsle, fits, homeKey, homeOf, islePerks, itemAt, layout, owned, type IsleState } from './isle';
 import { centralDate } from './daily';
-import { QUESTS } from './story';
+import { ACT1_QUESTS } from './story';
 import { FUSIONS, RELICS, UNLOCKABLE_RELICS, type FusedId, type RelicId } from './relics';
 import {
   AURAS, AURA_BY_ID, DUNCE_AT, SHAME, BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, beastPlural, HEADS, HEAD_BY_ID, HERO_CLOAKS, HERO_COSTUMES, LOOKS, LOOK_BY_ID, SEASONS, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_BY_ID, TITLE_TIER, WELCOME, STORY_ALL, RAID_REWARDS,
@@ -699,6 +699,9 @@ export function clearQuest(n: number) {
 }
 
 /** A quest is finished: record it, and pay out the first time. */
+/** Open the lid before this (midnight UTC, 12 November 2026) for First Down the Lid. */
+export const LID_LAUNCH_END = Date.UTC(2026, 10, 12);
+
 export function completeQuest(n: number, souls: number): { first: boolean; souls: number; feat: AchievementDef | null } {
   const first = !meta.story.done.includes(n);
   let feat: AchievementDef | null = null;
@@ -712,6 +715,7 @@ export function completeQuest(n: number, souls: number): { first: boolean; souls
     if (n === 2 && !meta.pet) meta.pet = 'hound';
     if (n === 4) feat = grant('act1');
     if (n === 13) feat = grant('regular');
+    if (n === 21 && Date.now() < LID_LAUNCH_END) feat = grant('lidfirst');
   }
   saveMeta();
   return { first, souls: first ? souls : 0, feat };
@@ -1151,9 +1155,9 @@ export async function backfillHeroes(runs: PastRun[]): Promise<void> {
 
 // ---------- story rewards ----------
 
-/** A quest of the story finished (or, for STORY_ALL, every one of them). */
+/** A quest of the story finished (or, for STORY_ALL, every one in Act I). */
 export function storyDone(n: number): boolean {
-  if (n === STORY_ALL) return QUESTS.every((q) => meta.story.done.includes(q.n));
+  if (n === STORY_ALL) return ACT1_QUESTS.every((q) => meta.story.done.includes(q.n));
   return meta.story.done.includes(n);
 }
 

@@ -139,6 +139,9 @@ function drawBack(ctx: Ctx, a: AuraDef, cx: number, feet: number, mid: number, w
       }
       rising(t, 3, 1.2, (i, p) => px(cx + (i - 1) * w * 0.35, feet - Math.sin(p * Math.PI) * w * 0.4, k, '#a0ebff', 1 - p));
       break;
+    case 'vespers':
+      orbit(t, 5, 0.7, (i, x, y, front) => front && vesperCandle(px, cx + x * w * 0.6, mid + y * w * 0.2, k, t, i, 1));
+      break;
     case 'bone':
       orbit(t, 4, 1.6, (_i, x, y, front) => !front && bone(px, cx + x * w * 0.7, mid + y * w * 0.2, k));
       break;
@@ -263,6 +266,11 @@ function drawBack(ctx: Ctx, a: AuraDef, cx: number, feet: number, mid: number, w
       orbit(t, 4, 1.1, (i, x, y, front) => !front && shard(px, cx + x * w * 0.85, mid + y * w * 0.3, k, i, t));
       break;
     }
+    case 'vespers':
+      // The choir's candles, circling slowly in a green haze.
+      bodyGlow(ctx, cx, mid, w * 0.95, a.color, 0.16 * pulse);
+      orbit(t, 5, 0.7, (i, x, y, front) => !front && vesperCandle(px, cx + x * w * 0.6, mid + y * w * 0.2, k, t, i, 0.6));
+      break;
     case 'zapper':
       // A bug zapper's cold blue glow, and the bugs drawn to it.
       bodyGlow(ctx, cx, mid, w * 1.0, a.color, 0.2 * pulse);
@@ -482,6 +490,13 @@ function orbit(t: number, n: number, speed: number, each: (i: number, x: number,
     const ang = t * speed + (i * Math.PI * 2) / n;
     each(i, Math.cos(ang), Math.sin(ang), Math.sin(ang) >= 0);
   }
+}
+
+/** A little choir candle: wax, and a flame that flickers green and gold. */
+function vesperCandle(px: Px, x: number, y: number, k: number, t: number, i: number, alpha: number) {
+  px(x - k / 2, y, k, '#e8dcc4', alpha);
+  px(x - k / 2, y + k, k, '#c9b99a', alpha);
+  px(x - k / 2, y - k, k, Math.sin(t * 11 + i * 1.7) > 0 ? '#ffd23f' : '#9be36a', alpha);
 }
 
 function bone(px: Px, x: number, y: number, k: number) {

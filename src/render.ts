@@ -356,6 +356,9 @@ export class Renderer {
           this.rings.push({ x: ev.x * TILE + TILE / 2, y: ev.y * TILE + TILE / 2, t: 0 });
           if (!this.quiet) this.shake = Math.max(this.shake, 2);
           break;
+        case 'wake':
+          this.floaters.push(this.floater(ev.x, ev.y - 0.4, ev.alarm ? '!' : 'AWAKE', '#ff8a5a', 0.8));
+          break;
         case 'toll':
           this.floaters.push(this.floater(g.player.x, g.player.y - 0.6, 'THE BELL TOLLS', '#f2c14e', 1));
           if (!this.quiet) this.shake = Math.max(this.shake, 3);
@@ -578,6 +581,8 @@ export class Renderer {
     for (const e of ents) {
       seen.add(e.id);
       const d = this.smooth(e.id, e, k);
+      // Act II: a foe in the plague mist is hidden until you're right beside it.
+      if (!e.ally && g.inMist(e.x, e.y) && Math.max(Math.abs(e.x - g.player.x), Math.abs(e.y - g.player.y)) > 1) continue;
       this.drawEnemy(g, e, d, dt);
     }
     if (g.phase !== 'dead') this.drawPet(g, k, dt);
@@ -605,6 +610,7 @@ export class Renderer {
     this.drawDarts(dt);
     this.drawFlying(dt);
     this.drawParticles(dt);
+    this.drawMist(g);
     this.drawMotes(dt);
     this.drawFog();
     this.drawLighting(g);
@@ -812,6 +818,15 @@ export class Renderer {
         x: x + 2 + Math.random() * 8, y: y + 4 + Math.random() * 6, vx: 0, vy: -18,
         color: Math.random() < 0.5 ? '#ff8a2a' : '#f2c14e', t: 0, life: 0.35, size: 1,
       });
+    }
+    if (e.asleep) {
+      // Sleeping: a slow drift of z's.
+      ctx.fillStyle = '#9aa3b5';
+      ctx.font = '6px Silkscreen, monospace';
+      const t = (this.time * 0.8 + e.id * 0.3) % 1;
+      ctx.globalAlpha = 1 - t;
+      ctx.fillText('z', x + SPRITE_SIZE - 2 + t * 3, y + 3 - t * 6);
+      ctx.globalAlpha = 1;
     }
     if (e.rest > 0 && (e.kind === 'brute' || isBoss(e))) {
       ctx.fillStyle = '#9aa3b5';
@@ -1356,6 +1371,33 @@ export class Renderer {
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
+  }
+
+  /** Act II: green plague mist rolling over its tiles, thicker at the middle. */
+  private drawMist(g: Game) {
+    if (!g.config.story?.mist) return;
+    const ctx = this.ctx;
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (!g.inMist(x, y)) continue;
+        for (let i = 0; i < 3; i++) {
+          const t = this.time * (0.5 + i * 0.17) + x * 1.3 + y * 0.7 + i * 2.1;
+          const cx = x * TILE + TILE / 2 + Math.sin(t) * TILE * 0.22;
+          const cy = y * TILE + TILE / 2 + Math.cos(t * 0.8) * TILE * 0.18;
+          const r = TILE * (0.75 + 0.1 * Math.sin(t * 1.3));
+          const a = 0.2 + 0.06 * Math.sin(t * 0.9);
+          const fog = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+          fog.addColorStop(0, `rgba(130, 200, 90, ${a})`);
+          fog.addColorStop(0.6, `rgba(100, 170, 70, ${a * 0.5})`);
+          fog.addColorStop(1, 'rgba(90, 150, 60, 0)');
+          ctx.fillStyle = fog;
+          ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+        }
+        if (!this.quiet && Math.random() < 0.04) {
+          this.particles.push({ x: x * TILE + Math.random() * TILE, y: y * TILE + TILE * 0.7, vx: (Math.random() - 0.5) * 4, vy: -5, color: '#9be36a', t: 0, life: 1.2, size: 1 });
+        }
+      }
+    }
   }
 
   /** Low fog drifting across the floor in slow, soft banks. */

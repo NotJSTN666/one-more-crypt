@@ -3,7 +3,7 @@ import { audioRunning, fusionSound, isMusicEnabled, isMuted, onAudioState, setMu
 import { dailyNumber, formatCountdown, msUntilNextDaily } from './daily';
 import { ELITES, FEATURES, HERO_BY_ID, dailyHero, hordeHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait, heroSprite } from './hero';
-import { BOON_BY_ID, ENEMY_INFO, REAPER_FLOOR, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode } from './game';
+import { BOON_BY_ID, ENEMY_INFO, MIST_BITE, REAPER_FLOOR, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode } from './game';
 import { acceptQuest, checkRun, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, finishHordeMeta, receiveGift, equipTitle, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
@@ -16,7 +16,7 @@ import { RAID_JOIN_MIN, RAID_SUBMIT_MIN, RAID_TURNS, currentRaid, nextRaid, raid
 import { hashSeed } from './rng';
 import { ONLINE, submitHorde, hordeBoard, claimInvite, myInvites, raidHit, raidPlayer, raidState, type RaidState, challengeBoard, emailReminderOff, sendFeedback, setEmailReminder, type FeedbackKind, challengeNews, createChallenge, dailyBoard, endlessBoard, getChallenge, mySummons, noteRun, noteSummon, pingActivity, setPresenceSource, startActivityPings, waitingGifts, claimGift, submitChallengeRun, type Challenge, type ChallengeRow } from './online';
 import {
-  ACT_TITLE, LORE, LORE_COUNT, MAIN_QUESTS, QUESTS, QUEST_BY_N, SPEAKERS, conversation, facePortrait, houndStats, npcMarker, npcPresent, petName, questStatus,
+  ACT2_MAIN, ACT2_QUESTS, ACT2_TITLE, ACT_TITLE, ACT1_QUESTS, LORE, LORE_COUNT, MAIN_QUESTS, QUESTS, QUEST_BY_N, SPEAKERS, conversation, facePortrait, houndStats, npcMarker, npcPresent, petName, questStatus,
   type Line, type NpcId, type Quest, type StoryState,
 } from './story';
 import { EPITAPHS, hollowKey, setHollowSpot, showHollow, showIsleVisit, type HollowHooks, type HollowPlace } from './hollow';
@@ -489,7 +489,7 @@ function processEvents() {
   for (const ev of events) {
     if (ev.t === 'reaperrise') sfx.toll();
     if (ev.t === 'wave') {
-      renderer.banner(ev.boss ? `BOSS WAVE ${ev.wave}` : `WAVE ${ev.wave}`, ev.boss ? '#ff4d5a' : '#f2c14e');
+      renderer.banner(ev.of ? `VESPERS · WAVE ${ev.wave} OF ${ev.of}` : ev.boss ? `BOSS WAVE ${ev.wave}` : `WAVE ${ev.wave}`, ev.boss ? '#ff4d5a' : ev.of ? '#9be36a' : '#f2c14e');
       if (ev.boss) sfx.toll();
       setMusicMood(ev.boss ? 'boss' : 'crypt');
     }
@@ -554,7 +554,7 @@ function playSounds(events: GameEvent[]) {
   if (has('heal')) sfx.heal();
   if (has('stairs')) sfx.stairs();
   if (has('raise') || has('teleport')) sfx.zap();
-  if (has('warn')) sfx.block();
+  if (has('warn') || has('wake')) sfx.block();
   if (has('spike') || has('eblock') || has('lava')) sfx.hit();
   const crumble = events.find((e) => e.t === 'crumble');
   if (crumble) {
@@ -852,6 +852,8 @@ function updateTip() {
   else if (game.config.reaper && game.floor >= REAPER_FLOOR && game.reaperIn > 0)
     tip.innerHTML = `☠️ Death rises in <b>${game.reaperIn} turn${game.reaperIn === 1 ? '' : 's'}</b>. Be gone before he does.`;
   else if (game.config.reaper && game.floor >= REAPER_FLOOR - 5 && game.floor < REAPER_FLOOR) tip.innerHTML = `You hear footsteps behind you… <b>Death walks from floor ${REAPER_FLOOR}.</b>`;
+  else if (game.holdout) tip.innerHTML = `<b>Vespers, wave ${game.holdout.wave} of ${game.holdout.of}.</b> Hold out: the stairs open after the last wave.`;
+  else if (game.enemies.some((e) => e.asleep && !e.dead)) tip.innerHTML = 'The monks <b>sleep</b> and the stairs are open. Don\'t end a turn beside one.';
   else if (game.stairsOpen) tip.innerHTML = 'The seal is broken. <b>Take the stairs</b> to descend.';
   else if (game.warnings.length)
     tip.innerHTML = '<b>Glowing tiles</b> will be struck next turn. Get clear!';
@@ -861,6 +863,7 @@ function updateTip() {
   else if (boss?.kind === 'abbot') tip.innerHTML = 'The <b>Plague Abbot</b> rains plague around you. Watch for green tiles.';
   else if (boss?.kind === 'lich') tip.innerHTML = 'The <b>Lich King</b> blinks away and fires along its row and column.';
   else if (game.shadowReady) tip.innerHTML = '<b>Shadowstep:</b> your next step goes unseen. Foes won\'t act.';
+  else if (game.inMist(game.player.x, game.player.y)) tip.innerHTML = `You're in the <b>plague mist</b>. Every ${MIST_BITE}rd turn in it costs 1 health.`;
   else if (elite) tip.innerHTML = `Glowing foes are elites. <b>${ELITES[elite.elite!].name}:</b> ${ELITES[elite.elite!].desc}`;
   else if (feature) tip.innerHTML = `Step onto the <b>${FEATURES[feature.kind].name}</b> to use it.`;
   else if (game.vault) tip.innerHTML = 'A <b>secret vault</b> lies open. Step in to claim its treasure.';
@@ -941,7 +944,7 @@ function showTitle() {
     <div class="tiles">
       ${storyTileHtml()}
       ${titleTile('hollow', '🌙', 'The Hollow', 'Graveyard & your isle')}
-      ${titleTile('act2', '🔔', 'Act II', 'Coming soon', 'soon')}
+      ${titleTile('act2', '🔔', 'Act II', 'Part 1 open', 'act2-tile')}
       ${graveTileHtml()}
     </div>
     <h2 class="title-section">Your crypt</h2>
@@ -1134,6 +1137,7 @@ function hollowHooks(): HollowHooks {
     dungeon: dungeonDoor,
     enterDungeon: (n) => QUEST_BY_N[n] && beginDungeon(QUEST_BY_N[n]),
     gate: (n) => ['active', 'cleared', 'done'].includes(questStatus(QUEST_BY_N[n], storyState())),
+    areaOpen: (id) => id !== 'cloister' || meta.story.done.includes(21),
     lore: (id) => LORE[id] ?? null,
     readLore: (id) => {
       if (readLore(id)) sfx.relic();
@@ -2927,6 +2931,44 @@ function showBellNews() {
   on('#news-later', showTitle);
 }
 
+/** Finished Act I's story: Act II Part 1 is open, and Mortimer has found the lid. */
+function actTwoNewsWaiting(): boolean {
+  if (!meta.story.done.includes(4) || meta.story.done.includes(21)) return false;
+  try {
+    return localStorage.getItem('omc:news-act2') !== '1';
+  } catch {
+    return false;
+  }
+}
+
+function showActTwoNews() {
+  try {
+    localStorage.setItem('omc:news-act2', '1');
+    localStorage.setItem(NEWS_KEY, NEWS_ID);
+  } catch {
+    // Private mode: it may show again, which is harmless.
+  }
+  showOverlay('news', `
+    <p class="news-tag">🔔 For finishing Act I</p>
+    <h2>Act II · Part 1 is open</h2>
+    <img class="hero-portrait story-face" src="${facePortrait('ambrose')}" alt="Brother Ambrose" width="96" height="96" />
+    <p class="fine">The ground by the Warden's tower has sunk, and a great stone lid shows through the grass. Aldric is somewhere below it. Mortimer is waiting for you.</p>
+    <ul class="news-list">
+      <li>⛪ The Sunken Cloister, and Brother Ambrose</li>
+      <li>📜 2 quests and 3 side quests</li>
+      <li>🌫️ Plague mist, plague monks, a hold-out and a sleeping dormitory</li>
+      <li>🎁 Story-only rewards: 3 cloaks, a mask, an aura and 4 titles</li>
+      <li>🏅 Open the lid before 12 November: <b>First Down the Lid</b></li>
+    </ul>
+    <button class="btn primary story-btn" id="news-play">📖 Go to Mortimer<small>Knock on his door</small></button>
+    <button class="btn" id="news-later">Later</button>`);
+  on('#news-play', () => {
+    placeAtCottage();
+    playStory();
+  });
+  on('#news-later', showTitle);
+}
+
 /** On opening the game: Act I of the story is out. */
 function showStoryNews() {
   markNewsSeen();
@@ -2964,34 +3006,42 @@ function graveTileHtml(): string {
 function storyTileHtml(): string {
   const main = MAIN_QUESTS.filter((q) => meta.story.done.includes(q.n)).length;
   const next = MAIN_QUESTS.find((q) => !meta.story.done.includes(q.n));
-  return titleTile('story', '📖', 'Story', !next ? 'Act I complete' : main ? `Act I · ${main}/${MAIN_QUESTS.length}` : 'Start Act I', 'story-tile');
+  const two = ACT2_MAIN.filter((q) => meta.story.done.includes(q.n)).length;
+  const sub = next
+    ? main ? `Act I · ${main}/${MAIN_QUESTS.length}` : 'Start Act I'
+    : two === ACT2_MAIN.length ? 'Act II · Part 2 soon' : two ? `Act II · ${two}/${ACT2_MAIN.length}` : 'Act II is open';
+  return titleTile('story', '📖', 'Story', sub, 'story-tile');
 }
 
 /** The Act II teaser: what's under the lid, and a way to tell us what you want down there. */
 function showActTwo(back: () => void) {
-  const actOne = storyDone(STORY_ALL);
+  const ready = meta.story.done.includes(4);
   showOverlay('act2', `
     <canvas class="act2-art" id="act2-art" width="320" height="200" aria-label="The Plague Abbot in green fog, a great bell behind him"></canvas>
-    <p class="act2-kicker">Coming soon</p>
+    <p class="act2-kicker">Part 1 open</p>
     <h2 class="act2-title">Act II: The Plague Abbot</h2>
     <p class="act2-quote">"It was never a door. It was a lid."</p>
     <p class="sub">Beneath the Warden's lid lies the Sunken Cloister, where the Abbot's monks still keep their vigil. Someone rings the bell every night now. The graves of Gravesend grow restless, a green sickness creeps up the wells, and Aldric is somewhere below.</p>
     <ul class="act2-list">
-      <li>⛪ <b>The Sunken Cloister</b>: a new place to explore under the Hollow</li>
-      <li>📜 New quests and side quests, and a new friend in the dark</li>
-      <li>🌫️ Plague mist: crypts that fight back</li>
-      <li>🔔 The Bell Tower Below, and the Plague Abbot waiting at the bottom</li>
-      <li>🛡️ Aldric's fate</li>
-      <li>✨ New story-only cloaks, helms, auras, titles, and ???</li>
+      <li>⛪ <b>Open now:</b> the Sunken Cloister and Brother Ambrose</li>
+      <li>📜 2 quests and 3 side quests</li>
+      <li>🌫️ Plague mist: it hides the monks and bites if you linger</li>
+      <li>🕯️ Vespers: hold out against four waves of the choir</li>
+      <li>💤 The Dormitory: sneak past the sleeping monks</li>
+      <li>✨ New story-only cloaks, a mask, an aura and titles</li>
+      <li>🔔 <b>Part 2:</b> the bell shaft, the Plague Abbot and Aldric's fate</li>
     </ul>
-    ${actOne
-      ? '<p class="act2-ready">🔔 You finished Act I. You will be among the first down.</p>'
-      : `<p class="act2-ready">Finish Act I first: the Bell-Ringer is waiting.</p><button class="btn story-btn" id="act2-story">📖 Continue Act I</button>`}
-    <button class="btn primary" id="act2-idea">💡 Tell us what you want in Act II</button>
+    ${ready
+      ? `<p class="act2-ready">🔔 Mortimer has found a lid. Open it before 12 November for <b>First Down the Lid</b>.</p><button class="btn primary story-btn" id="act2-story">📖 Go to Mortimer</button>`
+      : `<p class="act2-ready">Finish Act I's main story first: the Bone Warden waits.</p><button class="btn story-btn" id="act2-story">📖 Continue Act I</button>`}
+    <button class="btn" id="act2-idea">💡 Tell us what you want in Part 2</button>
     ${discordBtn}
     <button class="btn" id="back">Back</button>`);
-  on('#act2-story', () => playStory());
-  on('#act2-idea', () => showFeedback(() => showActTwo(back), 'idea', 'What would you love to see in Act II? A quest, a monster, a reward, anything.'));
+  on('#act2-story', () => {
+    if (ready && !meta.story.done.includes(21) && !meta.story.active.includes(21)) placeAtCottage();
+    playStory();
+  });
+  on('#act2-idea', () => showFeedback(() => showActTwo(back), 'idea', 'What would you love to see in Act II Part 2? A quest, a monster, a reward, anything.'));
   on('#back', back);
   animateActTwo($('act2-art') as HTMLCanvasElement);
 }
@@ -3103,9 +3153,14 @@ function finishQuest(q: Quest, then: () => void) {
     : q.n === 11 ? "🎨 The Widow's Shawl: a new cloak. ✨ Wishing Well: a new aura. 📜 New title: Ring Finder."
     : q.n === 12 ? "🎩 Smith's Goggles: new headwear. 📜 New title: Coal Runner."
     : q.n === 13 ? "🎩 Bess's Kerchief: new headwear. 📜 New title: Tavern Regular."
+    : q.n === 21 ? "⛪ The Sunken Cloister is open: take the old stair at the bottom of the chapel grounds. 🎨 Monk's Habit: a new cloak. 📜 New title: Down the Lid."
+    : q.n === 22 ? '✨ Vespers Candles: a new aura. 📜 New title: Brother of the Cloister.'
+    : q.n === 31 ? '🎨 The Plague Coat: a new cloak.'
+    : q.n === 32 ? "🎩 The Physician's Mask: new headwear. 📜 New title: Physician."
+    : q.n === 33 ? '🎨 The Choir Robe: a new cloak. 📜 New title: Keeper of the Hymn.'
     : '';
   // The last quest of the act: the Bell-Ringer and everything that comes with them.
-  const actDone = storyDone(STORY_ALL);
+  const actDone = !q.act && storyDone(STORY_ALL);
   const act = actDone
     ? `<div class="act-done">
         <b>🔔 Act I complete</b>
@@ -3128,7 +3183,8 @@ function finishQuest(q: Quest, then: () => void) {
     <div class="souls-earned"><b>+${result.souls} Souls</b><span>💀 ${meta.souls} to spend in the Ossuary</span></div>
     ${unlocked ? `<p class="talk-quip">${unlocked}</p>` : ''}
     ${act}
-    ${q.n === 4 || actDone ? '<p class="talk-quip">Act II: The Plague Abbot is coming. The bell is waiting.</p><button class="btn act2-btn" id="act2">🔔 See what\'s coming in Act II</button>' : ''}
+    ${q.n === 4 || actDone ? '<p class="talk-quip">Act II: The Plague Abbot is open. Mortimer has found a lid.</p><button class="btn act2-btn" id="act2">🔔 About Act II</button>' : ''}
+    ${q.act && ACT2_QUESTS.every((x) => meta.story.done.includes(x.n)) ? '<p class="talk-quip">That is all of Act II, Part 1. The bell shaft opens in Part 2.</p>' : ''}
     <button class="btn primary" id="back">Continue</button>`);
   on('#act2', () => showActTwo(then));
   on('#back', then);
@@ -3137,6 +3193,7 @@ function finishQuest(q: Quest, then: () => void) {
 /** A dungeon's door in the world: open once its quest is taken, barred until then. */
 function dungeonDoor(n: number): { open: boolean; title: string; text: string } {
   const q = QUEST_BY_N[n];
+  if (n === 23) return { open: false, title: 'The Bell Shaft', text: "Sealed with the Abbot's mark. Far below, a bell is waiting, and Aldric with it. (Act II, Part 2.)" };
   if (!q) return { open: false, title: 'Sealed', text: 'Nothing but stone.' };
   const status = questStatus(q, storyState());
   if (status === 'locked' || status === 'available') return { open: false, title: q.dungeon.name, text: q.barred };
@@ -3158,6 +3215,14 @@ function beginDungeon(q: Quest) {
   );
 }
 
+/** "Act I: main 4/4 · side 3/3", for the quest log. */
+function actCount(name: string, quests: Quest[]): string {
+  const has = (q: Quest) => meta.story.done.includes(q.n);
+  const main = quests.filter((q) => !q.side);
+  const side = quests.filter((q) => q.side);
+  return `${name}: main ${main.filter(has).length}/${main.length} · side ${side.filter(has).length}/${side.length}`;
+}
+
 /** The quest log: what you're on, where to go, and the journal of things you've found. */
 function showQuests(back: () => void = enterHollow) {
   const s = storyState();
@@ -3171,8 +3236,8 @@ function showQuests(back: () => void = enterHollow) {
   const done = QUESTS.filter((q) => questStatus(q, s) === 'done');
   const lore = meta.story.journal.filter((id) => LORE[id]);
   showOverlay('quests', `
-    <h2>${esc(ACT_TITLE)}</h2>
-    <p class="sub">Main story ${MAIN_QUESTS.filter((q) => s.done.includes(q.n)).length}/${MAIN_QUESTS.length} · side quests ${QUESTS.filter((q) => q.side && s.done.includes(q.n)).length}/${QUESTS.filter((q) => q.side).length}</p>
+    <h2>${esc(s.done.includes(4) ? ACT2_TITLE : ACT_TITLE)}</h2>
+    <p class="sub">${actCount('Act I', ACT1_QUESTS)}${s.done.includes(4) ? `<br>${actCount('Act II, Part 1', ACT2_QUESTS)}` : ''}</p>
     ${houndJoined() ? `<p class="fine">🐕 ${esc(petName(meta.story.choices.hound))} fights beside you in the story · bond ${meta.story.bond}</p>` : ''}
     <h3 class="shop-head">On the go</h3>
     <div class="quests">${current.length ? current.map(row).join('') : '<p class="fine">Nothing yet. Look for a ! over someone\'s head.</p>'}</div>
@@ -3310,6 +3375,10 @@ function startStory(q: Quest, ghost: GhostInfo | null) {
       ghost: ghost ?? undefined,
       boss: d.boss,
       look: d.look,
+      mist: d.mist,
+      monks: d.monks,
+      holdout: d.holdout,
+      sleepers: d.sleepers,
     },
     // The isle's buildings help in the story too.
     ...(islePerks(meta.isle).vigor ? { vigor: islePerks(meta.isle).vigor } : {}),
@@ -3505,6 +3574,11 @@ document.addEventListener('visibilitychange', () => {
   forgePick,
   resolveEvent,
   enemies: ENEMY_INFO,
+  story: (n: number) => QUEST_BY_N[n] && startStory(QUEST_BY_N[n], null),
+  hollow: (to: string, x: number, y: number) => {
+    setHollowSpot(to, x, y);
+    enterHollow();
+  },
   get lastResult() {
     return lastResult;
   },
@@ -3554,7 +3628,8 @@ if (unsub && ONLINE) {
 }
 // Back again: tell them what's new (only on a plain visit, not a shared link).
 if (!visiting && !challengeCode && !unsub && !savedRun()) {
-  if (bellNewsWaiting()) showBellNews();
+  if (actTwoNewsWaiting()) showActTwoNews();
+  else if (bellNewsWaiting()) showBellNews();
   else if (newsWaiting()) showStoryNews();
 }
 // Someone brand new: straight into the crypt (a one-minute tutorial, then today's daily).

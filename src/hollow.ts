@@ -94,9 +94,25 @@ const CHAPEL_MAP = [
   '#::::::::::::::.T...#',
   '#..+..+...:...~~~...#',
   '#T....+...:..~~~~~..#',
-  '#..+......:...~~~.T.#',
-  '#.....+..T:.........#',
-  '#T..T.....:..T...T..#',
+  '#..VV.....:...~~~.T.#',
+  '#..VV.+..T:.........#',
+  '#T..v:::::::.T...T..#',
+  '##########_##########',
+];
+// Act II: the Sunken Cloister, down the old stair past the lid.
+const CLOISTER_MAP = [
+  '#########^###########',
+  '#.HHHHH..:..BBB...T.#',
+  '#.HHHHH..:..BBB.....#',
+  '#.HHHHH..:..BBB..+..#',
+  '#...h....:...b......#',
+  '#:::::::::::::::::::#',
+  '#.AAA..:...~~~..DDD.#',
+  '#.AAA..:..~~~~~.DDD.#',
+  '#..a...:...~~~...d..#',
+  '#:GG::::::::::::III:#',
+  '#.GG...:.T...T..III.#',
+  '#..g...:.........i..#',
   '#####################',
 ];
 const COTTAGE_MAP = [
@@ -151,6 +167,15 @@ const CHAPEL_IN_MAP = [
   '#.ee...ee.#',
   '#.........#',
   '#z2...ee..#',
+  '#####x#####',
+];
+const CELL_MAP = [
+  '###########',
+  '#s..1...l.#',
+  '#.........#',
+  '#.c.......#',
+  '#.......b.#',
+  '#2........#',
   '#####x#####',
 ];
 const LODGE_MAP = [
@@ -265,9 +290,24 @@ const AREAS: Record<string, Area> = {
     buildings: [
       { letter: 'P', wall: '#4b4259', roof: '#2f2838', glow: '#9fe8ff', label: () => 'CHAPEL', kind: 'chapel' },
       { letter: 'U', wall: '#3a3346', roof: '#241f2c', glow: '#ff4d5a', label: () => 'TOWER', kind: 'tower' },
+      { letter: 'V', wall: '#323c34', roof: '#1e261f', glow: '#9be36a', label: () => 'THE LID', kind: 'stairs' },
     ],
-    doors: { p: { interior: 'chapel-in' }, u: { interior: 'lodge', gate: 4 } },
-    exits: { '<': { to: 'village', x: 19, y: 4 } },
+    doors: { p: { interior: 'chapel-in' }, u: { interior: 'lodge', gate: 4 }, v: { dungeon: 21 } },
+    exits: { '<': { to: 'village', x: 19, y: 4 }, _: { to: 'cloister', x: 9, y: 1 } },
+  },
+  cloister: {
+    name: 'The Sunken Cloister',
+    map: CLOISTER_MAP,
+    buildings: [
+      { letter: 'H', wall: '#3f4c42', roof: '#232b25', glow: '#9be36a', label: () => 'CHAPTER HOUSE', kind: 'chapel' },
+      { letter: 'B', wall: '#323c34', roof: '#1e261f', glow: '#c9a24a', label: () => 'BELL SHAFT', kind: 'tower' },
+      { letter: 'A', wall: '#4a3a2a', roof: '#33281f', glow: '#f2c14e', label: () => 'AMBROSE' },
+      { letter: 'D', wall: '#3f4c42', roof: '#33281f', glow: '#9aa3b5', label: () => 'DORMITORY' },
+      { letter: 'G', wall: '#2a3b1f', roof: '#1e261f', glow: '#9be36a', label: () => 'GARDEN', kind: 'stairs' },
+      { letter: 'I', wall: '#4a4236', roof: '#232b25', glow: '#e8dcc4', label: () => 'INFIRMARY' },
+    ],
+    doors: { h: { dungeon: 22 }, b: { dungeon: 23 }, a: { interior: 'cell' }, d: { dungeon: 33 }, g: { dungeon: 31 }, i: { dungeon: 32 } },
+    exits: { '^': { to: 'chapel', x: 10, y: 11 } },
   },
   cottage: {
     name: "Mortimer's Cottage", interior: true, map: COTTAGE_MAP, floor: '#3a2818',
@@ -304,6 +344,12 @@ const AREAS: Record<string, Area> = {
     npcs: [{ id: 'aldric', x: 4, y: 2 }],
     lore: { '1': { id: 'aldric-journal', look: 'book' }, '2': { id: 'aldric-armour', look: 'armour' } },
   },
+  cell: {
+    name: "Brother Ambrose's Cell", interior: true, map: CELL_MAP, floor: '#2a3226',
+    doors: { x: { out: true } },
+    npcs: [{ id: 'ambrose', x: 5, y: 3 }],
+    lore: { '1': { id: 'ambrose-rule', look: 'book' }, '2': { id: 'ambrose-letter', look: 'letter' } },
+  },
   lodge: {
     name: "The Warden's Lodge", interior: true, map: LODGE_MAP, floor: '#2a2433',
     doors: { x: { out: true }, z: { dungeon: 4 } },
@@ -338,6 +384,8 @@ export interface HollowHooks {
   enterDungeon: (n: number) => void;
   /** Story doors that open once a quest is taken. */
   gate: (n: number) => boolean;
+  /** Places the story opens up as it goes (the Sunken Cloister, once the lid is open). */
+  areaOpen?: (id: string) => boolean;
   lore: (id: string) => { title: string; text: string } | null;
   readLore: (id: string) => void;
   loreRead: (id: string) => boolean;
@@ -1259,6 +1307,10 @@ function step(dx: number, dy: number) {
       dialog = 'soon';
       return showDialog(SOON);
     }
+    if (hooks.areaOpen && !hooks.areaOpen(exit.to)) {
+      dialog = 'barred';
+      return showDialog('<b>An old stair, choked with rubble</b>It goes down past the lid. Something under there is singing. Open the lid first.');
+    }
     build = null;
     return travel(exit.to, exit.x, exit.y);
   }
@@ -1789,7 +1841,7 @@ function questRoads(): Set<string> {
       continue;
     }
     for (const ex of Object.values(AREAS[id]?.exits ?? {})) {
-      if (ex.to === areaId || first.has(ex.to)) continue;
+      if (ex.to === areaId || first.has(ex.to) || (hooks.areaOpen && !hooks.areaOpen(ex.to))) continue;
       first.set(ex.to, first.get(id)!);
       queue.push(ex.to);
     }

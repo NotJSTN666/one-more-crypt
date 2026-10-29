@@ -146,6 +146,10 @@ export const TITLES: TitleDef[] = [
   { id: 'story:12', name: 'Coal Runner', how: 'Finish Blue Coal in the story.' },
   { id: 'story:bell', name: 'The Bell-Ringer', how: 'Finish every quest in Act I of the story.' },
   { id: 'story:all', name: 'Hero of Gravesend', how: 'Finish every quest in Act I of the story, side quests too.' },
+  { id: 'story:21', name: 'Down the Lid', how: 'Finish The Lid in Act II of the story.' },
+  { id: 'story:22', name: 'Brother of the Cloister', how: 'Finish Vespers in Act II of the story.' },
+  { id: 'story:32', name: 'Physician', how: "Finish Pip's Cough in Act II of the story." },
+  { id: 'story:33', name: 'Keeper of the Hymn', how: 'Finish The Silent Choir in Act II of the story.' },
   { id: 'welcome:7', name: 'Keeper of Seven Nights', how: 'Play on seven different days (Seven Nights).' },
   { id: 'invite:10', name: 'The Crypt Crier', how: 'Bring 10 friends to the crypt.' },
   // Given by hand to supporters (the patrons table), never sold in the game.
@@ -237,6 +241,9 @@ LOOKS.push(
   { id: 'shawl', name: "The Widow's Shawl", cloak: { p: '#2a2433', P: '#141119' }, aura: '#8a8590', unlock: { story: 11 }, how: "Find Agnes's ring in the story." },
   { id: 'gravecoat', name: "Gravedigger's Coat", cloak: { p: '#6b4a2e', P: '#3d2a1a' }, aura: '#c4a46a', unlock: { story: 1 }, how: "Dig Mortimer's grave in the story (Fresh Dirt)." },
   { id: 'bellvestment', name: "Bell-Ringer's Vestment", cloak: { p: '#8a6a2a', P: '#4a3812' }, aura: '#f2c14e', unlock: { story: STORY_ALL }, how: 'Finish every quest in Act I of the story.' },
+  { id: 'monkshabit', name: "Monk's Habit", cloak: { p: '#5a4a3a', P: '#33281f' }, aura: '#9be36a', unlock: { story: 21 }, how: 'Open the lid in Act II of the story.' },
+  { id: 'plaguecoat', name: 'Plague Coat', cloak: { p: '#2e2a24', P: '#151310' }, aura: '#9be36a', unlock: { story: 31 }, how: 'Bring Ambrose his herbs in Act II of the story (Bitter Herbs).' },
+  { id: 'choirrobe', name: 'Choir Robe', cloak: { p: '#d8d2c2', P: '#7a2a2a' }, aura: '#fff2c0', unlock: { story: 33 }, how: 'Bring back the lost hymn in Act II of the story (The Silent Choir).' },
   { id: 'houndhide', name: 'Houndhide', cloak: { p: '#3a3029', P: '#1c1714' }, aura: '#a8894a', unlock: { story: 2 }, how: 'Bring the crypt hound home in the story (The Kennel).' },
 );
 
@@ -456,6 +463,7 @@ export const HEADS: HeadDef[] = [
   { id: 'goggles', name: "Smith's Goggles", unlock: { story: 12 }, how: 'Bring Pip the blue coal in the story.', pixels: [...row(2, 3, 8, '#6b4a2a'), [4, 2, '#f2c14e'], [5, 2, '#5fe3ff'], [7, 2, '#f2c14e'], [8, 2, '#5fe3ff']] },
   { id: 'bellhelm', name: 'The Bell Helm', unlock: { story: STORY_ALL }, how: 'Finish every quest in Act I of the story.', pixels: [[5, 0, '#5d4a2a'], [6, 0, '#5d4a2a'], ...row(1, 4, 7, '#c9a24a'), ...row(2, 3, 8, '#c9a24a'), ...row(3, 3, 8, '#8a6a2a'), [4, 1, '#fff2c0'], [3, 2, '#fff2c0'], [2, 3, '#8a6a2a'], [9, 3, '#8a6a2a']] },
   { id: 'tavernkerchief', name: "Bess's Kerchief", unlock: { story: 13 }, how: "Get Bess's Best back from the tavern cellar in the story.", pixels: [...row(1, 4, 7, '#c0392b'), ...row(2, 3, 8, '#c0392b'), [4, 1, '#ffffff'], [7, 2, '#ffffff'], [5, 2, '#ffffff'], [9, 3, '#c0392b']] },
+  { id: 'physicianmask', name: "Physician's Mask", unlock: { story: 32 }, how: "Cure Pip's cough in Act II of the story.", pixels: [...row(1, 3, 8, '#e8dcc4'), ...row(2, 2, 9, '#c9b99a'), [3, 3, '#c9a24a'], [4, 3, '#1a1520'], [5, 3, '#c9a24a'], [6, 3, '#c9a24a'], [7, 3, '#1a1520'], [8, 3, '#c9a24a'], ...row(4, 6, 9, '#e8dcc4'), ...row(5, 7, 10, '#c9b99a'), [5, 0, '#c9b99a'], [6, 0, '#c9b99a']] },
   { id: 'wardenkeys', name: "The Warden's Keys", unlock: { story: 4 }, how: 'Finish Act I of the story.', pixels: [...row(2, 3, 8, '#8a4a2a'), [3, 1, '#8a4a2a'], [8, 1, '#8a4a2a'], [4, 1, GOLD], [5, 0, GOLD], [6, 0, GOLD], [7, 1, GOLD], [4, 3, GOLD], [7, 3, GOLD]] },
   { id: 'endlesscrown', name: 'Crown of the Endless', unlock: { weekly: 1 }, how: 'Win a week on the Endless leaderboard.', pixels: [[3, 0, '#b07cff'], [5, 0, '#5fe3ff'], [6, 0, '#5fe3ff'], [8, 0, '#b07cff'], ...row(1, 3, 8, '#7b5cff'), ...row(2, 3, 8, '#311854'), [4, 2, '#5fe3ff'], [7, 2, '#5fe3ff']] },
   { id: 'silvercirclet', name: 'Silver Circlet', unlock: { podium: 2 }, how: 'Finish 2nd in a Daily Descent.', pixels: [...row(2, 3, 8, '#c9d1e0'), [5, 1, '#eef3fb'], [6, 1, '#eef3fb'], [5, 2, '#9fe8ff'], [6, 2, '#7fb4ff']] },
@@ -593,7 +601,7 @@ export interface Outfit {
 export type AuraStyle =
   | 'candle' | 'ember' | 'tide' | 'bone' | 'abyss' | 'void' | 'rays' | 'sunburst' | 'flame'
   | 'wisps' | 'snow' | 'storm' | 'mist' | 'souls' | 'crown' | 'eternity' | 'rainbow' | 'bell'
-  | 'shards' | 'blades' | 'banner' | 'eclipse' | 'reaper' | 'favour' | 'zapper';
+  | 'shards' | 'blades' | 'banner' | 'eclipse' | 'reaper' | 'favour' | 'zapper' | 'vespers';
 
 export type AuraUnlock =
   | { floor: number }
@@ -645,6 +653,7 @@ export const AURAS: AuraDef[] = [
   { id: 'wishingwell', name: 'Wishing Well', style: 'snow', color: '#5fe3ff', unlock: { story: 11 }, how: "Find Agnes's ring in the story." },
   { id: 'greatbell', name: 'The Great Bell', style: 'bell', color: '#c9a24a', unlock: { story: STORY_ALL }, how: 'Finish every quest in Act I of the story: the bell answers to you now.' },
   { id: 'gravesendlight', name: 'Light of Gravesend', style: 'candle', color: '#9fe8ff', unlock: { story: STORY_ALL }, how: 'Finish every quest in Act I of the story, side quests too.' },
+  { id: 'vespercandles', name: 'Vespers Candles', style: 'vespers', color: '#9be36a', unlock: { story: 22 }, how: 'Break up Vespers in Act II of the story.' },
   { id: 'homecoming', name: 'Homecoming', style: 'souls', color: '#7cf5c4', unlock: { welcome: 5 }, how: 'Seven Nights, day 5: come back on a fifth day.' },
   { id: 'kindredflame', name: 'Kindred Flame', style: 'candle', color: '#ff8a2a', unlock: { invite: 3 }, how: 'Bring 3 friends to the crypt.' },
   // Horde: earned holding the crypt, never sold.

@@ -9,7 +9,7 @@ import { sfx } from './audio';
 import { ACHIEVEMENTS, ACHIEVEMENT_BY_ID, COMBOS, HEROES, HERO_BY_ID, type HeroId } from './content';
 import { ENEMY_INFO, type EnemyKind } from './game';
 import { dailyNumber } from './daily';
-import { QUESTS } from './story';
+import { ACT1_QUESTS } from './story';
 import { heroSprite } from './hero';
 import { equipTitle, meta, titleUnlocked, type Meta } from './meta';
 import { showWardrobe } from './wardrobe';
@@ -90,7 +90,7 @@ export function hallData(name: string, m: Partial<Meta> | Record<string, unknown
   const decor = (Array.isArray(raw.bought) ? raw.bought : []).filter((id): id is string => typeof id === 'string' && Boolean(DECOR_BY_ID[id]));
   // The Great Bell hangs in the Hall of anyone who finished every quest of Act I.
   const storyDone = Array.isArray(obj(raw.story).done) ? (obj(raw.story).done as unknown[]).map(Number) : [];
-  if (QUESTS.every((q) => storyDone.includes(q.n))) decor.push('greatbell');
+  if (ACT1_QUESTS.every((q) => storyDone.includes(q.n))) decor.push('greatbell');
   // The Bell Tolls: a piece for every so many world bosses felled.
   const raidWon = obj(raw.raid).won;
   const raids = Array.isArray(raidWon) ? new Set(raidWon.map(String)).size : 0;

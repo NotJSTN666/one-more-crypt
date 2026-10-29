@@ -6,9 +6,9 @@ import type { EnemyKind } from './game';
 import type { ZoneId } from './zones';
 import { onCanvasReset } from './sprites';
 
-export type Speaker = 'gravedigger' | 'aldric' | 'warden' | 'hound' | 'bess' | 'agnes' | 'pip' | 'hero' | 'narrator';
+export type Speaker = 'gravedigger' | 'aldric' | 'warden' | 'hound' | 'bess' | 'agnes' | 'pip' | 'ambrose' | 'hero' | 'narrator';
 /** People you can talk to in the world. */
-export type NpcId = 'gravedigger' | 'aldric' | 'bess' | 'agnes' | 'pip';
+export type NpcId = 'gravedigger' | 'aldric' | 'bess' | 'agnes' | 'pip' | 'ambrose';
 
 export interface Say {
   who: Speaker;
@@ -35,12 +35,21 @@ export interface Dungeon {
   look?: ZoneId;
   /** Said when the boss floor opens. */
   bossLines?: Line[];
+  /** Act II: patches of plague mist on each floor, and plague monks among the foes. */
+  mist?: number;
+  monks?: boolean;
+  /** Act II: the last floor is a hold-out of this many waves. */
+  holdout?: number;
+  /** Act II: everyone asleep, the stairs open. */
+  sleepers?: boolean;
 }
 
 export interface Quest {
   n: number;
   title: string;
   side?: boolean;
+  /** Which act it belongs to (Act I unless said). */
+  act?: 2;
   /** Who hands it out and who you report back to. */
   giver: NpcId;
   /** A quest that must be finished first. */
@@ -61,6 +70,7 @@ export interface Quest {
 }
 
 export const ACT_TITLE = 'Act I: The Bell Beneath';
+export const ACT2_TITLE = 'Act II: The Plague Abbot';
 
 export const SPEAKERS: Record<Speaker, string> = {
   gravedigger: 'Mortimer',
@@ -70,6 +80,7 @@ export const SPEAKERS: Record<Speaker, string> = {
   bess: 'Old Bess',
   agnes: 'Widow Agnes',
   pip: 'Pip',
+  ambrose: 'Brother Ambrose',
   hero: 'You',
   narrator: '',
 };
@@ -302,10 +313,152 @@ export const QUESTS: Quest[] = [
       { who: 'bess', text: "Ghouls with paper hats. In my cellar. Well, you got the barrel back. You're a regular now, love. That's a title round here. The only title, actually." },
     ],
   },
+  // ---------- Act II: The Plague Abbot (Part 1) ----------
+  {
+    n: 21,
+    act: 2,
+    title: 'The Lid',
+    giver: 'gravedigger',
+    needs: 4,
+    dungeon: { name: 'Beneath the Lid', floors: [5, 9], gifts: 3, look: 'cloister', mist: 2, monks: true },
+    souls: 300,
+    reward: "The Monk's Habit and a title",
+    hint: 'The Lid has sunk into the chapel grounds, by the Warden\'s tower. Go down.',
+    barred: 'A great round lid of stone, carved with a bell. It is cold, and it hums. Mortimer will have opinions about this.',
+    offer: [
+      { who: 'gravedigger', text: "There you are. I haven't slept. The bell rings every night now, and every night it sounds closer. Like it's coming up the stairs." },
+      { who: 'gravedigger', text: "And the ground by the Warden's tower has sunk. There's a lid showing through the grass. A big stone one. With a bell carved on it. I don't like it. I don't like it at all." },
+      { who: 'hero', text: "Aldric's down there." },
+      { who: 'gravedigger', text: "I know. Poor sod still owes me for a funeral. Go and fetch him. And whatever's under that lid, tell it the village is closed." },
+      { who: 'gravedigger', text: "One more thing. The air down there smells of the old plague. Green mist, the old stories say. Don't stand about in it. Candles help, apparently. So does a big loud bell, if you've got one." },
+    ],
+    reminder: [{ who: 'gravedigger', text: "The lid, in the chapel grounds, by the tower. Five floors down, the stories say. Hold your breath in the green bits." }],
+    cleared: [
+      { who: 'narrator', text: 'The last stair opens onto a cloister, flooded to the ankles and lit by candles nobody has lit in four hundred years. The mist pools in the corners like it is waiting for something.' },
+      { who: 'narrator', text: 'A monk in a patched brown habit is sweeping the water. Just sweeping it, back and forth. He looks up.' },
+      { who: 'ambrose', text: 'Oh! Oh, a living person. Forgive me, I would bow, but my knees stopped bowing around the time of the plague.' },
+      { who: 'ambrose', text: 'I am Brother Ambrose. The last of the brothers who did not sing for the Abbot. Welcome to the Sunken Cloister. Mind the mist. Mind the monks. Mind most things, really.' },
+      { who: 'ambrose', text: 'Your knight came through here. Bound in bell-rope, dragged toward the shaft. Come and find me in my cell. We have a great deal to talk about, and very little time before the evening bell.' },
+      { who: 'narrator', text: 'The Sunken Cloister is open. Take the old stair from the chapel grounds.' },
+    ],
+  },
+  {
+    n: 22,
+    act: 2,
+    title: 'Vespers',
+    giver: 'ambrose',
+    needs: 21,
+    dungeon: { name: 'The Chapter House', floors: [6, 10], gifts: 3, look: 'cloister', mist: 2, monks: true, holdout: 4, summon: true },
+    souls: 400,
+    reward: 'The Vespers Candles aura and a title',
+    hint: 'The Chapter House stands in the Sunken Cloister. Break up the evening service: hold out on the last floor.',
+    barred: 'Singing comes through the door. Low, slow, and wrong. Brother Ambrose would know what it is.',
+    offer: [
+      { who: 'ambrose', text: 'Every evening the bell rings for Vespers, and the monks gather in the Chapter House to sing. Every evening the song gets a little louder. And every evening the graves of your village get a little more restless.' },
+      { who: 'ambrose', text: 'The Abbot is using the service. The song carries the bell, and the bell carries the plague. Break up the service and the song falls apart.' },
+      { who: 'hero', text: 'How many monks are we talking about?' },
+      { who: 'ambrose', text: 'Oh, the whole choir. They come in waves, by the bell. Four of them, if the hymn-sheet is right. Stand your ground until the last verse, and the stair will open.' },
+      { who: 'ambrose', text: 'Take a friend if you have one. The dead can help, I am told. I have never had a friend, personally. I had a cat once. It was also a monk. Long story.' },
+    ],
+    reminder: [{ who: 'ambrose', text: 'The Chapter House, across the cloister. Four waves of the choir on the last floor. Do not join in with the singing, however catchy.' }],
+    cleared: [
+      { who: 'narrator', text: 'The last monk falls mid-note. The candles gutter. Somewhere far below, the bell rings once, sour and off-key, and stops.' },
+      { who: 'narrator', text: 'Silence. Real silence, for the first time in four hundred years. Ambrose will want to hear about this.' },
+    ],
+    turnIn: [
+      { who: 'ambrose', text: 'Did you hear it? The bell. It missed a stroke! It has never missed a stroke. Not once since the plague.' },
+      { who: 'ambrose', text: 'Here, take these. The choir candles. They were meant to light the way to Vespers. Now they can light the way out of it.' },
+      { who: 'ambrose', text: 'The Abbot will be angry. Good. Angry people make mistakes. I should know. I am very calm, and I have never made a mistake. Apart from becoming a monk in a plague cloister.' },
+    ],
+  },
+  {
+    n: 31,
+    act: 2,
+    title: 'Bitter Herbs',
+    side: true,
+    giver: 'ambrose',
+    needs: 21,
+    dungeon: { name: 'The Sunken Garden', floors: [5, 8], gifts: 2, look: 'cloister', mist: 4, monks: true },
+    souls: 250,
+    reward: 'The Plague Coat',
+    hint: 'Go down into the Sunken Garden, in the cloister, and bring Ambrose his herbs.',
+    barred: 'A stair down into a garden thick with green mist. Something in there is coughing. Brother Ambrose tends it, or used to.',
+    offer: [
+      { who: 'ambrose', text: 'Before the plague I kept the herb garden. Feverfew, rue, bitter wormwood. The only things that ever worked against the sickness.' },
+      { who: 'ambrose', text: 'The garden sank with everything else, and now the mist sits in it like soup. Thick. Very thick. You will not see the monks in it until they are on top of you.' },
+      { who: 'ambrose', text: 'At the bottom grows a wormwood that never died. Bring me a sprig and I can brew something for your village. The cough has reached the wells, I hear.' },
+    ],
+    reminder: [{ who: 'ambrose', text: 'The garden stair, by the cloister wall. Thick mist. Keep moving: it bites if you linger.' }],
+    cleared: [
+      { who: 'narrator', text: 'At the bottom of the garden, in a clear patch the mist will not touch, a grey-green bush stands perfectly healthy. It smells awful. That is how you know it works.' },
+    ],
+    turnIn: [
+      { who: 'ambrose', text: 'Wormwood! Still alive, the stubborn old thing. Like me.' },
+      { who: 'ambrose', text: 'Take the coat from the infirmary hook. Waxed linen, for working in the sick-wards. The mist slides right off it. Mostly.' },
+    ],
+  },
+  {
+    n: 32,
+    act: 2,
+    title: "Pip's Cough",
+    side: true,
+    giver: 'pip',
+    needs: 21,
+    dungeon: { name: 'The Infirmary', floors: [5, 9], gifts: 2, look: 'cloister', mist: 2, monks: true },
+    souls: 250,
+    reward: "The Physician's Mask and a title",
+    hint: "Find the Abbot's tincture in the Infirmary, in the Sunken Cloister, and bring it to Pip.",
+    barred: 'The Infirmary door. Beds in rows beyond it, and something moving between them. Someone in the village needs medicine.',
+    offer: [
+      { who: 'pip', text: "*cough* Oh, it's you. Don't come too close. *cough* Everyone in the village has got it. Green spit. Very fashionable." },
+      { who: 'pip', text: "Bess says it came up the well when the lid opened. Agnes says it's Harold's fault. Agnes says everything is Harold's fault." },
+      { who: 'pip', text: "Old books say the monks had a tincture for it. In their infirmary. Under the lid. Where you go. *cough* Would you? I'd make you something. A mask, maybe. Beaky. Very stylish." },
+    ],
+    reminder: [{ who: 'pip', text: "The Infirmary, down in the cloister. A tincture. Green bottle, probably. Everything down there's green. *cough*" }],
+    cleared: [
+      { who: 'narrator', text: 'In the last ward, on a shelf above a row of empty beds, stands a bottle of something dark that glows faintly. The label reads: "FOR THE COUGH. NOT FOR THE ABBOT."' },
+    ],
+    turnIn: [
+      { who: 'pip', text: "*glug* Ugh. Oh, that's foul. That's... *cough*... that's actually working. My spit's gone back to normal colour. Normal-ish." },
+      { who: 'pip', text: "I'll get the rest round the village. And here, I made this while I was coughing. A beak mask, like the old plague doctors. Stuffed with herbs. Smells like Ambrose." },
+    ],
+  },
+  {
+    n: 33,
+    act: 2,
+    title: 'The Silent Choir',
+    side: true,
+    giver: 'ambrose',
+    needs: 22,
+    dungeon: { name: 'The Dormitory', floors: [6, 9], gifts: 2, look: 'cloister', mist: 1, monks: true, sleepers: true },
+    souls: 300,
+    reward: 'The Choir Robe and a title',
+    hint: "Sneak through the sleeping Dormitory, in the cloister, to Brother Cuthbert's cell.",
+    barred: 'Snoring, through the door. A great deal of snoring. Brother Ambrose says to be quiet.',
+    offer: [
+      { who: 'ambrose', text: 'Since Vespers broke, the choir sleeps by day. All of them, in the Dormitory. Except one.' },
+      { who: 'ambrose', text: 'Brother Cuthbert never sang for the Abbot. Not a note. They locked him in the last cell with the lost hymn. The one the bells were made to ring.' },
+      { who: 'ambrose', text: 'I need that hymn. Go through the Dormitory. The stairs are open, the monks are asleep. Do not end a step beside one. They wake. And they wake each other. And they are very grumpy in the mornings.' },
+    ],
+    reminder: [{ who: 'ambrose', text: "The Dormitory. Quietly. If one wakes, either run or make sure it doesn't wake the others." }],
+    cleared: [
+      { who: 'narrator', text: 'In the last cell sits a skeleton in a choir robe, a sheet of music folded neatly in its lap. On the wall, scratched over and over: "NOT THIS ONE."' },
+      { who: 'narrator', text: 'The hymn has only three notes, marked for three bells. You take the page, and, after a moment, the robe. Cuthbert does not seem to mind.' },
+    ],
+    turnIn: [
+      { who: 'ambrose', text: 'The lost hymn. Cuthbert, you stubborn old goose. You kept it after all.' },
+      { who: 'ambrose', text: 'Three bells, three notes. There are three bells in the shaft. Ring them in this order and... well. We shall see. When the shaft opens.' },
+      { who: 'ambrose', text: 'Keep the robe. Cuthbert would want someone to wear it who will not sing.' },
+    ],
+  },
 ];
 
 export const QUEST_BY_N = Object.fromEntries(QUESTS.map((q) => [q.n, q])) as Record<number, Quest>;
-export const MAIN_QUESTS = QUESTS.filter((q) => !q.side);
+/** Act I's quests (finishing them all unlocks the Bell-Ringer), and its main story. */
+export const ACT1_QUESTS = QUESTS.filter((q) => !q.act);
+export const MAIN_QUESTS = ACT1_QUESTS.filter((q) => !q.side);
+export const ACT2_QUESTS = QUESTS.filter((q) => q.act === 2);
+export const ACT2_MAIN = ACT2_QUESTS.filter((q) => !q.side);
 
 /** Where the player stands in the story. */
 export interface StoryState {
@@ -326,6 +479,7 @@ export function questStatus(q: Quest, s: StoryState): QuestStatus {
 /** Aldric haunts his chapel from the hound's quest until the bell takes him. */
 export function npcPresent(npc: NpcId, s: StoryState): boolean {
   if (npc === 'aldric') return s.done.includes(2) && !s.done.includes(4);
+  if (npc === 'ambrose') return s.done.includes(21);
   return true;
 }
 
@@ -354,6 +508,12 @@ function chatter(npc: NpcId, s: StoryState): Line[] {
   const has = (n: number) => s.done.includes(n);
   switch (npc) {
     case 'gravedigger':
+      if (has(22)) return [
+        { who: 'gravedigger', text: "The bell missed a stroke last night. Whole village heard it. Bess served free ale for an hour before she realised what she was doing." },
+      ];
+      if (has(21)) return [
+        { who: 'gravedigger', text: "A monk, you say? Living under my graveyard this whole time? I'll be charging him rent." },
+      ];
       if (has(4)) return [
         { who: 'gravedigger', text: "Aldric's gone, then. Dragged down by the bell. I'd say he'll be missed, but I never got the money for his funeral." },
         { who: 'gravedigger', text: "The Plague Abbot's cloister lies under the Warden's door. If someone is ringing that bell, it's someone with a grudge and good shoulders. Get some rest. Act II is coming." },
@@ -372,7 +532,13 @@ function chatter(npc: NpcId, s: StoryState): Line[] {
       return has(11)
         ? [{ who: 'agnes', text: "I set a place for Harold every night. Last night the chair was warm. Isn't that nice?" }]
         : [{ who: 'agnes', text: "It's very quiet in the village these days. Even the dead are quiet. Mostly." }];
+    case 'ambrose':
+      if (has(33)) return [{ who: 'ambrose', text: 'Three bells, three notes. The shaft stays sealed for now. When it opens, we go down together. Well. You go down. I shall pray loudly from up here.' }];
+      if (has(22)) return [{ who: 'ambrose', text: 'Listen. No singing. I had forgotten what quiet sounded like. It sounds like dripping, mostly.' }];
+      return [{ who: 'ambrose', text: 'The bell shaft is sealed. Only the Abbot opens it. Or a very large hammer. We have neither, for now.' }];
     case 'pip':
+      if (has(32)) return [{ who: 'pip', text: "Cough's gone. Village is pink again. Well, the usual grey. Healthy grey." }];
+      if (has(21) && !has(32)) return [{ who: 'pip', text: '*cough* Sorry. Everyone has it. *cough*' }];
       return has(12)
         ? [{ who: 'pip', text: "Look at that forge burn! Blue as a ghost's bum. Marta'd be proud. Or haunting me. Bit of both." }]
         : [{ who: 'pip', text: "Mind the anvil. It's heavier than it looks. It looks very heavy." }];
@@ -393,6 +559,8 @@ export const LORE: Record<string, { title: string; text: string }> = {
   'warden-bed': { title: "The Warden's bed", text: 'Made with military precision. Never slept in. Under the pillow, a note in shaky letters: "Remember. REMEMBER. Remember what?"' },
   'tavern-board': { title: 'The notice board', text: '"MISSING: one barrel of Bess\'s Best. Reward: free drinks forever (terms apply)." Below it: "LOST: Harold. Answers to Harold."' },
   'agnes-letter': { title: 'A letter on the table', text: '"Dear Agnes, gone fishing in the well. Back for dinner. Love, H." The ink is forty years old.' },
+  'ambrose-rule': { title: 'The Rule of the Cloister', text: '"Rise at the bell. Pray at the bell. Sleep at the bell. Do not, under any circumstances, ring the bell yourself." The last line is underlined four times.' },
+  'ambrose-letter': { title: 'An unsent letter', text: '"Brother Ansel, they say you found a cure inside the plague. They say you hear it singing. Come home. The garden misses you. So do I. A."' },
   'marta-tongs': { title: "Marta's tongs", text: 'Black iron, burned blue at the tips. Hung on the wall like a sword. Pip dusts them every morning and talks to them.' },
 };
 export const LORE_COUNT = Object.keys(LORE).length;
@@ -439,6 +607,11 @@ const FACES: Partial<Record<Speaker, string[]>> = {
     '.....kkkkkk.....', '....kHHHHHHk....', '...kHHHHHHHHk...', '...kkYYkkYYkk...', '...kYpYkkYpYk...', '...kkYYffYYkk...',
     '...kfFffffFfk...', '...kffekkeffk...', '....kfFffFfk....', '...kkkffffkkk...', '..kllkLLLLkllk..', '.klllkLsLLklllk.',
     '.klllLLLLLLlllk.', '.klLlLLsLLLlLlk.', '.klllLLLLLLlllk.', '.kkkkkkkkkkkkkk.',
+  ],
+  ambrose: [
+    '.....kkkkkk.....', '....kllllllk....', '...kllLLLLllk...', '..kllLkkkkLllk..', '..klLkffffkLlk..', '..klLfekkefLlk..',
+    '..klLffffffLlk..', '..klLfFffFfLlk..', '..kllLffffLllk..', '.kllllLLLLllllk.', '.klLllllllllLlk.', '.klLllllllllLlk.',
+    '.klLBBBBBBBBLlk.', '.klLlllllllllLk.', '.kllllllllllllk.', '.kkkkkkkkkkkkkk.',
   ],
   hound: [
     '................', '..kk........kk..', '.kNNk......kNNk.', '.kNnNk....kNnNk.', '..knnkkkkkknnk..', '..knnnnnnnnnnk..',
@@ -492,6 +665,10 @@ const FIGURES: Record<NpcId, string[]> = {
   agnes: [
     '...kkkkk....', '..kviiivk...', '..kvfffvk...', '..kvekevk...', '..kvvffvvk..', '.kvvvvvvvvk.', '.kvVvvvvVvk.',
     '.kvvvbbvvvk.', '..kvvvvvvk..', '..kvvvvvvk..', '...kvk.kvk..', '...kk...kk..',
+  ],
+  ambrose: [
+    '...kkkkk....', '..kllllLk...', '..klfekLk...', '..klffflk...', '..kllllllk..', '.kllLLLLllky', '.klLllllLlkw',
+    '.kfLBBBBLfkw', '..klllllllk.', '..kllllllk..', '...klk.klk..', '...kk...kk..',
   ],
   pip: [
     '...kkkkk....', '..kHHHHHk...', '..kYpkYpk...', '..kfffffk...', '..kfekefk...', '...kffffk...', '..klkLLklk..',

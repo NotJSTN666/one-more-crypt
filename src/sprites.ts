@@ -5,6 +5,10 @@ import { ENEMY_ART } from './enemy-art';
 
 const PALETTE: Record<string, string> = {
   k: '#0d0812', // outline
+  H: '#5a4a3a', // monk's habit
+  I: '#33281f', // habit shade
+  J: '#7a6450', // habit highlight
+  K: '#9be36a', // plague glow
   b: '#e8dcc4', // bone
   B: '#a89a80', // bone shade
   r: '#d23a46', // blood

@@ -10,6 +10,53 @@ export interface EnemyArt {
 }
 
 export const ENEMY_ART: Record<EnemyKind, EnemyArt> = {
+  // Act II: a plague monk, hooded, eyes burning green, swinging a smoking censer.
+  monk: {
+    idle: [
+      [
+        '....kkkk....',
+        '...kHHHHk...',
+        '..kHJHHHHk..',
+        '..kHkkkkHk..',
+        '..kHkKkKHk..',
+        '..kIHkkHIk.j',
+        '.kHHIHHIHHkj',
+        '.kHkHHHHkHkk',
+        '.kIkHJHHkIyk',
+        '..kHHHHHHkk.',
+        '..kIHHHHIk..',
+        '..kkkkkkkk..',
+      ],
+      [
+        '............',
+        '....kkkk....',
+        '...kHHHHk..j',
+        '..kHJHHHHk.j',
+        '..kHkkkkHk..',
+        '..kHkKkKHk..',
+        '..kIHkkHIkk.',
+        '.kHHIHHIHHyk',
+        '.kHkHHHHkHkk',
+        '.kIkHJHHkIk.',
+        '..kHHHHHHk..',
+        '..kkkkkkkk..',
+      ],
+    ],
+    attack: [
+      '....kkkk....',
+      '...kHHHHk...',
+      '..kHJHHHHk..',
+      '..kHkkkkHk..',
+      '..kHkKkKHk.j',
+      '..kIHkkHIkjj',
+      '.kHHIHHIHHyk',
+      '.kHkHHHHkkk.',
+      '.kIkHJHHk...',
+      '..kHHHHHHk..',
+      '..kIHHHHIk..',
+      '..kkkkkkkk..',
+    ],
+  },
   // A hunched, rotting corpse reaching for you.
   ghoul: {
     idle: [

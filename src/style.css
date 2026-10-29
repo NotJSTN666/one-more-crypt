@@ -3371,6 +3371,11 @@ body.tutorial #relic-bar {
   border-color: #3e8db5;
 }
 
+.tile.act2-tile {
+  border-color: #9be36a;
+  box-shadow: 0 0 12px rgba(155, 227, 106, 0.3);
+}
+
 .tile.soon {
   border-style: dashed;
   opacity: 0.6;
