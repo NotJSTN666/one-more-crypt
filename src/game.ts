@@ -237,6 +237,8 @@ export interface RunConfig {
   armory?: boolean;
   /** Horde: the Whirling Skulls and Bone Quiver can turn up (log version 16 and later). */
   arsenal?: boolean;
+  /** The Ranger's arrows fly over your thralls, and the bow can be lowered to step instead (log version 17 and later). */
+  volley?: boolean;
 }
 
 /** Something the Grave Magnet pulled, and where from. */
@@ -369,6 +371,11 @@ const MAGNET_LOG_VERSION = 14;
 const ARMORY_LOG_VERSION = 15;
 /** Adds the Horde-only Whirling Skulls and Bone Quiver. */
 const ARSENAL_LOG_VERSION = 16;
+/**
+ * Adds the Ranger's volley: arrows fly over your own thralls, and the bow can be lowered.
+ * From here the version no longer implies the Horde's rules; those follow the run's mode.
+ */
+const VOLLEY_LOG_VERSION = 17;
 export const REAPER_FLOOR = 150;
 
 // ---------- Horde ----------
@@ -489,6 +496,8 @@ export class Game {
    * a/x accept or leave a floor event. With `header()` it replays the run exactly.
    */
   log = '';
+  /** The Ranger's bow is lowered: moving toward a foe steps instead of shooting. */
+  bowDown = false;
   events: GameEvent[] = [];
 
   private harvestBonus = 0;
@@ -628,6 +637,7 @@ export class Game {
   header(): string {
     const unlocked = UNLOCKABLE_RELICS.filter((id) => this.config.pool.includes(id));
     // Pools without any post-launch relic are logged as version 2 so they replay with the launch set.
+    if (this.config.volley) return `#${VOLLEY_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.arsenal) return `#${ARSENAL_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.armory) return `#${ARMORY_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.magnet) return `#${MAGNET_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
@@ -1102,6 +1112,19 @@ export class Game {
 
   // ---------- player actions ----------
 
+  /** Whether the Ranger can lower the bow this run, to step toward foes instead of shooting. */
+  get canLowerBow(): boolean {
+    return this.hero === 'ranger' && Boolean(this.config.volley);
+  }
+
+  /** Lower or raise the Ranger's bow. Takes no turn. */
+  toggleBow(): boolean {
+    if (!this.canLowerBow || this.phase !== 'play') return false;
+    this.bowDown = !this.bowDown;
+    this.log += 'o';
+    return true;
+  }
+
   /** Returns true if the action consumed a turn. */
   act(dx: number, dy: number): boolean {
     const ok = this.doAct(dx, dy);
@@ -1125,7 +1148,7 @@ export class Game {
       this.endTurn();
       return true;
     }
-    const mark = this.hero === 'ranger' ? this.bowTarget(dx, dy) : undefined;
+    const mark = this.hero === 'ranger' && !this.bowDown ? this.bowTarget(dx, dy) : undefined;
     if (mark) {
       this.playerAttack(mark, { x: dx, y: dy }, true);
       this.endTurn();
@@ -1226,6 +1249,8 @@ export class Game {
       const y = this.player.y + dy * k;
       if (!this.inBounds(x, y) || this.isWall(x, y)) return undefined;
       const u = this.unitAt(x, y);
+      // With the volley, arrows fly over your own thralls.
+      if (u?.ally && this.config.volley) continue;
       if (u) return !u.ally && k >= 2 ? u : undefined;
     }
     return undefined;
@@ -2568,7 +2593,7 @@ export class Game {
   }
 
   /** Parse a full log (header + inputs) back into its setup. */
-  static parseLog(full: string): { config: RunConfig; inputs: string } {
+  static parseLog(full: string, mode: Mode = 'endless'): { config: RunConfig; inputs: string } {
     const m = /^#(\d+)\|([a-z]+)\|([a-z,]*)\|/.exec(full);
     if (!m) return { config: { hero: 'knight', pool: fullPool(true) }, inputs: full };
     const unlocked = m[3] ? (m[3].split(',') as RelicId[]) : [];
@@ -2581,12 +2606,15 @@ export class Game {
     const reaper = Number(m[1]) >= REAPER_LOG_VERSION;
     const deep = Number(m[1]) >= DEEP_LOG_VERSION;
     const lurk = Number(m[1]) >= LURK_LOG_VERSION;
-    const surge = Number(m[1]) >= SURGE_LOG_VERSION;
-    const waves = Number(m[1]) >= WAVES_LOG_VERSION;
-    const magnet = Number(m[1]) >= MAGNET_LOG_VERSION;
-    const armory = Number(m[1]) >= ARMORY_LOG_VERSION;
-    const arsenal = Number(m[1]) >= ARSENAL_LOG_VERSION;
-    const config: RunConfig = { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy, ...(depths ? { depths } : {}), ...(boons ? { boons } : {}), ...(reaper ? { reaper } : {}), ...(deep ? { deep } : {}), ...(lurk ? { lurk } : {}), ...(surge ? { surge } : {}), ...(waves ? { waves } : {}), ...(magnet ? { magnet } : {}), ...(armory ? { armory } : {}), ...(arsenal ? { arsenal } : {}) };
+    // Before the volley, a version this high was only ever a Horde run; after it, the mode says.
+    const horde = Number(m[1]) < VOLLEY_LOG_VERSION || mode === 'horde';
+    const surge = horde && Number(m[1]) >= SURGE_LOG_VERSION;
+    const waves = horde && Number(m[1]) >= WAVES_LOG_VERSION;
+    const magnet = horde && Number(m[1]) >= MAGNET_LOG_VERSION;
+    const armory = horde && Number(m[1]) >= ARMORY_LOG_VERSION;
+    const arsenal = horde && Number(m[1]) >= ARSENAL_LOG_VERSION;
+    const volley = Number(m[1]) >= VOLLEY_LOG_VERSION;
+    const config: RunConfig = { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy, ...(depths ? { depths } : {}), ...(boons ? { boons } : {}), ...(reaper ? { reaper } : {}), ...(deep ? { deep } : {}), ...(lurk ? { lurk } : {}), ...(surge ? { surge } : {}), ...(waves ? { waves } : {}), ...(magnet ? { magnet } : {}), ...(armory ? { armory } : {}), ...(arsenal ? { arsenal } : {}), ...(volley ? { volley } : {}) };
     let rest = full.slice(m[0].length);
     // Version 7 adds one field: the isle's extra max HP.
     const isle = Number(m[1]) >= ISLE_LOG_VERSION ? /^(\d+)\|/.exec(rest) : null;
@@ -2599,7 +2627,7 @@ export class Game {
 
   /** Re-simulate a run from its full input log. Used to verify scores and resume runs. */
   static replay(mode: Mode, seed: number, dailyNo: number, fullLog: string): Game {
-    const { config, inputs } = Game.parseLog(fullLog);
+    const { config, inputs } = Game.parseLog(fullLog, mode);
     const g = new Game(mode, seed, dailyNo, config);
     const moves: Record<string, [number, number]> = { U: [0, -1], D: [0, 1], L: [-1, 0], R: [1, 0], W: [0, 0] };
     for (const ch of inputs) {
@@ -2609,6 +2637,7 @@ export class Game {
       else if (ch === 'a' || ch === 'x') g.resolveEvent(ch === 'a');
       else if (FORGE_KEYS.includes(ch)) g.forge(FORGE_KEYS.indexOf(ch));
       else if (ch === 'z') g.hordeForge();
+      else if (ch === 'o') g.toggleBow();
       else g.choose(Number(ch));
     }
     g.events.length = 0;

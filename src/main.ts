@@ -623,6 +623,7 @@ window.addEventListener('keydown', (e) => {
     else menuKey(e);
     return;
   }
+  if (e.key === 'b' || e.key === 'B') return toggleBow();
   const dir = KEYS[e.key];
   if (!dir) {
     if (e.key === 'Escape') showPause();
@@ -720,8 +721,13 @@ canvas.addEventListener('pointerup', (e) => {
 });
 
 $('wait-btn').addEventListener('click', () => act(0, 0));
+$('bow-btn').addEventListener('click', () => toggleBow());
+$('bow-pad').addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  toggleBow();
+});
 
-document.querySelectorAll<HTMLButtonElement>('#dpad button').forEach((btn) => {
+document.querySelectorAll<HTMLButtonElement>('#dpad button[data-dir]').forEach((btn) => {
   btn.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     const [dx, dy] = btn.dataset.dir!.split(',').map(Number);
@@ -777,7 +783,30 @@ let knownRelics = 0;
 let knownSet = '';
 let selectedRelic: RelicId | null = null;
 
+/** The Ranger's bow button: shown only when the bow can be lowered, and saying which way it is. */
+function updateBow() {
+  const show = Boolean(game?.canLowerBow);
+  const down = Boolean(game?.bowDown);
+  for (const id of ['bow-btn', 'bow-pad']) {
+    const el = $(id);
+    el.hidden = !show;
+    el.classList.toggle('down', down);
+  }
+  $('bow-btn').innerHTML = `🏹 Bow: ${down ? 'lowered' : 'ready'} <kbd>B</kbd>`;
+  $('bow-pad').innerHTML = `🏹<small>${down ? 'LOWERED' : 'READY'}</small>`;
+}
+
+/** Lower or raise the Ranger's bow (no turn passes). */
+function toggleBow() {
+  if (!game || !overlay.hidden || tutorial || !game.toggleBow()) return;
+  sfx.step();
+  toast(game.bowDown ? '🏹 Bow lowered: you step, not shoot' : '🏹 Bow ready to shoot');
+  updateBow();
+  saveRun();
+}
+
 function updateHud(reset = false) {
+  updateBow();
   const p = game.player;
   const pct = Math.max(0, (p.hp / p.maxHp) * 100);
   const fill = $('hp-fill');
@@ -911,7 +940,7 @@ function updateTip() {
   else if ((game.config.depths || game.config.story?.look) && zoneTip(game)) tip.innerHTML = zoneTip(game);
   else if (game.spikes.some(Boolean) && game.turns < 4) tip.innerHTML = '<b>Spikes</b> hurt anything that walks on them. Lure foes across.';
   else if (game.hero === 'ranger' && game.floor <= 2 && game.turns < 8)
-    tip.innerHTML = '<b>Longbow:</b> move toward a foe 2-3 tiles away in a straight line to shoot it.';
+    tip.innerHTML = `<b>Longbow:</b> move toward a foe 2-3 tiles away in a straight line to shoot it.${game.canLowerBow ? ' Lower the bow (🏹) to step instead.' : ''}`;
   else if (game.floor === 1 && game.turns < 6)
     tip.innerHTML = 'Move with arrows, WASD, swipe or tap. <b>Bump foes to strike.</b> They move when you do.';
   else if (game.floor <= 2 && game.turns < 14)
@@ -2724,7 +2753,7 @@ function startHorde() {
   challenge = null;
   storyRun = null;
   raidRun = null;
-  showGame(new Game('horde', hashSeed('horde', n), n, { hero: hordeHero(n), pool: fullPool(), mercy: true, boons: true, surge: true, waves: true, magnet: true, armory: true, arsenal: true }));
+  showGame(new Game('horde', hashSeed('horde', n), n, { hero: hordeHero(n), pool: fullPool(), mercy: true, boons: true, surge: true, waves: true, magnet: true, armory: true, arsenal: true, volley: true }));
   startClock();
   setMusicDepth(1);
   setMusicMood('crypt');
@@ -3445,6 +3474,7 @@ function startStory(q: Quest, ghost: GhostInfo | null) {
     pool: fullPool(),
     forge: true,
     mercy: true,
+    volley: true,
     story: {
       start: d.floors[0],
       end: d.floors[1],
