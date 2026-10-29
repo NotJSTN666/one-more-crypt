@@ -16,7 +16,7 @@ import { RAID_JOIN_MIN, RAID_SUBMIT_MIN, RAID_TURNS, currentRaid, nextRaid, raid
 import { hashSeed } from './rng';
 import { ONLINE, submitHorde, hordeBoard, claimInvite, myInvites, raidHit, raidPlayer, raidState, type RaidState, challengeBoard, emailReminderOff, sendFeedback, setEmailReminder, type FeedbackKind, challengeNews, createChallenge, dailyBoard, endlessBoard, getChallenge, mySummons, noteRun, noteSummon, pingActivity, setPresenceSource, startActivityPings, waitingGifts, claimGift, submitChallengeRun, type Challenge, type ChallengeRow } from './online';
 import {
-  ACT2_MAIN, ACT2_QUESTS, ACT2_TITLE, ACT_TITLE, ACT1_QUESTS, LORE, LORE_COUNT, MAIN_QUESTS, QUESTS, QUEST_BY_N, SPEAKERS, conversation, facePortrait, houndStats, npcMarker, npcPresent, petName, questStatus,
+  ACT2_MAIN, ACT2_QUESTS, ACT2_TITLE, act2Open, ACT_TITLE, ACT1_QUESTS, LORE, LORE_COUNT, MAIN_QUESTS, QUESTS, QUEST_BY_N, SPEAKERS, conversation, facePortrait, houndStats, npcMarker, npcPresent, petName, questStatus,
   type Line, type NpcId, type Quest, type StoryState,
 } from './story';
 import { EPITAPHS, hollowKey, setHollowSpot, showHollow, showIsleVisit, type HollowHooks, type HollowPlace } from './hollow';
@@ -944,7 +944,7 @@ function showTitle() {
     <div class="tiles">
       ${storyTileHtml()}
       ${titleTile('hollow', '🌙', 'The Hollow', 'Graveyard & your isle')}
-      ${titleTile('act2', '🔔', 'Act II', 'Part 1 open', 'act2-tile')}
+      ${titleTile('act2', '🔔', 'Act II', act2Open() ? 'Part 1 open' : 'Opens Friday', 'act2-tile')}
       ${graveTileHtml()}
     </div>
     <h2 class="title-section">Your crypt</h2>
@@ -2933,7 +2933,7 @@ function showBellNews() {
 
 /** Finished Act I's story: Act II Part 1 is open, and Mortimer has found the lid. */
 function actTwoNewsWaiting(): boolean {
-  if (!meta.story.done.includes(4) || meta.story.done.includes(21)) return false;
+  if (!act2Open() || !meta.story.done.includes(4) || meta.story.done.includes(21)) return false;
   try {
     return localStorage.getItem('omc:news-act2') !== '1';
   } catch {
@@ -3009,21 +3009,23 @@ function storyTileHtml(): string {
   const two = ACT2_MAIN.filter((q) => meta.story.done.includes(q.n)).length;
   const sub = next
     ? main ? `Act I · ${main}/${MAIN_QUESTS.length}` : 'Start Act I'
+    : !act2Open() ? 'Act II opens Friday'
     : two === ACT2_MAIN.length ? 'Act II · Part 2 soon' : two ? `Act II · ${two}/${ACT2_MAIN.length}` : 'Act II is open';
   return titleTile('story', '📖', 'Story', sub, 'story-tile');
 }
 
 /** The Act II teaser: what's under the lid, and a way to tell us what you want down there. */
 function showActTwo(back: () => void) {
-  const ready = meta.story.done.includes(4);
+  const open = act2Open();
+  const ready = open && meta.story.done.includes(4);
   showOverlay('act2', `
     <canvas class="act2-art" id="act2-art" width="320" height="200" aria-label="The Plague Abbot in green fog, a great bell behind him"></canvas>
-    <p class="act2-kicker">Part 1 open</p>
+    <p class="act2-kicker">${open ? 'Part 1 open' : 'Part 1 opens this Friday'}</p>
     <h2 class="act2-title">Act II: The Plague Abbot</h2>
     <p class="act2-quote">"It was never a door. It was a lid."</p>
     <p class="sub">Beneath the Warden's lid lies the Sunken Cloister, where the Abbot's monks still keep their vigil. Someone rings the bell every night now. The graves of Gravesend grow restless, a green sickness creeps up the wells, and Aldric is somewhere below.</p>
     <ul class="act2-list">
-      <li>⛪ <b>Open now:</b> the Sunken Cloister and Brother Ambrose</li>
+      <li>⛪ <b>${open ? 'Open now' : 'Friday'}:</b> the Sunken Cloister and Brother Ambrose</li>
       <li>📜 2 quests and 3 side quests</li>
       <li>🌫️ Plague mist: it hides the monks and bites if you linger</li>
       <li>🕯️ Vespers: hold out against four waves of the choir</li>
@@ -3031,7 +3033,9 @@ function showActTwo(back: () => void) {
       <li>✨ New story-only cloaks, a mask, an aura and titles</li>
       <li>🔔 <b>Part 2:</b> the bell shaft, the Plague Abbot and Aldric's fate</li>
     </ul>
-    ${ready
+    ${!open
+      ? `<p class="act2-ready">🔔 The lid opens this Friday, 30 October. ${meta.story.done.includes(4) ? 'You finished Act I: you will be among the first down.' : "Finish Act I's main story before then to be among the first down."}</p>${meta.story.done.includes(4) ? '' : '<button class="btn story-btn" id="act2-story">📖 Continue Act I</button>'}`
+      : ready
       ? `<p class="act2-ready">🔔 Mortimer has found a lid. Open it before 12 November for <b>First Down the Lid</b>.</p><button class="btn primary story-btn" id="act2-story">📖 Go to Mortimer</button>`
       : `<p class="act2-ready">Finish Act I's main story first: the Bone Warden waits.</p><button class="btn story-btn" id="act2-story">📖 Continue Act I</button>`}
     <button class="btn" id="act2-idea">💡 Tell us what you want in Part 2</button>
@@ -3183,7 +3187,7 @@ function finishQuest(q: Quest, then: () => void) {
     <div class="souls-earned"><b>+${result.souls} Souls</b><span>💀 ${meta.souls} to spend in the Ossuary</span></div>
     ${unlocked ? `<p class="talk-quip">${unlocked}</p>` : ''}
     ${act}
-    ${q.n === 4 || actDone ? '<p class="talk-quip">Act II: The Plague Abbot is open. Mortimer has found a lid.</p><button class="btn act2-btn" id="act2">🔔 About Act II</button>' : ''}
+    ${q.n === 4 || actDone ? `<p class="talk-quip">${act2Open() ? 'Act II: The Plague Abbot is open. Mortimer has found a lid.' : 'Act II: The Plague Abbot opens this Friday.'}</p><button class="btn act2-btn" id="act2">🔔 About Act II</button>` : ''}
     ${q.act && ACT2_QUESTS.every((x) => meta.story.done.includes(x.n)) ? '<p class="talk-quip">That is all of Act II, Part 1. The bell shaft opens in Part 2.</p>' : ''}
     <button class="btn primary" id="back">Continue</button>`);
   on('#act2', () => showActTwo(then));
@@ -3196,6 +3200,7 @@ function dungeonDoor(n: number): { open: boolean; title: string; text: string } 
   if (n === 23) return { open: false, title: 'The Bell Shaft', text: "Sealed with the Abbot's mark. Far below, a bell is waiting, and Aldric with it. (Act II, Part 2.)" };
   if (!q) return { open: false, title: 'Sealed', text: 'Nothing but stone.' };
   const status = questStatus(q, storyState());
+  if (q.act === 2 && status === 'locked' && !act2Open()) return { open: false, title: q.dungeon.name, text: 'Something heavy shifts beneath the stone. Act II opens this Friday.' };
   if (status === 'locked' || status === 'available') return { open: false, title: q.dungeon.name, text: q.barred };
   const [a, b] = q.dungeon.floors;
   const done = status === 'done' || status === 'cleared';
@@ -3236,8 +3241,8 @@ function showQuests(back: () => void = enterHollow) {
   const done = QUESTS.filter((q) => questStatus(q, s) === 'done');
   const lore = meta.story.journal.filter((id) => LORE[id]);
   showOverlay('quests', `
-    <h2>${esc(s.done.includes(4) ? ACT2_TITLE : ACT_TITLE)}</h2>
-    <p class="sub">${actCount('Act I', ACT1_QUESTS)}${s.done.includes(4) ? `<br>${actCount('Act II, Part 1', ACT2_QUESTS)}` : ''}</p>
+    <h2>${esc(s.done.includes(4) && act2Open() ? ACT2_TITLE : ACT_TITLE)}</h2>
+    <p class="sub">${actCount('Act I', ACT1_QUESTS)}${s.done.includes(4) ? (act2Open() ? `<br>${actCount('Act II, Part 1', ACT2_QUESTS)}` : '<br>Act II opens this Friday.') : ''}</p>
     ${houndJoined() ? `<p class="fine">🐕 ${esc(petName(meta.story.choices.hound))} fights beside you in the story · bond ${meta.story.bond}</p>` : ''}
     <h3 class="shop-head">On the go</h3>
     <div class="quests">${current.length ? current.map(row).join('') : '<p class="fine">Nothing yet. Look for a ! over someone\'s head.</p>'}</div>

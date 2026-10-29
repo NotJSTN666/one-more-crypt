@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { Game, fullPool } from './game';
-import { QUESTS, QUEST_BY_N, conversation, houndStats, npcMarker, questStatus, type StoryState } from './story';
+import { ACT2_OPENS, QUESTS, QUEST_BY_N, conversation, houndStats, npcMarker, questStatus, type StoryState } from './story';
 
 const dungeon = (n: number, pet = false) => {
   const d = QUEST_BY_N[n].dungeon;
@@ -137,11 +137,22 @@ describe('Act II', () => {
     expect(e.asleep).toBe(false);
   });
 
+  it('stays shut until Friday', () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(ACT2_OPENS - 1);
+    expect(questStatus(QUEST_BY_N[21], state({ done: [1, 2, 3, 4] }))).toBe('locked');
+    expect(npcMarker('gravedigger', state({ done: [1, 2, 3, 4] }))).toBe('');
+    now.mockReturnValue(ACT2_OPENS);
+    expect(questStatus(QUEST_BY_N[21], state({ done: [1, 2, 3, 4] }))).toBe('available');
+    now.mockRestore();
+  });
+
   it('only counts Act I towards the Bell-Ringer', () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(ACT2_OPENS);
     expect(QUESTS.filter((q) => q.act === 2).map((q) => q.n)).toEqual([21, 22, 31, 32, 33]);
     expect(questStatus(QUEST_BY_N[21], state({ done: [1, 2, 3] }))).toBe('locked');
     expect(questStatus(QUEST_BY_N[21], state({ done: [1, 2, 3, 4] }))).toBe('available');
     expect(conversation('ambrose', state({ done: [21] })).accept).toBe(22);
+    now.mockRestore();
   });
 });
 

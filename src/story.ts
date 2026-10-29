@@ -72,6 +72,10 @@ export interface Quest {
 export const ACT_TITLE = 'Act I: The Bell Beneath';
 export const ACT2_TITLE = 'Act II: The Plague Abbot';
 
+/** Act II opens at midnight Central on Friday 30 October 2026. */
+export const ACT2_OPENS = Date.UTC(2026, 9, 30, 5);
+export const act2Open = (now = Date.now()) => now >= ACT2_OPENS;
+
 export const SPEAKERS: Record<Speaker, string> = {
   gravedigger: 'Mortimer',
   aldric: 'Sir Aldric',
@@ -473,6 +477,7 @@ export function questStatus(q: Quest, s: StoryState): QuestStatus {
   if (s.done.includes(q.n)) return 'done';
   if (s.cleared.includes(q.n)) return 'cleared';
   if (s.active.includes(q.n)) return 'active';
+  if (q.act === 2 && !act2Open()) return 'locked';
   return !q.needs || s.done.includes(q.needs) ? 'available' : 'locked';
 }
 
@@ -516,7 +521,8 @@ function chatter(npc: NpcId, s: StoryState): Line[] {
       ];
       if (has(4)) return [
         { who: 'gravedigger', text: "Aldric's gone, then. Dragged down by the bell. I'd say he'll be missed, but I never got the money for his funeral." },
-        { who: 'gravedigger', text: "The Plague Abbot's cloister lies under the Warden's door. If someone is ringing that bell, it's someone with a grudge and good shoulders. Get some rest. Act II is coming." },
+        { who: 'gravedigger', text: "The Plague Abbot's cloister lies under the Warden's door. If someone is ringing that bell, it's someone with a grudge and good shoulders. Get some rest." },
+        { who: 'gravedigger', text: act2Open() ? "Act II is coming." : "The ground by the tower has started to sink. Come back Friday, and bring a lantern. Act II opens Friday." },
       ];
       if (has(2)) return [
         { who: 'gravedigger', text: "Folk say the old chapel's haunted. East of the village. Take {pet}, ghosts hate dogs. Or love them. One of those." },
