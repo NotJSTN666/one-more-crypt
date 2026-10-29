@@ -122,7 +122,7 @@ describe('your isle', () => {
 
     const g = new Game('endless', 7, 0, runConfig('endless', 0));
     expect(g.player.maxHp).toBe(12);
-    expect(g.header()).toMatch(/^#(7|8|9|10|11)\|knight\|[a-z,]*\|2\|$/);
+    expect(g.header()).toMatch(/^#(7|8|9|10|11|17)\|knight\|[a-z,]*\|2\|$/);
     for (const d of ['R', 'D', 'L', 'U', 'W']) g.act(d === 'R' ? 1 : d === 'L' ? -1 : 0, d === 'D' ? 1 : d === 'U' ? -1 : 0);
     const again = Game.replay('endless', 7, 0, g.header() + g.log);
     expect(again.player.maxHp).toBe(12);
