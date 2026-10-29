@@ -844,7 +844,7 @@ export function showLeaderboard(back: () => void, tab: Tab = 'today', limit = BO
 const portraits = new Map<string, string>();
 
 /** A small portrait of the hero a player ran with, in their outfit. Unknown ids are dropped. */
-function boardPortrait(r: BoardRow): string {
+function boardPortrait(r: Pick<BoardRow, 'hero' | 'outfit_look' | 'outfit_head' | 'daily_no'>): string {
   const hero = (r.hero && HERO_BY_ID[r.hero as HeroId] ? r.hero : r.daily_no ? dailyHero(r.daily_no) : 'knight') as HeroId;
   const look = r.outfit_look && LOOK_BY_ID[r.outfit_look] ? r.outfit_look : '';
   const head = r.outfit_head && HEAD_BY_ID[r.outfit_head] ? r.outfit_head : '';
@@ -866,10 +866,12 @@ function hordeBoardHtml(rows: HordeRow[]): string {
     <ol>${rows
       .map((r, i) => {
         const hero = (HERO_BY_ID[r.hero as HeroId] ? r.hero : 'knight') as HeroId;
+        const aura = auraClass(r.outfit_aura);
+        const title = titleName(r.title);
         return `<li class="${r.name === me ? 'me' : ''}" data-hall="${esc(r.name)}" tabindex="0" title="Visit ${esc(r.name)}'s Hall">
           <span class="rank">${i < 3 ? ['🥇', '🥈', '🥉'][i] : `#${i + 1}`}</span>
-          <img class="board-hero" src="${heroPortrait(hero, {}, [], 2)}" alt="" width="24" height="24" />
-          <span class="who">${esc(r.name)}<small>${esc(HERO_BY_ID[hero].name)}</small></span>
+          <img class="board-hero ${aura.cls}" style="${aura.style}" src="${boardPortrait({ hero, outfit_look: r.outfit_look, outfit_head: r.outfit_head })}" alt="" width="24" height="24" />
+          <span class="who"><span style="color:${rankFor(Number(r.earned) || 0).color}">${esc(r.name)}</span>${title ? ` <em class="title-tag ${titleFxClass(r.title)}">${esc(title)}</em>` : ''}<small>${esc(HERO_BY_ID[hero].name)}</small></span>
           <span class="depth">${r.score.toLocaleString()}<small>wave ${r.wave} · ${r.kills} kills</small></span>
         </li>`;
       })

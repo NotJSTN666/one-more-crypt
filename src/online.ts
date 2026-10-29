@@ -723,6 +723,12 @@ export interface HordeRow {
   wave: number;
   kills: number;
   hero: string;
+  /** How the player dresses that hero, their title and lifetime Souls (missing until the board SQL includes them). */
+  outfit_look?: string | null;
+  outfit_head?: string | null;
+  outfit_aura?: string | null;
+  title?: string | null;
+  earned?: number | null;
 }
 
 /** Post a Horde run to today's board. Returns your place on it (your best counts), or null if it couldn't be posted. */
@@ -745,5 +751,10 @@ export async function hordeBoard(dailyNo: number): Promise<HordeRow[] | null> {
     wave: Math.floor(Number(r.wave) || 0),
     kills: Math.floor(Number(r.kills) || 0),
     hero: String(r.hero ?? ''),
+    outfit_look: typeof r.outfit_look === 'string' ? r.outfit_look : null,
+    outfit_head: typeof r.outfit_head === 'string' ? r.outfit_head : null,
+    outfit_aura: typeof r.outfit_aura === 'string' ? r.outfit_aura : null,
+    title: typeof r.title === 'string' ? r.title : null,
+    earned: Math.max(0, Math.floor(Number(r.earned) || 0)),
   }));
 }

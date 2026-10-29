@@ -724,3 +724,16 @@ revoke all on function public.my_gifts(text) from public;
 revoke all on function public.claim_gift(bigint, text) from public;
 grant execute on function public.my_gifts(text) to anon, authenticated;
 grant execute on function public.claim_gift(bigint, text) to anon, authenticated;
+
+-- ---------- Horde ----------
+-- One arena a day; each player's best score goes on the board.
+create table if not exists public.horde_runs (id bigserial primary key, user_id uuid not null references public.profiles(id) on delete cascade, daily_no int not null, score int not null, wave int not null, kills int not null, hero text not null, log text not null, created_at timestamptz not null default now());
+create index if not exists horde_runs_day on public.horde_runs (daily_no, score desc);
+alter table public.horde_runs enable row level security;
+create or replace function public.submit_horde(p_daily int, p_score int, p_wave int, p_kills int, p_hero text, p_log text) returns json language plpgsql security definer set search_path = public as $$ declare v_best int; v_rank int; begin if auth.uid() is null or not exists(select 1 from profiles where id = auth.uid() and name is not null) then raise exception 'Sign in first.'; end if; if p_daily not in (current_daily_no(), current_daily_no() - 1) then raise exception 'That Horde is over.'; end if; if p_score < 0 or p_score > 10000000 or p_wave < 0 or p_wave > 1000 or length(coalesce(p_log, '')) > 300000 then raise exception 'Bad run.'; end if; insert into horde_runs (user_id, daily_no, score, wave, kills, hero, log) values (auth.uid(), p_daily, p_score, p_wave, greatest(0, coalesce(p_kills, 0)), left(coalesce(p_hero, ''), 16), coalesce(p_log, '')); select max(score) into v_best from horde_runs where daily_no = p_daily and user_id = auth.uid(); select 1 + count(*) into v_rank from (select user_id, max(score) as s from horde_runs where daily_no = p_daily group by user_id) b where b.s > v_best; return json_build_object('rank', v_rank, 'best', v_best); end $$;
+-- The board shows each player's hero dressed as they dress it, their title and Soul rank.
+create or replace function public.horde_board(p_daily int) returns json language sql stable security definer set search_path = public as $$ select coalesce(json_agg(row_to_json(t)), '[]'::json) from (select * from (select distinct on (r.user_id) p.name, r.score, r.wave, r.kills, r.hero, left(coalesce(p.meta->'outfits'->r.hero->>'look', p.meta->>'look'), 24) as outfit_look, left(p.meta->'outfits'->r.hero->>'head', 24) as outfit_head, left(p.meta->'outfits'->r.hero->>'aura', 24) as outfit_aura, left(p.meta->>'title', 40) as title, case when jsonb_typeof(p.meta->'earned') = 'number' then least(greatest((p.meta->>'earned')::numeric, 0), 1000000000)::bigint else 0 end as earned from horde_runs r join profiles p on p.id = r.user_id where r.daily_no = p_daily order by r.user_id, r.score desc, r.created_at) b order by b.score desc limit 20) t $$;
+revoke all on function public.submit_horde(int, int, int, int, text, text) from public;
+revoke all on function public.horde_board(int) from public;
+grant execute on function public.submit_horde(int, int, int, int, text, text) to authenticated;
+grant execute on function public.horde_board(int) to anon, authenticated;

@@ -2846,7 +2846,13 @@ async function loadHordeBoard(g: Game, best: boolean) {
   const list = document.getElementById('horde-board');
   if (!list) return;
   list.innerHTML = rows?.length
-    ? rows.slice(0, 10).map((r, i) => `<li><span>${['🥇', '🥈', '🥉'][i] ?? `${i + 1}.`} ${esc(r.name)} <small>wave ${r.wave}</small></span><b>${r.score.toLocaleString()}</b></li>`).join('')
+    ? rows.slice(0, 10).map((r, i) => {
+        const hero = (HERO_BY_ID[r.hero as HeroId] ? r.hero : 'knight') as HeroId;
+        const look = r.outfit_look && LOOK_BY_ID[r.outfit_look] ? r.outfit_look : '';
+        const head = r.outfit_head && HEAD_BY_ID[r.outfit_head] ? r.outfit_head : '';
+        const aura = auraClass(r.outfit_aura);
+        return `<li><span>${['🥇', '🥈', '🥉'][i] ?? `${i + 1}.`} <img class="board-hero ${aura.cls}" style="${aura.style}" src="${heroPortrait(hero, {}, [], 2, look, head)}" alt="" width="20" height="20" /> ${esc(r.name)} <small>wave ${r.wave}</small></span><b>${r.score.toLocaleString()}</b></li>`;
+      }).join('')
     : '<li class="fine">No one on the board yet. Be the first.</li>';
 }
 
