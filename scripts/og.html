@@ -11,58 +11,136 @@
   <body>
     <canvas id="c" width="1200" height="630"></canvas>
     <script type="module">
-      // Social preview card. Regenerate with: node scripts/make-og.mjs
-      import { sprites } from '/src/sprites.ts';
+      // Social preview card: the title, the modes, every hero, and a real board from the
+      // game (a Sunken Cloister floor in the plague mist). Regenerate with: node scripts/make-og.mjs
+      import { HEROES } from '/src/content.ts';
+      import { Game, fullPool } from '/src/game.ts';
+      import { heroSprite } from '/src/hero.ts';
+      import { Renderer } from '/src/render.ts';
       await document.fonts.load('120px "Pirata One"');
       await document.fonts.load('28px Silkscreen');
       const c = document.getElementById('c');
       const ctx = c.getContext('2d');
       ctx.imageSmoothingEnabled = false;
-      const bg = ctx.createRadialGradient(600, 260, 40, 600, 315, 700);
+
+      // background: a deep violet glow, and faint stone along the bottom
+      const bg = ctx.createRadialGradient(330, 220, 40, 520, 315, 900);
       bg.addColorStop(0, '#2a1328');
       bg.addColorStop(1, '#07040b');
       ctx.fillStyle = bg;
       ctx.fillRect(0, 0, 1200, 630);
-
-      // floor tiles across the bottom
-      for (let x = 0; x < 1200; x += 64) {
-        for (let y = 430; y < 630; y += 64) {
-          ctx.fillStyle = (x / 64 + y / 64) % 2 ? '#1d1824' : '#211b29';
-          ctx.fillRect(x, y, 64, 64);
-          ctx.fillStyle = 'rgba(0,0,0,0.4)';
-          ctx.fillRect(x, y + 60, 64, 4);
-          ctx.fillRect(x + 60, y, 4, 64);
+      for (let x = 0; x < 1200; x += 48) {
+        for (let y = 486; y < 630; y += 48) {
+          ctx.fillStyle = (x / 48 + y / 48) % 2 ? 'rgba(40,32,52,0.5)' : 'rgba(33,27,41,0.5)';
+          ctx.fillRect(x, y, 48, 48);
+          ctx.fillStyle = 'rgba(0,0,0,0.35)';
+          ctx.fillRect(x, y + 45, 48, 3);
+          ctx.fillRect(x + 45, y, 3, 48);
         }
       }
-      const s = sprites();
-      const draw = (name, x, y, scale) => ctx.drawImage(s[name].normal, x, y, 12 * scale, 12 * scale);
-      draw('player', 540, 380, 10);
-      draw('ghoul', 300, 420, 8);
-      draw('archer', 150, 410, 8);
-      draw('bat', 380, 330, 6);
-      draw('brute', 760, 400, 9);
-      draw('wraith', 950, 410, 8);
-      draw('bat', 860, 320, 5);
 
-      // torch light vignette
-      const v = ctx.createRadialGradient(600, 420, 120, 600, 380, 750);
-      v.addColorStop(0, 'rgba(0,0,0,0)');
-      v.addColorStop(1, 'rgba(0,0,0,0.75)');
-      ctx.fillStyle = v;
-      ctx.fillRect(0, 0, 1200, 630);
-
-      ctx.textAlign = 'center';
-      ctx.font = '150px "Pirata One"';
-      ctx.shadowColor = 'rgba(210,58,70,0.7)';
+      // a real board, drawn by the game's own renderer
+      const board = document.createElement('canvas');
+      const r = new Renderer(board, true);
+      r.resize(560);
+      r.outfit = { look: 'bellvestment', head: 'bellhelm', aura: 'greatbell' };
+      const g = new Game('story', 20261030, 0, {
+        hero: 'bellringer',
+        pool: fullPool(),
+        mercy: true,
+        story: { start: 7, end: 12, gifts: 4, look: 'cloister', mist: 3, monks: true },
+      });
+      r.setGame(g);
+      r.consume(g.events.splice(0));
+      for (let i = 0; i < 160; i++) r.frame(1 / 60);
+      const B = 492;
+      const bx = 668;
+      const by = 52;
+      ctx.shadowColor = 'rgba(155, 227, 106, 0.45)';
       ctx.shadowBlur = 40;
-      ctx.fillStyle = '#d23a46';
-      ctx.fillText('One More Crypt', 600, 190);
+      ctx.fillStyle = '#100a16';
+      ctx.fillRect(bx - 10, by - 10, B + 20, B + 20);
       ctx.shadowBlur = 0;
-      ctx.font = '30px Silkscreen';
+      ctx.drawImage(board, bx, by, B, B);
+      ctx.strokeStyle = '#5a5070';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(bx - 8, by - 8, B + 16, B + 16);
+      ctx.strokeStyle = '#c9a24a';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(bx - 3, by - 3, B + 6, B + 6);
+      // a tag on the board
+      ctx.font = '18px Silkscreen';
+      ctx.textAlign = 'center';
+      const tag = 'NEW · ACT II: THE PLAGUE ABBOT';
+      const tw = ctx.measureText(tag).width + 28;
+      ctx.fillStyle = '#16210f';
+      ctx.fillRect(bx + B / 2 - tw / 2, by + B - 4, tw, 34);
+      ctx.strokeStyle = '#9be36a';
+      ctx.strokeRect(bx + B / 2 - tw / 2, by + B - 4, tw, 34);
+      ctx.fillStyle = '#9be36a';
+      ctx.fillText(tag, bx + B / 2, by + B + 19);
+
+      // the title
+      const cx = 330;
+      ctx.font = '100px "Pirata One"';
+      ctx.shadowColor = 'rgba(210,58,70,0.75)';
+      ctx.shadowBlur = 36;
+      ctx.fillStyle = '#d23a46';
+      ctx.fillText('One More Crypt', cx, 140);
+      ctx.shadowBlur = 0;
+      ctx.font = '25px Silkscreen';
       ctx.fillStyle = '#e8dcc4';
-      ctx.fillText('ONE CRYPT. ONE TRY A DAY.', 600, 255);
+      ctx.fillText('ONE CRYPT. ONE TRY A DAY.', cx, 205);
       ctx.fillStyle = '#f2c14e';
-      ctx.fillText('HOW DEEP CAN YOU GO?', 600, 300);
+      ctx.fillText('HOW DEEP CAN YOU GO?', cx, 243);
+
+      // the modes, as chips
+      const modes = [
+        ['DAILY CRYPT', '#d23a46'],
+        ['ENDLESS', '#b07cff'],
+        ['HORDE', '#ff8a2a'],
+        ['STORY MODE', '#5fe3ff'],
+      ];
+      ctx.font = '19px Silkscreen';
+      const w = 268;
+      modes.forEach(([name, col], i) => {
+        const x = cx - w - 8 + (i % 2) * (w + 16);
+        const y = 278 + Math.floor(i / 2) * 58;
+        ctx.fillStyle = 'rgba(16, 10, 22, 0.85)';
+        ctx.fillRect(x, y, w, 46);
+        ctx.fillStyle = col;
+        ctx.fillRect(x, y, 6, 46);
+        ctx.strokeStyle = col;
+        ctx.globalAlpha = 0.55;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x + 1, y + 1, w - 2, 44);
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = '#e8dcc4';
+        ctx.fillText(name, x + w / 2 + 3, y + 30);
+      });
+
+      // every hero, side by side
+      const n = HEROES.length;
+      const size = 56;
+      const gap = 12;
+      const row = n * size + (n - 1) * gap;
+      HEROES.forEach((h, i) => {
+        const x = cx - row / 2 + i * (size + gap);
+        const y = 418;
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.fillRect(x + 8, y + size - 4, size - 16, 6);
+        ctx.drawImage(heroSprite(h.id, {}, []).normal, x, y, size, size);
+      });
+      ctx.font = '15px Silkscreen';
+      ctx.fillStyle = '#9a8bab';
+      ctx.fillText(`${n} HEROES · 80+ RELICS · DEEP ZONES · DEATH WALKS`, cx, 504);
+
+      // footer
+      ctx.font = '21px Silkscreen';
+      ctx.fillStyle = '#f2c14e';
+      ctx.fillText('FREE · PLAYS IN YOUR BROWSER', cx, 572);
+      ctx.fillStyle = '#e8dcc4';
+      ctx.fillText('ONEMORECRYPT.COM', cx, 604);
       window.ogReady = true;
     </script>
   </body>
