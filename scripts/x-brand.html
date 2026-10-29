@@ -11,114 +11,262 @@
   <body>
     <canvas id="avatar" width="800" height="800"></canvas>
     <canvas id="header" width="1500" height="500"></canvas>
+    <canvas id="discord" width="960" height="540"></canvas>
+    <canvas id="itch" width="630" height="500"></canvas>
     <script type="module">
-      // X profile picture and header. Regenerate with: node scripts/make-x-brand.mjs
-      import { sprites } from '/src/sprites.ts';
+      // Profile picture and cover images for X, Discord, itch.io and Instagram.
+      // Regenerate with: node scripts/make-x-brand.mjs
+      import { HEROES } from '/src/content.ts';
+      import { drawAura } from '/src/aura.ts';
       import { heroSprite } from '/src/hero.ts';
+      import { enemyFrames, sprites } from '/src/sprites.ts';
       await document.fonts.load('120px "Pirata One"');
       await document.fonts.load('28px Silkscreen');
       const s = sprites();
-      const build = { crown: 1, ember: 2, mirror: 1, fang: 1 };
-      const hero = heroSprite('knight', build, ['fang', 'mirror', 'ember', 'crown']).normal;
+      const foe = (kind) => enemyFrames(kind).idle[0].normal;
+      const knight = heroSprite('knight', { crown: 1, ember: 2, mirror: 1, fang: 1 }, ['fang', 'mirror', 'ember', 'crown']).normal;
 
+      /** A seeded random, so the art comes out the same every time. */
+      const rng = (seed) => () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+
+      /** Dark stone flagstones with a lit top edge. */
       function floor(ctx, x0, y0, w, h, t) {
         for (let x = x0; x < x0 + w; x += t) {
           for (let y = y0; y < y0 + h; y += t) {
-            ctx.fillStyle = (Math.round(x / t) + Math.round(y / t)) % 2 ? '#1d1824' : '#211b29';
+            ctx.fillStyle = (Math.round(x / t) + Math.round(y / t)) % 2 ? '#1d1824' : '#221c2b';
             ctx.fillRect(x, y, t, t);
-            ctx.fillStyle = 'rgba(0,0,0,0.4)';
+            ctx.fillStyle = 'rgba(255,255,255,0.04)';
+            ctx.fillRect(x, y, t, t / 16);
+            ctx.fillStyle = 'rgba(0,0,0,0.45)';
             ctx.fillRect(x, y + t - t / 16, t, t / 16);
             ctx.fillRect(x + t - t / 16, y, t / 16, t);
           }
         }
       }
 
-      function embers(ctx, w, h, n, seed) {
-        let r = seed;
-        const rand = () => ((r = (r * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+      function embers(ctx, x0, w, h, n, seed, green = 0) {
+        const r = rng(seed);
         for (let i = 0; i < n; i++) {
-          const size = rand() < 0.3 ? 6 : 4;
-          ctx.fillStyle = rand() < 0.5 ? 'rgba(255,138,42,0.8)' : 'rgba(242,193,78,0.6)';
-          ctx.fillRect(Math.floor(rand() * w), Math.floor(rand() * h * 0.8), size, size);
+          const size = r() < 0.3 ? 6 : 4;
+          const g = r() < green;
+          ctx.fillStyle = g ? 'rgba(155,227,106,0.7)' : r() < 0.5 ? 'rgba(255,138,42,0.8)' : 'rgba(242,193,78,0.6)';
+          ctx.fillRect(x0 + Math.floor(r() * w), Math.floor(r() * h), size, size);
         }
       }
 
-      // --- Profile picture: the hero framed in a glowing crypt doorway (circle-safe) ---
+      /** Plague mist: soft green banks low across the ground. */
+      function mist(ctx, x0, x1, y, h, seed, a = 0.22) {
+        const r = rng(seed);
+        for (let i = 0; i < 14; i++) {
+          const x = x0 + r() * (x1 - x0);
+          const yy = y + r() * h;
+          const rad = 60 + r() * 90;
+          const g = ctx.createRadialGradient(x, yy, 0, x, yy, rad);
+          g.addColorStop(0, `rgba(130, 200, 90, ${a})`);
+          g.addColorStop(1, 'rgba(130, 200, 90, 0)');
+          ctx.fillStyle = g;
+          ctx.fillRect(x - rad, yy - rad, rad * 2, rad * 2);
+        }
+      }
+
+      function glow(ctx, x, y, r, color) {
+        const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+        g.addColorStop(0, color);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(x - r, y - r, r * 2, r * 2);
+      }
+
+      function vignette(ctx, w, h, cx, cy, inner, outer, a) {
+        const v = ctx.createRadialGradient(cx, cy, inner, cx, cy, outer);
+        v.addColorStop(0, 'rgba(0,0,0,0)');
+        v.addColorStop(1, `rgba(0,0,0,${a})`);
+        ctx.fillStyle = v;
+        ctx.fillRect(0, 0, w, h);
+      }
+
+      /** A sprite with a soft shadow at its feet and an optional glow. */
+      function figure(ctx, img, x, y, size, shadow, flip = false) {
+        ctx.fillStyle = 'rgba(0,0,0,0.45)';
+        ctx.beginPath();
+        ctx.ellipse(x + size / 2, y + size * 0.97, size * 0.32, size * 0.07, 0, 0, Math.PI * 2);
+        ctx.fill();
+        if (shadow) {
+          ctx.shadowColor = shadow;
+          ctx.shadowBlur = size * 0.25;
+        }
+        ctx.save();
+        if (flip) {
+          ctx.translate(x + size, y);
+          ctx.scale(-1, 1);
+          ctx.drawImage(img, 0, 0, size, size);
+        } else ctx.drawImage(img, x, y, size, size);
+        ctx.restore();
+        ctx.shadowBlur = 0;
+      }
+
+      function title(ctx, x, y, size, sub, subY, sub2, sub2Y, subSize) {
+        ctx.textAlign = 'center';
+        ctx.font = `${size}px "Pirata One"`;
+        ctx.shadowColor = 'rgba(210,58,70,0.75)';
+        ctx.shadowBlur = size * 0.3;
+        ctx.fillStyle = '#d23a46';
+        ctx.fillText('One More Crypt', x, y);
+        ctx.shadowBlur = 0;
+        ctx.font = `${subSize}px Silkscreen`;
+        if (sub) {
+          ctx.fillStyle = '#e8dcc4';
+          ctx.fillText(sub, x, subY);
+        }
+        if (sub2) {
+          ctx.fillStyle = '#f2c14e';
+          ctx.fillText(sub2, x, sub2Y);
+        }
+      }
+
+      /** Four little mode tags in a row. */
+      function modes(ctx, cx, y, size, gap) {
+        const list = [['DAILY', '#d23a46'], ['ENDLESS', '#b07cff'], ['HORDE', '#ff8a2a'], ['STORY', '#5fe3ff']];
+        ctx.font = `${size}px Silkscreen`;
+        const widths = list.map(([n]) => ctx.measureText(n).width + size * 1.6);
+        let x = cx - (widths.reduce((a, b) => a + b, 0) + gap * (list.length - 1)) / 2;
+        ctx.textAlign = 'center';
+        list.forEach(([n, c], i) => {
+          const w = widths[i];
+          const h = size * 2;
+          ctx.fillStyle = 'rgba(16,10,22,0.85)';
+          ctx.fillRect(x, y, w, h);
+          ctx.strokeStyle = c;
+          ctx.lineWidth = Math.max(2, size / 9);
+          ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+          ctx.fillStyle = c;
+          ctx.fillText(n, x + w / 2, y + h * 0.68);
+          x += w + gap;
+        });
+      }
+
+      // ---------- profile picture (800x800, safe inside a circle) ----------
       {
         const ctx = document.getElementById('avatar').getContext('2d');
         ctx.imageSmoothingEnabled = false;
         ctx.fillStyle = '#07040b';
         ctx.fillRect(0, 0, 800, 800);
-        // stone arch
+        // the crypt doorway, its keystone carved with a bell
         const stone = (x, y, w, h) => {
           ctx.fillStyle = '#2b2433'; ctx.fillRect(x, y, w, h);
-          ctx.fillStyle = '#3a3145'; ctx.fillRect(x, y, w, 8);
+          ctx.fillStyle = '#40364d'; ctx.fillRect(x, y, w, 8);
           ctx.fillStyle = '#120d18'; ctx.fillRect(x, y + h - 8, w, 8);
         };
-        for (let y = 120; y < 720; y += 64) { stone(140, y, 120, 60); stone(540, y, 120, 60); }
-        stone(140, 56, 520, 64);
-        // doorway glow
+        for (let y = 150; y < 720; y += 64) { stone(150, y, 110, 60); stone(540, y, 110, 60); }
+        stone(150, 86, 500, 64);
+        ctx.fillStyle = '#1a1420';
+        ctx.fillRect(360, 70, 80, 96);
+        ctx.fillStyle = '#c9a24a';
+        ctx.fillRect(388, 90, 24, 8);
+        ctx.fillRect(380, 98, 40, 30);
+        ctx.fillRect(372, 128, 56, 10);
+        ctx.fillRect(396, 138, 8, 8);
+        // the glow beyond the door: blood red, with plague green rising from below
         const g = ctx.createRadialGradient(400, 470, 20, 400, 430, 340);
-        g.addColorStop(0, '#7a1f2c');
+        g.addColorStop(0, '#8a2232');
         g.addColorStop(0.45, '#3a0f1c');
         g.addColorStop(1, '#0a050e');
         ctx.fillStyle = g;
-        ctx.fillRect(260, 120, 280, 600);
-        floor(ctx, 0, 640, 800, 160, 80);
-        embers(ctx, 800, 640, 26, 7);
-        ctx.shadowColor = 'rgba(210,58,70,0.9)';
-        ctx.shadowBlur = 50;
-        ctx.drawImage(hero, 208, 220, 384, 384);
-        ctx.shadowBlur = 0;
-        const v = ctx.createRadialGradient(400, 420, 220, 400, 400, 560);
-        v.addColorStop(0, 'rgba(0,0,0,0)');
-        v.addColorStop(1, 'rgba(0,0,0,0.85)');
-        ctx.fillStyle = v;
-        ctx.fillRect(0, 0, 800, 800);
+        ctx.fillRect(260, 150, 280, 570);
+        floor(ctx, 0, 650, 800, 150, 75);
+        // plague mist pooling evenly along the threshold
+        const band = ctx.createLinearGradient(0, 590, 0, 760);
+        band.addColorStop(0, 'rgba(130, 200, 90, 0)');
+        band.addColorStop(0.45, 'rgba(130, 200, 90, 0.16)');
+        band.addColorStop(1, 'rgba(130, 200, 90, 0.05)');
+        ctx.fillStyle = band;
+        ctx.fillRect(0, 590, 800, 170);
+        embers(ctx, 270, 260, 600, 22, 7, 0.3);
+        glow(ctx, 400, 440, 260, 'rgba(210, 58, 70, 0.35)');
+        figure(ctx, knight, 208, 250, 384, 'rgba(210,58,70,0.95)');
+        vignette(ctx, 800, 800, 400, 420, 230, 560, 0.85);
       }
 
-      // --- Header: the hero facing down a line of foes, title on the right ---
+      // ---------- X header (1500x500; X puts the profile picture over the bottom-left) ----------
       {
         const ctx = document.getElementById('header').getContext('2d');
         ctx.imageSmoothingEnabled = false;
-        const bg = ctx.createRadialGradient(900, 200, 40, 900, 250, 900);
+        const bg = ctx.createRadialGradient(950, 180, 40, 950, 250, 950);
         bg.addColorStop(0, '#2a1328');
         bg.addColorStop(1, '#07040b');
         ctx.fillStyle = bg;
         ctx.fillRect(0, 0, 1500, 500);
-        floor(ctx, 0, 380, 1500, 120, 60);
-        embers(ctx, 1500, 400, 40, 3);
-        const draw = (name, x, y, scale) => ctx.drawImage(s[name].normal, x, y, 12 * scale, 12 * scale);
-        // X places the profile picture over the bottom-left, so the scene sits right of it.
-        ctx.shadowColor = 'rgba(210,58,70,0.8)';
-        ctx.shadowBlur = 30;
-        ctx.drawImage(hero, 380, 230, 156, 156);
-        ctx.shadowBlur = 0;
-        draw('ghoul', 580, 290, 8);
-        draw('bat', 1000, 300, 5);
-        draw('archer', 700, 296, 7);
-        draw('wraith', 1090, 280, 8);
-        draw('brute', 1200, 266, 10);
-        draw('bat', 1320, 150, 5);
-        draw('boss', 1330, 230, 12);
-        const v = ctx.createRadialGradient(900, 260, 200, 900, 260, 900);
-        v.addColorStop(0, 'rgba(0,0,0,0)');
-        v.addColorStop(1, 'rgba(0,0,0,0.7)');
-        ctx.fillStyle = v;
-        ctx.fillRect(0, 0, 1500, 500);
-
-        ctx.textAlign = 'center';
-        ctx.font = '124px "Pirata One"';
-        ctx.shadowColor = 'rgba(210,58,70,0.7)';
-        ctx.shadowBlur = 40;
-        ctx.fillStyle = '#d23a46';
-        ctx.fillText('One More Crypt', 930, 175);
-        ctx.shadowBlur = 0;
-        ctx.font = '26px Silkscreen';
-        ctx.fillStyle = '#e8dcc4';
-        ctx.fillText('A NEW CRYPT EVERY DAY. ONE TRY.', 930, 232);
+        floor(ctx, 0, 400, 1500, 100, 50);
+        // the cloister's sickly light behind the foes
+        glow(ctx, 1330, 300, 260, 'rgba(120, 200, 80, 0.22)');
+        mist(ctx, 1000, 1500, 330, 120, 9, 0.2);
+        embers(ctx, 0, 1500, 380, 46, 3, 0.25);
+        // every hero, side by side, facing the foes
+        const n = HEROES.length;
+        const size = 84;
+        HEROES.forEach((h, i) => {
+          const x = 300 + i * 62;
+          const y = 318 + (i % 2) * 18;
+          figure(ctx, heroSprite(h.id, {}, []).normal, x, y, size, i === 0 ? 'rgba(210,58,70,0.8)' : null);
+        });
+        // and what they face: the dead, a plague monk, a wraith, the Bone Warden and the Plague Abbot
+        figure(ctx, foe('ghoul'), 940, 330, 80, null, true);
+        figure(ctx, foe('monk'), 1020, 320, 90, null, true);
+        figure(ctx, foe('wraith'), 1110, 300, 92, null, true);
+        figure(ctx, foe('bat'), 1240, 150, 56, null, true);
+        figure(ctx, foe('boss'), 1190, 260, 140, 'rgba(232,220,196,0.35)', true);
+        figure(ctx, foe('abbot'), 1330, 230, 160, 'rgba(155,227,106,0.55)', true);
+        vignette(ctx, 1500, 500, 900, 250, 260, 950, 0.65);
+        title(ctx, 900, 150, 118, 'ONE CRYPT A DAY. HOW DEEP CAN YOU GO?', 205, '', 0, 24);
+        modes(ctx, 900, 232, 18, 14);
+        ctx.font = '20px Silkscreen';
         ctx.fillStyle = '#f2c14e';
-        ctx.fillText('ONEMORECRYPT.COM', 930, 274);
+        ctx.fillText('FREE IN YOUR BROWSER · ONEMORECRYPT.COM', 900, 306);
+      }
+
+      // ---------- Discord server banner (960x540; shown cropped from the top, so it leads) ----------
+      {
+        const ctx = document.getElementById('discord').getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+        const bg = ctx.createRadialGradient(480, 180, 40, 480, 270, 700);
+        bg.addColorStop(0, '#2a1328');
+        bg.addColorStop(1, '#07040b');
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, 960, 540);
+        floor(ctx, 0, 420, 960, 120, 60);
+        glow(ctx, 820, 360, 220, 'rgba(120, 200, 80, 0.2)');
+        mist(ctx, 640, 960, 360, 110, 12, 0.2);
+        embers(ctx, 0, 960, 420, 34, 5, 0.25);
+        title(ctx, 480, 120, 104, 'ONE CRYPT A DAY. HOW DEEP CAN YOU GO?', 170, '', 0, 20);
+        modes(ctx, 480, 196, 17, 12);
+        // the heroes on the left, the foes on the right
+        HEROES.slice(0, 5).forEach((h, i) => figure(ctx, heroSprite(h.id, {}, []).normal, 40 + i * 64, 340 + (i % 2) * 16, 84, i === 0 ? 'rgba(210,58,70,0.8)' : null));
+        figure(ctx, foe('monk'), 560, 350, 84, null, true);
+        figure(ctx, foe('wraith'), 640, 330, 88, null, true);
+        figure(ctx, foe('abbot'), 760, 290, 150, 'rgba(155,227,106,0.55)', true);
+        vignette(ctx, 960, 540, 480, 270, 200, 640, 0.6);
+      }
+
+      // ---------- itch.io cover (630x500) ----------
+      {
+        const ctx = document.getElementById('itch').getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+        const bg = ctx.createRadialGradient(315, 300, 30, 315, 280, 520);
+        bg.addColorStop(0, '#3a1328');
+        bg.addColorStop(1, '#07040b');
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, 630, 500);
+        floor(ctx, 0, 400, 630, 100, 50);
+        glow(ctx, 315, 310, 190, 'rgba(210, 58, 70, 0.35)');
+        mist(ctx, 360, 630, 330, 80, 21, 0.18);
+        embers(ctx, 0, 630, 400, 26, 11, 0.25);
+        figure(ctx, foe('ghoul'), 40, 320, 84);
+        figure(ctx, foe('archer'), 120, 300, 80);
+        figure(ctx, knight, 235, 230, 160, 'rgba(210,58,70,0.9)');
+        figure(ctx, foe('monk'), 420, 312, 88, null, true);
+        figure(ctx, foe('abbot'), 500, 270, 120, 'rgba(155,227,106,0.5)', true);
+        vignette(ctx, 630, 500, 315, 280, 150, 460, 0.7);
+        title(ctx, 315, 108, 92, 'ONE CRYPT. ONE TRY A DAY.', 152, 'HOW DEEP CAN YOU GO?', 186, 19);
       }
       window.brandReady = true;
     </script>
