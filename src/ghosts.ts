@@ -21,9 +21,35 @@ const ghosts: Ghost[] = [];
 let container: HTMLElement | null = null;
 let frameSkip = false;
 
+/** The deep zones a ghost can be seen fighting through. */
+const DEEP_LOOKS = ['flooded', 'ossuary', 'burning', 'abyss'] as const;
+
+/** Each new ghost takes the next mode in turn, so neighbouring boards differ. */
+let nextKind = Math.floor(Math.random() * 4);
+
+/** A ghost run in one of the game's modes, so the background shows what there is to play. */
 function newGhostGame(): Game {
   const hero = HEROES[Math.floor(Math.random() * HEROES.length)].id;
-  const g = new Game('endless', (Math.random() * 2 ** 32) >>> 0, 0, { hero, pool: fullPool() });
+  const seed = (Math.random() * 2 ** 32) >>> 0;
+  const pool = fullPool();
+  const kind = nextKind++ % 4;
+  let g: Game;
+  if (kind === 0) {
+    // Horde: holding one arena against wave after wave.
+    g = new Game('horde', seed, 1, { hero, pool, mercy: true, boons: true, surge: true, waves: true, magnet: true, armory: true, arsenal: true });
+  } else if (kind === 1) {
+    // Act II: the Sunken Cloister, plague mist and monks.
+    const start = 5 + Math.floor(Math.random() * 4);
+    g = new Game('story', seed, 0, { hero, pool, mercy: true, story: { start, end: start + 6, gifts: 2, look: 'cloister', mist: 3, monks: true } });
+  } else if (kind === 2) {
+    // Deep in Endless: the flooded catacombs, the charnel halls, the burning depths, the abyss.
+    const zone = Math.floor(Math.random() * DEEP_LOOKS.length);
+    const start = 22 + zone * 20 + Math.floor(Math.random() * 10);
+    g = new Game('story', seed, 0, { hero, pool, mercy: true, story: { start, end: start + 8, gifts: 4, look: DEEP_LOOKS[zone] } });
+  } else {
+    // Endless with today's rules.
+    g = new Game('endless', seed, 0, { hero, pool, forge: true, mercy: true, depths: true, boons: true, reaper: true, deep: true, lurk: true });
+  }
   // A few relics so the hero looks the part, and extra health so it reaches bosses.
   for (let i = 0; i < 3; i++) g.addRelic(RELICS[Math.floor(Math.random() * RELICS.length)].id);
   g.player.maxHp = g.player.hp = 30;
@@ -63,7 +89,7 @@ function move(g: Game) {
 
 function step(ghost: Ghost) {
   const g = ghost.game;
-  if (g.phase === 'dead') {
+  if (g.phase === 'dead' || g.phase === 'won') {
     // Linger on the death for a moment, then a new hero descends.
     if (++ghost.deadTicks > 6) reset(ghost);
     return;
