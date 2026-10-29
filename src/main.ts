@@ -277,13 +277,53 @@ function savedSeconds(): number {
 
 function saveRun() {
   // Story chapters are short, and start over rather than resume.
-  // Story chapters and Horde runs are short, and start over rather than resume.
-  if (!game || game.phase === 'dead' || game.mode === 'story' || game.mode === 'horde') return;
+  if (!game || game.phase === 'dead' || game.mode === 'story') return;
+  // A Horde run keeps its own slot, so it never overwrites a saved Endless or Daily run.
+  if (game.mode === 'horde') {
+    try {
+      localStorage.setItem(HORDE_RUN_KEY, JSON.stringify({ dailyNo: game.dailyNo, seed: game.seed, log: game.header() + game.log, seconds: Math.round(runSeconds) }));
+    } catch {
+      // Storage blocked: the run just can't be resumed.
+    }
+    return;
+  }
   try {
     const run: SavedRun = { mode: game.mode, seed: game.seed, dailyNo: game.dailyNo, log: game.header() + game.log, seconds: Math.round(runSeconds), ...(challenge ? { challenge } : {}) };
     localStorage.setItem(RUN_KEY, JSON.stringify(run));
   } catch {
     // Storage blocked: the run just can't be resumed.
+  }
+}
+
+const HORDE_RUN_KEY = 'omc:horde-run';
+
+function clearHordeRun() {
+  try {
+    localStorage.removeItem(HORDE_RUN_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+/** Today's unfinished Horde run, rebuilt from its log, and the time spent on it so far. */
+function savedHorde(): { game: Game; seconds: number } | null {
+  try {
+    const raw = localStorage.getItem(HORDE_RUN_KEY);
+    if (!raw) return null;
+    const run = JSON.parse(raw) as { dailyNo: number; seed: number; log: string; seconds: number };
+    if (run.dailyNo !== dailyNumber()) {
+      clearHordeRun();
+      return null;
+    }
+    const g = Game.replay('horde', run.seed, run.dailyNo, run.log);
+    if (g.phase === 'dead') {
+      clearHordeRun();
+      return null;
+    }
+    return { game: g, seconds: Math.max(0, Number(run.seconds) || 0) };
+  } catch {
+    clearHordeRun();
+    return null;
   }
 }
 
@@ -978,7 +1018,15 @@ function showTitle() {
   on('#story', () => playStory());
   on('#act2', () => showActTwo(showTitle));
   on('#raid', () => showRaid(showTitle));
-  on('#horde', () => withTutorialOffer(() => startHorde()));
+  on('#horde', () => {
+    const saved = savedHorde();
+    if (saved) resumeHorde(saved.game, saved.seconds);
+    else withTutorialOffer(() => startHorde());
+  });
+  on('#horde-new', () => {
+    if (!window.confirm('Start over? Your unfinished Horde run will be lost.')) return;
+    startHorde();
+  });
   on('#invite', () => showInvite(showTitle));
   on('#help', () => showHelp(showTitle));
   on('#wardrobe', () => showWardrobe(showTitle));
@@ -2656,6 +2704,12 @@ const HORDE_NEW_UNTIL = Date.UTC(2026, 10, 17);
 function hordeButtonHtml(): string {
   const n = dailyNumber();
   const h = meta.horde.day === n ? meta.horde : null;
+  const saved = savedHorde();
+  if (saved) {
+    const g = saved.game;
+    return `<button class="btn horde-btn" id="horde">🛡️ Continue Horde #${n}<small>Wave ${g.horde.wave} · ${g.horde.score.toLocaleString()} pts · ${g.player.hp}/${g.player.maxHp} HP</small></button>
+      <button class="link-btn horde-new" id="horde-new">Start a new Horde run</button>`;
+  }
   // A "NEW" badge for the first weeks of the mode.
   const fresh = Date.now() < HORDE_NEW_UNTIL;
   return `<button class="btn horde-btn" id="horde">${fresh ? '<span class="new-badge">NEW</span>' : ''}🛡️ Horde #${n}<small>${
@@ -2665,6 +2719,7 @@ function hordeButtonHtml(): string {
 
 function startHorde() {
   unlockAudio();
+  clearHordeRun();
   const n = dailyNumber();
   challenge = null;
   storyRun = null;
@@ -2678,8 +2733,26 @@ function startHorde() {
   renderer.banner('HOLD THE CRYPT', '#f2c14e');
 }
 
+/** Back into today's Horde run, where it was left. */
+function resumeHorde(g: Game, seconds: number) {
+  unlockAudio();
+  challenge = null;
+  storyRun = null;
+  raidRun = null;
+  startClock(seconds);
+  showGame(g);
+  setMusicDepth(1);
+  setMusicMood('crypt');
+  hideOverlay();
+  sfx.stairs();
+  renderer.banner(`WAVE ${g.horde.wave}`, '#f2c14e');
+  if (g.phase === 'choose') showChoice();
+  else if (g.phase === 'event') showEvent();
+}
+
 /** The run is over: score, Souls, today's best, and the day's board. */
 function finishHorde() {
+  clearHordeRun();
   const g = game;
   const h = g.horde;
   const reward = finishHordeMeta(g.dailyNo, h.score, h.wave, g.kills, g.hordeFeats());

@@ -3552,8 +3552,11 @@ body.tutorial #relic-bar {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  background: radial-gradient(circle at 50% 42%, rgba(242, 193, 78, 0.38), rgba(210, 58, 70, 0.12) 35%, transparent 65%);
-  animation: flare 0.8s ease-out both;
+  /* Grown by its background, not a transform, so it never reaches past the screen and
+     leaves the overlay scrollable on phones. */
+  background: radial-gradient(circle at 50% 42%, rgba(242, 193, 78, 0.38), rgba(210, 58, 70, 0.12) 35%, transparent 65%) center / 100% 100% no-repeat;
+  opacity: 0;
+  animation: flare 0.8s ease-out;
 }
 
 @keyframes veil-in {
@@ -3561,9 +3564,9 @@ body.tutorial #relic-bar {
 }
 
 @keyframes flare {
-  0% { opacity: 0; transform: scale(0.6); }
+  0% { opacity: 0; background-size: 60% 60%; }
   30% { opacity: 1; }
-  100% { opacity: 0; transform: scale(1.4); }
+  100% { opacity: 0; background-size: 140% 140%; }
 }
 
 #overlay.enter:not(.menu) > .panel {
