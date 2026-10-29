@@ -1974,7 +1974,9 @@ function blocks(letter: string) {
 
 function drawBlock(ctx: CanvasRenderingContext2D, px: Px, bd: Building, b: { X: number; Y: number; W: number; H: number }, t: number) {
   const kind = bd.kind ?? 'house';
-  const dx = b.X + b.W / 2 - 4;
+  // The doorway is drawn right over the building's door tile, so you walk straight into it.
+  const doorCol = doorUnder(bd.letter, b);
+  const dx = doorCol >= 0 ? doorCol * TILE + 4 : b.X + b.W / 2 - 4;
   // Every building sits in its own shadow, cast down and to the right.
   px(b.X + 4, b.Y + b.H - 1, b.W - 2, 3, 'rgba(0,0,0,0.4)');
   px(b.X + b.W - 2, b.Y + 12, 3, b.H - 11, 'rgba(0,0,0,0.28)');
@@ -2178,6 +2180,14 @@ function drawBlock(ctx: CanvasRenderingContext2D, px: Px, bd: Building, b: { X: 
   }
   const label = bd.label?.();
   if (label) sign(ctx, label, b.X + b.W / 2, b.Y - 1, bd.glow || '#8a857a');
+}
+
+/** The column of a building's door: its lower-case letter in the row just below it, or -1. */
+function doorUnder(letter: string, b: { X: number; Y: number; W: number; H: number }): number {
+  const row = area().map[(b.Y + b.H) / TILE];
+  if (!row) return -1;
+  for (let x = b.X / TILE; x < (b.X + b.W) / TILE; x++) if (row[x] === letter.toLowerCase()) return x;
+  return -1;
 }
 
 /** The graveyard's own touches: a cloak by the Wardrobe, forge smoke, the Ossuary skull, the Hall crown, the obelisk. */
