@@ -130,6 +130,46 @@ function circleLayers(R: number, color: string, accent: string, dpr: number) {
   return { outer, inner };
 }
 
+/** "#rrggbb" to "r,g,b", for colours that need an alpha. */
+function rgbOf(hex: string): string {
+  const n = parseInt(hex.slice(1), 16);
+  return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+}
+
+/**
+ * The colour of a relic's icon: drawn small, its vivid pixels averaged, then brightened, so
+ * a flame reads orange and a storm yellow. Falls back to the given colour for a grey icon.
+ */
+function emojiColor(emoji: string, fallback: string): string {
+  const c = document.createElement('canvas');
+  c.width = c.height = 32;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  if (!g) return fallback;
+  g.font = '26px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(emoji, 16, 17);
+  const d = g.getImageData(0, 0, 32, 32).data;
+  let r = 0, gr = 0, b = 0, n = 0;
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] < 160) continue;
+    const mx = Math.max(d[i], d[i + 1], d[i + 2]);
+    const mn = Math.min(d[i], d[i + 1], d[i + 2]);
+    // Only the vivid pixels: skip outlines, whites and greys.
+    if (mx < 70 || mx - mn < 60) continue;
+    r += d[i];
+    gr += d[i + 1];
+    b += d[i + 2];
+    n++;
+  }
+  if (n < 6) return fallback;
+  const avg = [r / n, gr / n, b / n];
+  // Push it bright: the strongest channel up to full, the rest in proportion.
+  const top = Math.max(...avg, 1);
+  const out = avg.map((v) => Math.round(Math.min(255, (v / top) * 255 * 0.95 + 12)));
+  return `#${out.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
 /** A four-pointed twinkle. */
 function twinkle(ctx: CanvasRenderingContext2D, x: number, y: number, s: number) {
   ctx.beginPath();
@@ -143,10 +183,16 @@ function twinkle(ctx: CanvasRenderingContext2D, x: number, y: number, s: number)
 
 export function playFusion(opts: { a: string; b: string; out: string; name: string; ascended: boolean; onDone: () => void }) {
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return opts.onDone();
+  // The forge's own colour (blue, or gold when ascended) lights the new relic; the two relics
+  // going in each bring their own colour to the circle, their trails, the sparks and the waves.
   const color = opts.ascended ? '#f2c14e' : '#7fb4ff';
-  const accent = opts.ascended ? '#ffb35a' : '#c9a8ff';
   const glowRGB = opts.ascended ? '242,193,78' : '127,180,255';
-  const accentRGB = opts.ascended ? '255,179,90' : '201,168,255';
+  const colA = emojiColor(opts.a, color);
+  let colB = emojiColor(opts.b, opts.ascended ? '#ffb35a' : '#c9a8ff');
+  // Two relics of the same colour still get two colours: the second leans toward the forge's.
+  if (colB === colA) colB = opts.ascended ? '#ffb35a' : '#c9a8ff';
+  const rgbA = rgbOf(colA);
+  const accentRGB = rgbOf(colB);
   const canvas = document.createElement('canvas');
   canvas.className = 'fusion-fx';
   document.body.appendChild(canvas);
@@ -162,7 +208,7 @@ export function playFusion(opts: { a: string; b: string; out: string; name: stri
     canvas.width = w * dpr;
     canvas.height = h * dpr;
     R = Math.min(w, h) * 0.36;
-    layers = circleLayers(R, color, accent, dpr);
+    layers = circleLayers(R, colA, colB, dpr);
   };
   size();
   window.addEventListener('resize', size);
@@ -222,8 +268,10 @@ export function playFusion(opts: { a: string; b: string; out: string; name: stri
     const core = t < IMPACT ? 24 + k * R * 0.75 : R * (1.1 - Math.min(0.6, after * 0.4));
     const cg = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(1, core));
     cg.addColorStop(0, `rgba(255,255,255,${0.5 * fadeOut})`);
-    cg.addColorStop(0.25, `rgba(${glowRGB},${0.4 * fadeOut})`);
-    cg.addColorStop(0.6, `rgba(${accentRGB},${0.12 * fadeOut})`);
+    // The core takes on both relics' colours as they draw in, and the forge's once they're one.
+    const coreRGB = t < IMPACT ? (Math.sin(t * 6) > 0 ? rgbA : accentRGB) : glowRGB;
+    cg.addColorStop(0.25, `rgba(${coreRGB},${0.4 * fadeOut})`);
+    cg.addColorStop(0.6, `rgba(${t < IMPACT ? accentRGB : rgbA},${0.14 * fadeOut})`);
     cg.addColorStop(1, `rgba(${glowRGB},0)`);
     ctx.fillStyle = cg;
     ctx.fillRect(cx - core, cy - core, core * 2, core * 2);
@@ -254,7 +302,7 @@ export function playFusion(opts: { a: string; b: string; out: string; name: stri
       for (let n = 0; n < want * dt * 30; n++) {
         const ang = Math.random() * Math.PI * 2;
         const dist = Math.max(w, h) * (0.5 + Math.random() * 0.3);
-        motes.push({ ang, dist, speed: 120 + Math.random() * 160, size: 1.5 + Math.random() * 2, color: Math.random() < 0.3 ? '#ffffff' : Math.random() < 0.5 ? color : accent, px: cx + Math.cos(ang) * dist, py: cy + Math.sin(ang) * dist });
+        motes.push({ ang, dist, speed: 120 + Math.random() * 160, size: 1.5 + Math.random() * 2, color: Math.random() < 0.2 ? '#ffffff' : Math.random() < 0.5 ? colA : colB, px: cx + Math.cos(ang) * dist, py: cy + Math.sin(ang) * dist });
       }
     }
     for (let i = motes.length - 1; i >= 0; i--) {
@@ -290,7 +338,7 @@ export function playFusion(opts: { a: string; b: string; out: string; name: stri
       trailB.push(pb);
       if (trailA.length > 22) trailA.shift();
       if (trailB.length > 22) trailB.shift();
-      for (const [trail, rgb] of [[trailA, glowRGB], [trailB, accentRGB]] as const) {
+      for (const [trail, rgb] of [[trailA, rgbA], [trailB, accentRGB]] as const) {
         for (let i = 1; i < trail.length; i++) {
           const f = i / trail.length;
           ctx.strokeStyle = `rgba(${rgb},${0.55 * f})`;
@@ -305,9 +353,9 @@ export function playFusion(opts: { a: string; b: string; out: string; name: stri
       // Lightning leaps between them and the core as they close in.
       if (charge > 0.55) {
         const strength = (charge - 0.55) / 0.45;
-        for (const p of [pa, pb]) {
+        for (const [p, c] of [[pa, colA], [pb, colB]] as const) {
           if (Math.random() > 0.35 + strength * 0.6) continue;
-          ctx.strokeStyle = Math.random() < 0.5 ? '#ffffff' : color;
+          ctx.strokeStyle = Math.random() < 0.4 ? '#ffffff' : c;
           ctx.globalAlpha = 0.5 + strength * 0.5;
           ctx.lineWidth = 1 + strength * 2;
           ctx.beginPath();
@@ -323,7 +371,7 @@ export function playFusion(opts: { a: string; b: string; out: string; name: stri
         ctx.globalAlpha = 1;
       }
       // a halo behind each relic, then the relic itself
-      for (const [p, rgb] of [[pa, glowRGB], [pb, accentRGB]] as const) {
+      for (const [p, rgb] of [[pa, rgbA], [pb, accentRGB]] as const) {
         const hg = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, em * 0.9);
         hg.addColorStop(0, `rgba(${rgb},0.55)`);
         hg.addColorStop(1, `rgba(${rgb},0)`);
@@ -347,7 +395,7 @@ export function playFusion(opts: { a: string; b: string; out: string; name: stri
       for (let n = 0; n < 180; n++) {
         const a = Math.random() * Math.PI * 2;
         const v = 250 + Math.random() * 850;
-        sparks.push({ x: cx, y: cy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0.7 + Math.random() * 0.9, t: 0, size: 1.5 + Math.random() * 2.5, color: Math.random() < 0.4 ? '#ffffff' : Math.random() < 0.5 ? color : accent });
+        sparks.push({ x: cx, y: cy, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0.7 + Math.random() * 0.9, t: 0, size: 1.5 + Math.random() * 2.5, color: Math.random() < 0.3 ? '#ffffff' : Math.random() < 0.5 ? colA : colB });
       }
       // and embers that drift up for the rest of it
       for (let n = 0; n < 40; n++) {
@@ -388,7 +436,7 @@ export function playFusion(opts: { a: string; b: string; out: string; name: stri
         ctx.rotate((Math.PI * 2) / rays);
         const len = Math.max(w, h) * (n % 2 ? 0.45 : 0.75) * easeOut(clamp(after / 0.4));
         const g = ctx.createLinearGradient(0, 0, len, 0);
-        g.addColorStop(0, `rgba(${n % 3 ? glowRGB : accentRGB},${rayA})`);
+        g.addColorStop(0, `rgba(${n % 3 === 0 ? rgbA : n % 3 === 1 ? accentRGB : glowRGB},${rayA})`);
         g.addColorStop(1, `rgba(${glowRGB},0)`);
         ctx.fillStyle = g;
         ctx.beginPath();
@@ -404,7 +452,7 @@ export function playFusion(opts: { a: string; b: string; out: string; name: stri
       for (let n = 0; n < 3; n++) {
         const p = (after - n * 0.07) / 0.75;
         if (p <= 0 || p >= 1) continue;
-        ctx.strokeStyle = n === 0 ? '#ffffff' : n === 1 ? color : accent;
+        ctx.strokeStyle = n === 0 ? '#ffffff' : n === 1 ? colA : colB;
         ctx.globalAlpha = (1 - p) * 0.9;
         ctx.lineWidth = 8 * (1 - p) + 1;
         ctx.beginPath();
