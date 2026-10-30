@@ -271,6 +271,11 @@ function drawBack(ctx: Ctx, a: AuraDef, cx: number, feet: number, mid: number, w
       bodyGlow(ctx, cx, mid, w * 0.95, a.color, 0.16 * pulse);
       orbit(t, 5, 0.7, (i, x, y, front) => !front && vesperCandle(px, cx + x * w * 0.6, mid + y * w * 0.2, k, t, i, 0.6));
       break;
+    case 'bulbs':
+      // A warm glow, and light bulbs circling the hero, each flicking on with an idea.
+      bodyGlow(ctx, cx, mid, w * 1.0, a.color, 0.18 * pulse);
+      ideaBulbs(px, cx, mid, w, k, t, false, a.color);
+      break;
     case 'zapper':
       // A bug zapper's cold blue glow, and the bugs drawn to it.
       bodyGlow(ctx, cx, mid, w * 1.0, a.color, 0.2 * pulse);
@@ -382,6 +387,9 @@ function drawFront(ctx: Ctx, a: AuraDef, cx: number, feet: number, mid: number, 
     case 'zapper':
       zapperBugs(ctx, px, cx, mid, w, k, t, true, a.color);
       break;
+    case 'bulbs':
+      ideaBulbs(px, cx, mid, w, k, t, true, a.color);
+      break;
     case 'reaper':
       // Pale souls drawn in toward the hero, fading as they arrive.
       orbit(t, 3, 0.9, (i, x, y, front) => {
@@ -490,6 +498,47 @@ function orbit(t: number, n: number, speed: number, each: (i: number, x: number,
     const ang = t * speed + (i * Math.PI * 2) / n;
     each(i, Math.cos(ang), Math.sin(ang), Math.sin(ang) >= 0);
   }
+}
+
+const IDEA_PERIOD = 0.9;
+
+/** A light bulb in pixels: g glass, h glint, f filament, b screw base. */
+const BULB = ['.gg.', 'ghgg', 'ggfg', 'gffg', '.gg.', '.bb.', '.bb.'];
+
+/**
+ * Light bulbs drifting round the hero on a tilted ring, bobbing as they go. In turn each one
+ * flicks on: it shines white-gold and throws out little rays, then dims back to glass.
+ */
+function ideaBulbs(px: Px, cx: number, mid: number, w: number, k: number, t: number, front: boolean, color: string) {
+  const n = 4;
+  const lit = Math.floor(t / IDEA_PERIOD) % n;
+  const p = (t % IDEA_PERIOD) / IDEA_PERIOD;
+  // Bulbs are drawn in finer pixels than the other auras so they stay small beside the hero.
+  const q = Math.max(1, Math.round(k * 0.6));
+  orbit(t, n, 0.8, (i, x, y, inFront) => {
+    if (inFront !== front) return;
+    const bx = cx + x * w * 0.8;
+    const by = mid - w * 0.12 + y * w * 0.26 + Math.sin(t * 2.6 + i * 1.7) * w * 0.06;
+    const on = i === lit && p < 0.7;
+    const alpha = front ? 1 : 0.75;
+    if (on) {
+      // The idea: rays bursting out round the glass.
+      const r = q * (4 + Math.sin(p * Math.PI) * 1.5);
+      for (let j = 0; j < 7; j++) {
+        const ang = -Math.PI / 2 + (j - 3) * 0.55;
+        px(bx - q / 2 + Math.cos(ang) * r, by - q * 2 + Math.sin(ang) * r, q, j % 2 ? '#ffffff' : color, (1 - p) * alpha);
+      }
+    }
+    // The bulb, row by row: a round glass top with a glint, a filament, then the screw base.
+    BULB.forEach((row, ry) => {
+      for (let rx = 0; rx < row.length; rx++) {
+        const c = row[rx];
+        if (c === '.') continue;
+        const col = c === 'g' ? (on ? '#fff6c8' : '#e8d98a') : c === 'h' ? '#ffffff' : c === 'f' ? (on ? color : '#b89a4a') : rx === 1 ? '#c9ced8' : '#7d8290';
+        px(bx + (rx - 2) * q, by + (ry - 4) * q, q, col, c === 'g' && !on ? alpha * 0.85 : alpha);
+      }
+    });
+  });
 }
 
 /** A little choir candle: wax, and a flame that flickers green and gold. */

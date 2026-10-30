@@ -136,6 +136,7 @@ export const TITLES: TitleDef[] = [
   { id: 'podium:1', name: 'Crypt Champion', how: 'Finish 1st in a Daily Descent.' },
   // Gifted by hand by the Crypt Keeper.
   { id: 'gift:exterminator', name: 'Bug Exterminator', how: 'A gift from the Crypt Keeper, for hunting down bugs and reporting them.' },
+  { id: 'gift:brightidea', name: 'Bright Idea', how: 'A gift from the Crypt Keeper, for an idea that made it into the game.' },
   // Deaths of Shame: silly ways to fall, each worn as a title.
   ...SHAME.map((d) => ({ id: `shame:${d.id}`, name: d.title, how: d.how })),
   // Story mode only.
@@ -178,6 +179,7 @@ export type TitleFx = 'prism' | 'gold' | 'eternal' | 'sovereign' | 'soul' | 'aby
 export const TITLE_FX: Record<string, TitleFx> = {
   'invite:10': 'gold',
   'gift:exterminator': 'arcane',
+  'gift:brightidea': 'gold',
   'patron:1': 'prism',
   'story:bell': 'gold',
   'story:all': 'gold',
@@ -601,7 +603,7 @@ export interface Outfit {
 export type AuraStyle =
   | 'candle' | 'ember' | 'tide' | 'bone' | 'abyss' | 'void' | 'rays' | 'sunburst' | 'flame'
   | 'wisps' | 'snow' | 'storm' | 'mist' | 'souls' | 'crown' | 'eternity' | 'rainbow' | 'bell'
-  | 'shards' | 'blades' | 'banner' | 'eclipse' | 'reaper' | 'favour' | 'zapper' | 'vespers';
+  | 'shards' | 'blades' | 'banner' | 'eclipse' | 'reaper' | 'favour' | 'zapper' | 'vespers' | 'bulbs';
 
 export type AuraUnlock =
   | { floor: number }
@@ -664,6 +666,7 @@ export const AURAS: AuraDef[] = [
   // Given by hand by the Crypt Keeper, never earned or sold.
   { id: 'keepersfavour', name: "Keeper's Favour", style: 'favour', color: '#ffd27a', unlock: { gift: 'keepersfavour' }, how: "A rare gift from the Crypt Keeper. It can't be earned or bought." },
   { id: 'bugzapper', name: 'Bug Zapper', style: 'zapper', color: '#5fe3ff', unlock: { gift: 'exterminator' }, how: 'A gift from the Crypt Keeper, for hunting down bugs and reporting them.' },
+  { id: 'brightideas', name: 'Bright Ideas', style: 'bulbs', color: '#ffd23f', unlock: { gift: 'brightidea' }, how: 'A gift from the Crypt Keeper, for an idea that made it into the game.' },
   // The Bell Tolls: felling world bosses together.
   { id: 'raidember', name: 'Warcry Embers', style: 'ember', color: '#ff4d5a', ...raid(3) },
   { id: 'bellshards', name: 'Bell Shards', style: 'shards', color: '#c9a24a', ...raid(7) },
@@ -759,6 +762,7 @@ export interface GiftDef {
 export const GIFTS: GiftDef[] = [
   { id: 'keepersfavour', name: "Keeper's Favour", why: "A rare gift from the Crypt Keeper. It can't be earned or bought.", aura: 'keepersfavour' },
   { id: 'exterminator', name: 'Bug Exterminator', why: 'For hunting down bugs in the crypt and reporting them. Thank you!', head: 'bughelm', aura: 'bugzapper', title: 'gift:exterminator' },
+  { id: 'brightidea', name: 'Bright Idea', why: 'Your idea made it into the crypt. Thank you!', aura: 'brightideas', title: 'gift:brightidea' },
 ];
 
 export const GIFT_BY_ID = Object.fromEntries(GIFTS.map((g) => [g.id, g])) as Record<string, GiftDef>;
