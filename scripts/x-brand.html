@@ -145,106 +145,372 @@
         });
       }
 
+      // ---------- the pixel scene kit ----------
+      // Scenes are painted on a small canvas, one pixel per grid cell, then blown up without
+      // smoothing so the stone, torches and heroes share one crisp pixel look. Light and text
+      // go on top at full size.
+
+      /** A small canvas to paint a scene on. */
+      function grid(w, h) {
+        const c = document.createElement('canvas');
+        c.width = w;
+        c.height = h;
+        const g = c.getContext('2d');
+        g.imageSmoothingEnabled = false;
+        const px = (x, y, w2, h2, col) => { g.fillStyle = col; g.fillRect(x, y, w2, h2); };
+        return { c, g, px };
+      }
+
+      /** Dungeon bricks: staggered, each a slightly different stone, with dark mortar and a lit top. */
+      function bricks(px, x0, y0, w, h, seed, tones = ['#231d2c', '#272030', '#2b2335', '#201a28']) {
+        const r = rng(seed);
+        px(x0, y0, w, h, '#0e0a13');
+        for (let y = y0, row = 0; y < y0 + h; y += 5, row++) {
+          for (let x = x0 - (row % 2 ? 4 : 0); x < x0 + w; x += 9) {
+            const bx = Math.max(x, x0);
+            const bw = Math.min(x + 8, x0 + w) - bx;
+            if (bw <= 0) continue;
+            px(bx, y, bw, 4, tones[Math.floor(r() * tones.length)]);
+            px(bx, y, bw, 1, 'rgba(255,255,255,0.05)');
+            if (r() < 0.12) px(bx + Math.floor(r() * bw), y + 1 + Math.floor(r() * 2), 1, 1, '#120d18');
+          }
+        }
+      }
+
+      /** Flagstones receding a little: big slabs with lit edges and the odd crack or bone. */
+      function flags(px, x0, y0, w, h, seed) {
+        const r = rng(seed);
+        px(x0, y0, w, h, '#15111b');
+        for (let y = y0, row = 0; y < y0 + h; y += 7 + row, row++) {
+          for (let x = x0 - (row % 2 ? 6 : 0); x < x0 + w; x += 13) {
+            px(x, y, 12, 6 + row, r() < 0.5 ? '#1f1a27' : '#231d2c');
+            px(x, y, 12, 1, '#2f2839');
+            if (r() < 0.15) px(x + 3 + Math.floor(r() * 6), y + 2, 2, 1, '#cfc6b0');
+          }
+        }
+        px(x0, y0, w, 1, '#3a3146');
+      }
+
+      /** A wall torch: iron bracket, a cup, and a flickering flame. */
+      function torch(px, x, y) {
+        px(x, y + 4, 3, 1, '#4a4152');
+        px(x + 1, y + 3, 1, 4, '#3a3242');
+        px(x - 1, y + 2, 5, 2, '#5a4030');
+        px(x, y - 2, 3, 4, '#ff8a2a');
+        px(x + 1, y - 4, 1, 3, '#ffd23f');
+        px(x, y - 1, 1, 1, '#ffd23f');
+        px(x + 1, y - 5, 1, 1, '#fff2c0');
+        px(x - 1, y - 1, 1, 2, '#d23a46');
+        px(x + 3, y - 2, 1, 2, '#d23a46');
+      }
+
+      /** A hanging banner: red cloth with a gold edge and a bell, cut to a swallowtail. */
+      function banner(px, x, y, w, h) {
+        px(x - 1, y, w + 2, 1, '#5a4030');
+        px(x, y + 1, w, h, '#8a1f2c');
+        px(x, y + 1, 1, h, '#c9a24a');
+        px(x + w - 1, y + 1, 1, h, '#c9a24a');
+        px(x + 1, y + 1, w - 2, 1, '#a5293a');
+        for (let i = 0; i < w / 2; i++) px(x + Math.floor(w / 2) - i - 1, y + h + 1 + Math.floor(i / 1) - (w / 2 - 1), 1, 1, 'rgba(0,0,0,0)');
+        const cx = x + Math.floor(w / 2);
+        px(cx - 1, y + 4, 2, 1, '#f2c14e');
+        px(cx - 2, y + 5, 4, 3, '#f2c14e');
+        px(cx - 3, y + 8, 6, 1, '#f2c14e');
+        px(cx, y + 9, 1, 1, '#f2c14e');
+        // the swallowtail
+        px(x, y + h + 1, Math.floor(w / 2) - 1, 2, '#8a1f2c');
+        px(x + Math.ceil(w / 2) + 1, y + h + 1, Math.floor(w / 2) - 1, 2, '#8a1f2c');
+        px(x, y + h + 1, 1, 2, '#c9a24a');
+        px(x + w - 1, y + h + 1, 1, 2, '#c9a24a');
+      }
+
+      /** A hanging chain. */
+      function chain(px, x, y, len) {
+        for (let i = 0; i < len; i++) px(x + (i % 2), y + i, 1, 1, i % 2 ? '#3a3242' : '#4f4658');
+      }
+
+      /** Soft light added on top of a finished scene. */
+      function light(ctx, x, y, r, color, a) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+        g.addColorStop(0, color.replace('A', a));
+        g.addColorStop(1, color.replace('A', 0));
+        ctx.fillStyle = g;
+        ctx.fillRect(x - r, y - r, r * 2, r * 2);
+        ctx.restore();
+      }
+
+      /** A sprite in one flat colour, for outlines and rim light. */
+      function silhouette(img, color) {
+        const c = document.createElement('canvas');
+        c.width = img.width;
+        c.height = img.height;
+        const g = c.getContext('2d');
+        g.drawImage(img, 0, 0);
+        g.globalCompositeOperation = 'source-in';
+        g.fillStyle = color;
+        g.fillRect(0, 0, c.width, c.height);
+        return c;
+      }
+
+      /**
+       * A hero or foe standing on the floor: a shadow, its aura behind, a one-pixel coloured
+       * outline so it reads at any size, the sprite, then the aura in front.
+       */
+      function stand(ctx, img, x, feet, size, opts = {}) {
+        const { aura, glow: halo, flip, t = 0.6, alpha = 1, shade } = opts;
+        const cx = x + size / 2;
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.beginPath();
+        ctx.ellipse(cx, feet - size * 0.02, size * 0.34, size * 0.07, 0, 0, Math.PI * 2);
+        ctx.fill();
+        if (aura) drawAura(ctx, aura, cx, feet, size, t, 'back');
+        ctx.globalAlpha = alpha;
+        const top = feet - size;
+        const draw = (im, dx = 0, dy = 0) => {
+          ctx.save();
+          if (flip) {
+            ctx.translate(x + size + dx, top + dy);
+            ctx.scale(-1, 1);
+            ctx.drawImage(im, 0, 0, size, size);
+          } else ctx.drawImage(im, x + dx, top + dy, size, size);
+          ctx.restore();
+        };
+        if (halo) {
+          ctx.shadowColor = halo;
+          ctx.shadowBlur = size * 0.22;
+        }
+        draw(img);
+        ctx.shadowBlur = 0;
+        // Something far back: its colours sunk into the shadow, but its eyes still showing.
+        if (shade) draw(silhouette(img, shade));
+        if (aura) drawAura(ctx, aura, cx, feet, size, t, 'front');
+        ctx.restore();
+      }
+
+      /** The title in the game's blackletter: a dark outline, a red glow, and a lighter top. */
+      function bigTitle(ctx, x, y, size) {
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.font = `${size}px "Pirata One"`;
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = size * 0.1;
+        ctx.strokeStyle = '#120509';
+        ctx.strokeText('One More Crypt', x, y);
+        ctx.shadowColor = 'rgba(255,60,80,0.8)';
+        ctx.shadowBlur = size * 0.35;
+        const g = ctx.createLinearGradient(0, y - size * 0.75, 0, y);
+        g.addColorStop(0, '#ff6b78');
+        g.addColorStop(0.55, '#d23a46');
+        g.addColorStop(1, '#8a1f2c');
+        ctx.fillStyle = g;
+        ctx.fillText('One More Crypt', x, y);
+        ctx.restore();
+      }
+
+      function caption(ctx, text, x, y, size, color) {
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.font = `${size}px Silkscreen`;
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillText(text, x + size * 0.12, y + size * 0.12);
+        ctx.fillStyle = color;
+        ctx.fillText(text, x, y);
+        ctx.restore();
+      }
+
+      /** A thin gold rule with a diamond in the middle. */
+      function flourish(ctx, cx, y, half) {
+        ctx.save();
+        const g = ctx.createLinearGradient(cx - half, 0, cx + half, 0);
+        g.addColorStop(0, 'rgba(201,162,74,0)');
+        g.addColorStop(0.5, 'rgba(242,193,78,0.9)');
+        g.addColorStop(1, 'rgba(201,162,74,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(cx - half, y, half * 2, 3);
+        ctx.fillStyle = '#f2c14e';
+        ctx.translate(cx, y + 1.5);
+        ctx.rotate(Math.PI / 4);
+        ctx.fillRect(-6, -6, 12, 12);
+        ctx.restore();
+      }
+
+      const reaper = s.reaper.normal;
+      // The heroes dressed in the crypt's finest, each with an aura.
+      const cast = [
+        { id: 'rogue', look: 'void', head: '', aura: 'abyssal' },
+        { id: 'necro', look: 'lich', head: 'lichdiadem', aura: 'lichfire' },
+        { id: 'ranger', look: 'moss', head: 'raven', aura: 'spectralvigil' },
+        { id: 'knight', look: '', head: '', aura: '', lead: true },
+        { id: 'paladin', look: 'bone', head: 'bellcrown', aura: 'belltoll' },
+        { id: 'mage', look: 'royal', head: 'candles', aura: 'stormcharged' },
+        { id: 'barbarian', look: 'ember', head: 'ironhorns', aura: 'emberheart' },
+      ];
+      // The crowned knight keeps the classic look: the game's own icon.
+      const heroImg = (h) => (h.lead ? knight : heroSprite(h.id, {}, [], h.look, h.head).normal);
+
       // ---------- profile picture (800x800, safe inside a circle) ----------
       {
         const ctx = document.getElementById('avatar').getContext('2d');
         ctx.imageSmoothingEnabled = false;
-        ctx.fillStyle = '#07040b';
-        ctx.fillRect(0, 0, 800, 800);
-        // the crypt doorway, its keystone carved with a bell
-        const stone = (x, y, w, h) => {
-          ctx.fillStyle = '#2b2433'; ctx.fillRect(x, y, w, h);
-          ctx.fillStyle = '#40364d'; ctx.fillRect(x, y, w, 8);
-          ctx.fillStyle = '#120d18'; ctx.fillRect(x, y + h - 8, w, 8);
-        };
-        for (let y = 150; y < 720; y += 64) { stone(150, y, 110, 60); stone(540, y, 110, 60); }
-        stone(150, 86, 500, 64);
-        ctx.fillStyle = '#1a1420';
-        ctx.fillRect(360, 70, 80, 96);
-        ctx.fillStyle = '#c9a24a';
-        ctx.fillRect(388, 90, 24, 8);
-        ctx.fillRect(380, 98, 40, 30);
-        ctx.fillRect(372, 128, 56, 10);
-        ctx.fillRect(396, 138, 8, 8);
-        // the glow beyond the door: blood red, with plague green rising from below
-        const g = ctx.createRadialGradient(400, 470, 20, 400, 430, 340);
-        g.addColorStop(0, '#8a2232');
-        g.addColorStop(0.45, '#3a0f1c');
-        g.addColorStop(1, '#0a050e');
-        ctx.fillStyle = g;
-        ctx.fillRect(260, 150, 280, 570);
-        floor(ctx, 0, 650, 800, 150, 75);
-        // plague mist pooling evenly along the threshold
-        const band = ctx.createLinearGradient(0, 590, 0, 760);
+        const S = 10;
+        const { c, px } = grid(80, 80);
+        bricks(px, 0, 0, 80, 80, 4);
+        // a pointed arch: the doorway down into the crypt
+        const cx = 40, spring = 34, R = 19;
+        const inside = (x, y, grow = 0) => y >= spring ? Math.abs(x + 0.5 - cx) <= R + grow : Math.hypot(x + 0.5 - (cx - R), y - spring) <= 2 * R + grow && Math.hypot(x + 0.5 - (cx + R), y - spring) <= 2 * R + grow;
+        for (let y = 0; y < 72; y++) {
+          for (let x = 0; x < 80; x++) {
+            if (inside(x, y)) {
+              // the depths: black at the top of the arch, glowing crimson far down the stairs
+              const d = Math.hypot((x - cx) / 1.6, y - 44);
+              const t = Math.max(0, 1 - d / 26);
+              const r = Math.round(14 + 150 * t * t), gg = Math.round(6 + 22 * t * t), b = Math.round(18 + 30 * t * t);
+              px(x, y, 1, 1, `rgb(${r},${gg},${b})`);
+            } else if (inside(x, y, 4)) {
+              // the arch stones, lit along their inner edge
+              const edge = inside(x, y, 1);
+              const seg = Math.floor(Math.atan2(y - spring, x - cx) * 6 + (y >= spring ? y / 4 : 0));
+              px(x, y, 1, 1, edge ? '#5d5268' : seg % 2 ? '#3d3448' : '#463c52');
+            }
+          }
+        }
+        // stairs going down: each step narrower and dimmer toward the glow
+        for (let i = 0; i < 7; i++) {
+          const y = 70 - i * 3;
+          const hw = 17 - i * 2;
+          px(cx - hw, y, hw * 2, 1, i < 2 ? '#4a2a36' : '#5a1f2c');
+          px(cx - hw, y + 1, hw * 2, 2, i < 2 ? '#1c1220' : '#2a0e18');
+        }
+        // the keystone, carved with the bell
+        px(36, 11, 8, 9, '#4f4559');
+        px(36, 11, 8, 1, '#6b6078');
+        px(39, 13, 2, 1, '#c9a24a');
+        px(38, 14, 4, 3, '#c9a24a');
+        px(37, 17, 6, 1, '#f2c14e');
+        px(39, 18, 2, 1, '#c9a24a');
+        // torches either side
+        torch(px, 9, 36);
+        torch(px, 68, 36);
+        chain(px, 4, 0, 18);
+        chain(px, 75, 0, 22);
+        flags(px, 0, 72, 80, 8, 2);
+        ctx.drawImage(c, 0, 0, 800, 800);
+        // light: torch glow, the crimson breath of the crypt, a green mist low on the threshold
+        light(ctx, 105, 340, 170, 'rgba(255,150,60,A)', 0.42);
+        light(ctx, 695, 340, 170, 'rgba(255,150,60,A)', 0.42);
+        light(ctx, 400, 470, 300, 'rgba(210,40,60,A)', 0.3);
+        const band = ctx.createLinearGradient(0, 640, 0, 800);
         band.addColorStop(0, 'rgba(130, 200, 90, 0)');
-        band.addColorStop(0.45, 'rgba(130, 200, 90, 0.16)');
-        band.addColorStop(1, 'rgba(130, 200, 90, 0.05)');
+        band.addColorStop(0.5, 'rgba(130, 200, 90, 0.13)');
+        band.addColorStop(1, 'rgba(130, 200, 90, 0)');
         ctx.fillStyle = band;
-        ctx.fillRect(0, 590, 800, 170);
-        embers(ctx, 270, 260, 600, 22, 7, 0.3);
-        glow(ctx, 400, 440, 260, 'rgba(210, 58, 70, 0.35)');
-        figure(ctx, knight, 208, 250, 384, 'rgba(210,58,70,0.95)');
-        vignette(ctx, 800, 800, 400, 420, 230, 560, 0.85);
+        ctx.fillRect(0, 640, 800, 160);
+        // the hero, crowned and dressed in gold, with gilded radiance behind
+        const lead = cast.find((h) => h.lead);
+        stand(ctx, heroImg(lead), 220, 740, 360, { glow: 'rgba(255,60,80,0.95)' });
+        embers(ctx, 180, 440, 640, 26, 7, 0.25);
+        vignette(ctx, 800, 800, 400, 430, 250, 580, 0.88);
       }
 
       // ---------- X header (1500x500; X puts the profile picture over the bottom-left) ----------
       {
         const ctx = document.getElementById('header').getContext('2d');
         ctx.imageSmoothingEnabled = false;
-        const bg = ctx.createRadialGradient(950, 180, 40, 950, 250, 950);
-        bg.addColorStop(0, '#2a1328');
-        bg.addColorStop(1, '#07040b');
-        ctx.fillStyle = bg;
-        ctx.fillRect(0, 0, 1500, 500);
-        floor(ctx, 0, 400, 1500, 100, 50);
-        // the cloister's sickly light behind the foes
-        glow(ctx, 1330, 300, 260, 'rgba(120, 200, 80, 0.22)');
-        mist(ctx, 1000, 1500, 330, 120, 9, 0.2);
-        embers(ctx, 0, 1500, 380, 46, 3, 0.25);
-        // every hero, side by side, facing the foes
-        const n = HEROES.length;
-        const size = 84;
-        HEROES.forEach((h, i) => {
-          const x = 300 + i * 62;
-          const y = 318 + (i % 2) * 18;
-          figure(ctx, heroSprite(h.id, {}, []).normal, x, y, size, i === 0 ? 'rgba(210,58,70,0.8)' : null);
+        const { c, px } = grid(375, 125);
+        bricks(px, 0, 0, 375, 125, 9);
+        // pillars with alcoves between them, a candle in each
+        for (let x = 6; x < 375; x += 46) {
+          px(x, 0, 7, 100, '#2f2838');
+          px(x, 0, 1, 100, '#40374b');
+          px(x + 6, 0, 1, 100, '#16111c');
+          px(x - 1, 12, 9, 2, '#3a3245');
+        }
+        for (let x = 19; x < 375; x += 46) {
+          px(x, 30, 20, 26, '#0b0710');
+          for (let i = 0; i < 6; i++) px(x + i, 30 - Math.floor((6 - i) / 2), 20 - i * 2, 1, '#0b0710');
+          px(x + 9, 49, 2, 5, '#e8dcc4');
+          px(x + 9, 47, 1, 2, '#ffd23f');
+          px(x + 4, 53, 3, 3, '#d8cfb8');
+          px(x + 4, 54, 1, 1, '#1a1420');
+          px(x + 6, 54, 1, 1, '#1a1420');
+        }
+        banner(px, 100, 0, 12, 34);
+        banner(px, 318, 0, 12, 34);
+        chain(px, 70, 0, 26);
+        chain(px, 236, 0, 20);
+        torch(px, 98, 40);
+        torch(px, 190, 40);
+        torch(px, 282, 40);
+        flags(px, 0, 100, 375, 25, 3);
+        ctx.drawImage(c, 0, 0, 1500, 500);
+        for (const x of [394, 762, 1130]) light(ctx, x, 170, 190, 'rgba(255,150,60,A)', 0.32);
+        light(ctx, 1320, 330, 300, 'rgba(120,200,80,A)', 0.2);
+        light(ctx, 1380, 200, 240, 'rgba(150,90,255,A)', 0.16);
+        mist(ctx, 980, 1500, 340, 130, 9, 0.18);
+        // Death looms at the back, half in shadow
+        stand(ctx, reaper, 1150, 470, 290, { flip: true, shade: 'rgba(14,6,24,0.72)' });
+        light(ctx, 1290, 250, 120, 'rgba(176,124,255,A)', 0.18);
+        // the foes: the dead, a plague monk, a wraith and the Plague Abbot
+        stand(ctx, foe('ghoul'), 905, 452, 88, { flip: true });
+        stand(ctx, foe('monk'), 985, 446, 96, { flip: true });
+        stand(ctx, foe('wraith'), 1075, 430, 96, { flip: true });
+        stand(ctx, foe('bat'), 1384, 170, 64, { flip: true });
+        stand(ctx, foe('abbot'), 1310, 472, 170, { flip: true, glow: 'rgba(155,227,106,0.7)' });
+        // the heroes, the crowned knight out front
+        cast.forEach((h, i) => {
+          const lead = h.lead;
+          const x = 300 + i * 74 + (lead ? 0 : 0);
+          stand(ctx, heroImg(h), x, lead ? 474 : 448 + (i % 2) * 14, lead ? 120 : 96, { aura: h.aura, glow: lead ? 'rgba(255,60,80,0.9)' : null, t: 0.4 + i * 0.37 });
         });
-        // and what they face: the dead, a plague monk, a wraith, the Bone Warden and the Plague Abbot
-        figure(ctx, foe('ghoul'), 940, 330, 80, null, true);
-        figure(ctx, foe('monk'), 1020, 320, 90, null, true);
-        figure(ctx, foe('wraith'), 1110, 300, 92, null, true);
-        figure(ctx, foe('bat'), 1240, 150, 56, null, true);
-        figure(ctx, foe('boss'), 1190, 260, 140, 'rgba(232,220,196,0.35)', true);
-        figure(ctx, foe('abbot'), 1330, 230, 160, 'rgba(155,227,106,0.55)', true);
-        vignette(ctx, 1500, 500, 900, 250, 260, 950, 0.65);
-        title(ctx, 900, 150, 118, 'ONE CRYPT A DAY. HOW DEEP CAN YOU GO?', 205, '', 0, 24);
-        modes(ctx, 900, 232, 18, 14);
-        ctx.font = '20px Silkscreen';
-        ctx.fillStyle = '#f2c14e';
-        ctx.fillText('FREE IN YOUR BROWSER · ONEMORECRYPT.COM', 900, 306);
+        embers(ctx, 0, 1500, 380, 50, 3, 0.25);
+        vignette(ctx, 1500, 500, 880, 230, 300, 950, 0.7);
+        bigTitle(ctx, 880, 142, 126);
+        flourish(ctx, 880, 166, 330);
+        caption(ctx, 'ONE CRYPT A DAY. HOW DEEP CAN YOU GO?', 880, 210, 24, '#e8dcc4');
+        modes(ctx, 880, 232, 17, 14);
+        caption(ctx, 'FREE IN YOUR BROWSER · ONEMORECRYPT.COM', 880, 300, 19, '#f2c14e');
       }
 
       // ---------- Discord server banner (960x540; shown cropped from the top, so it leads) ----------
       {
         const ctx = document.getElementById('discord').getContext('2d');
         ctx.imageSmoothingEnabled = false;
-        const bg = ctx.createRadialGradient(480, 180, 40, 480, 270, 700);
-        bg.addColorStop(0, '#2a1328');
-        bg.addColorStop(1, '#07040b');
-        ctx.fillStyle = bg;
-        ctx.fillRect(0, 0, 960, 540);
-        floor(ctx, 0, 420, 960, 120, 60);
-        glow(ctx, 820, 360, 220, 'rgba(120, 200, 80, 0.2)');
-        mist(ctx, 640, 960, 360, 110, 12, 0.2);
+        const { c, px } = grid(240, 135);
+        bricks(px, 0, 0, 240, 135, 12);
+        for (let x = 4; x < 240; x += 46) {
+          px(x, 0, 7, 110, '#2f2838');
+          px(x, 0, 1, 110, '#40374b');
+          px(x + 6, 0, 1, 110, '#16111c');
+          px(x - 1, 12, 9, 2, '#3a3245');
+        }
+        banner(px, 26, 0, 12, 34);
+        banner(px, 202, 0, 12, 34);
+        torch(px, 72, 52);
+        torch(px, 164, 52);
+        chain(px, 118, 0, 14);
+        flags(px, 0, 108, 240, 27, 4);
+        ctx.drawImage(c, 0, 0, 960, 540);
+        light(ctx, 292, 210, 170, 'rgba(255,150,60,A)', 0.3);
+        light(ctx, 660, 210, 170, 'rgba(255,150,60,A)', 0.3);
+        light(ctx, 830, 380, 240, 'rgba(120,200,80,A)', 0.2);
+        mist(ctx, 640, 960, 380, 110, 12, 0.18);
+        stand(ctx, reaper, 670, 500, 250, { flip: true, shade: 'rgba(14,6,24,0.72)' });
+        light(ctx, 790, 300, 110, 'rgba(176,124,255,A)', 0.18);
+        stand(ctx, foe('monk'), 560, 486, 88, { flip: true });
+        stand(ctx, foe('wraith'), 640, 470, 92, { flip: true });
+        stand(ctx, foe('abbot'), 800, 508, 146, { flip: true, glow: 'rgba(155,227,106,0.7)' });
+        const four = [cast[0], cast[1], cast[3], cast[5]];
+        four.forEach((h, i) => stand(ctx, heroImg(h), 30 + i * 104, h.lead ? 514 : 490 + (i % 2) * 12, h.lead ? 116 : 92, { aura: h.aura, glow: h.lead ? 'rgba(255,60,80,0.9)' : null, t: 0.4 + i * 0.5 }));
         embers(ctx, 0, 960, 420, 34, 5, 0.25);
-        title(ctx, 480, 120, 104, 'ONE CRYPT A DAY. HOW DEEP CAN YOU GO?', 170, '', 0, 20);
-        modes(ctx, 480, 196, 17, 12);
-        // the heroes on the left, the foes on the right
-        HEROES.slice(0, 5).forEach((h, i) => figure(ctx, heroSprite(h.id, {}, []).normal, 40 + i * 64, 340 + (i % 2) * 16, 84, i === 0 ? 'rgba(210,58,70,0.8)' : null));
-        figure(ctx, foe('monk'), 560, 350, 84, null, true);
-        figure(ctx, foe('wraith'), 640, 330, 88, null, true);
-        figure(ctx, foe('abbot'), 760, 290, 150, 'rgba(155,227,106,0.55)', true);
-        vignette(ctx, 960, 540, 480, 270, 200, 640, 0.6);
+        vignette(ctx, 960, 540, 480, 230, 220, 660, 0.62);
+        bigTitle(ctx, 480, 118, 108);
+        flourish(ctx, 480, 140, 260);
+        caption(ctx, 'ONE CRYPT A DAY. HOW DEEP CAN YOU GO?', 480, 182, 20, '#e8dcc4');
+        modes(ctx, 480, 200, 16, 12);
       }
 
       // ---------- itch.io cover (630x500) ----------
