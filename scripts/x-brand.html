@@ -338,6 +338,38 @@
         ctx.restore();
       }
 
+      /**
+       * A pointed arch opening onto stairs that glow crimson far below: centred on cx, the
+       * curve springing at `spring` with half-width R, open down to `bottom`, brightest at glowY.
+       */
+      function archway(px, cx, spring, R, bottom, glowY) {
+        const inside = (x, y, grow = 0) => y >= spring ? Math.abs(x + 0.5 - cx) <= R + grow : Math.hypot(x + 0.5 - (cx - R), y - spring) <= 2 * R + grow && Math.hypot(x + 0.5 - (cx + R), y - spring) <= 2 * R + grow;
+        const top = Math.floor(spring - Math.sqrt(3) * R) - 5;
+        for (let y = Math.max(0, top); y < bottom; y++) {
+          for (let x = cx - R - 5; x <= cx + R + 5; x++) {
+            if (inside(x, y)) {
+              // the depths: black at the top of the arch, glowing crimson far down the stairs
+              const d = Math.hypot((x - cx) / 1.6, y - glowY);
+              const t = Math.max(0, 1 - d / (R * 1.35));
+              const r = Math.round(14 + 150 * t * t), gg = Math.round(6 + 22 * t * t), b = Math.round(18 + 30 * t * t);
+              px(x, y, 1, 1, `rgb(${r},${gg},${b})`);
+            } else if (inside(x, y, 4)) {
+              // the arch stones, lit along their inner edge
+              const edge = inside(x, y, 1);
+              const seg = Math.floor(Math.atan2(y - spring, x - cx) * 6 + (y >= spring ? y / 4 : 0));
+              px(x, y, 1, 1, edge ? '#5d5268' : seg % 2 ? '#3d3448' : '#463c52');
+            }
+          }
+        }
+        // stairs going down: each step narrower and dimmer toward the glow
+        for (let i = 0; i < 7; i++) {
+          const y = bottom - 2 - i * 3;
+          const hw = Math.round((R - 2) * (1 - i / 8));
+          px(cx - hw, y, hw * 2, 1, i < 2 ? '#4a2a36' : '#5a1f2c');
+          px(cx - hw, y + 1, hw * 2, 2, i < 2 ? '#1c1220' : '#2a0e18');
+        }
+      }
+
       const reaper = s.reaper.normal;
       // The heroes dressed in the crypt's finest, each with an aura.
       const cast = [
@@ -359,32 +391,7 @@
         const S = 10;
         const { c, px } = grid(80, 80);
         bricks(px, 0, 0, 80, 80, 4);
-        // a pointed arch: the doorway down into the crypt
-        const cx = 40, spring = 34, R = 19;
-        const inside = (x, y, grow = 0) => y >= spring ? Math.abs(x + 0.5 - cx) <= R + grow : Math.hypot(x + 0.5 - (cx - R), y - spring) <= 2 * R + grow && Math.hypot(x + 0.5 - (cx + R), y - spring) <= 2 * R + grow;
-        for (let y = 0; y < 72; y++) {
-          for (let x = 0; x < 80; x++) {
-            if (inside(x, y)) {
-              // the depths: black at the top of the arch, glowing crimson far down the stairs
-              const d = Math.hypot((x - cx) / 1.6, y - 44);
-              const t = Math.max(0, 1 - d / 26);
-              const r = Math.round(14 + 150 * t * t), gg = Math.round(6 + 22 * t * t), b = Math.round(18 + 30 * t * t);
-              px(x, y, 1, 1, `rgb(${r},${gg},${b})`);
-            } else if (inside(x, y, 4)) {
-              // the arch stones, lit along their inner edge
-              const edge = inside(x, y, 1);
-              const seg = Math.floor(Math.atan2(y - spring, x - cx) * 6 + (y >= spring ? y / 4 : 0));
-              px(x, y, 1, 1, edge ? '#5d5268' : seg % 2 ? '#3d3448' : '#463c52');
-            }
-          }
-        }
-        // stairs going down: each step narrower and dimmer toward the glow
-        for (let i = 0; i < 7; i++) {
-          const y = 70 - i * 3;
-          const hw = 17 - i * 2;
-          px(cx - hw, y, hw * 2, 1, i < 2 ? '#4a2a36' : '#5a1f2c');
-          px(cx - hw, y + 1, hw * 2, 2, i < 2 ? '#1c1220' : '#2a0e18');
-        }
+        archway(px, 40, 34, 19, 72, 44);
         // the keystone, carved with the bell
         px(36, 11, 8, 9, '#4f4559');
         px(36, 11, 8, 1, '#6b6078');
@@ -517,22 +524,41 @@
       {
         const ctx = document.getElementById('itch').getContext('2d');
         ctx.imageSmoothingEnabled = false;
-        const bg = ctx.createRadialGradient(315, 300, 30, 315, 280, 520);
-        bg.addColorStop(0, '#3a1328');
-        bg.addColorStop(1, '#07040b');
-        ctx.fillStyle = bg;
-        ctx.fillRect(0, 0, 630, 500);
-        floor(ctx, 0, 400, 630, 100, 50);
-        glow(ctx, 315, 310, 190, 'rgba(210, 58, 70, 0.35)');
-        mist(ctx, 360, 630, 330, 80, 21, 0.18);
-        embers(ctx, 0, 630, 400, 26, 11, 0.25);
-        figure(ctx, foe('ghoul'), 40, 320, 84);
-        figure(ctx, foe('archer'), 120, 300, 80);
-        figure(ctx, knight, 235, 230, 160, 'rgba(210,58,70,0.9)');
-        figure(ctx, foe('monk'), 420, 312, 88, null, true);
-        figure(ctx, foe('abbot'), 500, 270, 120, 'rgba(155,227,106,0.5)', true);
-        vignette(ctx, 630, 500, 315, 280, 150, 460, 0.7);
-        title(ctx, 315, 108, 92, 'ONE CRYPT. ONE TRY A DAY.', 152, 'HOW DEEP CAN YOU GO?', 186, 19);
+        const { c, px } = grid(126, 100);
+        bricks(px, 0, 0, 126, 100, 21);
+        for (const x of [4, 115]) {
+          px(x, 0, 7, 82, '#2f2838');
+          px(x, 0, 1, 82, '#40374b');
+          px(x + 6, 0, 1, 82, '#16111c');
+          px(x - 1, 12, 9, 2, '#3a3245');
+        }
+        archway(px, 63, 58, 20, 82, 66);
+        banner(px, 2, 0, 12, 40);
+        banner(px, 112, 0, 12, 40);
+        chain(px, 24, 0, 16);
+        chain(px, 101, 0, 12);
+        torch(px, 31, 52);
+        torch(px, 93, 52);
+        flags(px, 0, 82, 126, 18, 6);
+        ctx.drawImage(c, 0, 0, 630, 500);
+        light(ctx, 160, 250, 130, 'rgba(255,150,60,A)', 0.34);
+        light(ctx, 470, 250, 130, 'rgba(255,150,60,A)', 0.34);
+        light(ctx, 315, 330, 200, 'rgba(210,40,60,A)', 0.28);
+        light(ctx, 560, 380, 160, 'rgba(120,200,80,A)', 0.18);
+        mist(ctx, 400, 630, 380, 80, 21, 0.16);
+        // the crowned knight in the doorway, the dead closing in from both sides
+        stand(ctx, foe('ghoul'), 18, 462, 90);
+        stand(ctx, foe('archer'), 104, 448, 84);
+        stand(ctx, foe('bat'), 70, 300, 56);
+        stand(ctx, foe('monk'), 444, 450, 90, { flip: true });
+        stand(ctx, foe('abbot'), 500, 474, 124, { flip: true, glow: 'rgba(155,227,106,0.7)' });
+        stand(ctx, knight, 225, 480, 180, { glow: 'rgba(255,60,80,0.95)' });
+        embers(ctx, 0, 630, 420, 30, 11, 0.25);
+        vignette(ctx, 630, 500, 315, 300, 170, 470, 0.72);
+        bigTitle(ctx, 315, 96, 86);
+        flourish(ctx, 315, 114, 200);
+        caption(ctx, 'ONE CRYPT. ONE TRY A DAY.', 315, 150, 18, '#e8dcc4');
+        caption(ctx, 'HOW DEEP CAN YOU GO?', 315, 176, 18, '#f2c14e');
       }
       window.brandReady = true;
     </script>
