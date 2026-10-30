@@ -293,11 +293,14 @@ LOOKS.push(
 // ---------- seasons ----------
 // Limited-time pieces: sold (or given) only while their season is open, kept for good after.
 
-export type SeasonId = 'halloween';
+export type SeasonId = 'halloween' | 'harvest' | 'midwinter';
 
 export const SEASONS: Record<SeasonId, { name: string; emoji: string; from: string; to: string; dates: string }> = {
   // Month-day, Central Time, both days included.
   halloween: { name: 'The Hallowed Season', emoji: '🎃', from: '10-19', to: '11-02', dates: 'October 19 to November 2' },
+  harvest: { name: 'The Harvest Feast', emoji: '🍂', from: '11-16', to: '11-30', dates: 'November 16 to November 30' },
+  // Runs over the new year: from December 1 to January 6.
+  midwinter: { name: 'Midwinter', emoji: '❄️', from: '12-01', to: '01-06', dates: 'December 1 to January 6' },
 };
 
 /** Whether a season is open on a Central date (YYYY-MM-DD). */
@@ -312,6 +315,8 @@ export function seasonOf(unlock: Unlock | undefined): SeasonId | undefined {
   return unlock && 'season' in unlock ? unlock.season : undefined;
 }
 
+const harvestHead = (cost: number) => ({ unlock: { cost, season: 'harvest' as const }, how: `Sold in the Ossuary during the Harvest Feast (November 16 to November 30) for ${cost.toLocaleString()} Souls.` });
+const winterHead = (cost: number) => ({ unlock: { cost, season: 'midwinter' as const }, how: `Sold in the Ossuary during Midwinter (December 1 to January 6) for ${cost.toLocaleString()} Souls.` });
 const hallowed = (cost: number) => ({ unlock: { cost, season: 'halloween' as const }, how: `Sold in the Ossuary during the Hallowed Season (October 19 to November 2) for ${cost.toLocaleString()} Souls.` });
 LOOKS.push(
   // Free: play any run while the season is open.
@@ -322,6 +327,25 @@ LOOKS.push(
   { id: 'gravemist', name: 'Graveyard Mist', cloak: { p: '#3f4f45', P: '#1c2620' }, aura: '#b5e07a', ...hallowed(700) },
   { id: 'vampcape', name: 'Vampire Cape', cloak: { p: '#141119', P: '#8a1f2c' }, aura: '#ff4d5a', ...hallowed(900) },
   { id: 'banshee', name: 'Banshee Shroud', cloak: { p: '#dfe8f2', P: '#8fa4c0' }, aura: '#c9f2ff', ...hallowed(1100) },
+);
+
+const harvested = (cost: number) => ({ unlock: { cost, season: 'harvest' as const }, how: `Sold in the Ossuary during the Harvest Feast (November 16 to November 30) for ${cost.toLocaleString()} Souls.` });
+LOOKS.push(
+  { id: 'harvestmantle', name: 'Harvest Mantle', cloak: { p: '#c0662a', P: '#5a2e12' }, aura: '#ffb35a', unlock: { season: 'harvest' }, how: 'Play any run during the Harvest Feast (November 16 to November 30).' },
+  { id: 'autumnleaf', name: 'Autumn Leaves', cloak: { p: '#e0a030', P: '#b5401f' }, aura: '#ffd23f', ...harvested(400) },
+  { id: 'cranberry', name: 'Cranberry Cloak', cloak: { p: '#9a2042', P: '#3e0b1c' }, aura: null, ...harvested(500) },
+  { id: 'cornsilk', name: 'Cornsilk', cloak: { p: '#e8c25a', P: '#7a5a1a' }, aura: '#fff2c0', ...harvested(700) },
+);
+
+const wintry = (cost: number) => ({ unlock: { cost, season: 'midwinter' as const }, how: `Sold in the Ossuary during Midwinter (December 1 to January 6) for ${cost.toLocaleString()} Souls.` });
+LOOKS.push(
+  { id: 'midwintermantle', name: 'Midwinter Mantle', cloak: { p: '#2e7d4f', P: '#8a1f2c' }, aura: '#ffffff', unlock: { season: 'midwinter' }, how: 'Play any run during Midwinter (December 1 to January 6).' },
+  { id: 'snowfall', name: 'Snowfall', cloak: { p: '#eef3fb', P: '#9fb4cc' }, aura: '#ffffff', ...wintry(400) },
+  { id: 'holly', name: 'Holly and Berry', cloak: { p: '#1f6b3a', P: '#0f3a1f' }, aura: '#ff4d5a', ...wintry(500) },
+  { id: 'gingerbread', name: 'Gingerbread', cloak: { p: '#b8692e', P: '#6b3a17' }, aura: '#fff2c0', ...wintry(600) },
+  { id: 'frostgiant', name: 'Frost Giant', cloak: { p: '#7fc8ff', P: '#2a5a8a' }, aura: '#c9f2ff', ...wintry(800) },
+  { id: 'krampus', name: 'Krampus Fur', cloak: { p: '#4a3428', P: '#120b08' }, aura: '#ff4d5a', ...wintry(900) },
+  { id: 'aurora', name: 'Aurora', cloak: { p: '#5fd3a6', P: '#5a3a9a' }, aura: '#9fe8ff', ...wintry(1200) },
 );
 
 export const LOOK_BY_ID = Object.fromEntries(LOOKS.map((l) => [l.id, l])) as Record<string, LookDef>;
@@ -359,6 +383,16 @@ export const DECOR: DecorDef[] = [
   { id: 'bats', name: 'Bat Swarm', emoji: '🦇', cost: 900, desc: 'Bats that flit across your Hall, forever.', season: 'halloween' },
   { id: 'cauldron', name: "Witch's Cauldron", emoji: '🧪', cost: 1200, desc: 'A great iron pot of green brew that never stops bubbling.', season: 'halloween' },
   { id: 'ghosts', name: 'Wandering Ghosts', emoji: '👻', cost: 1800, desc: 'Two pale ghosts that drift through your Hall and pass through the walls.', season: 'halloween' },
+  { id: 'leafgarland', name: 'Autumn Garland', emoji: '🍁', cost: 400, desc: 'Red, orange and gold leaves strung along the top of the wall.', season: 'harvest' },
+  { id: 'hay', name: 'Hay Bales and Gourds', emoji: '🌾', cost: 500, desc: 'A hay bale stacked with squash and gourds by the wall.', season: 'harvest' },
+  { id: 'feast', name: 'The Harvest Table', emoji: '🦃', cost: 900, desc: 'A long table laid with a roast, a pie and candles that flicker.', season: 'harvest' },
+  { id: 'wreaths', name: 'Holly Wreaths', emoji: '🎄', cost: 400, desc: 'A wreath with a red bow on each of your trophy frames.', season: 'midwinter' },
+  { id: 'stringlights', name: 'Twinkle Lights', emoji: '💡', cost: 500, desc: 'Coloured lights strung along the wall, twinkling in turn.', season: 'midwinter' },
+  { id: 'stockings', name: 'Stockings', emoji: '🧦', cost: 600, desc: 'A row of stockings hung on the wall, one bulging.', season: 'midwinter' },
+  { id: 'presents', name: 'Pile of Presents', emoji: '🎁', cost: 700, desc: 'Wrapped boxes stacked by the wall, ribbons and all.', season: 'midwinter' },
+  { id: 'snowman', name: 'Snowman', emoji: '⛄', cost: 900, desc: 'A snowman with a coal smile and a carrot nose, somehow not melting.', season: 'midwinter' },
+  { id: 'hallsnow', name: 'Indoor Snowfall', emoji: '❄️', cost: 1200, desc: 'Snow drifting down through your Hall, forever.', season: 'midwinter' },
+  { id: 'xmastree', name: 'Midwinter Tree', emoji: '🌲', cost: 1500, desc: 'A tall tree hung with lights that twinkle, and a star on top.', season: 'midwinter' },
 ];
 export const DECOR_BY_ID = Object.fromEntries(DECOR.map((d) => [d.id, d])) as Record<string, DecorDef>;
 
@@ -487,6 +521,20 @@ export const HEADS: HeadDef[] = [
   { id: 'ghostsheet', name: 'Ghost Sheet', ...hallowed(700), pixels: [...row(0, 4, 7, '#f2f2f2'), ...row(1, 3, 8, '#f2f2f2'), ...row(2, 2, 9, '#f2f2f2'), ...row(3, 2, 9, '#f2f2f2'), [4, 3, '#0d0812'], [7, 3, '#0d0812'], ...row(4, 2, 9, '#e2e6ee'), [5, 4, '#0d0812'], [6, 4, '#0d0812'], ...row(5, 2, 9, '#d2d8e2'), [2, 6, '#c8d0dc'], [4, 6, '#c8d0dc'], [7, 6, '#c8d0dc'], [9, 6, '#c8d0dc']] },
   { id: 'mummy', name: 'Mummy Wraps', ...hallowed(800), pixels: [...row(1, 3, 8, '#d8d2c2'), ...row(2, 3, 8, '#b8b0a0'), ...row(3, 4, 7, '#d8d2c2'), [4, 4, '#b8b0a0'], [5, 4, '#ffd23f'], [6, 4, '#b8b0a0'], [7, 4, '#b8b0a0'], [3, 3, '#b8b0a0'], [8, 3, '#d8d2c2'], [9, 2, '#d8d2c2'], [10, 3, '#d8d2c2']] },
   { id: 'vampire', name: 'Vampire Count', ...hallowed(900), pixels: [...row(1, 3, 8, '#141119'), [3, 2, '#141119'], [4, 2, '#e8e0e8'], [5, 2, '#141119'], [6, 2, '#141119'], [7, 2, '#e8e0e8'], [8, 2, '#141119'], ...row(3, 4, 7, '#e8e0e8'), [4, 4, '#e8e0e8'], [5, 4, RED], [6, 4, '#e8e0e8'], [7, 4, RED], [5, 5, '#ffffff'], [6, 5, '#701826'], [7, 5, '#ffffff']] },
+  // The Harvest Feast: sold only November 16 to 30.
+  { id: 'acorncap', name: 'Acorn Cap', ...harvestHead(400), pixels: [[5, 0, '#5a3a1a'], [6, 0, '#5a3a1a'], ...row(1, 3, 8, '#8a5a28'), ...row(2, 2, 9, '#a8743a'), [3, 1, '#6b4420'], [5, 1, '#6b4420'], [7, 1, '#6b4420'], [4, 2, '#8a5a28'], [6, 2, '#8a5a28'], [8, 2, '#8a5a28']] },
+  { id: 'leafcrown', name: 'Autumn Wreath', ...harvestHead(500), pixels: [[2, 2, '#d9822b'], [3, 1, '#c0392b'], [4, 1, '#ffd23f'], [5, 0, '#d9822b'], [6, 0, '#c0392b'], [7, 1, '#ffd23f'], [8, 1, '#d9822b'], [9, 2, '#c0392b'], [3, 2, '#8a3b12'], [8, 2, '#8a3b12'], [5, 1, '#e67e22'], [6, 1, '#8a3b12']] },
+  { id: 'buckle', name: 'Buckle Hat', ...harvestHead(650), pixels: [...row(0, 4, 7, '#4a4458'), ...row(1, 4, 7, '#3d3546'), ...row(2, 4, 7, '#2a2433'), [5, 2, GOLD], [6, 2, GOLD], [4, 0, '#5d5568'], ...row(3, 2, 9, '#4a4458'), [2, 3, '#5d5568']] },
+  { id: 'turkeyhat', name: 'Roast Turkey Hat', ...harvestHead(800), pixels: [...row(0, 4, 7, '#c0702a'), ...row(1, 3, 8, '#a8581f'), ...row(2, 3, 8, '#8a4418'), [5, 0, '#f0b070'], [4, 1, '#d98a3a'], [5, 1, '#e09a50'], [3, 1, '#c0702a'], [2, 2, '#c0702a'], [2, 1, '#d98a3a'], [1, 0, '#ffffff'], [9, 2, '#c0702a'], [9, 1, '#d98a3a'], [10, 0, '#ffffff'], ...row(3, 2, 9, '#e8e0d0')] },
+  // Midwinter: sold only December 1 to January 6.
+  { id: 'hollycrown', name: 'Holly Crown', ...winterHead(400), pixels: [[3, 1, '#1f6b3a'], [4, 1, '#2e8a4c'], [5, 0, RED], [6, 0, RED], [5, 1, '#1f6b3a'], [6, 1, '#2e8a4c'], [7, 1, '#1f6b3a'], [8, 1, '#2e8a4c'], [2, 2, '#1f6b3a'], [9, 2, '#1f6b3a'], [4, 0, '#ff4d5a']] },
+  { id: 'earmuffs', name: 'Earmuffs', ...winterHead(400), pixels: [...row(0, 4, 7, '#9aa3b5'), [3, 1, '#9aa3b5'], [8, 1, '#9aa3b5'], [1, 3, '#e8a0c0'], [2, 3, '#ff9ab0'], [1, 4, '#ff9ab0'], [2, 4, '#e8a0c0'], [9, 3, '#e8a0c0'], [10, 3, '#ff9ab0'], [9, 4, '#ff9ab0'], [10, 4, '#e8a0c0'], [2, 2, '#9aa3b5'], [9, 2, '#9aa3b5']] },
+  { id: 'elfhat', name: 'Elf Hat', ...winterHead(450), pixels: [[8, 0, GOLD], [7, 0, '#2e8a4c'], [6, 0, '#2e8a4c'], ...row(1, 4, 7, '#2e8a4c'), [8, 1, '#1f6b3a'], ...row(2, 3, 8, RED), [4, 1, '#3aa860']] },
+  { id: 'bobble', name: 'Bobble Hat', ...winterHead(450), pixels: [[5, 0, '#ffffff'], [6, 0, '#ffffff'], ...row(1, 4, 7, '#5fa8ff'), ...row(2, 3, 8, '#ffffff'), ...row(3, 3, 8, '#5fa8ff'), [4, 1, '#ffffff'], [6, 1, '#ffffff']] },
+  { id: 'santahat', name: 'Winter Hat', ...winterHead(500), pixels: [[9, 1, '#ffffff'], [8, 0, RED], [7, 0, RED], ...row(1, 4, 8, RED), [6, 0, RED], ...row(2, 3, 8, '#ffffff'), [5, 1, '#ff4d5a']] },
+  { id: 'reindeer', name: 'Reindeer Antlers', ...winterHead(550), pixels: [[3, 2, '#8a5a28'], [2, 1, '#8a5a28'], [1, 0, '#a8743a'], [3, 0, '#a8743a'], [2, 0, '#8a5a28'], [8, 2, '#8a5a28'], [9, 1, '#8a5a28'], [10, 0, '#a8743a'], [8, 0, '#a8743a'], [9, 0, '#8a5a28'], [6, 5, '#ff4d5a']] },
+  { id: 'snowmanhat', name: 'Snowman', ...winterHead(700), pixels: [...row(0, 4, 7, '#141119'), ...row(1, 4, 7, '#141119'), [5, 1, RED], [6, 1, RED], ...row(2, 3, 8, '#141119'), ...row(3, 3, 8, '#f2f6fb'), [4, 4, '#f2f6fb'], [5, 4, '#141119'], [6, 4, '#f2f6fb'], [7, 4, '#141119'], [3, 4, '#f2f6fb'], [8, 4, '#f2f6fb'], [6, 5, '#ff8a2a'], [7, 5, '#ff8a2a'], [8, 5, '#e06a1a']] },
+  { id: 'starcrown', name: 'Star of Midwinter', ...winterHead(900), pixels: [[5, 0, '#fff2c0'], [6, 0, '#fff2c0'], [4, 1, GOLD], [5, 1, '#ffffff'], [6, 1, '#ffffff'], [7, 1, GOLD], [3, 1, '#a8781f'], [8, 1, '#a8781f'], [5, 2, GOLD], [6, 2, GOLD], [4, 2, '#a8781f'], [7, 2, '#a8781f']] },
   { id: 'monster', name: 'Stitched Monster', ...hallowed(900), pixels: [...row(0, 4, 7, '#141119'), ...row(1, 3, 8, '#141119'), ...row(2, 3, 8, '#7f9a52'), [4, 2, '#2a2a2a'], [5, 2, '#2a2a2a'], [6, 2, '#2a2a2a'], ...row(3, 4, 7, '#7f9a52'), [4, 4, '#7f9a52'], [5, 4, '#f2f2f2'], [6, 4, '#7f9a52'], [7, 4, '#f2f2f2'], [1, 4, '#9aa3b5'], [2, 4, '#5d667a'], [9, 4, '#5d667a'], [10, 4, '#9aa3b5']] },
   // Legendary: skulls circle your head in the crypt.
   { id: 'skullhalo', name: 'Halo of Skulls', ...sold(10000), pixels: [...row(0, 3, 8, '#fff2c0'), [2, 1, GOLD], [9, 1, GOLD]] },
@@ -603,7 +651,8 @@ export interface Outfit {
 export type AuraStyle =
   | 'candle' | 'ember' | 'tide' | 'bone' | 'abyss' | 'void' | 'rays' | 'sunburst' | 'flame'
   | 'wisps' | 'snow' | 'storm' | 'mist' | 'souls' | 'crown' | 'eternity' | 'rainbow' | 'bell'
-  | 'shards' | 'blades' | 'banner' | 'eclipse' | 'reaper' | 'favour' | 'zapper' | 'vespers' | 'bulbs';
+  | 'shards' | 'blades' | 'banner' | 'eclipse' | 'reaper' | 'favour' | 'zapper' | 'vespers' | 'bulbs'
+  | 'leaves' | 'snowglobe' | 'fairylights';
 
 export type AuraUnlock =
   | { floor: number }
@@ -682,6 +731,11 @@ export const AURAS: AuraDef[] = [
   { id: 'bloodmist', name: 'Bloodmist', style: 'mist', color: '#d23a46', ...auraSold(10000) },
   // The Hallowed Season.
   { id: 'hallowedwisps', name: 'Hallowed Wisps', style: 'wisps', color: '#ff8a2a', unlock: { cost: 3000, season: 'halloween' }, how: 'Sold in the Ossuary during the Hallowed Season (October 19 to November 2) for 3,000 Souls.' },
+  // The Harvest Feast.
+  { id: 'fallingleaves', name: 'Falling Leaves', style: 'leaves', color: '#e67e22', unlock: { cost: 2500, season: 'harvest' }, how: 'Sold in the Ossuary during the Harvest Feast (November 16 to November 30) for 2,500 Souls.' },
+  // Midwinter.
+  { id: 'fairylights', name: 'Fairy Lights', style: 'fairylights', color: '#ffd23f', unlock: { cost: 2500, season: 'midwinter' }, how: 'Sold in the Ossuary during Midwinter (December 1 to January 6) for 2,500 Souls.' },
+  { id: 'snowglobe', name: 'Snow Globe', style: 'snowglobe', color: '#c9f2ff', unlock: { cost: 3500, season: 'midwinter' }, how: 'Sold in the Ossuary during Midwinter (December 1 to January 6) for 3,500 Souls.' },
 ];
 
 export const AURA_BY_ID = Object.fromEntries(AURAS.map((a) => [a.id, a])) as Record<string, AuraDef>;

@@ -518,6 +518,308 @@ function jackOLantern(ctx: CanvasRenderingContext2D, x: number, y: number, s: nu
   p(4, 4, 4, 3, '#c4601a');
 }
 
+// ---------- the Harvest Feast ----------
+
+const LEAVES = ['#e67e22', '#c0392b', '#ffd23f', '#a8581f'];
+
+/** Leaves strung on twine along the top of the wall, stirring. */
+function leafGarland(ctx: CanvasRenderingContext2D, t: number) {
+  for (const [x0, x1] of [[130, 470], [490, 830]]) {
+    const y = (x: number) => 158 + Math.sin(((x - x0) / (x1 - x0)) * Math.PI) * 20;
+    ctx.strokeStyle = '#6b4a2a';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x0, y(x0));
+    for (let x = x0; x <= x1; x += 8) ctx.lineTo(x, y(x));
+    ctx.stroke();
+    for (let i = 0; i < 14; i++) {
+      const x = x0 + ((i + 0.5) / 14) * (x1 - x0);
+      const tilt = Math.sin(t * 1.4 + i * 1.3) * 2;
+      const c = LEAVES[i % LEAVES.length];
+      // a pointed leaf hanging from the twine, with a darker vein
+      ctx.fillStyle = c;
+      ctx.fillRect(x - 6 + tilt, y(x) + 2, 12, 10);
+      ctx.fillRect(x - 3 + tilt, y(x) + 12, 6, 6);
+      ctx.fillRect(x - 9 + tilt, y(x) + 4, 3, 5);
+      ctx.fillRect(x + 6 + tilt, y(x) + 4, 3, 5);
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect(x - 1 + tilt, y(x) + 2, 2, 14);
+    }
+  }
+}
+
+/** A hay bale by the wall with squash and gourds piled on and around it. */
+function hayBale(ctx: CanvasRenderingContext2D, x: number) {
+  ctx.fillStyle = '#c4a046';
+  ctx.fillRect(x - 46, 424, 92, 42);
+  ctx.fillStyle = '#d9b85a';
+  ctx.fillRect(x - 46, 424, 92, 6);
+  ctx.fillStyle = '#a8862e';
+  for (let i = 0; i < 8; i++) ctx.fillRect(x - 42 + i * 11, 432 + (i % 3) * 9, 6, 2);
+  ctx.fillStyle = '#6b4a2a';
+  ctx.fillRect(x - 24, 424, 3, 42);
+  ctx.fillRect(x + 21, 424, 3, 42);
+  const gourd = (gx: number, gy: number, w: number, h: number, c: string, stem = '#3d6b2a') => {
+    ctx.fillStyle = c;
+    ctx.fillRect(gx - w / 2, gy - h, w, h);
+    ctx.fillRect(gx - w / 2 + 2, gy - h - 2, w - 4, h + 4);
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.fillRect(gx - 1, gy - h, 2, h);
+    ctx.fillStyle = stem;
+    ctx.fillRect(gx - 2, gy - h - 6, 4, 5);
+  };
+  gourd(x - 22, 424, 26, 18, '#e67e22');
+  gourd(x + 12, 424, 18, 14, '#e8c25a');
+  gourd(x + 30, 424, 14, 22, '#5f8a3a');
+  gourd(x + 58, 466, 24, 16, '#d35400');
+  gourd(x - 60, 466, 16, 12, '#f2e2b0', '#6b4a2a');
+}
+
+/** The harvest table: a long cloth-covered board with a roast, a pie and two candles. */
+function harvestTable(ctx: CanvasRenderingContext2D, x: number, t: number) {
+  // legs and top
+  ctx.fillStyle = '#4a3220';
+  ctx.fillRect(x - 70, 432, 8, 34);
+  ctx.fillRect(x + 62, 432, 8, 34);
+  ctx.fillStyle = '#6b4a2a';
+  ctx.fillRect(x - 78, 424, 156, 10);
+  ctx.fillStyle = '#e8dcc4';
+  ctx.fillRect(x - 74, 422, 148, 6);
+  ctx.fillStyle = '#c0392b';
+  ctx.fillRect(x - 30, 422, 60, 14);
+  // the roast on its platter
+  ctx.fillStyle = '#c9c3b2';
+  ctx.fillRect(x - 26, 418, 52, 5);
+  ctx.fillStyle = '#a8581f';
+  ctx.fillRect(x - 18, 402, 36, 16);
+  ctx.fillRect(x - 14, 398, 28, 4);
+  ctx.fillStyle = '#c0702a';
+  ctx.fillRect(x - 14, 402, 12, 6);
+  ctx.fillStyle = '#f2f2f2';
+  ctx.fillRect(x - 24, 400, 6, 4);
+  ctx.fillRect(x + 18, 400, 6, 4);
+  // a pie, with lattice
+  ctx.fillStyle = '#c4a046';
+  ctx.fillRect(x + 32, 412, 28, 10);
+  ctx.fillStyle = '#8a3b12';
+  for (let i = 0; i < 3; i++) ctx.fillRect(x + 35 + i * 8, 412, 3, 10);
+  // candles, flickering
+  for (const cxp of [x - 56, x - 42]) {
+    ctx.fillStyle = '#e8dcc4';
+    ctx.fillRect(cxp - 3, 398, 6, 24);
+    const f = Math.sin(t * 9 + cxp) > 0 ? 1 : 0;
+    ctx.fillStyle = '#ffd23f';
+    ctx.fillRect(cxp - 2, 390 - f, 4, 7 + f);
+    const g = ctx.createRadialGradient(cxp, 392, 2, cxp, 392, 34);
+    g.addColorStop(0, 'rgba(255,200,90,0.3)');
+    g.addColorStop(1, 'rgba(255,200,90,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(cxp - 34, 358, 68, 68);
+  }
+}
+
+// ---------- Midwinter ----------
+
+const BULB_COLORS = ['#ff4d5a', '#ffd23f', '#5fd36a', '#5fe3ff', '#b07cff'];
+
+/** Coloured lights along the top of the wall, lighting up in turn. */
+function stringLights(ctx: CanvasRenderingContext2D, t: number) {
+  for (const [x0, x1] of [[130, 470], [490, 830]]) {
+    const y = (x: number) => 156 + Math.sin(((x - x0) / (x1 - x0)) * Math.PI) * 26;
+    ctx.strokeStyle = '#1f3a24';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x0, y(x0));
+    for (let x = x0; x <= x1; x += 8) ctx.lineTo(x, y(x));
+    ctx.stroke();
+    const n = 12;
+    for (let i = 0; i < n; i++) {
+      const x = x0 + ((i + 0.5) / n) * (x1 - x0);
+      const c = BULB_COLORS[i % BULB_COLORS.length];
+      const on = Math.sin(t * 2.2 - i * 0.9) > -0.2;
+      if (on) {
+        const g = ctx.createRadialGradient(x, y(x) + 8, 1, x, y(x) + 8, 16);
+        g.addColorStop(0, c + '88');
+        g.addColorStop(1, c + '00');
+        ctx.fillStyle = g;
+        ctx.fillRect(x - 16, y(x) - 8, 32, 32);
+      }
+      ctx.fillStyle = '#3a3346';
+      ctx.fillRect(x - 2, y(x), 4, 3);
+      ctx.fillStyle = on ? c : '#4a4458';
+      ctx.fillRect(x - 3, y(x) + 3, 6, 9);
+    }
+  }
+}
+
+/** A holly wreath with a red bow, hung on a trophy frame. */
+function wreath(ctx: CanvasRenderingContext2D, x: number, y: number) {
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2;
+    ctx.fillStyle = i % 2 ? '#1f6b3a' : '#2e8a4c';
+    ctx.fillRect(x + Math.cos(a) * 18 - 5, y + Math.sin(a) * 18 - 5, 10, 10);
+  }
+  ctx.fillStyle = '#d23a46';
+  for (const a of [0.6, 2.2, 3.6, 5.0]) ctx.fillRect(x + Math.cos(a) * 18 - 2, y + Math.sin(a) * 18 - 2, 4, 4);
+  // the bow at the bottom, its tails hanging
+  ctx.fillStyle = '#d23a46';
+  ctx.fillRect(x - 12, y + 14, 9, 8);
+  ctx.fillRect(x + 3, y + 14, 9, 8);
+  ctx.fillStyle = '#a5293a';
+  ctx.fillRect(x - 3, y + 15, 6, 6);
+  ctx.fillRect(x - 6, y + 22, 4, 10);
+  ctx.fillRect(x + 2, y + 22, 4, 10);
+}
+
+/** Stockings hung from a line on the wall, swaying a little; one is full to bursting. */
+function stockings(ctx: CanvasRenderingContext2D, t: number) {
+  ctx.fillStyle = '#5a4030';
+  ctx.fillRect(612, 376, 196, 4);
+  const colors: [string, string][] = [['#d23a46', '#ffffff'], ['#2e8a4c', '#ffffff'], ['#5a3a9a', '#f2c14e'], ['#d23a46', '#ffffff']];
+  colors.forEach(([body, cuff], i) => {
+    const x = 632 + i * 46;
+    const sway = Math.round(Math.sin(t * 1.3 + i) * 1.5);
+    ctx.fillStyle = cuff;
+    ctx.fillRect(x - 10 + sway, 380, 20, 8);
+    ctx.fillStyle = body;
+    ctx.fillRect(x - 8 + sway, 388, 16, 26);
+    ctx.fillRect(x - 8 + sway, 408, 24, 10);
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.fillRect(x - 8 + sway, 398, 16, 2);
+    // the full one: a candy cane and a present poking out
+    if (i === 2) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x - 6 + sway, 368, 3, 14);
+      ctx.fillRect(x - 6 + sway, 366, 8, 3);
+      ctx.fillStyle = '#d23a46';
+      ctx.fillRect(x - 6 + sway, 372, 3, 2);
+      ctx.fillRect(x - 6 + sway, 377, 3, 2);
+      ctx.fillStyle = '#5fe3ff';
+      ctx.fillRect(x + 1 + sway, 370, 9, 10);
+      ctx.fillStyle = '#ffd23f';
+      ctx.fillRect(x + 4 + sway, 370, 2, 10);
+    }
+  });
+}
+
+/** A tall tree hung with lights that twinkle in turn, a gold star on top. */
+function midwinterTree(ctx: CanvasRenderingContext2D, x: number, t: number) {
+  const glow = ctx.createRadialGradient(x, 410, 10, x, 410, 110);
+  glow.addColorStop(0, 'rgba(255,210,120,0.18)');
+  glow.addColorStop(1, 'rgba(255,210,120,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(x - 110, 300, 220, 170);
+  ctx.fillStyle = '#5a3a1a';
+  ctx.fillRect(x - 6, 450, 12, 16);
+  // three tiers of branches, widest at the bottom
+  const tiers: [number, number, number][] = [[352, 386, 26], [378, 418, 38], [408, 452, 50]];
+  for (const [top, bottom, half] of tiers) {
+    for (let y = top; y < bottom; y += 4) {
+      const w = Math.round(((y - top) / (bottom - top)) * half) + 4;
+      ctx.fillStyle = (y / 4) % 2 ? '#1f6b3a' : '#24784a';
+      ctx.fillRect(x - w, y, w * 2, 4);
+    }
+    ctx.fillStyle = '#16502c';
+    ctx.fillRect(x - half - 4, bottom - 4, (half + 4) * 2, 4);
+  }
+  // lights
+  const lights: [number, number][] = [[-10, 372], [12, 380], [-24, 400], [6, 404], [26, 410], [-34, 430], [-10, 436], [16, 440], [38, 444], [-44, 448]];
+  lights.forEach(([dx, y], i) => {
+    const c = BULB_COLORS[i % BULB_COLORS.length];
+    const on = Math.sin(t * 2.6 + i * 1.7) > -0.1;
+    ctx.fillStyle = on ? c : '#3a3346';
+    ctx.fillRect(x + dx - 2, y - 2, 5, 5);
+    if (on) {
+      ctx.fillStyle = c + '55';
+      ctx.fillRect(x + dx - 5, y - 5, 11, 11);
+    }
+  });
+  // the star, pulsing
+  const p = 0.7 + 0.3 * Math.sin(t * 3);
+  ctx.fillStyle = `rgba(255,242,192,${0.35 * p})`;
+  ctx.fillRect(x - 12, 332, 24, 24);
+  ctx.fillStyle = '#f2c14e';
+  ctx.fillRect(x - 3, 336, 6, 16);
+  ctx.fillRect(x - 8, 341, 16, 6);
+  ctx.fillStyle = '#fff2c0';
+  ctx.fillRect(x - 2, 341, 4, 6);
+}
+
+/** Wrapped presents stacked by the wall, either side of where the tree stands. */
+function presents(ctx: CanvasRenderingContext2D) {
+  const box = (x: number, w: number, h: number, c: string, ribbon: string, base = 466) => {
+    ctx.fillStyle = c;
+    ctx.fillRect(x, base - h, w, h);
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.fillRect(x, base - h, w, 3);
+    ctx.fillStyle = ribbon;
+    ctx.fillRect(x + w / 2 - 2, base - h, 4, h);
+    ctx.fillRect(x, base - h / 2 - 2, w, 4);
+    ctx.fillRect(x + w / 2 - 8, base - h - 5, 6, 5);
+    ctx.fillRect(x + w / 2 + 2, base - h - 5, 6, 5);
+  };
+  box(268, 30, 24, '#d23a46', '#f2c14e');
+  box(296, 22, 30, '#2e8a4c', '#ffffff');
+  box(274, 18, 16, '#5fe3ff', '#d23a46', 442);
+  box(374, 26, 20, '#5a3a9a', '#f2c14e');
+  box(398, 30, 28, '#f2c14e', '#d23a46');
+}
+
+/** A snowman by the wall: three balls of snow, coal eyes, a carrot nose and a scarf that flutters. */
+function snowman(ctx: CanvasRenderingContext2D, x: number, t: number) {
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.fillRect(x - 30, 462, 60, 5);
+  const ball = (cy: number, r: number) => {
+    ctx.fillStyle = '#e8eef6';
+    ctx.fillRect(x - r, cy - r + 4, r * 2, r * 2 - 8);
+    ctx.fillRect(x - r + 4, cy - r, r * 2 - 8, r * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(x - r + 6, cy - r + 2, r - 4, 4);
+    ctx.fillStyle = '#c9d4e2';
+    ctx.fillRect(x - r + 4, cy + r - 6, r * 2 - 8, 4);
+  };
+  ball(446, 20);
+  ball(414, 14);
+  ball(390, 10);
+  // coal buttons, eyes and smile; the carrot nose
+  ctx.fillStyle = '#141119';
+  for (const by of [408, 418, 440, 450]) ctx.fillRect(x - 2, by, 4, 4);
+  ctx.fillRect(x - 5, 386, 3, 3);
+  ctx.fillRect(x + 2, 386, 3, 3);
+  for (const dx of [-5, -2, 1]) ctx.fillRect(x + dx, 395, 2, 2);
+  ctx.fillStyle = '#ff8a2a';
+  ctx.fillRect(x, 390, 9, 3);
+  // a scarf, its tail fluttering, and a black hat
+  ctx.fillStyle = '#d23a46';
+  ctx.fillRect(x - 12, 399, 24, 5);
+  ctx.fillRect(x + 5, 403, 6, 11 + Math.round(Math.sin(t * 2) * 2));
+  ctx.fillStyle = '#141119';
+  ctx.fillRect(x - 12, 378, 24, 4);
+  ctx.fillRect(x - 7, 364, 14, 14);
+  ctx.fillStyle = '#d23a46';
+  ctx.fillRect(x - 7, 374, 14, 3);
+  // twig arms
+  ctx.fillStyle = '#5a3a1a';
+  ctx.fillRect(x - 30, 410, 16, 3);
+  ctx.fillRect(x - 32, 404, 3, 6);
+  ctx.fillRect(x + 14, 408, 16, 3);
+  ctx.fillRect(x + 28, 402, 3, 6);
+}
+
+/** Snow drifting down through the whole Hall. */
+function hallSnow(ctx: CanvasRenderingContext2D, t: number) {
+  ctx.fillStyle = '#ffffff';
+  for (let i = 0; i < 46; i++) {
+    const speed = 22 + (i % 5) * 7;
+    const y = ((t * speed + i * 97) % (H + 20)) - 10;
+    const x = ((i * 211) % W) + Math.sin(t * 0.9 + i) * 14;
+    const s = i % 4 === 0 ? 4 : 3;
+    ctx.globalAlpha = 0.45 + (i % 3) * 0.15;
+    ctx.fillRect(Math.round(x), Math.round(y), s, s);
+  }
+  ctx.globalAlpha = 1;
+}
+
 function bats(ctx: CanvasRenderingContext2D, t: number) {
   for (let i = 0; i < 5; i++) {
     const speed = 60 + i * 17;
@@ -743,8 +1045,19 @@ function drawDecor(ctx: CanvasRenderingContext2D, d: HallData, t: number, layer:
   if (layer === 'air') {
     if (has('bats')) bats(ctx, t);
     if (has('ghosts')) ghosts(ctx, t);
+    if (has('hallsnow')) hallSnow(ctx, t);
     return;
   }
+  // The Harvest Feast and Midwinter, behind the Hallowed pieces.
+  if (has('leafgarland')) leafGarland(ctx, t);
+  if (has('stringlights')) stringLights(ctx, t);
+  if (has('wreaths')) for (const x of [232, 480, 728]) wreath(ctx, x, 190);
+  if (has('hay')) hayBale(ctx, 72);
+  if (has('feast')) harvestTable(ctx, 500, t);
+  if (has('stockings')) stockings(ctx, t);
+  if (has('xmastree')) midwinterTree(ctx, 342, t);
+  if (has('presents')) presents(ctx);
+  if (has('snowman')) snowman(ctx, 180, t);
   if (has('cobwebs')) cobwebs(ctx, t);
   if (has('garland')) garland(ctx, t);
   if (has('cauldron')) cauldron(ctx, 896, t);

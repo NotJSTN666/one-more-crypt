@@ -271,6 +271,20 @@ function drawBack(ctx: Ctx, a: AuraDef, cx: number, feet: number, mid: number, w
       bodyGlow(ctx, cx, mid, w * 0.95, a.color, 0.16 * pulse);
       orbit(t, 5, 0.7, (i, x, y, front) => !front && vesperCandle(px, cx + x * w * 0.6, mid + y * w * 0.2, k, t, i, 0.6));
       break;
+    case 'leaves':
+      // An autumn glow, and leaves tumbling down past the hero.
+      bodyGlow(ctx, cx, mid, w * 0.95, a.color, 0.14 * pulse);
+      fallingLeaves(px, cx, feet, w, k, t, false);
+      break;
+    case 'fairylights':
+      // A string of coloured lights wound round the hero, twinkling in turn.
+      bodyGlow(ctx, cx, mid, w * 0.9, a.color, 0.12 * pulse);
+      fairyLights(ctx, px, cx, mid, w, k, t, false);
+      break;
+    case 'snowglobe':
+      // The hero inside a snow globe: a faint glass dome, snow swirling down within.
+      snowGlobe(ctx, px, cx, feet, w, k, t, false);
+      break;
     case 'bulbs':
       // A warm glow, and light bulbs circling the hero, each flicking on with an idea.
       bodyGlow(ctx, cx, mid, w * 1.0, a.color, 0.18 * pulse);
@@ -390,6 +404,15 @@ function drawFront(ctx: Ctx, a: AuraDef, cx: number, feet: number, mid: number, 
     case 'bulbs':
       ideaBulbs(px, cx, mid, w, k, t, true, a.color);
       break;
+    case 'leaves':
+      fallingLeaves(px, cx, feet, w, k, t, true);
+      break;
+    case 'fairylights':
+      fairyLights(ctx, px, cx, mid, w, k, t, true);
+      break;
+    case 'snowglobe':
+      snowGlobe(ctx, px, cx, feet, w, k, t, true);
+      break;
     case 'reaper':
       // Pale souls drawn in toward the hero, fading as they arrive.
       orbit(t, 3, 0.9, (i, x, y, front) => {
@@ -498,6 +521,110 @@ function orbit(t: number, n: number, speed: number, each: (i: number, x: number,
     const ang = t * speed + (i * Math.PI * 2) / n;
     each(i, Math.cos(ang), Math.sin(ang), Math.sin(ang) >= 0);
   }
+}
+
+// ---------- the seasons after Halloween ----------
+
+const LEAF_COLORS = ['#e67e22', '#c0392b', '#ffd23f', '#a8581f'];
+
+/** Leaves falling from above the hero's head, swaying side to side, some behind and some in front. */
+function fallingLeaves(px: Px, cx: number, feet: number, w: number, k: number, t: number, front: boolean) {
+  const n = 7;
+  for (let i = 0; i < n; i++) {
+    const p = (t / 3.2 + i / n) % 1;
+    const sway = Math.sin(t * 1.8 + i * 2.1);
+    // Each leaf crosses in front of the hero, then behind, as it drifts.
+    if ((Math.cos(t * 0.9 + i * 1.7) >= 0) !== front) continue;
+    // Spread across the hero's width: each leaf has its own lane.
+    const lane = [0.1, 0.8, 0.35, 0.95, 0.55, 0.2, 0.7][i] - 0.5;
+    const x = cx + lane * w * 1.4 + sway * w * 0.12;
+    const y = feet - w * 1.25 + p * w * 1.25;
+    const c = LEAF_COLORS[i % LEAF_COLORS.length];
+    const a = Math.min(1, (1 - p) * 4) * Math.min(1, p * 6);
+    // A small leaf that tips as it sways: a body, a tip and a stem.
+    const tip = sway > 0 ? 1 : -1;
+    px(x - k / 2, y - k / 2, k, c, a);
+    px(x - k / 2 + tip * k, y - k * 1.5, k, c, a * 0.9);
+    px(x - k / 2 - tip * k, y + k / 2, k, '#5a2e12', a * 0.8);
+  }
+}
+
+const FAIRY_COLORS = ['#ff4d5a', '#ffd23f', '#5fd36a', '#5fe3ff', '#b07cff'];
+
+/** Coloured lights on a dark wire, wound twice round the hero and slowly turning. */
+function fairyLights(ctx: Ctx, px: Px, cx: number, mid: number, w: number, k: number, t: number, front: boolean) {
+  const n = 14;
+  const pts: { x: number; y: number; f: boolean; i: number }[] = [];
+  for (let i = 0; i < n; i++) {
+    // A turn and a half of a spiral from the shoulders down to the knees.
+    const ang = t * 0.7 + (i / n) * Math.PI * 3;
+    pts.push({ x: cx + Math.cos(ang) * w * 0.55, y: mid - w * 0.32 + (i / (n - 1)) * w * 0.62 + Math.sin(ang) * w * 0.08, f: Math.sin(ang) >= 0, i });
+  }
+  ctx.strokeStyle = '#2a3a2a';
+  ctx.lineWidth = Math.max(1, k * 0.35);
+  ctx.globalAlpha = 0.8;
+  for (let i = 1; i < n; i++) {
+    const a = pts[i - 1];
+    const b = pts[i];
+    if (a.f !== front || b.f !== front) continue;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+  }
+  for (const p of pts) {
+    if (p.f !== front) continue;
+    const c = FAIRY_COLORS[p.i % FAIRY_COLORS.length];
+    const on = Math.sin(t * 3 + p.i * 1.9) > -0.3;
+    if (on) px(p.x - k, p.y - k, k * 2, c, 0.25);
+    px(p.x - k / 2, p.y - k / 2, k, on ? c : '#3a3346', front ? 1 : 0.8);
+  }
+}
+
+/** The hero inside a snow globe: a glass dome over a wooden base, snow swirling down within. */
+function snowGlobe(ctx: Ctx, px: Px, cx: number, feet: number, w: number, k: number, t: number, front: boolean) {
+  const r = w * 0.78;
+  const cy = feet - w * 0.48;
+  if (!front) {
+    // a faint blue tint to the glass behind the hero
+    const g = ctx.createRadialGradient(cx, cy, r * 0.2, cx, cy, r);
+    g.addColorStop(0, 'rgba(201,242,255,0.04)');
+    g.addColorStop(1, 'rgba(201,242,255,0.16)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // snow swirling inside, each flake taking its turn to fall
+  const n = 14;
+  for (let i = 0; i < n; i++) {
+    const p = (t / 4 + i / n) % 1;
+    const swirl = Math.sin(t * 0.8 + i * 2.3);
+    if ((swirl >= 0) !== front) continue;
+    const y = cy - r * 0.85 + p * r * 1.7;
+    const span = Math.sqrt(Math.max(0, r * r - (y - cy) * (y - cy))) * 0.85;
+    const x = cx + Math.cos(t * 0.6 + i * 1.3) * span;
+    px(x - k / 2, y - k / 2, k, '#ffffff', 0.9 * Math.min(1, (1 - p) * 5));
+  }
+  if (!front) return;
+  // the glass, with a highlight, and the base it sits on
+  ctx.globalAlpha = 0.45;
+  ctx.strokeStyle = '#e8fbff';
+  ctx.lineWidth = Math.max(1, k * 0.5);
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, Math.PI * 0.9, Math.PI * 2.1);
+  ctx.stroke();
+  ctx.globalAlpha = 0.6;
+  ctx.lineWidth = Math.max(1, k * 0.6);
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 0.82, Math.PI * 1.15, Math.PI * 1.4);
+  ctx.stroke();
+  const bw = r * 1.5;
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#7a4a2a';
+  ctx.fillRect(Math.round(cx - bw / 2), Math.round(feet - k * 0.5), Math.round(bw), Math.round(k * 2));
+  ctx.fillStyle = '#c9a24a';
+  ctx.fillRect(Math.round(cx - bw / 2), Math.round(feet - k * 0.5), Math.round(bw), Math.max(1, Math.round(k * 0.5)));
 }
 
 const IDEA_PERIOD = 0.9;
