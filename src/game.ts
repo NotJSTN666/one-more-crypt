@@ -763,6 +763,7 @@ export class Game {
     stairs?: Pos;
     potion?: Pos;
     hp?: number;
+    feature?: Pos & { kind: FeatureKind };
   }) {
     this.floor = 1;
     this.walls = new Array(W * H).fill(false);
@@ -774,7 +775,7 @@ export class Game {
     this.secret = null;
     this.vault = null;
     this.potion = scene.potion ?? null;
-    this.feature = null;
+    this.feature = scene.feature ? { ...scene.feature, used: false } : null;
     this.warnings = [];
     this.enemies = [];
     for (const e of scene.enemies) {
