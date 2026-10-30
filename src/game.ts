@@ -239,6 +239,12 @@ export interface RunConfig {
   arsenal?: boolean;
   /** The Ranger's arrows fly over your thralls, and the bow can be lowered to step instead (log version 17 and later). */
   volley?: boolean;
+  /**
+   * Fairer rules (log version 18 and later): every floor can be crossed without the stairs,
+   * Death's waiting square is safe to cross, Death walks on the Rogue's unseen steps, the
+   * Mage's bonus grows with their attack, and the Knight's Second Wind heals a tenth of max HP.
+   */
+  fair?: boolean;
 }
 
 /** Something the Grave Magnet pulled, and where from. */
@@ -376,6 +382,8 @@ const ARSENAL_LOG_VERSION = 16;
  * From here the version no longer implies the Horde's rules; those follow the run's mode.
  */
 const VOLLEY_LOG_VERSION = 17;
+/** Adds the fairer rules: see RunConfig.fair. */
+const FAIR_LOG_VERSION = 18;
 export const REAPER_FLOOR = 150;
 
 // ---------- Horde ----------
@@ -557,7 +565,14 @@ export class Game {
     if (this.hero === 'barbarian') atk += Math.floor(missing / 3);
     if (this.hero === 'mage') atk += 2;
     if (this.r('idol') && this.player.hp * 2 <= this.player.maxHp) atk += this.r('idol');
+    // With the fairer rules the Glass Cannon grows: one more for every 4 attack.
+    if (this.hero === 'mage' && this.config.fair) atk += Math.floor(atk / 4);
     return atk;
+  }
+
+  /** The Knight's Second Wind: 1 HP, or with the fairer rules a tenth of max HP (at least 1). */
+  private secondWind(): number {
+    return this.config.fair ? Math.max(1, Math.floor(this.player.maxHp / 10)) : 1;
   }
 
   get shield(): number {
@@ -637,6 +652,7 @@ export class Game {
   header(): string {
     const unlocked = UNLOCKABLE_RELICS.filter((id) => this.config.pool.includes(id));
     // Pools without any post-launch relic are logged as version 2 so they replay with the launch set.
+    if (this.config.fair) return `#${FAIR_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.volley) return `#${VOLLEY_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.arsenal) return `#${ARSENAL_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.armory) return `#${ARMORY_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
@@ -721,7 +737,7 @@ export class Game {
     if (floor === 5 && !this.stats.turnsTo5) this.stats.turnsTo5 = this.turns;
 
     if (this.r('vheart') && this.isBossFloor()) this.phylacteryUsed = false;
-    if (this.hero === 'knight' && floor > 1) this.heal(1);
+    if (this.hero === 'knight' && floor > 1) this.heal(this.secondWind());
     const candle = this.r('candle');
     if (candle) this.heal(candle * 2);
     if (this.r('tome') && floor % 3 === 0) {
@@ -795,10 +811,18 @@ export class Game {
   }
 
   private allFloorConnected(): boolean {
+    // With the fairer rules no tile may be reachable only across the stairs, which end the floor once open.
+    const s = this.stairs.y * W + this.stairs.x;
+    const blockStairs = Boolean(this.config.fair) && !this.walls[s];
+    if (blockStairs) this.walls[s] = true;
     const dist = this.distanceMap(START, false);
+    if (blockStairs) this.walls[s] = false;
     for (let i = 0; i < W * H; i++) {
+      if (i === s && blockStairs) continue;
       if (!this.walls[i] && !this.bones[i] && dist[i] < 0) return false;
     }
+    // The stairs themselves must still be reachable from a tile beside them.
+    if (blockStairs && !DIRS.some((d) => this.inBounds(this.stairs.x + d.x, this.stairs.y + d.y) && dist[(this.stairs.y + d.y) * W + this.stairs.x + d.x] >= 0)) return false;
     return true;
   }
 
@@ -1154,7 +1178,8 @@ export class Game {
       this.endTurn();
       return true;
     }
-    if (this.reaper && this.reaper.x === tx && this.reaper.y === ty && !this.isWall(tx, ty)) {
+    // Death's waiting square is safe to cross until he rises (with the fairer rules).
+    if (this.reaper && this.reaper.x === tx && this.reaper.y === ty && !this.isWall(tx, ty) && !(this.reaper.waiting && this.config.fair)) {
       this.reap();
       return true;
     }
@@ -1201,6 +1226,8 @@ export class Game {
       this.turns++;
       this.events.push({ t: 'shadow' });
       this.stats.shadowSteps++;
+      // Not even the Rogue escapes Death: he walks on unseen steps too.
+      if (this.config.fair) this.reaperAct();
     } else {
       this.endTurn();
     }
@@ -1904,7 +1931,9 @@ export class Game {
       if (this.reaperIn > 0) this.reaperIn--;
       if (this.reaperIn > 0) return;
       // Rising where he waited, or (before log version 11) in the corner farthest from you now.
-      const at = this.reaper ?? this.farCorner();
+      // If you stand on his square as he rises, he rises in the far corner instead.
+      const onHim = this.reaper && this.config.fair && this.reaper.x === p.x && this.reaper.y === p.y;
+      const at = this.reaper && !onHim ? this.reaper : this.farCorner();
       this.reaper = { x: at.x, y: at.y, frozen: 0 };
       this.events.push({ t: 'reaperrise', x: at.x, y: at.y });
       return;
@@ -2063,7 +2092,7 @@ export class Game {
     this.harvestBonus = 0;
     this.shieldCharges = this.r('mirror') + this.boons.ward;
     if (this.r('vheart') && boss) this.phylacteryUsed = false;
-    if (this.hero === 'knight' && this.horde.wave > 1) this.heal(1);
+    if (this.hero === 'knight' && this.horde.wave > 1) this.heal(this.secondWind());
     const candle = this.r('candle');
     if (candle) this.heal(candle * 2);
     if (this.r('tome') && this.horde.wave % 3 === 0) {
@@ -2614,7 +2643,8 @@ export class Game {
     const armory = horde && Number(m[1]) >= ARMORY_LOG_VERSION;
     const arsenal = horde && Number(m[1]) >= ARSENAL_LOG_VERSION;
     const volley = Number(m[1]) >= VOLLEY_LOG_VERSION;
-    const config: RunConfig = { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy, ...(depths ? { depths } : {}), ...(boons ? { boons } : {}), ...(reaper ? { reaper } : {}), ...(deep ? { deep } : {}), ...(lurk ? { lurk } : {}), ...(surge ? { surge } : {}), ...(waves ? { waves } : {}), ...(magnet ? { magnet } : {}), ...(armory ? { armory } : {}), ...(arsenal ? { arsenal } : {}), ...(volley ? { volley } : {}) };
+    const fair = Number(m[1]) >= FAIR_LOG_VERSION;
+    const config: RunConfig = { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy, ...(depths ? { depths } : {}), ...(boons ? { boons } : {}), ...(reaper ? { reaper } : {}), ...(deep ? { deep } : {}), ...(lurk ? { lurk } : {}), ...(surge ? { surge } : {}), ...(waves ? { waves } : {}), ...(magnet ? { magnet } : {}), ...(armory ? { armory } : {}), ...(arsenal ? { arsenal } : {}), ...(volley ? { volley } : {}), ...(fair ? { fair } : {}) };
     let rest = full.slice(m[0].length);
     // Version 7 adds one field: the isle's extra max HP.
     const isle = Number(m[1]) >= ISLE_LOG_VERSION ? /^(\d+)\|/.exec(rest) : null;

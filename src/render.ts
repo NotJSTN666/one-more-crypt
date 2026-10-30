@@ -105,6 +105,8 @@ export class Renderer {
   private rings: { x: number; y: number; t: number }[] = [];
   private corpses: Corpse[] = [];
   private bannerText: { text: string; color: string; t: number } | null = null;
+  /** Banners waiting their turn, so two at once (a key's two boons) are both read. */
+  private bannerQueue: { text: string; color: string; t: number }[] = [];
   private shake = 0;
   /** Player settings: screen shake on or off, and the high-contrast board. */
   shakeOn = true;
@@ -154,6 +156,7 @@ export class Renderer {
     this.landing.clear();
     this.enter = 0;
     this.floaters = [];
+    this.bannerQueue = [];
     this.particles = [];
     this.lines = [];
     this.corpses = [];
@@ -389,7 +392,7 @@ export class Renderer {
       }
     }
     // Handled last: claiming a relic also starts a new floor, which clears effects.
-    for (const id of claimed) this.transform(id);
+    claimed.forEach((id, i) => this.transform(id, i));
   }
 
   /** Big centred title, used for completed combos. */
@@ -400,7 +403,12 @@ export class Renderer {
   }
 
   banner(text: string, color: string) {
-    this.bannerText = { text, color, t: 0 };
+    const next = { text, color, t: 0 };
+    if (this.bannerText && this.bannerText.t < 0.9) {
+      if (this.bannerQueue.length < 3) this.bannerQueue.push(next);
+    } else {
+      this.bannerText = next;
+    }
     this.shake = Math.max(this.shake, 4);
     for (let i = 0; i < 4; i++) this.burstParticles(1 + i * 1.6, 3, color, 10, 1.6);
   }
@@ -411,7 +419,7 @@ export class Renderer {
     b.t += dt;
     const life = 1.3;
     if (b.t > life) {
-      this.bannerText = null;
+      this.bannerText = this.bannerQueue.shift() ?? null;
       return;
     }
     // A banner can wait a beat before it shows (zone names follow the floor's opening).
@@ -438,11 +446,14 @@ export class Renderer {
   }
 
   /** The moment a relic changes the hero: a flash, a burst in the relic's colour, and its name. */
-  private transform(id: RelicId) {
+  private transform(id: RelicId, i = 0) {
     const g = this.game!;
     this.flashes.set(PLAYER_ID, 0.35);
     this.burstParticles(g.player.x, g.player.y, relicColor(id), 24, 1.4);
-    this.floaters.push(this.floater(g.player.x, g.player.y - 0.6, RELIC_BY_ID[id].name.toUpperCase(), relicColor(id), 1.6));
+    // A second relic at once (the skeleton key's) follows a beat later, below the hero, so both names read.
+    const f = this.floater(g.player.x, g.player.y + (i % 2 ? 0.7 : -0.6), RELIC_BY_ID[id].name.toUpperCase(), relicColor(id), 1.6);
+    f.t = -0.45 * i;
+    this.floaters.push(f);
   }
 
   /** Ambient effects from the hero's relics, drawn around the player each frame. */
@@ -1268,6 +1279,7 @@ export class Renderer {
     this.floaters = this.floaters.filter((f) => (f.t += dt) < f.life);
     ctx.textAlign = 'center';
     for (const f of this.floaters) {
+      if (f.t < 0) continue;
       const p = f.t / f.life;
       // Numbers pop in big and settle; crits ("4!") stay larger.
       const big = f.text.endsWith('!');
