@@ -1,6 +1,7 @@
 import './style.css';
 import { audioRunning, fusionSound, isMusicEnabled, isMuted, onAudioState, setMusicDepth, setMusicEnabled, setMusicMood, setMuted, sfx, unlockAudio } from './audio';
-import { dailyNumber, formatCountdown, msUntilNextDaily } from './daily';
+import { centralDate, dailyNumber, formatCountdown, msUntilNextDaily } from './daily';
+import { liveNews, unreadNews, type NewsGo } from './news';
 import { ELITES, FEATURES, HERO_BY_ID, dailyHero, hordeHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait, heroSprite } from './hero';
 import { BOON_BY_ID, ENEMY_INFO, MIST_BITE, REAPER_FLOOR, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode } from './game';
@@ -756,6 +757,88 @@ document.addEventListener('click', (e) => {
   if (!(e.target as HTMLElement).closest?.('#title-mute')) return;
   toggleMute();
 });
+// The title screen's 📰 button: what's new.
+document.addEventListener('click', (e) => {
+  if ((e.target as HTMLElement).closest?.('#title-news')) showWhatsNew(showTitle);
+});
+
+// ---------- what's new ----------
+
+const NEWS_READ_KEY = 'omc:news-read';
+
+function newsRead(): string | null {
+  try {
+    return localStorage.getItem(NEWS_READ_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Live updates this player hasn't opened What's new to see yet. */
+function newsUnread(): number {
+  return unreadNews(centralDate(), newsRead());
+}
+
+/** The day's heading: Today, Yesterday, or the date. */
+function newsDay(date: string): string {
+  const today = centralDate();
+  if (date === today) return 'Today';
+  const y = new Date(`${today}T12:00:00Z`);
+  y.setUTCDate(y.getUTCDate() - 1);
+  if (date === y.toISOString().slice(0, 10)) return 'Yesterday';
+  return new Date(`${date}T12:00:00Z`).toLocaleDateString([], { weekday: 'short', month: 'long', day: 'numeric', timeZone: 'UTC' });
+}
+
+const NEWS_GO: Record<NewsGo, string> = {
+  horde: '🛡️ Play the Horde', story: '📖 Go to the story', howto: '❔ How to play', settings: '⚙️ Settings',
+  wardrobe: '👘 Wardrobe', endless: '♾️ Play Endless', daily: "📅 Today's crypt",
+};
+
+/** What's new: every update so far, newest first, grouped by day. Opening it marks them read. */
+function showWhatsNew(back: () => void) {
+  const live = liveNews(centralDate());
+  const unread = newsUnread();
+  let day = '';
+  const items = live.map((n, i) => {
+    const head = n.date !== day ? `<h3 class="news-day">${esc(newsDay(n.date))}</h3>` : '';
+    day = n.date;
+    return `${head}<article class="news-item${i < unread ? ' unread' : ''}">
+        <div class="news-emoji" aria-hidden="true">${n.emoji}</div>
+        <div class="news-body">
+          <h4>${esc(n.title)}${i < unread ? ' <span class="news-new">NEW</span>' : ''}</h4>
+          ${n.lines.map((l) => `<p>${esc(l)}</p>`).join('')}
+          ${n.go ? `<button class="btn news-go" data-go="${n.go}">${NEWS_GO[n.go]}</button>` : ''}
+        </div>
+      </article>`;
+  }).join('');
+  showOverlay('whats-new', `
+    <h2>📰 What's new</h2>
+    <p class="sub">Every update to the crypt, newest first.</p>
+    <div class="news-feed">${items || '<p class="fine">Nothing yet.</p>'}</div>
+    <p class="fine">Talk about it, report bugs and suggest ideas in the <a href="${DISCORD_URL}" target="_blank" rel="noopener">Discord</a> 💬</p>
+    <button class="btn primary" id="back">Back</button>`);
+  if (live[0]) {
+    try {
+      localStorage.setItem(NEWS_READ_KEY, live[0].id);
+    } catch {
+      // Private mode: the dot may show again, which is harmless.
+    }
+  }
+  on('#back', back);
+  overlay.querySelectorAll<HTMLButtonElement>('.news-go').forEach((b) =>
+    b.addEventListener('click', () => {
+      const go = b.dataset.go as NewsGo;
+      if (go === 'horde') startHorde();
+      else if (go === 'story') playStory();
+      else if (go === 'howto') showHelp(() => showWhatsNew(back));
+      else if (go === 'settings') showSettings(() => showWhatsNew(back));
+      else if (go === 'wardrobe') showWardrobe(() => showWhatsNew(back));
+      else if (go === 'endless') showHeroSelect(() => startRun('endless'), () => showWhatsNew(back));
+      else startRun('daily');
+    }),
+  );
+}
+
 // The title screen's ⚙️ button: sound, music and display settings.
 document.addEventListener('click', (e) => {
   if ((e.target as HTMLElement).closest?.('#title-settings')) showSettings(showTitle);
@@ -1213,6 +1296,7 @@ function muteChipHtml(): string {
 
 function accountChip(): string {
   const mute = muteChipHtml()
+    + `<button class="account-chip mute-chip news-chip" id="title-news" aria-label="What's new${newsUnread() ? `, ${newsUnread()} unread` : ''}">📰${newsUnread() ? '<i class="news-dot"></i>' : ''}</button>`
     + `<button class="account-chip mute-chip" id="title-settings" aria-label="Settings">⚙️</button>`
     + `<button class="account-chip mute-chip kofi-chip" id="title-kofi" aria-label="Support One More Crypt"><span class="kofi-cup" aria-hidden="true">☕️<i></i><i></i><i></i></span></button>`
     // Install, up top beside the sound, wherever the browser can add the game to the home screen.
