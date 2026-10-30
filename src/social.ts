@@ -8,6 +8,7 @@ import {
   ONLINE,
   OnlineError,
   X_LOGIN,
+  GUEST_NAME,
   currentAccount,
   dailyBelow,
   dailyStanding,
@@ -81,6 +82,34 @@ export function playerName(): string {
 
 export function signedIn(): boolean {
   return Boolean(session.account?.name);
+}
+
+/** A guest whose runs are on the boards under a placeholder (Guest12345) until they choose a name. */
+export function unclaimed(): boolean {
+  return GUEST_NAME.test(session.account?.name ?? '');
+}
+
+/**
+ * Put a player with no account on the boards: a guest account under a placeholder name, so
+ * their runs are posted (and they can see where they placed if they come back). Choosing a
+ * name later renames the same account, runs and all. True once there is a named account.
+ */
+export async function ensureGuest(): Promise<boolean> {
+  if (!ONLINE) return false;
+  if (signedIn()) return true;
+  // Signed in by email or X but still choosing a name: leave that to them.
+  if (session.account) return false;
+  for (let i = 0; i < 4; i++) {
+    try {
+      session.account = await playAsGuest(`Guest${10000 + Math.floor(Math.random() * 90000)}`, true);
+      void afterSignIn();
+      onChange();
+      return true;
+    } catch (e) {
+      if (!/taken/i.test((e as Error).message)) return false;
+    }
+  }
+  return false;
 }
 
 /**
@@ -206,7 +235,8 @@ export async function recordRun(run: RunSubmission): Promise<boolean> {
   save.pending.push(run);
   save.pending = save.pending.slice(-30);
   writeSave(save);
-  if (!signedIn()) return false;
+  // A player without a name still goes on the board, as a guest they can claim later.
+  if (!signedIn() && !(await ensureGuest())) return false;
   await flushPending();
   return !save.pending.includes(run);
 }
@@ -410,8 +440,8 @@ export function showLogin(back: () => void, step: Step = 'start', email = '') {
     // 'claim': asked after a run, when the player has just seen where they'd place.
     const claim = step === 'claim';
     showOverlay('login', `
-      <h2>${claim ? 'Put your name on the board' : 'Claim your name'}</h2>
-      <p class="sub">${claim ? "Your run goes up on today's board, and your streak and gifts are kept safe." : 'Your name goes on the leaderboards. Progress is saved to your account.'}</p>
+      <h2>${claim && !unclaimed() ? 'Put your name on the board' : 'Claim your name'}</h2>
+      <p class="sub">${unclaimed() ? `Your runs are on the boards as ${esc(playerName())}. Pick a name and they'll show under it, past days included.` : claim ? "Your run goes up on today's board, and your streak and gifts are kept safe." : 'Your name goes on the leaderboards. Progress is saved to your account.'}</p>
       ${nameForm(save.name || randomName(), claim ? 'Save my place' : 'Enter the crypt')}
       <p class="fine">Starts a guest account on this device. Add an email later to play on other devices too.</p>
       <div class="divider"><span>or sign in</span></div>
@@ -785,7 +815,7 @@ export function showLeaderboard(back: () => void, tab: Tab = 'today', limit = BO
     }
     <p class="fine">${tab === 'horde' ? `Today's Horde #${today}: everyone's best score. ` : ''}${tab === 'endless' && period !== 'all' ? `Best endless run ${period === 'week' ? 'since Monday' : 'since midnight'} (Central Time). ` : ''}Tap a name to visit their Crypt Hall.</p>
     <div id="board-body" class="board"><p class="sub">Summoning the dead…</p></div>
-    ${signedIn() ? '' : '<button class="btn" id="join">Claim a name to join</button>'}
+    ${signedIn() && !unclaimed() ? '' : `<button class="btn" id="join">${unclaimed() ? `Claim your name<small>You're on the boards as ${esc(playerName())}</small>` : 'Claim a name to join'}</button>`}
     <button class="btn primary" id="back">Back</button>`);
   document.querySelectorAll<HTMLButtonElement>('.tabs button').forEach((b) =>
     b.addEventListener('click', () => showLeaderboard(back, b.dataset.tab as Tab)),

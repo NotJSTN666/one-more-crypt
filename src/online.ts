@@ -131,13 +131,19 @@ export async function onAuthChange(cb: () => void) {
   });
 }
 
-export function validName(name: string): string | null {
-  return /^[A-Za-z0-9_]{3,16}$/.test(name) ? null : 'Names are 3–16 letters, numbers or _.';
+/** The placeholder name a guest's runs go on the boards under until they choose one. */
+export const GUEST_NAME = /^Guest\d{5}$/;
+
+/** `guest`: the placeholder itself, which players can't pick for themselves. */
+export function validName(name: string, guest = false): string | null {
+  if (!/^[A-Za-z0-9_]{3,16}$/.test(name)) return 'Names are 3–16 letters, numbers or _.';
+  if (!guest && GUEST_NAME.test(name)) return 'Names like that are kept for guests. Pick another.';
+  return null;
 }
 
-/** One-tap account: an anonymous Supabase user plus a chosen name. */
-export async function playAsGuest(name: string): Promise<Account> {
-  const bad = validName(name);
+/** One-tap account: an anonymous Supabase user plus a chosen name. Reuses the session if there is one. */
+export async function playAsGuest(name: string, guest = false): Promise<Account> {
+  const bad = validName(name, guest);
   if (bad) throw new OnlineError(bad);
   const sb = await client();
   let { data } = await sb.auth.getSession();
@@ -146,12 +152,12 @@ export async function playAsGuest(name: string): Promise<Account> {
     if (res.error) throw friendly(res.error, 'Could not create a guest account.');
     ({ data } = await sb.auth.getSession());
   }
-  await setName(name);
+  await setName(name, guest);
   return toAccount(sb, data.session!.user);
 }
 
-export async function setName(name: string): Promise<void> {
-  const bad = validName(name);
+export async function setName(name: string, guest = false): Promise<void> {
+  const bad = validName(name, guest);
   if (bad) throw new OnlineError(bad);
   const sb = await client();
   const { data } = await sb.auth.getUser();

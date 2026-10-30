@@ -33,7 +33,7 @@ import { installMode, onInstallChange, promptInstall, setupInstall } from './ins
 import { bountiesHtml, progressBounties } from './bounties';
 import { enableReminders, loadReminders, reminderPrefs, remindersAvailable, remindersNeedInstall, timeZone } from './push';
 import { claimPodiums, claimWeekly, clearBeat, lastBeat, type PodiumFinish, type WeeklyFinish } from './social';
-import { endlessRecord, initSocial, needsName, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
+import { endlessRecord, ensureGuest, initSocial, needsName, unclaimed, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
 import { currentStreak, loadSave, recordDaily, streakStats, writeSave, type RunResult } from './storage';
 import { $, esc, formStatus, hideOverlay, on, onSubmit, overlay, overlayShownAt, screen, showOverlay, toast } from './ui';
 
@@ -1085,7 +1085,7 @@ function showTitle() {
     </div>
     <div class="foot-links">${followXHtml}${discordHtml}${kofiHtml}</div>
   `);
-  on('#account', () => showProfile(showTitle));
+  on('#account', () => (unclaimed() ? showLogin(showTitle, 'claim') : showProfile(showTitle)));
   on('#leaderboard', () => showLeaderboard(showTitle));
   on('#daily', () => withTutorialOffer(() => startRun('daily')));
   on('#continue', () => resumable && resumeRun(resumable));
@@ -1220,6 +1220,8 @@ function accountChip(): string {
   if (ONLINE && !session.ready) return `<div class="account-row">${mute}</div>`;
   const name = playerName();
   const title = titleName(meta.title);
+  // A guest on the boards under a placeholder is nudged to pick a real name.
+  if (unclaimed()) return `<div class="account-row">${mute}<button class="account-chip" id="account">👤 Claim your name</button></div>`;
   return `<div class="account-row">${mute}<button class="account-chip" id="account">👤 ${name ? esc(name) : 'Sign in'}${name && title ? ` <small class="${titleFxClass(meta.title)}">${esc(title)}</small>` : ''}</button></div>`;
 }
 
@@ -1856,7 +1858,7 @@ function showDeath(r: RunResult, best: boolean) {
     ${ch ? challengeResultHtml(r, ch) : ''}
     ${soulRankHtml()}
     ${ONLINE && !ch ? `<p class="rank-line ${daily ? 'daily-rank' : ''}" id="rank">${signedIn() ? 'Carving your name into the crypt…' : daily ? 'Counting the fallen…' : ''}</p>` : ''}
-    ${ONLINE && !signedIn() ? `<button class="btn join-cta" id="join">${ch ? '✍️ Claim a name to post to the challenge board' : `✍️ Put your name on ${daily ? "today's" : 'the'} board`}<small>One tap, no email needed. Keeps your streak and Seven Nights gifts safe.</small></button>` : ''}
+    ${ONLINE && (!signedIn() || unclaimed()) ? `<button class="btn join-cta" id="join">${ch ? '✍️ Claim a name to post to the challenge board' : unclaimed() || !signedIn() ? `✍️ Claim your name` : `✍️ Put your name on ${daily ? "today's" : 'the'} board`}<small>${ch ? 'One tap, no email needed.' : `You're on ${daily ? "today's" : 'the'} board as a guest. Pick a name to make it yours: one tap, no email needed.`}</small></button>` : ''}
     ${
       daily
         ? `${streakTeaseHtml()}${tomorrowHtml()}${reminderPromptHtml()}${installNudgeHtml()}${ONLINE ? '<p class="podium-tease">🥇 Finish in the top 3 when the day ends to win exclusive headwear and Souls.</p>' : ''}
@@ -2136,7 +2138,7 @@ async function fillChallengeBoard(c: Challenge) {
 
 /** Make a challenge from the run just finished, then share it. */
 function makeChallenge(r: RunResult, back: () => void) {
-  if (!signedIn()) {
+  if (!signedIn() || unclaimed()) {
     toast('Claim a name first, so your friends know who challenged them.');
     showLogin(back);
     return;
@@ -2914,9 +2916,9 @@ function finishHorde() {
       <p class="fine">Today's best: wave ${meta.horde.wave} · ${meta.horde.best.toLocaleString()} pts</p>
       <div class="souls-earned"><b>+${reward.souls} Souls</b><span>💀 ${meta.souls} to spend in the Ossuary</span></div>
       <button class="btn primary" id="horde-again">🛡️ Go again<small>Same arena, same hero</small></button>
-      ${ONLINE ? `<h3 class="shop-head">Today's Horde board</h3><p class="fine" id="horde-rank">${signedIn() ? 'Posting your run…' : 'Sign in to put your best on the board.'}</p><ol class="raid-top" id="horde-board"><li class="fine">Loading…</li></ol>` : ''}
+      ${ONLINE ? `<h3 class="shop-head">Today's Horde board</h3><p class="fine" id="horde-rank">Posting your run…</p><ol class="raid-top" id="horde-board"><li class="fine">Loading…</li></ol>` : ''}
       <button class="btn" id="horde-copy">Copy result</button>
-      ${ONLINE && !signedIn() ? '<button class="btn" id="join">Claim a name for the board</button>' : ''}
+      ${ONLINE && (!signedIn() || unclaimed()) ? `<button class="btn" id="join">Claim your name<small>You're on the board as a guest until you do</small></button>` : ''}
       <button class="btn" id="title">Title</button>`);
     on('#horde-again', () => startHorde());
     on('#horde-copy', async () => toast((await copyText(share)) ? 'Copied!' : 'Copy failed'));
@@ -2931,7 +2933,8 @@ function finishHorde() {
 
 async function loadHordeBoard(g: Game, best: boolean) {
   const rank = document.getElementById('horde-rank');
-  if (signedIn() && best) {
+  // Players without a name go on the board as a guest they can claim later.
+  if (best && (signedIn() || (await ensureGuest()))) {
     const posted = await submitHorde({ daily_no: g.dailyNo, score: g.horde.score, wave: g.horde.wave, kills: g.kills, hero: g.hero, log: g.header() + g.log }).catch(() => null);
     if (rank?.isConnected) rank.textContent = posted ? `You're #${posted.rank} today.` : 'Could not post your run. Your best is saved here.';
   } else if (signedIn() && rank) rank.textContent = 'Only your best run of the day goes on the board.';
@@ -3014,7 +3017,8 @@ async function checkFriends() {
 
 /** Your link, what it earns, and how many friends it has brought. */
 function showInvite(back: () => void) {
-  const name = signedIn() ? playerName() : '';
+  // An invite link carries your name, so a guest picks one first.
+  const name = signedIn() && !unclaimed() ? playerName() : '';
   const n = meta.invite.friends;
   const url = name ? inviteUrl(name) : '';
   const text = `I've been playing One More Crypt: a free daily roguelike in your browser. One crypt, one try a day. Come down with me:`;
