@@ -23,6 +23,9 @@ export interface Save {
   streak: { last: number; count: number };
   muted: boolean;
   musicOff: boolean;
+  /** Display settings: no screen shake, and the high-contrast board. */
+  shakeOff: boolean;
+  highContrast: boolean;
   seenHelp: boolean;
   tutorialDone: boolean;
   /** True once the player has seen (or skipped) the sign-in screen. */
@@ -46,6 +49,8 @@ function empty(): Save {
     streak: { last: 0, count: 0 },
     muted: false,
     musicOff: false,
+    shakeOff: false,
+    highContrast: false,
     seenHelp: false,
     tutorialDone: false,
     seenLogin: false,

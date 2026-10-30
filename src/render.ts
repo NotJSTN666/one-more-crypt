@@ -12,6 +12,14 @@ import { SPRITE_SIZE, enemyFrames, sprites } from './sprites';
 import { deepLook, zoneAt, zoneLook, zoneTitle, type Weather } from './zones';
 
 export const TILE = 16;
+/** Blend two #rrggbb colours: 0 gives a, 1 gives b. */
+function mixColor(a: string, b: string, t: number): string {
+  const p = (h: string, i: number) => parseInt(h.slice(1 + i * 2, 3 + i * 2), 16);
+  return `#${[0, 1, 2].map((i) => Math.round(p(a, i) + (p(b, i) - p(a, i)) * t).toString(16).padStart(2, '0')).join('')}`;
+}
+
+/** The strongest screen shake anything can cause (in board pixels); it fades in about a quarter second. */
+const SHAKE_MAX = 7;
 const BOARD_W = W * TILE;
 const BOARD_H = H * TILE;
 const PAD = (TILE - SPRITE_SIZE) / 2;
@@ -98,6 +106,9 @@ export class Renderer {
   private corpses: Corpse[] = [];
   private bannerText: { text: string; color: string; t: number } | null = null;
   private shake = 0;
+  /** Player settings: screen shake on or off, and the high-contrast board. */
+  shakeOn = true;
+  contrast = false;
   private hurtFlash = 0;
   private healFlash = 0;
   private time = 0;
@@ -283,7 +294,8 @@ export class Renderer {
         case 'hurt':
           this.flashes.set(PLAYER_ID, 0.15);
           this.hurtFlash = 1;
-          this.shake = Math.max(this.shake, 2 + ev.amount);
+          // Bigger hits shake harder, up to a limit, so a huge late hit never blinds the board.
+          this.shake = Math.max(this.shake, Math.min(SHAKE_MAX, 2 + ev.amount * 0.5));
           this.floaters.push(this.floater(g.player.x, g.player.y, `-${ev.amount}`, '#ff4d5a', 0.9));
           break;
         case 'heal':
@@ -525,7 +537,7 @@ export class Renderer {
     const dt = this.hitStop > 0 ? 0 : realDt;
     this.hitStop = Math.max(0, this.hitStop - realDt);
     this.time += dt;
-    const bgKey = `${g.seed}:${g.lookFloor}:${g.terrain}:${this.bgEpoch}`;
+    const bgKey = `${g.seed}:${g.lookFloor}:${g.terrain}:${this.bgEpoch}:${this.contrast}`;
     if (this.bgKey !== bgKey) {
       this.bg = this.buildBackground(g);
       this.bgKey = bgKey;
@@ -537,8 +549,8 @@ export class Renderer {
     ctx.fillStyle = '#07040b';
     ctx.fillRect(0, 0, BOARD_W, BOARD_H);
 
-    this.shake = Math.max(0, this.shake - dt * 30);
-    if (this.shake > 0 && !this.quiet) {
+    this.shake = Math.min(SHAKE_MAX, Math.max(0, this.shake - dt * 30));
+    if (this.shake > 0 && !this.quiet && this.shakeOn) {
       ctx.translate(Math.round((Math.random() - 0.5) * this.shake), Math.round((Math.random() - 0.5) * this.shake));
     }
 
@@ -659,7 +671,7 @@ export class Renderer {
     return d;
   }
 
-  private drawSprite(id: number, sprite: { normal: HTMLCanvasElement; white: HTMLCanvasElement }, d: Pos, dt: number, alpha: number, bob = 0) {
+  private drawSprite(id: number, sprite: { normal: HTMLCanvasElement; white: HTMLCanvasElement }, d: Pos, dt: number, alpha: number, bob = 0, outline = false) {
     const ctx = this.ctx;
     let ox = 0;
     let oy = 0;
@@ -702,13 +714,20 @@ export class Renderer {
     const h = SPRITE_SIZE - squash;
     const dx = x - (w - SPRITE_SIZE) / 2;
     const dy = y + squash;
-    if (face < 0) {
-      ctx.save();
-      ctx.translate(dx + w, dy);
-      ctx.scale(-1, 1);
-      ctx.drawImage(img, 0, 0, w, h);
-      ctx.restore();
-    } else ctx.drawImage(img, dx, dy, w, h);
+    const put = (image: HTMLCanvasElement, ox2 = 0, oy2 = 0) => {
+      if (face < 0) {
+        ctx.save();
+        ctx.translate(dx + w + ox2, dy + oy2);
+        ctx.scale(-1, 1);
+        ctx.drawImage(image, 0, 0, w, h);
+        ctx.restore();
+      } else ctx.drawImage(image, dx + ox2, dy + oy2, w, h);
+    };
+    // High contrast: a crisp light rim round every foe.
+    if (outline && this.contrast) {
+      for (const [ox2, oy2] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) put(sprite.white, ox2, oy2);
+    }
+    put(img);
     ctx.globalAlpha = 1;
     return { x, y };
   }
@@ -782,7 +801,7 @@ export class Renderer {
     const bob = flying ? Math.round(Math.sin(this.time * (e.ghost ? 2 : 6) + e.id) * 1.5) : 0;
     const onWall = g.isWall(e.x, e.y);
     const alpha = e.ghost ? 0.62 : e.kind === 'wraith' ? (onWall ? 0.45 : 0.8) : 1;
-    const { x, y } = this.drawSprite(e.id, spr, d, dt, alpha, bob);
+    const { x, y } = this.drawSprite(e.id, spr, d, dt, alpha, bob, !e.ally);
     if (e.ghost) {
       ctx.fillStyle = '#9fe8ff';
       ctx.font = '5px Silkscreen, monospace';
@@ -1334,7 +1353,7 @@ export class Renderer {
 
   /** Dust drifting through the light. */
   private drawMotes(dt: number) {
-    if (this.quiet) return;
+    if (this.quiet || this.contrast) return;
     const ctx = this.ctx;
     if (this.motes.length < 14 && Math.random() < dt * 4) {
       this.motes.push({ x: Math.random() * BOARD_W, y: Math.random() * BOARD_H, vx: (Math.random() - 0.5) * 3, vy: -1 - Math.random() * 2, t: 0, life: 4 + Math.random() * 4 });
@@ -1377,6 +1396,24 @@ export class Renderer {
   private drawMist(g: Game) {
     if (!g.config.story?.mist) return;
     const ctx = this.ctx;
+    if (this.contrast) {
+      // High contrast: the mist as a clear striped tile instead of soft fog.
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          if (!g.inMist(x, y)) continue;
+          ctx.fillStyle = 'rgba(120, 220, 90, 0.28)';
+          ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
+          ctx.fillStyle = 'rgba(170, 240, 120, 0.7)';
+          for (let k = -TILE; k < TILE; k += 4) {
+            for (let j = 0; j < TILE; j++) {
+              const xx = k + j;
+              if (xx >= 0 && xx < TILE) ctx.fillRect(x * TILE + xx, y * TILE + j, 1, 1);
+            }
+          }
+        }
+      }
+      return;
+    }
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
         if (!g.inMist(x, y)) continue;
@@ -1402,7 +1439,7 @@ export class Renderer {
 
   /** Low fog drifting across the floor in slow, soft banks. */
   private drawFog() {
-    if (this.quiet) return;
+    if (this.quiet || this.contrast) return;
     const ctx = this.ctx;
     for (let i = 0; i < 3; i++) {
       const t = this.time * (0.05 + i * 0.02) + i * 2.1;
@@ -1410,7 +1447,7 @@ export class Renderer {
       const y = (0.3 + i * 0.25 + Math.sin(t * 1.7) * 0.08) * BOARD_H;
       const r = BOARD_W * (0.45 + i * 0.1);
       const fog = ctx.createRadialGradient(x, y, 0, x, y, r);
-      fog.addColorStop(0, 'rgba(140, 125, 170, 0.07)');
+      fog.addColorStop(0, 'rgba(140, 125, 170, 0.045)');
       fog.addColorStop(1, 'rgba(140, 125, 170, 0)');
       ctx.fillStyle = fog;
       ctx.fillRect(0, 0, BOARD_W, BOARD_H);
@@ -1444,8 +1481,15 @@ export class Renderer {
     grad.addColorStop(0, zone.light[0]);
     grad.addColorStop(dark ? 0.2 : 0.35, 'rgba(10, 4, 16, 0)');
     grad.addColorStop(1, dark ? 'rgba(3, 1, 8, 0.9)' : zone.light[1]);
-    ctx.fillStyle = grad;
-    ctx.fillRect(-10, -10, BOARD_W + 20, BOARD_H + 20);
+    // The Abyss's darkness is part of its challenge, so it stays even in high contrast;
+    // elsewhere the dark at the board's edges is softer, and gone in high contrast.
+    if (dark || !this.contrast) {
+      ctx.globalAlpha = dark ? 1 : 0.65;
+      ctx.fillStyle = grad;
+      ctx.fillRect(-10, -10, BOARD_W + 20, BOARD_H + 20);
+      ctx.globalAlpha = 1;
+    }
+    if (this.contrast) return;
     // A soft vignette, so the board sinks into the dark at its edges.
     const edge = 10;
     for (const [x0, y0, x1, y1, rx, ry, rw, rh] of [
@@ -1455,7 +1499,7 @@ export class Renderer {
       [BOARD_W, 0, BOARD_W - edge, 0, BOARD_W - edge, 0, edge, BOARD_H],
     ]) {
       const v = ctx.createLinearGradient(x0, y0, x1, y1);
-      v.addColorStop(0, 'rgba(4, 2, 8, 0.55)');
+      v.addColorStop(0, 'rgba(4, 2, 8, 0.4)');
       v.addColorStop(1, 'rgba(4, 2, 8, 0)');
       ctx.fillStyle = v;
       ctx.fillRect(rx, ry, rw, rh);
@@ -1468,7 +1512,45 @@ export class Renderer {
 
   // ---------- background ----------
 
+  /** High contrast: flat dark floors on a faint grid, and walls as light stone with bright edges. */
+  private buildContrastBackground(g: Game): HTMLCanvasElement {
+    const c = document.createElement('canvas');
+    c.width = BOARD_W;
+    c.height = BOARD_H;
+    const ctx = c.getContext('2d')!;
+    this.candles = [];
+    const zone = zoneLook(g.zone);
+    const wallAt = (x: number, y: number) => x >= 0 && y >= 0 && x < W && y < H && g.walls[y * W + x];
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const px = x * TILE;
+        const py = y * TILE;
+        if (wallAt(x, y)) {
+          ctx.fillStyle = mixColor(zone.wall.top, '#ffffff', 0.35);
+          ctx.fillRect(px, py, TILE, TILE);
+          ctx.fillStyle = 'rgba(0,0,0,0.18)';
+          for (let row = 0; row < 3; row++) ctx.fillRect(px + 2, py + 4 + row * 4, TILE - 4, 1);
+          ctx.fillStyle = '#f6f0ff';
+          if (!wallAt(x, y - 1)) ctx.fillRect(px, py, TILE, 1);
+          if (!wallAt(x, y + 1)) ctx.fillRect(px, py + TILE - 1, TILE, 1);
+          if (!wallAt(x - 1, y)) ctx.fillRect(px, py, 1, TILE);
+          if (!wallAt(x + 1, y)) ctx.fillRect(px + TILE - 1, py, 1, TILE);
+        } else {
+          ctx.fillStyle = mixColor(zone.floor[0], '#000000', 0.35);
+          ctx.fillRect(px, py, TILE, TILE);
+          ctx.fillStyle = 'rgba(255,255,255,0.07)';
+          ctx.fillRect(px, py, TILE, 1);
+          ctx.fillRect(px, py, 1, TILE);
+        }
+      }
+    }
+    // water, lava and bone piles, as on the normal board
+    this.drawStaticGround(ctx, g);
+    return c;
+  }
+
   private buildBackground(g: Game): HTMLCanvasElement {
+    if (this.contrast) return this.buildContrastBackground(g);
     const c = document.createElement('canvas');
     c.width = BOARD_W;
     c.height = BOARD_H;
@@ -1602,9 +1684,13 @@ export class Renderer {
         }
         ctx.fillStyle = wall.base;
         ctx.fillRect(px, py, TILE, TILE);
-        // lit top edge, and a darker front face where the wall meets open floor
+        // lit top edge (brighter where open floor lies behind it), and a darker front face where the wall meets open floor
         ctx.fillStyle = wall.top;
         ctx.fillRect(px, py, TILE, 1);
+        if (y === 0 || !wallAt(x, y - 1)) {
+          ctx.fillStyle = 'rgba(255,240,220,0.3)';
+          ctx.fillRect(px, py, TILE, 1);
+        }
         ctx.fillStyle = wall.face;
         ctx.fillRect(px, py + 1, TILE, 2);
         if (open) {
@@ -1648,6 +1734,9 @@ export class Renderer {
             for (let bx = px + off; bx < px + TILE; bx += 8) ctx.fillRect(bx, by, 1, 3);
           }
         }
+        // The whole block a touch lighter than the floor around it, so walls read at a glance.
+        ctx.fillStyle = 'rgba(255,240,220,0.06)';
+        ctx.fillRect(px, py, TILE, TILE);
         // Sides that face open floor fall into shadow, so walls read as solid blocks.
         if (x > 0 && !wallAt(x - 1, y)) {
           ctx.fillStyle = 'rgba(0,0,0,0.3)';
@@ -1790,7 +1879,7 @@ export class Renderer {
 
   /** Spores, snow, red rain, twinkling stars or rising gold, over everything. */
   private drawWeather(g: Game, dt: number) {
-    if (this.quiet) return;
+    if (this.quiet || this.contrast) return;
     const look = deepLook(g.zone);
     if (!look) {
       this.weather = [];

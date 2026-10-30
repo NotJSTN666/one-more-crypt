@@ -937,13 +937,22 @@ details.card summary {
 }
 
 .offer button.selected,
-#rest.selected {
+#rest.selected,
+#to-forge.selected,
+#leave-top.selected,
+#see-build.selected {
   outline: 2px solid var(--gold);
   outline-offset: 2px;
 }
 
-#rest.selected {
+#rest.selected,
+#to-forge.selected,
+#leave-top.selected {
   background: var(--panel-2);
+}
+
+#see-build.selected {
+  color: var(--gold);
 }
 
 @media (pointer: coarse) {

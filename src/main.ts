@@ -50,6 +50,13 @@ const discordBtn = `<a class="btn discord" href="${DISCORD_URL}" target="_blank"
 
 setMusicEnabled(!save.musicOff);
 
+/** The player's display settings, applied to the board. */
+function applyDisplay() {
+  renderer.shakeOn = !save.shakeOff;
+  renderer.contrast = save.highContrast;
+}
+applyDisplay();
+
 let game: Game;
 let lastResult: RunResult | null = null;
 let lastReward: RunReward | null = null;
@@ -1468,7 +1475,7 @@ function showChoice() {
   const canForge = surge && game.forgeOptions().length > 0;
   showOverlay('choose', `
     <h2>${surge ? '⚡ Power surge!' : game.mode === 'horde' ? `Wave ${game.horde.wave} held` : `Floor ${game.floor} cleared`}</h2>
-    <p class="sub">${surge ? 'The souls of the slain gather. Claim a relic' : 'Claim a relic from the dead'}<span class="keys-hint"> · ↑↓ or W/S to choose, Enter or Space to take</span></p>
+    <p class="sub">${surge ? 'The souls of the slain gather. Claim a relic' : 'Claim a relic from the dead'}<span class="keys-hint"> · ↑↓ to choose, Enter to take, 1-${offer.relics.length + offer.boons.length} to pick, R to rest${canForge ? ', F for the forge' : ''}, Y for your relics</span></p>
     <p class="choice-hp ${low ? 'low' : ''}">❤ ${game.player.hp}/${game.player.maxHp} HP${low ? ' · Low on health. Resting may be the smart pick.' : ''}</p>
     ${tutorial ? `<div class="coach-inline"><span>5 / 5 · Relics</span>${RELIC_COACH}</div>` : ''}
     <div class="offer">${cards}</div>
@@ -1501,8 +1508,9 @@ const CHOICE_NAV: Record<string, number> = {
 let choiceIndex = 0;
 let choiceShownAt = 0;
 
+/** Everything on a relic or forge screen the arrow keys step through, top to bottom. */
 function choiceButtons(): HTMLButtonElement[] {
-  return [...overlay.querySelectorAll<HTMLButtonElement>('.offer button:not(:disabled), #rest')];
+  return [...overlay.querySelectorAll<HTMLButtonElement>('#leave-top, .offer button:not(:disabled), #to-forge, #rest, #see-build')];
 }
 
 function selectChoice(i: number) {
@@ -1524,10 +1532,19 @@ function choiceKey(e: KeyboardEvent) {
     sfx.step();
   } else if (confirm) {
     choiceButtons()[choiceIndex]?.click();
+  } else if (e.key === 'f' || e.key === 'F') {
+    overlay.querySelector<HTMLButtonElement>('#to-forge')?.click();
+  } else if (e.key === 'y' || e.key === 'Y') {
+    overlay.querySelector<HTMLButtonElement>('#see-build')?.click();
+  } else if (e.key === 'Escape') {
+    // Back out of the Horde's forge to the relics.
+    if (game.feature?.kind === 'forge' && game.config.surge) resolveEvent(false);
   } else {
     if (!game.offer) return;
+    // 1-4 take the cards as they're shown (A to Z), not in offer order.
     const n = Number(e.key);
-    if (n >= 1 && n <= game.offer.relics.length + game.offer.boons.length) pickRelic(n - 1);
+    const cards = [...overlay.querySelectorAll<HTMLButtonElement>('.offer button[data-i]')];
+    if (n >= 1 && n <= cards.length) cards[n - 1].click();
     else if (e.key === 'r' || e.key === 'R') pickRelic(-1);
   }
 }
@@ -1571,7 +1588,8 @@ function showForge() {
   on('#leave', () => resolveEvent(false));
   (document.activeElement as HTMLElement | null)?.blur();
   choiceShownAt = performance.now();
-  selectChoice(0);
+  // Start on the first fusion, not the Back button above it.
+  selectChoice(game.config.surge && options.length ? 1 : 0);
 }
 
 function forgePick(i: number) {
@@ -1699,6 +1717,10 @@ function showPause() {
     <button class="btn primary" id="resume">Resume</button>
     <button class="btn" id="help">How to play</button>
     <button class="btn" id="music">🎵 Music: ${isMusicEnabled() ? 'On' : 'Off'}</button>
+    <div class="row grid2">
+      <button class="btn" id="shake">📳 Screen shake: ${save.shakeOff ? 'Off' : 'On'}</button>
+      <button class="btn" id="contrast">🔲 High contrast: ${save.highContrast ? 'On' : 'Off'}</button>
+    </div>
     <button class="btn" id="abandon">${hordeFight ? 'End the run<small>Your score so far still counts</small>' : raidFight ? 'End the fight<small>Your damage so far still counts</small>' : `Abandon run<small>${daily ? "Counts as today's attempt" : story ? 'Back to Gravesend' : 'Back to the title'}</small>`}</button>
   `);
   on('#resume', hideOverlay);
@@ -1708,6 +1730,20 @@ function showPause() {
     writeSave(save);
     const btn = overlay.querySelector('#music');
     if (btn) btn.textContent = `🎵 Music: ${isMusicEnabled() ? 'On' : 'Off'}`;
+  });
+  on('#shake', () => {
+    save.shakeOff = !save.shakeOff;
+    writeSave(save);
+    applyDisplay();
+    const btn = overlay.querySelector('#shake');
+    if (btn) btn.textContent = `📳 Screen shake: ${save.shakeOff ? 'Off' : 'On'}`;
+  });
+  on('#contrast', () => {
+    save.highContrast = !save.highContrast;
+    writeSave(save);
+    applyDisplay();
+    const btn = overlay.querySelector('#contrast');
+    if (btn) btn.textContent = `🔲 High contrast: ${save.highContrast ? 'On' : 'Off'}`;
   });
   on('#help', () => {
     hideOverlay();
