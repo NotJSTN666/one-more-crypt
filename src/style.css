@@ -2320,10 +2320,117 @@ body.tutorial #relic-bar {
   from { transform: scale(0.8); opacity: 0; }
 }
 
+/* The new relic stands in its own light: a canvas of rays and embers behind it. */
+.fused-stage {
+  position: relative;
+  height: 120px;
+  margin: -6px -6px 0;
+}
+
+.fused-glow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 240px;
+  height: 160px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
 .fused-emoji {
-  font-size: 54px;
-  line-height: 1.1;
-  animation: fused-float 2.4s ease-in-out infinite;
+  position: relative;
+  font-size: 64px;
+  line-height: 120px;
+  filter: drop-shadow(0 0 12px rgba(127, 180, 255, 0.8));
+  animation: fused-land 0.6s cubic-bezier(0.2, 1.6, 0.4, 1) both, fused-float 2.4s ease-in-out 0.6s infinite;
+}
+
+.fused-reveal.ascended .fused-emoji { filter: drop-shadow(0 0 14px rgba(242, 193, 78, 0.9)); }
+
+@keyframes fused-land {
+  0% { transform: scale(2.2); opacity: 0; filter: brightness(3) drop-shadow(0 0 20px #fff); }
+  60% { transform: scale(0.92); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+/* Each line arrives in turn under the relic. */
+.fused-reveal > :not(.fused-stage) {
+  animation: fused-up 0.4s ease-out both;
+}
+
+.fused-reveal > .fused-new { animation-delay: 0.25s; }
+.fused-reveal > .fused-kind { animation-delay: 0.3s; }
+.fused-reveal > .fused-name { animation: none; }
+.fused-reveal > .fused-recipe { animation-delay: 0.75s; }
+.fused-reveal > .fused-desc { animation-delay: 0.95s; }
+.fused-reveal > .fused-from { animation-delay: 1.05s; }
+.fused-reveal > .fused-grants { animation-delay: 1.1s; }
+.fused-reveal > .btn { animation-delay: 1.2s; }
+
+@keyframes fused-up {
+  from { opacity: 0; transform: translateY(8px); }
+}
+
+/* The name drops in a letter at a time. */
+.fused-name span {
+  display: inline-block;
+  animation: fused-letter 0.35s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+  animation-delay: calc(0.35s + var(--i) * 0.035s);
+}
+
+@keyframes fused-letter {
+  from { opacity: 0; transform: translateY(-14px) scale(1.4); }
+}
+
+.fused-name { text-shadow: 0 0 14px rgba(127, 180, 255, 0.6); }
+.fused-reveal.ascended .fused-name { text-shadow: 0 0 16px rgba(242, 193, 78, 0.7); }
+
+.fused-new {
+  display: inline-block;
+  margin: 2px 0 0;
+  padding: 2px 10px;
+  border: 1px solid var(--gold);
+  border-radius: 999px;
+  font-family: var(--pixel);
+  font-size: 10px;
+  color: var(--gold);
+  background: rgba(242, 193, 78, 0.12);
+  animation: fused-stamp 0.45s cubic-bezier(0.2, 1.8, 0.4, 1) 0.25s both !important;
+}
+
+@keyframes fused-stamp {
+  from { opacity: 0; transform: scale(2.4) rotate(-8deg); }
+}
+
+/* The recipe: the two relics slide together and the new one appears. */
+.fused-recipe {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 2px 0 10px;
+  font-size: 22px;
+}
+
+.fused-recipe .fr-op { font-family: var(--pixel); font-size: 12px; color: var(--muted); }
+.fused-recipe .fr-a { animation: fr-in-left 0.5s ease-out 0.75s both; }
+.fused-recipe .fr-b { animation: fr-in-right 0.5s ease-out 0.75s both; }
+.fused-recipe .fr-out { animation: fr-pop 0.45s cubic-bezier(0.2, 1.8, 0.4, 1) 1.15s both; filter: drop-shadow(0 0 6px rgba(127, 180, 255, 0.9)); }
+.fused-reveal.ascended .fused-recipe .fr-out { filter: drop-shadow(0 0 6px rgba(242, 193, 78, 0.9)); }
+
+@keyframes fr-in-left { from { opacity: 0; transform: translateX(-24px); } }
+@keyframes fr-in-right { from { opacity: 0; transform: translateX(24px); } }
+@keyframes fr-pop { from { opacity: 0; transform: scale(0.2); } }
+
+/* The card's edge breathes with the forge's light. */
+.fused-reveal { animation: fused-in 0.45s cubic-bezier(0.2, 1.4, 0.4, 1), fused-breathe 2.6s ease-in-out 0.5s infinite; }
+.fused-reveal.ascended { animation: fused-in 0.45s cubic-bezier(0.2, 1.4, 0.4, 1), fused-breathe-gold 2.6s ease-in-out 0.5s infinite; }
+
+@keyframes fused-breathe { 50% { box-shadow: 0 0 46px rgba(127, 180, 255, 0.45); } }
+@keyframes fused-breathe-gold { 50% { box-shadow: 0 0 52px rgba(242, 193, 78, 0.55); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .fused-reveal, .fused-reveal > *, .fused-emoji, .fused-name span, .fused-recipe > *, .fused-new { animation: none !important; }
 }
 
 @keyframes fused-float {

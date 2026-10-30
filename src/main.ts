@@ -25,7 +25,7 @@ import { islePerks, type IsleState } from './isle';
 import { CROP_BY_ID, FARM_SPAWN, isRipe } from './graveshift';
 import { showGraveRequests, showGraveShop } from './graveshift-ui';
 import { showWardrobe } from './wardrobe';
-import { IMPACT, playFusion } from './fusefx';
+import { IMPACT, animateReveal, playFusion } from './fusefx';
 import { howToHtml, startHowTo } from './howto';
 import { RELIC_COACH, TUTORIAL } from './tutorial';
 import { DISCORD_URL, KOFI_URL, copyText, descentStrip, discordHtml, followXHtml, kofiHtml, playTime, shareText, siteUrl } from './share';
@@ -1644,16 +1644,27 @@ function fusedCard(id: FusedId, first: boolean, grants: string) {
   const def = RELIC_BY_ID[id];
   const [a, b] = FUSION_BY_ID[id].from.map((r) => RELIC_BY_ID[r]);
   const ascended = def.rarity === 'ascended';
+  // The name lands letter by letter.
+  const letters = [...def.name].map((ch, i) => `<span style="--i:${i}">${ch === ' ' ? '&nbsp;' : esc(ch)}</span>`).join('');
   showOverlay('fused', `
     <div class="fused-reveal ${ascended ? 'ascended' : ''}">
-      <div class="fused-emoji">${def.emoji}</div>
-      <p class="fused-kind">${first ? '✨ New discovery · ' : ''}${ascended ? 'Ascended relic' : 'Fused relic'}</p>
-      <h2>${esc(def.name)}</h2>
+      <div class="fused-stage">
+        <canvas class="fused-glow" width="240" height="160" aria-hidden="true"></canvas>
+        <div class="fused-emoji">${def.emoji}</div>
+      </div>
+      ${first ? '<p class="fused-new">✨ New discovery</p>' : ''}
+      <p class="fused-kind">${ascended ? 'Ascended relic' : 'Fused relic'}</p>
+      <h2 class="fused-name" aria-label="${esc(def.name)}">${letters}</h2>
+      <div class="fused-recipe" aria-label="Forged from ${esc(a.name)} and ${esc(b.name)}">
+        <span class="fr-a" title="${esc(a.name)}">${a.emoji}</span><span class="fr-op">+</span><span class="fr-b" title="${esc(b.name)}">${b.emoji}</span><span class="fr-op">=</span><span class="fr-out">${def.emoji}</span>
+      </div>
       <p class="fused-desc">${esc(relicText(def.desc(1)))}</p>
-      <p class="fine">Forged from ${a.emoji} ${esc(a.name)} + ${b.emoji} ${esc(b.name)}</p>
+      <p class="fine fused-from">Forged from ${esc(a.name)} + ${esc(b.name)}</p>
       <p class="fine fused-grants">Counts as: ${grants}</p>
       <button class="btn primary" id="fused-ok">Continue</button>
     </div>`);
+  const glow = overlay.querySelector<HTMLCanvasElement>('.fused-glow');
+  if (glow) animateReveal(glow, ascended);
   on('#fused-ok', () => {
     hideOverlay();
     updateHud();

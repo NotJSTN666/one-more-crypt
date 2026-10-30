@@ -281,3 +281,80 @@ export function playFusion(opts: { a: string; b: string; out: string; name: stri
   };
   requestAnimationFrame(frame);
 }
+
+/**
+ * Behind the new relic on its reveal card: slow light rays turning, a ring that pulses out
+ * now and then, and embers rising, in the forge's colour. Stops when the card closes.
+ */
+export function animateReveal(canvas: HTMLCanvasElement, ascended: boolean) {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  const rgb = ascended ? '242,193,78' : '127,180,255';
+  const W = canvas.width;
+  const H = canvas.height;
+  const cx = W / 2;
+  const cy = H / 2;
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const embers = Array.from({ length: 22 }, (_, i) => ({ x: (i * 47) % W, p: (i * 0.137) % 1, v: 0.18 + (i % 5) * 0.05, s: i % 4 === 0 ? 3 : 2 }));
+  const start = performance.now();
+  const frame = (now: number) => {
+    if (!canvas.isConnected) return;
+    const t = still ? 1.2 : (now - start) / 1000;
+    ctx.clearRect(0, 0, W, H);
+    ctx.globalCompositeOperation = 'lighter';
+    // a soft core, swelling in as the card arrives
+    const inn = Math.min(1, t / 0.5);
+    const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, 70 * inn + 1);
+    core.addColorStop(0, `rgba(255,255,255,${0.35 * inn})`);
+    core.addColorStop(0.4, `rgba(${rgb},${0.35 * inn})`);
+    core.addColorStop(1, `rgba(${rgb},0)`);
+    ctx.fillStyle = core;
+    ctx.fillRect(0, 0, W, H);
+    // light rays turning slowly, longer for an ascended relic
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(t * 0.35);
+    const rays = ascended ? 16 : 12;
+    for (let k = 0; k < rays; k++) {
+      ctx.rotate((Math.PI * 2) / rays);
+      const len = (ascended ? 130 : 105) * inn * (k % 2 ? 0.75 : 1);
+      const g = ctx.createLinearGradient(0, 0, len, 0);
+      g.addColorStop(0, `rgba(${rgb},${0.28 + 0.08 * Math.sin(t * 2 + k)})`);
+      g.addColorStop(1, `rgba(${rgb},0)`);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(len, -len * 0.08);
+      ctx.lineTo(len, len * 0.08);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+    // a ring pulsing outward every two seconds
+    const ring = (t % 2) / 2;
+    ctx.strokeStyle = `rgba(${rgb},${0.6 * (1 - ring)})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 20 + ring * 90, 0, Math.PI * 2);
+    ctx.stroke();
+    // two motes orbiting the relic
+    for (let k = 0; k < 2; k++) {
+      const a = t * 1.6 + k * Math.PI;
+      const x = cx + Math.cos(a) * 46;
+      const y = cy + Math.sin(a) * 18;
+      ctx.fillStyle = k ? '#ffffff' : `rgb(${rgb})`;
+      ctx.fillRect(Math.round(x) - 2, Math.round(y) - 2, 4, 4);
+    }
+    // embers rising from below
+    for (const e of embers) {
+      const p = (e.p + t * e.v) % 1;
+      ctx.globalAlpha = Math.sin(p * Math.PI) * 0.9;
+      ctx.fillStyle = p > 0.5 ? '#ffffff' : `rgb(${rgb})`;
+      ctx.fillRect(Math.round(e.x + Math.sin(t * 2 + e.x) * 6), Math.round(H - p * H), e.s, e.s);
+    }
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+    if (!still) requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+}
