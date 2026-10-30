@@ -684,6 +684,42 @@ h2.dead {
   font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
 }
 
+/* The title's coffee cup, steaming: three wisps rise from the cup in turn and fade. */
+.account-chip.kofi-chip { overflow: visible; }
+
+.kofi-cup {
+  position: relative;
+  display: inline-block;
+}
+
+.kofi-cup i {
+  position: absolute;
+  bottom: 62%;
+  left: 38%;
+  width: 2px;
+  height: 7px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.8);
+  filter: blur(0.6px);
+  opacity: 0;
+  animation: kofi-steam 2.4s ease-out infinite;
+  pointer-events: none;
+}
+
+.kofi-cup i:nth-child(2) { left: 52%; animation-delay: 0.8s; }
+.kofi-cup i:nth-child(3) { left: 66%; animation-delay: 1.6s; }
+
+@keyframes kofi-steam {
+  0% { opacity: 0; transform: translate(0, 2px) scaleY(0.5); }
+  20% { opacity: 0.85; }
+  50% { transform: translate(1.5px, -5px) scaleY(1) rotate(8deg); }
+  100% { opacity: 0; transform: translate(-1.5px, -11px) scaleY(1.2) rotate(-8deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kofi-cup i { animation: none; }
+}
+
 .account-chip {
   background: var(--panel);
   border: 1px solid var(--line);

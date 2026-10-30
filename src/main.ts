@@ -1214,7 +1214,7 @@ function muteChipHtml(): string {
 function accountChip(): string {
   const mute = muteChipHtml()
     + `<button class="account-chip mute-chip" id="title-settings" aria-label="Settings">⚙️</button>`
-    + `<button class="account-chip mute-chip kofi-chip" id="title-kofi" aria-label="Support One More Crypt">☕️</button>`
+    + `<button class="account-chip mute-chip kofi-chip" id="title-kofi" aria-label="Support One More Crypt"><span class="kofi-cup" aria-hidden="true">☕️<i></i><i></i><i></i></span></button>`
     // Install, up top beside the sound, wherever the browser can add the game to the home screen.
     + (installMode() ? `<button class="account-chip install-chip" id="install" aria-label="Install the app">📲 Install</button>` : '');
   if (ONLINE && !session.ready) return `<div class="account-row">${mute}</div>`;
