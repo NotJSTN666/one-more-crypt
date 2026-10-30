@@ -2950,10 +2950,44 @@ body.tutorial #relic-bar {
 }
 
 /* After a first run: the invitation to put a name on the board. */
+/* Claim your name: gold, glowing, with a shine sweeping across, so a guest can't miss it. */
 .btn.join-cta {
+  position: relative;
+  overflow: hidden;
   border-color: var(--gold);
-  box-shadow: 0 0 14px rgba(242, 193, 78, 0.25);
   color: var(--gold);
+  background: linear-gradient(180deg, rgba(122, 92, 20, 0.5), rgba(30, 22, 8, 0.5));
+  animation: claim-glow 2s ease-in-out infinite;
+}
+
+.btn.join-cta::after,
+.account-chip.claim-chip::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 -60%;
+  width: 40%;
+  background: linear-gradient(100deg, transparent, rgba(255, 236, 170, 0.35), transparent);
+  transform: skewX(-20deg);
+  animation: horde-shine 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.account-chip.claim-chip {
+  position: relative;
+  overflow: hidden;
+  border-color: var(--gold);
+  color: var(--gold);
+  animation: claim-glow 2s ease-in-out infinite;
+}
+
+@keyframes claim-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(242, 193, 78, 0.25); }
+  50% { box-shadow: 0 0 22px rgba(242, 193, 78, 0.7), 0 0 40px rgba(242, 193, 78, 0.2); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn.join-cta, .account-chip.claim-chip, .btn.join-cta::after, .account-chip.claim-chip::after { animation: none; }
+  .btn.join-cta, .account-chip.claim-chip { box-shadow: 0 0 16px rgba(242, 193, 78, 0.5); }
 }
 
 /* After a run: the reminder offer, the strongest reason to come back tomorrow. */

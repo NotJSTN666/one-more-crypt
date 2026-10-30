@@ -1221,7 +1221,7 @@ function accountChip(): string {
   const name = playerName();
   const title = titleName(meta.title);
   // A guest on the boards under a placeholder is nudged to pick a real name.
-  if (unclaimed()) return `<div class="account-row">${mute}<button class="account-chip" id="account">👤 Claim your name</button></div>`;
+  if (unclaimed()) return `<div class="account-row">${mute}<button class="account-chip claim-chip" id="account">✍️ Claim your name</button></div>`;
   return `<div class="account-row">${mute}<button class="account-chip" id="account">👤 ${name ? esc(name) : 'Sign in'}${name && title ? ` <small class="${titleFxClass(meta.title)}">${esc(title)}</small>` : ''}</button></div>`;
 }
 
@@ -1845,6 +1845,8 @@ function showDeath(r: RunResult, best: boolean) {
       <div><b>${r.turns}</b>TURNS</div>
       ${r.seconds ? `<div><b>${playTime(r.seconds)}</b>TIME</div>` : ''}
     </div>
+    ${ONLINE && !ch ? `<p class="rank-line ${daily ? 'daily-rank' : ''}" id="rank">${signedIn() ? 'Carving your name into the crypt…' : daily ? 'Counting the fallen…' : ''}</p>` : ''}
+    ${ONLINE && (!signedIn() || unclaimed()) ? `<button class="btn join-cta" id="join">${ch ? '✍️ Claim a name to post to the challenge board' : unclaimed() || !signedIn() ? `✍️ Claim your name` : `✍️ Put your name on ${daily ? "today's" : 'the'} board`}<small>${ch ? 'One tap, no email needed.' : `You're on ${daily ? "today's" : 'the'} board as a guest. Pick a name to make it yours: one tap, no email needed.`}</small></button>` : ''}
     ${r.relics ? `<div class="strip" style="font-size:18px">${r.relics}</div>` : ''}
     ${r.combos ? `<p class="combo-line">${esc(r.combos)}</p>` : ''}
     ${boonLine()}
@@ -1857,8 +1859,6 @@ function showDeath(r: RunResult, best: boolean) {
     ${welcomeTrackHtml()}
     ${ch ? challengeResultHtml(r, ch) : ''}
     ${soulRankHtml()}
-    ${ONLINE && !ch ? `<p class="rank-line ${daily ? 'daily-rank' : ''}" id="rank">${signedIn() ? 'Carving your name into the crypt…' : daily ? 'Counting the fallen…' : ''}</p>` : ''}
-    ${ONLINE && (!signedIn() || unclaimed()) ? `<button class="btn join-cta" id="join">${ch ? '✍️ Claim a name to post to the challenge board' : unclaimed() || !signedIn() ? `✍️ Claim your name` : `✍️ Put your name on ${daily ? "today's" : 'the'} board`}<small>${ch ? 'One tap, no email needed.' : `You're on ${daily ? "today's" : 'the'} board as a guest. Pick a name to make it yours: one tap, no email needed.`}</small></button>` : ''}
     ${
       daily
         ? `${streakTeaseHtml()}${tomorrowHtml()}${reminderPromptHtml()}${installNudgeHtml()}${ONLINE ? '<p class="podium-tease">🥇 Finish in the top 3 when the day ends to win exclusive headwear and Souls.</p>' : ''}
@@ -2918,7 +2918,7 @@ function finishHorde() {
       <button class="btn primary" id="horde-again">🛡️ Go again<small>Same arena, same hero</small></button>
       ${ONLINE ? `<h3 class="shop-head">Today's Horde board</h3><p class="fine" id="horde-rank">Posting your run…</p><ol class="raid-top" id="horde-board"><li class="fine">Loading…</li></ol>` : ''}
       <button class="btn" id="horde-copy">Copy result</button>
-      ${ONLINE && (!signedIn() || unclaimed()) ? `<button class="btn" id="join">Claim your name<small>You're on the board as a guest until you do</small></button>` : ''}
+      ${ONLINE && (!signedIn() || unclaimed()) ? `<button class="btn join-cta" id="join">✍️ Claim your name<small>You're on the board as a guest until you do</small></button>` : ''}
       <button class="btn" id="title">Title</button>`);
     on('#horde-again', () => startHorde());
     on('#horde-copy', async () => toast((await copyText(share)) ? 'Copied!' : 'Copy failed'));
