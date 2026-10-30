@@ -756,6 +756,54 @@ document.addEventListener('click', (e) => {
   if (!(e.target as HTMLElement).closest?.('#title-mute')) return;
   toggleMute();
 });
+// The title screen's ⚙️ button: sound, music and display settings.
+document.addEventListener('click', (e) => {
+  if ((e.target as HTMLElement).closest?.('#title-settings')) showSettings(showTitle);
+});
+
+/** Sound, music and display settings, saved on this device. */
+function showSettings(back: () => void) {
+  const row = (id: string, icon: string, name: string, on: boolean, note: string) =>
+    `<button class="btn setting-row ${on ? 'on' : ''}" id="${id}" aria-pressed="${on}"><span>${icon} ${name}</span><b>${on ? 'On' : 'Off'}</b><small>${note}</small></button>`;
+  showOverlay('settings', `
+    <h2>⚙️ Settings</h2>
+    <p class="sub">Saved on this device.</p>
+    <h3 class="shop-head">Sound</h3>
+    ${row('set-sound', '🔊', 'Sound effects', !isMuted(), 'Hits, steps, the bell and the rest')}
+    ${row('set-music', '🎵', 'Music', isMusicEnabled(), 'The crypt\'s music, which changes with depth')}
+    <h3 class="shop-head">Display</h3>
+    ${row('set-shake', '📳', 'Screen shake', !save.shakeOff, 'A short shake on big hits')}
+    ${row('set-contrast', '🔲', 'High contrast', save.highContrast, 'Light walls with bright edges, a plain floor, outlined foes, no fog')}
+    <button class="btn" id="set-help">❔ How to play</button>
+    <button class="btn primary" id="back">Back</button>`);
+  const again = () => showSettings(back);
+  on('#set-sound', () => {
+    toggleMute();
+    again();
+  });
+  on('#set-music', () => {
+    unlockAudio();
+    setMusicEnabled(!isMusicEnabled());
+    save.musicOff = !isMusicEnabled();
+    writeSave(save);
+    again();
+  });
+  on('#set-shake', () => {
+    save.shakeOff = !save.shakeOff;
+    writeSave(save);
+    applyDisplay();
+    again();
+  });
+  on('#set-contrast', () => {
+    save.highContrast = !save.highContrast;
+    writeSave(save);
+    applyDisplay();
+    again();
+  });
+  on('#set-help', () => showHelp(again));
+  on('#back', back);
+}
+
 // The title screen's ☕ button: a word about donations, then on to Ko-fi if they like.
 document.addEventListener('click', (e) => {
   if ((e.target as HTMLElement).closest?.('#title-kofi')) showSupport(showTitle);
@@ -1165,6 +1213,7 @@ function muteChipHtml(): string {
 
 function accountChip(): string {
   const mute = muteChipHtml()
+    + `<button class="account-chip mute-chip" id="title-settings" aria-label="Settings">⚙️</button>`
     + `<button class="account-chip mute-chip kofi-chip" id="title-kofi" aria-label="Support One More Crypt">☕️</button>`
     // Install, up top beside the sound, wherever the browser can add the game to the home screen.
     + (installMode() ? `<button class="account-chip install-chip" id="install" aria-label="Install the app">📲 Install</button>` : '');

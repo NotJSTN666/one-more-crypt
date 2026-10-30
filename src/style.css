@@ -3884,3 +3884,30 @@ body.tutorial #relic-bar {
   padding: 3px 0;
   color: var(--text);
 }
+
+/* Settings: a row per setting, its name on the left and On/Off on the right. */
+.btn.setting-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 2px 12px;
+  text-align: left;
+}
+
+.btn.setting-row b {
+  min-width: 44px;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  text-align: center;
+  font-size: 11px;
+}
+
+.btn.setting-row.on b {
+  border-color: #7ee081;
+  color: #7ee081;
+}
+
+.btn.setting-row small {
+  grid-column: 1 / -1;
+}
