@@ -807,7 +807,8 @@ function updateBow() {
 function toggleBow() {
   if (!game || !overlay.hidden || tutorial || !game.toggleBow()) return;
   sfx.step();
-  toast(game.bowDown ? '🏹 Bow lowered: you step, not shoot' : '🏹 Bow ready to shoot');
+  // A word over the hero, not a toast: a toast would cover the d-pad on phones.
+  renderer.heroNote(game.bowDown ? 'BOW LOWERED' : 'BOW READY', game.bowDown ? '#9aa3b5' : '#7ee081');
   updateBow();
   saveRun();
 }

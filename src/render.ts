@@ -393,6 +393,12 @@ export class Renderer {
   }
 
   /** Big centred title, used for completed combos. */
+  /** A short word floating up over the hero, for things that don't need a banner. */
+  heroNote(text: string, color: string) {
+    const g = this.game;
+    if (g) this.floaters.push(this.floater(g.player.x, g.player.y - 0.4, text, color, 0.9));
+  }
+
   banner(text: string, color: string) {
     this.bannerText = { text, color, t: 0 };
     this.shake = Math.max(this.shake, 4);
