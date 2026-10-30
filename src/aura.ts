@@ -285,6 +285,12 @@ function drawBack(ctx: Ctx, a: AuraDef, cx: number, feet: number, mid: number, w
       // The hero inside a snow globe: a faint glass dome, snow swirling down within.
       snowGlobe(ctx, px, cx, feet, w, k, t, false);
       break;
+    case 'moon':
+      harvestMoon(ctx, px, cx, mid, w, k, t, false);
+      break;
+    case 'aurora':
+      northernLights(ctx, px, cx, mid, w, k, t, false);
+      break;
     case 'bulbs':
       // A warm glow, and light bulbs circling the hero, each flicking on with an idea.
       bodyGlow(ctx, cx, mid, w * 1.0, a.color, 0.18 * pulse);
@@ -412,6 +418,12 @@ function drawFront(ctx: Ctx, a: AuraDef, cx: number, feet: number, mid: number, 
       break;
     case 'snowglobe':
       snowGlobe(ctx, px, cx, feet, w, k, t, true);
+      break;
+    case 'moon':
+      harvestMoon(ctx, px, cx, mid, w, k, t, true);
+      break;
+    case 'aurora':
+      northernLights(ctx, px, cx, mid, w, k, t, true);
       break;
     case 'reaper':
       // Pale souls drawn in toward the hero, fading as they arrive.
@@ -625,6 +637,62 @@ function snowGlobe(ctx: Ctx, px: Px, cx: number, feet: number, w: number, k: num
   ctx.fillRect(Math.round(cx - bw / 2), Math.round(feet - k * 0.5), Math.round(bw), Math.round(k * 2));
   ctx.fillStyle = '#c9a24a';
   ctx.fillRect(Math.round(cx - bw / 2), Math.round(feet - k * 0.5), Math.round(bw), Math.max(1, Math.round(k * 0.5)));
+}
+
+/** A great orange harvest moon risen behind the hero, thin clouds drifting over its face. */
+function harvestMoon(ctx: Ctx, px: Px, cx: number, mid: number, w: number, k: number, t: number, front: boolean) {
+  const mx = cx + w * 0.18;
+  const my = mid - w * 0.3;
+  const r = w * 0.42;
+  if (!front) {
+    bodyGlow(ctx, mx, my, r * 1.9, '#e8902a', 0.22);
+    // the disc, in rows of pixels so it stays crisp, a little lighter up and to the left
+    for (let y = -r; y <= r; y += k) {
+      const half = Math.sqrt(Math.max(0, r * r - y * y));
+      ctx.globalAlpha = 0.95;
+      ctx.fillStyle = y < -r * 0.3 ? '#f2a84a' : '#e8902a';
+      ctx.fillRect(Math.round(mx - half), Math.round(my + y), Math.round(half * 2), Math.ceil(k));
+    }
+    // a few darker seas on its face
+    px(mx - r * 0.35, my - r * 0.1, k * 2, '#c9761e', 0.8);
+    px(mx + r * 0.15, my + r * 0.25, k * 3, '#c9761e', 0.7);
+    px(mx + r * 0.3, my - r * 0.4, k, '#c9761e', 0.8);
+    return;
+  }
+  // clouds crossing the moon, slowly
+  for (let i = 0; i < 2; i++) {
+    const p = ((t * 0.06 + i * 0.5) % 1) * 2 - 1;
+    const y = my - r * 0.25 + i * r * 0.55;
+    ctx.globalAlpha = 0.55 * (1 - Math.abs(p));
+    ctx.fillStyle = '#2a1a2e';
+    ctx.fillRect(Math.round(mx + p * r * 1.6 - r * 0.6), Math.round(y), Math.round(r * 1.2), Math.ceil(k * 1.5));
+    ctx.fillRect(Math.round(mx + p * r * 1.6 - r * 0.3), Math.round(y - k), Math.round(r * 0.6), Math.ceil(k));
+  }
+}
+
+/** Ribbons of green and violet light waving above the hero's head, and a few stars twinkling. */
+function northernLights(ctx: Ctx, px: Px, cx: number, mid: number, w: number, k: number, t: number, front: boolean) {
+  if (front) {
+    for (let i = 0; i < 4; i++) {
+      const tw = Math.sin(t * 3 + i * 2.1);
+      if (tw > 0.3) px(cx + (((i * 37) % 10) / 10 - 0.5) * w * 1.4, mid - w * (0.55 + (i % 2) * 0.12), k, '#ffffff', tw);
+    }
+    return;
+  }
+  const ribbons: [string, number, number][] = [['#5fd3a6', 0, 0.62], ['#5fe3ff', 1.7, 0.5], ['#b07cff', 3.1, 0.74]];
+  for (const [color, phase, lift] of ribbons) {
+    for (let x = -w * 0.85; x <= w * 0.85; x += k) {
+      const wave = Math.sin(x * (2.6 / w) + t * 1.1 + phase) * w * 0.07;
+      const top = mid - w * lift + wave;
+      const fade = 1 - Math.abs(x) / (w * 0.9);
+      // each ribbon is a curtain: bright along its lower edge, fading upward
+      for (let j = 0; j < 4; j++) {
+        ctx.globalAlpha = Math.max(0, fade * (0.5 - j * 0.11) * (0.75 + 0.25 * Math.sin(t * 2 + x * 0.1 + phase)));
+        ctx.fillStyle = color;
+        ctx.fillRect(Math.round(cx + x), Math.round(top - j * k * 1.5), Math.ceil(k), Math.ceil(k * 1.5));
+      }
+    }
+  }
 }
 
 const IDEA_PERIOD = 0.9;

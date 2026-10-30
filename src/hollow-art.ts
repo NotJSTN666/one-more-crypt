@@ -45,8 +45,33 @@ export const GROUNDS: Record<string, Ground> = {
   cloister: { ...BASE, grass: ['#131b14', '#151f15', '#172216'], blade: '#27402a', tip: '#3d6b3a', flowers: ['#9be36a'], path: ['#323a34', '#2c332e', '#181d19'], tint: 'rgba(10, 30, 14, 0.24)', fog: '140, 210, 110', yews: 0.1 },
 };
 
+// ---------- the seasons ----------
+// The Harvest Feast scatters leaves and pumpkins and turns the trees; Midwinter lays snow on
+// everything and sets it falling. hollow.ts sets the dress for the day before it draws.
+
+export type Dress = 'harvest' | 'midwinter' | null;
+let dress: Dress = null;
+
+export function setDress(d: Dress) {
+  dress = d;
+}
+
+/** What the world is dressed for right now. */
+export function currentDress(): Dress {
+  return dress;
+}
+
+const LEAF = ['#c0662a', '#a8391f', '#d9a03a', '#8a5a28'];
+
 export function groundFor(id: string): Ground {
-  return GROUNDS[id] ?? BASE;
+  const g = GROUNDS[id] ?? BASE;
+  if (dress === 'harvest') {
+    return { ...g, grass: ['#1a1913', '#1d1b14', '#201d15'], blade: '#3a3320', tip: '#5a4a28', flowers: LEAF, tint: 'rgba(30, 14, 10, 0.18)', fog: '220, 170, 120' };
+  }
+  if (dress === 'midwinter') {
+    return { ...g, grass: ['#6f7a8c', '#788396', '#818da0'], blade: '#5d6878', tip: '#c9d4e2', flowers: [], tint: 'rgba(10, 16, 46, 0.26)', fog: '200, 215, 240' };
+  }
+  return g;
 }
 
 /** Paint the still part of an area: grass, cobbled paths, shores and the fence. */
@@ -118,6 +143,40 @@ function grass(px: Px, X: number, Y: number, x: number, y: number, g: Ground, un
     px(bx + 1, by + 1, 1, 1, g.blade);
     if (hash(x, y, 30 + k) < 0.4) px(bx, by - 1, 1, 1, g.tip);
   }
+  if (dress === 'harvest') {
+    // fallen leaves in drifts, and a pumpkin here and there
+    for (let k = 0; k < 4; k++) {
+      if (hash(x, y, 40 + k) > 0.45) continue;
+      const lx = X + Math.floor(hash(x, y, 50 + k) * 14);
+      const ly = Y + Math.floor(hash(x, y, 60 + k) * 14);
+      const c = LEAF[Math.floor(hash(x, y, 70 + k) * LEAF.length)];
+      px(lx, ly, 2, 1, c);
+      px(lx + (hash(x, y, 80 + k) < 0.5 ? 0 : 1), ly + 1, 1, 1, c);
+    }
+    if (hash(x, y, 90) < 0.025) {
+      const kx = X + 4 + Math.floor(hash(x, y, 91) * 6);
+      const ky = Y + 6 + Math.floor(hash(x, y, 92) * 5);
+      px(kx, ky + 1, 6, 4, '#c96a1e');
+      px(kx + 1, ky, 4, 6, '#c96a1e');
+      px(kx + 2, ky + 1, 1, 4, '#a8541a');
+      px(kx + 1, ky + 1, 1, 1, '#e08a3a');
+      px(kx + 2, ky - 1, 2, 1, '#3d5a2a');
+      px(kx, ky + 5, 6, 1, 'rgba(0,0,0,0.35)');
+    }
+  } else if (dress === 'midwinter') {
+    // the snow catches the light, and drifts gather in soft mounds
+    for (let k = 0; k < 3; k++) {
+      if (hash(x, y, 40 + k) > 0.5) continue;
+      px(X + Math.floor(hash(x, y, 50 + k) * 15), Y + Math.floor(hash(x, y, 60 + k) * 15), 1, 1, '#e8eef6');
+    }
+    if (hash(x, y, 93) < 0.06) {
+      const dx = X + 2 + Math.floor(hash(x, y, 94) * 6);
+      const dy = Y + 8 + Math.floor(hash(x, y, 95) * 5);
+      px(dx, dy + 1, 8, 2, '#9eaabb');
+      px(dx + 2, dy, 4, 1, '#aeb9c8');
+    }
+    return;
+  }
   const f = hash(x, y, 3);
   if (f < 0.07 && g.flowers.length) {
     const fx = X + 3 + Math.floor(hash(x, y, 4) * 9);
@@ -151,6 +210,12 @@ function cobbles(px: Px, X: number, Y: number, x: number, y: number, g: Ground, 
       px(x0, sy + h - 1, x1 - x0, 1, darken(col, 8));
       if (r > 0.92) px(x0 + 1, sy + 1, 1, 1, '#3d4a3a');
     }
+  }
+  // a dusting of snow caught between the stones, or a leaf blown onto the path
+  if (dress === 'midwinter') {
+    for (let k = 0; k < 6; k++) px(X + Math.floor(hash(x, y, 100 + k) * 15), Y + Math.floor(hash(x, y, 110 + k) * 15), hash(x, y, 120 + k) < 0.3 ? 2 : 1, 1, '#aeb9c8');
+  } else if (dress === 'harvest' && hash(x, y, 130) < 0.3) {
+    px(X + Math.floor(hash(x, y, 131) * 13), Y + Math.floor(hash(x, y, 132) * 13), 2, 1, LEAF[Math.floor(hash(x, y, 133) * LEAF.length)]);
   }
   // a darker rim where the path meets grass
   if (edge(0, -1)) px(X, Y, TILE, 1, darken(g.path[2], 4));
@@ -192,6 +257,10 @@ function fence(px: Px, X: number, Y: number, across: boolean) {
     px(X, Y + 4, TILE, 1, '#4b4259');
     px(X, Y + 11, TILE, 1, '#4b4259');
     px(X, Y + 12, TILE, 1, '#1d1824');
+    if (dress === 'midwinter') {
+      px(X, Y + 3, TILE, 1, '#c9d4e2');
+      for (let bx = 1; bx < TILE; bx += 3) px(X + bx, Y, 1, 1, '#e8eef6');
+    }
   } else {
     px(X + 3, Y, 10, TILE, '#0c0910');
     for (let by = 1; by < TILE; by += 3) {
@@ -226,6 +295,11 @@ export function tree(px: Px, X: number, Y: number, x: number, y: number, g: Grou
       px(tx, Y + top + h - 1, w, 1, '#0b140e');
     }
     px(X + 7 + sway, Y - 5, 2, 2, '#1c3224');
+    if (dress === 'midwinter') {
+      // snow resting on each tier
+      for (const [w, , top, s] of tiers) px(X + 8 - w / 2 + s + 1, Y + top, w - 2, 1, '#dde4ec');
+      px(X + 7 + sway, Y - 5, 2, 1, '#e8eef6');
+    }
     return;
   }
   // a bare, crooked tree, mirrored at random so no two stand alike
@@ -247,6 +321,27 @@ export function tree(px: Px, X: number, Y: number, x: number, y: number, g: Grou
   p(7 + sway, -6, 1, 6, lit);
   p(8 + sway, -9, 1, 3, bark);
   p(6 + sway, -8, 1, 2, bark);
+  if (dress === 'harvest') {
+    // the last leaves, clinging in clumps at the ends of the branches
+    const clump = (dx: number, dy: number, i: number) => {
+      for (let k = 0; k < 5; k++) {
+        const c = LEAF[(i + k) % LEAF.length];
+        p(dx + Math.floor(hash(x, y, 140 + i * 5 + k) * 4) - 1, dy + Math.floor(hash(x, y, 160 + i * 5 + k) * 3) - 1, 2, 1, c);
+      }
+    };
+    clump(0, -5, 0);
+    clump(13, -5, 1);
+    clump(7 + sway, -10, 2);
+    clump(3, 0, 3);
+  } else if (dress === 'midwinter') {
+    // snow along the tops of the branches
+    p(1, -4, 1, 1, '#e8eef6');
+    p(0, -5, 1, 1, '#e8eef6');
+    p(13, -5, 1, 1, '#e8eef6');
+    p(8 + sway, -10, 1, 1, '#e8eef6');
+    for (let i = 0; i < 4; i++) p(10 + i, 1 - i, 2, 1, '#dde4ec');
+    for (let i = 0; i < 4; i++) p(4 - i, 3 - i, 2, 1, '#dde4ec');
+  }
   // an owl, now and then, blinking
   if (hash(x, y, 14) < 0.15 && Math.sin(t * 0.7 + x) < 0.95) {
     p(3, 0, 1, 1, '#f2c14e');
@@ -286,6 +381,18 @@ export function grave(px: Px, X: number, Y: number, x: number, y: number, lit: b
     px(X + 7, Y + 6, 2, 5, dark);
     px(X + 6, Y + 7, 4, 1, dark);
     if (hash(x, y, 16) < 0.5) px(X + 4, Y + 11, 2, 2, '#3f5a3a');
+  }
+  // a cap of snow on whatever stands there
+  if (dress === 'midwinter') {
+    if (v === 1) {
+      px(X + 7, Y + 1, 3, 1, '#e8eef6');
+      px(X + 4, Y + 4, 9, 1, '#dde4ec');
+    } else if (v === 2) px(X + 4, Y + 3, 7, 1, '#e8eef6');
+    else {
+      px(X + 6, Y + 2, 4, 1, '#e8eef6');
+      px(X + 5, Y + 3, 6, 1, '#dde4ec');
+    }
+    px(X + 3, Y + 13, 10, 1, '#9eaabb');
   }
 }
 
@@ -339,3 +446,26 @@ function shift(hex: string, by: number): string {
 
 export const lighten = (hex: string, by: number) => shift(hex, by);
 export const darken = (hex: string, by: number) => shift(hex, -by);
+
+/** Leaves tumbling or snow falling over an outdoor area, when the season calls for it. */
+export function seasonWeather(ctx: CanvasRenderingContext2D, px: Px, W: number, H: number, t: number) {
+  if (dress === 'harvest') {
+    for (let i = 0; i < 16; i++) {
+      const p = (t * (0.035 + (i % 5) * 0.008) + i / 16) % 1;
+      const x = (((i * 61) % W) + p * 60 + Math.sin(t * 1.3 + i * 1.7) * 12 + W) % W;
+      ctx.globalAlpha = 0.85 * Math.min(1, (1 - p) * 5, p * 8);
+      const c = LEAF[i % LEAF.length];
+      const flip = Math.sin(t * 3 + i) > 0;
+      px(x, p * H, 2, 1, c);
+      px(x + (flip ? 1 : 0), p * H + 1, 1, 1, c);
+    }
+  } else if (dress === 'midwinter') {
+    for (let i = 0; i < 46; i++) {
+      const p = (t * (0.04 + (i % 6) * 0.01) + i / 46) % 1;
+      const x = (((i * 53) % W) + Math.sin(t * 0.9 + i * 2.3) * 8 + W) % W;
+      ctx.globalAlpha = 0.55 + (i % 3) * 0.15;
+      px(x, p * H, i % 7 === 0 ? 2 : 1, i % 7 === 0 ? 2 : 1, '#ffffff');
+    }
+  }
+  ctx.globalAlpha = 1;
+}

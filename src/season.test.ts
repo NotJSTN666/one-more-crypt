@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Game, fullPool } from './game';
 import { buyItem, finishRunMeta, lookUnlocked, meta, openSeasons } from './meta';
-import { AURAS, DECOR, HEADS, LOOKS, LOOK_BY_ID, seasonOf, seasonOpen } from './progression';
+import { AURAS, DECOR, HEADS, LOOKS, LOOK_BY_ID, seasonDress, seasonOf, seasonOpen, thanksgiving } from './progression';
 
 // Noon Central on a given date.
 const at = (date: string) => new Date(`${date}T17:00:00Z`).getTime();
@@ -16,7 +16,7 @@ describe('the Hallowed Season', () => {
     expect(seasonOpen('halloween', '2026-11-02')).toBe(true);
     expect(seasonOpen('halloween', '2026-11-03')).toBe(false);
     expect(openSeasons(at('2026-10-31'))).toEqual(['halloween']);
-    expect(openSeasons(at('2026-11-10'))).toEqual([]);
+    expect(openSeasons(at('2026-10-10'))).toEqual([]);
   });
 
   it('has its own pieces, each with a unique id', () => {
@@ -47,7 +47,7 @@ describe('the Hallowed Season', () => {
     vi.useFakeTimers();
     meta.seasons = [];
     const play = () => finishRunMeta(new Game('endless', 3, 0, { hero: 'knight', pool: fullPool() }), 0);
-    vi.setSystemTime(at('2026-11-10'));
+    vi.setSystemTime(at('2026-10-10'));
     play();
     expect(lookUnlocked(LOOK_BY_ID.hallowed)).toBe(false);
     vi.setSystemTime(at('2026-10-30'));
@@ -61,20 +61,34 @@ describe('the Hallowed Season', () => {
 describe('the Harvest Feast and Midwinter', () => {
   afterEach(() => vi.useRealTimers());
 
-  it('open on their dates, Midwinter running over the new year', () => {
-    expect(seasonOpen('harvest', '2026-11-15')).toBe(false);
-    expect(seasonOpen('harvest', '2026-11-16')).toBe(true);
+  it('open on their dates: the Harvest Feast from November 1, Midwinter from the day after Thanksgiving', () => {
+    expect(thanksgiving(2026)).toBe('11-26');
+    expect(thanksgiving(2027)).toBe('11-25');
+    expect(thanksgiving(2028)).toBe('11-23');
+    expect(seasonOpen('harvest', '2026-10-31')).toBe(false);
+    expect(seasonOpen('harvest', '2026-11-01')).toBe(true);
     expect(seasonOpen('harvest', '2026-11-26')).toBe(true);
-    expect(seasonOpen('harvest', '2026-11-30')).toBe(true);
-    expect(seasonOpen('harvest', '2026-12-01')).toBe(false);
-    expect(seasonOpen('midwinter', '2026-11-30')).toBe(false);
-    expect(seasonOpen('midwinter', '2026-12-01')).toBe(true);
+    expect(seasonOpen('harvest', '2026-11-27')).toBe(false);
+    expect(seasonOpen('midwinter', '2026-11-26')).toBe(false);
+    expect(seasonOpen('midwinter', '2026-11-27')).toBe(true);
     expect(seasonOpen('midwinter', '2026-12-25')).toBe(true);
     expect(seasonOpen('midwinter', '2027-01-06')).toBe(true);
     expect(seasonOpen('midwinter', '2027-01-07')).toBe(false);
-    expect(openSeasons(at('2026-11-26'))).toEqual(['harvest']);
+    // Thanksgiving moves: in 2027 the feast ends on the 25th and Midwinter starts the 26th.
+    expect(seasonOpen('harvest', '2027-11-26')).toBe(false);
+    expect(seasonOpen('midwinter', '2027-11-26')).toBe(true);
+    // The Hallowed Season's last two days overlap the feast's first two.
+    expect(openSeasons(at('2026-11-01'))).toEqual(['halloween', 'harvest']);
+    expect(openSeasons(at('2026-11-20'))).toEqual(['harvest']);
     expect(openSeasons(at('2026-12-25'))).toEqual(['midwinter']);
     expect(openSeasons(at('2027-01-03'))).toEqual(['midwinter']);
+  });
+
+  it('dress the world above the crypt: leaves for the feast, snow for Midwinter', () => {
+    expect(seasonDress('2026-10-25')).toBeNull();
+    expect(seasonDress('2026-11-01')).toBe('harvest');
+    expect(seasonDress('2026-11-27')).toBe('midwinter');
+    expect(seasonDress('2027-01-07')).toBeNull();
   });
 
   it('each have a free cloak, cloaks and hats to buy, an aura and Hall pieces', () => {
@@ -94,6 +108,7 @@ describe('the Harvest Feast and Midwinter', () => {
     meta.bought = [];
     vi.setSystemTime(at('2026-11-26'));
     expect(buyItem('turkeyhat', 800)).toBe(true);
+    expect(buyItem('cornucopia', 750)).toBe(true);
     expect(buyItem('santahat', 500)).toBe(false);
     vi.setSystemTime(at('2027-01-02'));
     expect(buyItem('santahat', 500)).toBe(true);

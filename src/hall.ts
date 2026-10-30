@@ -618,7 +618,134 @@ function harvestTable(ctx: CanvasRenderingContext2D, x: number, t: number) {
   }
 }
 
+/** A bundle of wheat tied at the waist with twine, leaning one way or the other. */
+function wheatSheaf(ctx: CanvasRenderingContext2D, x: number, lean: number) {
+  for (let i = 0; i < 9; i++) {
+    const sx = x - 8 + i * 2;
+    const top = 404 + Math.abs(i - 4) * 2;
+    ctx.fillStyle = i % 2 ? '#c9a24a' : '#b08a34';
+    ctx.fillRect(sx + lean * Math.round((466 - top) / 30), top, 2, 466 - top);
+    ctx.fillStyle = '#e8c25a';
+    ctx.fillRect(sx + lean * 2 - 1, top - 6, 3, 7);
+  }
+  ctx.fillStyle = '#6b4a2a';
+  ctx.fillRect(x - 10 + lean, 436, 20, 3);
+}
+
+/** A barrel of apples, one rolled loose on the floor. */
+function appleBarrel(ctx: CanvasRenderingContext2D, x: number) {
+  ctx.fillStyle = '#5a3a1a';
+  ctx.fillRect(x - 22, 430, 44, 36);
+  ctx.fillStyle = '#6b4a2a';
+  ctx.fillRect(x - 24, 434, 48, 28);
+  ctx.fillStyle = '#3a3346';
+  ctx.fillRect(x - 24, 438, 48, 3);
+  ctx.fillRect(x - 24, 455, 48, 3);
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  for (const dx of [-12, 0, 12]) ctx.fillRect(x + dx, 434, 1, 28);
+  const apple = (ax: number, ay: number) => {
+    ctx.fillStyle = '#c0392b';
+    ctx.fillRect(ax - 4, ay - 3, 8, 7);
+    ctx.fillRect(ax - 3, ay - 4, 6, 9);
+    ctx.fillStyle = '#e8605a';
+    ctx.fillRect(ax - 2, ay - 2, 2, 2);
+    ctx.fillStyle = '#5a3a1a';
+    ctx.fillRect(ax, ay - 6, 1, 2);
+  };
+  for (const [dx, dy] of [[-14, 428], [-4, 426], [6, 427], [15, 429], [-9, 422], [2, 421], [11, 423]]) apple(x + dx, dy);
+  apple(x + 34, 462);
+}
+
+/** A horn of plenty spilling corn, grapes and gourds onto the floor. */
+function cornucopia(ctx: CanvasRenderingContext2D, x: number) {
+  // the woven horn, curling up to a point on the right
+  const horn: [number, number, number][] = [[-30, 440, 22], [-12, 442, 18], [4, 446, 14], [16, 450, 9], [24, 452, 5]];
+  horn.forEach(([dx, y, h], i) => {
+    ctx.fillStyle = i % 2 ? '#a8743a' : '#c4a046';
+    ctx.fillRect(x + dx, y, 18, h);
+    ctx.fillStyle = '#8a5a28';
+    ctx.fillRect(x + dx, y + Math.floor(h / 2), 18, 2);
+  });
+  ctx.fillStyle = '#c4a046';
+  ctx.fillRect(x + 36, 446, 4, 6);
+  ctx.fillRect(x + 38, 440, 3, 6);
+  // what spills out of the mouth
+  ctx.fillStyle = '#ffd23f';
+  ctx.fillRect(x - 48, 448, 16, 7);
+  ctx.fillStyle = '#5f8a3a';
+  ctx.fillRect(x - 34, 446, 6, 4);
+  ctx.fillStyle = '#6a3a8a';
+  for (const [dx, dy] of [[-44, 456], [-40, 460], [-36, 456], [-40, 452]]) ctx.fillRect(x + dx, dy, 4, 4);
+  ctx.fillStyle = '#e67e22';
+  ctx.fillRect(x - 58, 452, 12, 13);
+  ctx.fillRect(x - 56, 450, 8, 17);
+  ctx.fillStyle = '#3d5a2a';
+  ctx.fillRect(x - 53, 446, 2, 4);
+}
+
 // ---------- Midwinter ----------
+
+/** Icicles hanging from the top of the wall, catching the light; one drips now and then. */
+function icicles(ctx: CanvasRenderingContext2D, t: number) {
+  for (let x = 128; x < 836; x += 13) {
+    const len = 8 + ((x * 7) % 17);
+    ctx.fillStyle = '#c9e6f6';
+    ctx.fillRect(x, 152, 6, Math.round(len * 0.5));
+    ctx.fillRect(x + 1, 152, 4, Math.round(len * 0.8));
+    ctx.fillRect(x + 2, 152, 2, len);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(x + 1, 153, 1, Math.round(len * 0.6));
+    // a drop forming and falling, each icicle in its own time
+    const p = (t * 0.35 + ((x * 13) % 29) / 29) % 1;
+    if (p > 0.7) {
+      const fall = (p - 0.7) / 0.3;
+      ctx.globalAlpha = 1 - fall;
+      ctx.fillStyle = '#e8fbff';
+      ctx.fillRect(x + 2, 152 + len + fall * 70, 2, 3);
+      ctx.globalAlpha = 1;
+    }
+  }
+}
+
+/** A gingerbread house: brown walls, a roof iced white, sweets on top and a lit window. */
+function gingerbreadHouse(ctx: CanvasRenderingContext2D, x: number, t: number) {
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.fillRect(x - 32, 463, 64, 4);
+  ctx.fillStyle = '#a8602a';
+  ctx.fillRect(x - 26, 432, 52, 34);
+  // the roof in stepped rows, iced along its edge
+  for (let i = 0; i < 6; i++) {
+    const w = 64 - i * 10;
+    ctx.fillStyle = i % 2 ? '#8a4a1e' : '#9a5424';
+    ctx.fillRect(x - w / 2, 428 - i * 5, w, 5);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(x - w / 2, 432 - i * 5, 4, 2);
+    ctx.fillRect(x + w / 2 - 4, 432 - i * 5, 4, 2);
+  }
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(x - 32, 430, 64, 3);
+  for (let i = 0; i < 6; i++) ctx.fillRect(x - 30 + i * 11, 433, 4, 3 + (i % 2) * 2);
+  // sweets on the roof
+  const sweets = ['#d23a46', '#5fd36a', '#ffd23f', '#5fe3ff'];
+  sweets.forEach((c, i) => {
+    ctx.fillStyle = c;
+    ctx.fillRect(x - 18 + i * 10, 414 - (i % 2) * 6, 4, 4);
+  });
+  // a door and a lit window
+  ctx.fillStyle = '#5a2e12';
+  ctx.fillRect(x - 6, 448, 12, 18);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(x - 6, 446, 12, 2);
+  const glow = 0.8 + 0.2 * Math.sin(t * 2.3);
+  ctx.fillStyle = `rgba(255, 210, 63, ${glow})`;
+  ctx.fillRect(x + 12, 440, 8, 8);
+  ctx.fillRect(x - 20, 440, 8, 8);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(x + 15, 440, 2, 8);
+  ctx.fillRect(x - 17, 440, 2, 8);
+  ctx.fillStyle = '#d23a46';
+  for (let i = 0; i < 6; i++) ctx.fillRect(x - 24 + i * 9, 462, 4, 4);
+}
 
 const BULB_COLORS = ['#ff4d5a', '#ffd23f', '#5fd36a', '#5fe3ff', '#b07cff'];
 
@@ -1054,6 +1181,14 @@ function drawDecor(ctx: CanvasRenderingContext2D, d: HallData, t: number, layer:
   if (has('wreaths')) for (const x of [232, 480, 728]) wreath(ctx, x, 190);
   if (has('hay')) hayBale(ctx, 72);
   if (has('feast')) harvestTable(ctx, 500, t);
+  if (has('sheaves')) {
+    wheatSheaf(ctx, 222, -1);
+    wheatSheaf(ctx, 248, 1);
+  }
+  if (has('applebarrel')) appleBarrel(ctx, 730);
+  if (has('cornucopia')) cornucopia(ctx, 800);
+  if (has('icicles')) icicles(ctx, t);
+  if (has('gingerhouse')) gingerbreadHouse(ctx, 625, t);
   if (has('stockings')) stockings(ctx, t);
   if (has('xmastree')) midwinterTree(ctx, 342, t);
   if (has('presents')) presents(ctx);

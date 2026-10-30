@@ -5,20 +5,20 @@
 // homes to walk into, people to talk to, and quests that send you down into dungeons.
 
 import { drawAura } from './aura';
-import { darken, grave, groundFor, hash, lighten, night, paintGround, tree, type Light } from './hollow-art';
+import { currentDress, darken, grave, groundFor, hash, lighten, night, paintGround, seasonWeather, setDress, tree, type Light } from './hollow-art';
 import { dailyHero } from './content';
 import {
   HOME_CATS, ISLE_CATS, ISLE_DOCK, ISLE_ITEM, ISLE_ITEMS, ISLE_MAP, LAND, ROOM_ENTRY, ROOM_H, ROOM_MAP, ROOM_W, drawIsleGround, drawIsleItem, drawIsleItems, fits,
   homeKey, homeOf, isleIcon, isleSolid, itemAt, roomSolid, type IsleCat, type IsleState,
 } from './isle';
-import { dailyNumber } from './daily';
+import { centralDate, dailyNumber } from './daily';
 import { heroSprite } from './hero';
 import {
   CROP_BY_ID, FARM_MAP, GRAVE_TILES, PLOT_TILES, SPADE_DMG, drawGrave, drawNight, drawPlot, graveAt, isNight, isRestless, plotAt, risenCount, settleGrave, tapPlot,
   type Risen,
 } from './graveshift';
 import { buyLand, graveState, meta, outfitFor, pickUpIsleItem, placeIsleItem, saveMeta } from './meta';
-import { LOOK_BY_ID } from './progression';
+import { LOOK_BY_ID, seasonDress } from './progression';
 import { enemyFrames, onCanvasReset } from './sprites';
 import { npcFigure, type NpcId } from './story';
 import { esc, overlay, screen, showOverlay, staleTap, toast } from './ui';
@@ -1648,6 +1648,7 @@ function render(ctx: CanvasRenderingContext2D, t: number) {
     lights.push({ x: hx + 6, y: hy + 8, r: 34, color: '#ffc27a', a: 0.12 });
     night(ctx, W, H, groundFor(areaId), lights, t);
     weather(ctx, px, W, H, t);
+    seasonWeather(ctx, px, W, H, t);
   } else if (area().interior && areaId !== 'home') {
     night(ctx, W, H, INDOORS, lights, t);
   }
@@ -1721,15 +1722,19 @@ function renderOutside(ctx: CanvasRenderingContext2D, px: Px, t: number) {
   const C = cols();
   const R = rows();
   const map = area().map;
+  // Dressed for the season: leaves for the Harvest Feast, snow for Midwinter.
+  const dress = seasonDress(centralDate());
+  setDress(dress);
   const g = groundFor(areaId);
   lights = [];
   // ground: grass, cobbles, shores and the fence, from the cache
-  if (groundCache?.key !== areaId) {
+  const groundKey = `${areaId}:${dress ?? ''}`;
+  if (groundCache?.key !== groundKey) {
     const canvas = document.createElement('canvas');
     canvas.width = C * TILE;
     canvas.height = R * TILE;
     paintGround(canvas.getContext('2d')!, map, (c) => c === ':' || Boolean(area().doors[c]) || EXIT_KEYS.includes(c), g);
-    groundCache = { key: areaId, canvas };
+    groundCache = { key: groundKey, canvas };
   }
   ctx.drawImage(groundCache.canvas, 0, 0);
   // the water moves: slow ripples, and the moon glinting now and then
@@ -2161,12 +2166,33 @@ function drawBlock(ctx: CanvasRenderingContext2D, px: Px, bd: Building, b: { X: 
     px(b.X + 16, b.Y + 1, b.W - 32, 1, lighten(bd.roof, 28));
     px(b.X - 1, b.Y + 8, b.W + 2, 2, darken(bd.roof, 18));
     px(b.X - 1, b.Y + 8, b.W + 2, 1, lighten(bd.roof, 8));
+    if (currentDress() === 'midwinter') {
+      // snow along the ridge and down the slopes, icicles under the eave, and coloured lights
+      for (let i = 4; i < 8; i++) px(b.X + i * 2 + 1, b.Y + 8 - i, b.W - i * 4 - 2, 1, i === 7 ? '#e8eef6' : '#c9d4e2');
+      px(b.X - 1, b.Y + 7, b.W + 2, 1, '#dde4ec');
+      for (let x = b.X + 1; x < b.X + b.W - 1; x += 4) px(x, b.Y + 10, 1, 1 + ((x * 7) % 3), '#c9e6f6');
+      for (let x = b.X + 3, i = 0; x < b.X + b.W - 2; x += 6, i++) {
+        const on = Math.sin(t * 2.4 + i * 1.3) > -0.2;
+        px(x, b.Y + 10, 2, 2, on ? ['#ff4d5a', '#ffd23f', '#5fd36a', '#5fe3ff'][i % 4] : '#3a3346');
+      }
+    }
     // lit windows on homes people live in
     if (bd.glow && b.W >= 48) {
       window_(b.X + 6, b.Y + 14);
       window_(b.X + b.W - 11, b.Y + 14);
     }
     door(bd.glow);
+    // a pumpkin and a gourd on the step of every lit home, for the Harvest Feast
+    if (currentDress() === 'harvest' && bd.glow) {
+      const kx = dx - 9;
+      const ky = b.Y + b.H - 6;
+      px(kx, ky + 1, 7, 4, '#c96a1e');
+      px(kx + 1, ky, 5, 6, '#c96a1e');
+      px(kx + 3, ky + 1, 1, 4, '#a8541a');
+      px(kx + 3, ky - 2, 1, 2, '#3d5a2a');
+      px(kx - 5, ky + 2, 4, 4, '#e8c25a');
+      px(kx - 4, ky + 1, 2, 1, '#5f8a3a');
+    }
     // a lantern by the door
     if (bd.glow) {
       const f = 0.7 + 0.3 * Math.sin(t * 7 + b.X);

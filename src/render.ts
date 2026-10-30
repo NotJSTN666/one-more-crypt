@@ -6,7 +6,8 @@ import { ELITES, type HeroId } from './content';
 import { ENEMY_INFO, Game, H, HORDE_SPARK, ORBIT_RING, W, isBoss, type EnemyKind, type GameEvent, type MagnetPull, type Pos } from './game';
 import { hashSeed, mulberry32 } from './rng';
 import { heroSprite, relicColor } from './hero';
-import { LOOK_BY_ID, type Outfit } from './progression';
+import { LOOK_BY_ID, seasonDress, type Outfit } from './progression';
+import { centralDate } from './daily';
 import { RELIC_BY_ID, type RelicId } from './relics';
 import { SPRITE_SIZE, enemyFrames, sprites } from './sprites';
 import { deepLook, zoneAt, zoneLook, zoneTitle, type Weather } from './zones';
@@ -148,6 +149,9 @@ export class Renderer {
 
   setGame(game: Game) {
     this.game = game;
+    // Story crypts take the season's weather: leaves for the Harvest Feast, snow for Midwinter.
+    const dress = game.mode === 'story' ? seasonDress(centralDate()) : null;
+    this.seasonWeather = dress === 'midwinter' ? 'snow' : dress === 'harvest' ? 'leaves' : null;
     this.petAt = null;
     this.heroAt = null;
     this.disp.clear();
@@ -1893,30 +1897,32 @@ export class Renderer {
   // ---------- the deeper passes' weather ----------
 
   private weather: { x: number; y: number; vx: number; vy: number; t: number; life: number; size: number }[] = [];
-  private weatherKind: Weather | null = null;
+  private weatherKind: Weather | 'leaves' | null = null;
+  private seasonWeather: 'snow' | 'leaves' | null = null;
 
   /** Spores, snow, red rain, twinkling stars or rising gold, over everything. */
   private drawWeather(g: Game, dt: number) {
     if (this.quiet || this.contrast) return;
-    const look = deepLook(g.zone);
-    if (!look) {
+    const kind = deepLook(g.zone)?.weather ?? this.seasonWeather;
+    if (!kind) {
       this.weather = [];
       this.weatherKind = null;
       return;
     }
-    if (this.weatherKind !== look.weather) {
+    if (this.weatherKind !== kind) {
       this.weather = [];
-      this.weatherKind = look.weather;
+      this.weatherKind = kind;
     }
     const ctx = this.ctx;
-    const kind = look.weather;
-    const cap = { spores: 18, snow: 34, rain: 26, stars: 22, sparks: 16 }[kind];
-    const rate = { spores: 4, snow: 12, rain: 30, stars: 6, sparks: 5 }[kind];
+    const cap = { spores: 18, snow: 34, rain: 26, stars: 22, sparks: 16, leaves: 14 }[kind];
+    const rate = { spores: 4, snow: 12, rain: 30, stars: 6, sparks: 5, leaves: 4 }[kind];
     if (this.weather.length < cap && Math.random() < dt * rate) {
       const r = Math.random;
       const p =
         kind === 'snow'
           ? { x: r() * (BOARD_W + 20) - 10, y: -2, vx: -2 + r() * 4, vy: 6 + r() * 6, life: 30, size: r() < 0.25 ? 2 : 1 }
+          : kind === 'leaves'
+            ? { x: r() * (BOARD_W + 20) - 20, y: -2, vx: 2 + r() * 4, vy: 5 + r() * 4, life: 40, size: Math.floor(r() * 4) }
           : kind === 'rain'
             ? { x: r() * (BOARD_W + 30), y: -4, vx: -8, vy: 70 + r() * 30, life: 3, size: 3 }
             : kind === 'stars'
@@ -1926,10 +1932,16 @@ export class Renderer {
     }
     this.weather = this.weather.filter((p) => (p.t += dt) < p.life && p.y < BOARD_H + 6);
     for (const p of this.weather) {
-      p.x += (p.vx + (kind === 'snow' || kind === 'spores' ? Math.sin(this.time * 1.3 + p.life * 7) * 2 : 0)) * dt;
+      p.x += (p.vx + (kind === 'snow' || kind === 'spores' || kind === 'leaves' ? Math.sin(this.time * 1.3 + p.life * 7 + p.size) * (kind === 'leaves' ? 5 : 2) : 0)) * dt;
       p.y += p.vy * dt;
       const fade = Math.sin(Math.min(1, p.t / p.life) * Math.PI);
-      if (kind === 'rain') {
+      if (kind === 'leaves') {
+        // a two-pixel leaf in autumn colours (its size picks the colour), flipping as it falls
+        ctx.globalAlpha = 0.85;
+        ctx.fillStyle = ['#c0662a', '#a8391f', '#d9a03a', '#8a5a28'][p.size];
+        const flip = Math.sin(this.time * 4 + p.vx * 3) > 0;
+        ctx.fillRect(Math.round(p.x), Math.round(p.y), flip ? 2 : 1, flip ? 1 : 2);
+      } else if (kind === 'rain') {
         ctx.globalAlpha = 0.45;
         ctx.fillStyle = '#ff4d5a';
         ctx.fillRect(Math.round(p.x), Math.round(p.y), 1, p.size);
