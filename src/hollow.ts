@@ -664,8 +664,9 @@ function open() {
     farmPanel();
   }
   overlay.querySelector('#hollow-dialog')?.addEventListener('click', (e) => {
-    // The finger that walked into a sign or door shouldn't also dismiss what it opened.
-    if (staleTap(e, dialogShownAt)) return;
+    // The finger that walked into a sign or door shouldn't also dismiss what it opened, nor a
+    // second tap landing in the same instant (some phones send the click a moment late).
+    if (staleTap(e, dialogShownAt) || performance.now() - dialogShownAt < 250) return;
     const choice = (e.target as HTMLElement).closest<HTMLElement>('[data-choice]')?.dataset.choice;
     if (pending) {
       if (choice === 'go') confirmGo();
@@ -1411,6 +1412,8 @@ function ask(what: NonNullable<typeof pending>, html: string, go: string) {
   dialog = 'confirm';
   const el = document.getElementById('hollow-dialog');
   if (!el) return;
+  // Like any dialog: the finger that walked here mustn't also press Go or Back out as it lifts.
+  dialogShownAt = performance.now();
   el.innerHTML = `${html}<div class="hollow-choices">
       <button type="button" class="btn primary" data-choice="go">${esc(go)}</button>
       <button type="button" class="btn" data-choice="back">Back out</button>
