@@ -604,7 +604,7 @@ export class Renderer {
       const ax = pd.x * TILE + PAD + SPRITE_SIZE / 2;
       const ay = pd.y * TILE + PAD + SPRITE_SIZE;
       drawAuraFx(this.ctx, this.outfit.aura, ax, ay, SPRITE_SIZE, this.time, 'back');
-      this.drawSprite(PLAYER_ID, heroSprite(g.hero, g.relics, g.relicLog, this.outfit.look, this.outfit.head), pd, dt, g.shadowReady ? 0.55 : 1);
+      this.drawSprite(PLAYER_ID, heroSprite(g.hero, g.relics, g.relicLog, this.outfit.look, this.outfit.head, g.bowDown), pd, dt, g.shadowReady ? 0.55 : 1);
       drawAuraFx(this.ctx, this.outfit.aura, ax, ay, SPRITE_SIZE, this.time, 'front');
       this.drawAura(g, pd);
     }

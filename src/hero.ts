@@ -65,7 +65,7 @@ function bladeColor(relics: Relics, log: RelicId[]): string {
   return relics.whetstone ? '#e8eef8' : COL.steel;
 }
 
-function paint(ctx: CanvasRenderingContext2D, hero: HeroId, relics: Relics, log: RelicId[], solid?: string, look = '', head = '') {
+function paint(ctx: CanvasRenderingContext2D, hero: HeroId, relics: Relics, log: RelicId[], solid?: string, look = '', head = '', lowered = false) {
   const all = withFusions(relics);
   const n = (id: RelicId) => all[id] ?? 0;
   const dot = (x: number, y: number, color: string) => {
@@ -180,6 +180,8 @@ function paint(ctx: CanvasRenderingContext2D, hero: HeroId, relics: Relics, log:
       for (let y = top; y <= 6; y++) dot(0, y, blade);
       dot(0, 7, COL.gold);
     }
+  } else if (hero === 'ranger' && lowered) {
+    // The bow lowered: an empty hand, so it reads on the board that moving won't shoot.
   } else if (hero === 'ranger') {
     // Longbow: a curved limb with a taut string.
     [[10, 2], [11, 3], [11, 4], [11, 5], [11, 6], [11, 7], [11, 8], [10, 9]].forEach(([x, y]) => dot(x, y, COL.wood));
@@ -222,11 +224,11 @@ function paint(ctx: CanvasRenderingContext2D, hero: HeroId, relics: Relics, log:
   }
 }
 
-function bake(hero: HeroId, relics: Relics, log: RelicId[], solid?: string, look = '', head = ''): HTMLCanvasElement {
+function bake(hero: HeroId, relics: Relics, log: RelicId[], solid?: string, look = '', head = '', lowered = false): HTMLCanvasElement {
   const c = document.createElement('canvas');
   c.width = SPRITE_SIZE;
   c.height = SPRITE_SIZE;
-  paint(c.getContext('2d')!, hero, relics, log, solid, look, head);
+  paint(c.getContext('2d')!, hero, relics, log, solid, look, head, lowered);
   return c;
 }
 
@@ -235,12 +237,12 @@ function bake(hero: HeroId, relics: Relics, log: RelicId[], solid?: string, look
 const cache = new Map<string, Sprite>();
 onCanvasReset(() => cache.clear());
 
-/** Sprite for a hero's build and look. */
-export function heroSprite(hero: HeroId, relics: Relics, log: RelicId[], look = '', head = ''): Sprite {
-  const key = `${hero}:${look}:${head}:${log.join(',')}`;
+/** Sprite for a hero's build and look (`lowered`: the Ranger with the bow lowered). */
+export function heroSprite(hero: HeroId, relics: Relics, log: RelicId[], look = '', head = '', lowered = false): Sprite {
+  const key = `${hero}:${look}:${head}:${log.join(',')}:${lowered}`;
   let sprite = cache.get(key);
   if (!sprite) {
-    sprite = { normal: bake(hero, relics, log, undefined, look, head), white: bake(hero, relics, log, '#ffffff', look, head) };
+    sprite = { normal: bake(hero, relics, log, undefined, look, head, lowered), white: bake(hero, relics, log, '#ffffff', look, head, lowered) };
     if (cache.size > 40) cache.delete(cache.keys().next().value!);
     cache.set(key, sprite);
   }
