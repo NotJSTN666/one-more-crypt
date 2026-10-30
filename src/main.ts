@@ -33,7 +33,7 @@ import { installMode, onInstallChange, promptInstall, setupInstall } from './ins
 import { bountiesHtml, progressBounties } from './bounties';
 import { enableReminders, loadReminders, reminderPrefs, remindersAvailable, remindersNeedInstall, timeZone } from './push';
 import { claimPodiums, claimWeekly, clearBeat, lastBeat, type PodiumFinish, type WeeklyFinish } from './social';
-import { endlessRecord, ensureGuest, initSocial, needsName, unclaimed, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
+import { claimInlineHtml, wireClaimInline, endlessRecord, ensureGuest, initSocial, needsName, unclaimed, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
 import { currentStreak, loadSave, recordDaily, streakStats, writeSave, type RunResult } from './storage';
 import { $, esc, formStatus, hideOverlay, on, onSubmit, overlay, overlayShownAt, screen, showOverlay, toast } from './ui';
 
@@ -1813,7 +1813,7 @@ function showDeath(r: RunResult, best: boolean) {
       ${r.seconds ? `<div><b>${playTime(r.seconds)}</b>TIME</div>` : ''}
     </div>
     ${ONLINE && !ch ? `<p class="rank-line ${daily ? 'daily-rank' : ''}" id="rank">${signedIn() ? 'Carving your name into the crypt…' : daily ? 'Counting the fallen…' : ''}</p>` : ''}
-    ${ONLINE && (!signedIn() || unclaimed()) ? `<button class="btn join-cta" id="join">${ch ? '✍️ Claim a name to post to the challenge board' : unclaimed() || !signedIn() ? `✍️ Claim your name` : `✍️ Put your name on ${daily ? "today's" : 'the'} board`}<small>${ch ? 'One tap, no email needed.' : `You're on ${daily ? "today's" : 'the'} board as a guest. Pick a name to make it yours: one tap, no email needed.`}</small></button>` : ''}
+    ${ONLINE && (!signedIn() || unclaimed()) ? claimInlineHtml(ch ? 'Pick a name to post your run to the challenge board. No email needed.' : `You're on ${daily ? "today's" : 'the'} board as ${unclaimed() ? esc(playerName()) : 'a guest'}. Type a name and your runs show under it. No email needed.`) : ''}
     ${r.relics ? `<div class="strip" style="font-size:18px">${r.relics}</div>` : ''}
     ${r.combos ? `<p class="combo-line">${esc(r.combos)}</p>` : ''}
     ${boonLine()}
@@ -1870,22 +1870,21 @@ function showDeath(r: RunResult, best: boolean) {
   `);
   const backHere = () => showDeath(r, best);
   on('#leaderboard', () => showLeaderboard(backHere, daily ? 'today' : 'endless'));
-  on('#join', () =>
-    showLogin(() => {
-      backHere();
-      // Joining uploads the queued run; show where it landed.
-      if (signedIn() && lastChallenge) {
-        const c = lastChallenge;
-        void postChallengeRun(c).then(() => fillChallengeBoard(c));
-      } else if (signedIn()) {
-        setRank('Carving your name into the crypt…');
-        void syncNow()
-          .then(() => rankLine(daily ? 'daily' : 'endless', game.dailyNo, r.floor))
-          .then(setRank)
-          .catch(() => setRank(''));
-      }
-    }, 'claim'),
-  );
+  const afterJoin = () => {
+    backHere();
+    // Joining uploads the queued run; show where it landed.
+    if (signedIn() && lastChallenge) {
+      const c = lastChallenge;
+      void postChallengeRun(c).then(() => fillChallengeBoard(c));
+    } else if (signedIn()) {
+      setRank('Carving your name into the crypt…');
+      void syncNow()
+        .then(() => rankLine(daily ? 'daily' : 'endless', game.dailyNo, r.floor))
+        .then(setRank)
+        .catch(() => setRank(''));
+    }
+  };
+  wireClaimInline(afterJoin, () => showLogin(afterJoin, 'email'));
   const beat = () => (daily ? lastBeat : null);
   on('#challenge', () => makeChallenge(r, backHere));
   on('#retry-challenge', () => ch && startChallenge(ch));
@@ -2885,11 +2884,15 @@ function finishHorde() {
       <button class="btn primary" id="horde-again">🛡️ Go again<small>Same arena, same hero</small></button>
       ${ONLINE ? `<h3 class="shop-head">Today's Horde board</h3><p class="fine" id="horde-rank">Posting your run…</p><ol class="raid-top" id="horde-board"><li class="fine">Loading…</li></ol>` : ''}
       <button class="btn" id="horde-copy">Copy result</button>
-      ${ONLINE && (!signedIn() || unclaimed()) ? `<button class="btn join-cta" id="join">✍️ Claim your name<small>You're on the board as a guest until you do</small></button>` : ''}
+      ${ONLINE && (!signedIn() || unclaimed()) ? claimInlineHtml(`You're on today's Horde board as ${unclaimed() ? esc(playerName()) : 'a guest'}. Type a name and your runs show under it.`) : ''}
       <button class="btn" id="title">Title</button>`);
     on('#horde-again', () => startHorde());
     on('#horde-copy', async () => toast((await copyText(share)) ? 'Copied!' : 'Copy failed'));
-    on('#join', () => showLogin(() => showTitle(), 'claim'));
+    // Once named, the board reloads with the new name on it, and the box goes.
+    wireClaimInline(() => {
+      document.getElementById('claim-form')?.remove();
+      if (ONLINE) void loadHordeBoard(g, false);
+    }, () => showLogin(() => showTitle(), 'email'));
     on('#title', () => {
       newGame('endless');
       showTitle();

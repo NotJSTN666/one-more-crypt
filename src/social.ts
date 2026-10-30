@@ -555,6 +555,48 @@ function wireDice() {
   });
 }
 
+/**
+ * A name box right on the results screen, for a guest (or a player with no account yet):
+ * type a name, press Save, and their runs go on the boards under it, past days included.
+ */
+export function claimInlineHtml(sub: string): string {
+  return `
+    <form class="form claim-inline" id="claim-form">
+      <label for="claim-name">✍️ Put your name on the board</label>
+      <small class="claim-sub">${sub}</small>
+      <div class="name-row">
+        <input id="claim-name" name="name" maxlength="16" placeholder="Your name" autocomplete="nickname" spellcheck="false" autocapitalize="off" enterkeyhint="done" required />
+        <button type="button" class="icon-btn dice" id="claim-dice" aria-label="Random name">🎲</button>
+      </div>
+      <button class="btn primary" type="submit">Save my name</button>
+      <p class="form-status" role="status"></p>
+      <button type="button" class="link-btn" id="claim-more">Have an account? Sign in</button>
+    </form>`;
+}
+
+/** Wire the name box: `after` once the name is saved, `signIn` for players with an account. */
+export function wireClaimInline(after: () => void, signIn: () => void) {
+  on('#claim-dice', () => {
+    const input = document.querySelector<HTMLInputElement>('#claim-name');
+    if (input) input.value = randomName();
+  });
+  onSubmit('#claim-form', async (form) => {
+    formStatus(form, 'Saving…', true);
+    try {
+      session.account = await playAsGuest(field(form, 'name'));
+      if (ONLINE) save.seenOnlineLogin = true;
+      writeSave(save);
+      toast(`Welcome, ${session.account.name}`);
+      void afterSignIn();
+      onChange();
+      after();
+    } catch (e) {
+      formStatus(form, (e as Error).message);
+    }
+  });
+  on('#claim-more', signIn);
+}
+
 /** Called when a redirect sign-in lands without a profile, so we can ask for a name. */
 export function needsName(): boolean {
   return Boolean(session.account && !session.account.name);

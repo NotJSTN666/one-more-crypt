@@ -3357,13 +3357,50 @@ body.tutorial #relic-bar {
   animation: claim-glow 2s ease-in-out infinite;
 }
 
+/* The name box on the results screen: the same gold glow, with the field right there. */
+.claim-inline {
+  position: relative;
+  margin: 12px 0;
+  padding: 12px 12px 6px;
+  border: 1px solid var(--gold);
+  border-radius: 4px;
+  background: linear-gradient(180deg, rgba(122, 92, 20, 0.35), rgba(30, 22, 8, 0.5));
+  text-align: center;
+  animation: claim-glow 2s ease-in-out infinite;
+}
+
+.claim-inline label {
+  display: block;
+  font-family: var(--pixel);
+  font-size: 12px;
+  color: var(--gold);
+  letter-spacing: 1px;
+}
+
+.claim-inline .claim-sub {
+  display: block;
+  margin: 4px 0 10px;
+  font-family: var(--read);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.claim-inline .name-row input {
+  font-size: 16px;
+  border-color: rgba(242, 193, 78, 0.6);
+}
+
+.claim-inline .btn.primary { margin-top: 8px; }
+.claim-inline .form-status:empty { display: none; }
+.claim-inline .link-btn { margin-top: 2px; font-size: 11px; }
+
 @keyframes claim-glow {
   0%, 100% { box-shadow: 0 0 8px rgba(242, 193, 78, 0.25); }
   50% { box-shadow: 0 0 22px rgba(242, 193, 78, 0.7), 0 0 40px rgba(242, 193, 78, 0.2); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .btn.join-cta, .account-chip.claim-chip, .btn.join-cta::after, .account-chip.claim-chip::after { animation: none; }
+  .btn.join-cta, .account-chip.claim-chip, .btn.join-cta::after, .account-chip.claim-chip::after, .claim-inline { animation: none; }
   .btn.join-cta, .account-chip.claim-chip { box-shadow: 0 0 16px rgba(242, 193, 78, 0.5); }
 }
 
