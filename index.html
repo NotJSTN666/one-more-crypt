@@ -27,6 +27,35 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Pixelify+Sans:wght@400;500;600&family=Silkscreen&display=swap" rel="stylesheet" />
+    <script>
+      // Each new version of the game gets new file names. Opened in the moment one goes live,
+      // a page can miss its own stylesheet or code and show up bare. Reload once to fetch them
+      // fresh (never in a loop: a second failure in this tab is left alone).
+      (function () {
+        var KEY = 'omc:heal';
+        function heal() {
+          try {
+            if (sessionStorage.getItem(KEY)) return;
+            sessionStorage.setItem(KEY, '1');
+          } catch (e) {
+            return;
+          }
+          location.reload();
+        }
+        // Our own stylesheet or script failing to load (not the web fonts, which can be blocked).
+        window.addEventListener('error', function (e) {
+          var t = e.target;
+          if (!t || (t.tagName !== 'LINK' && t.tagName !== 'SCRIPT')) return;
+          var url = t.href || t.src || '';
+          if (url.indexOf(location.origin) === 0) heal();
+        }, true);
+        // Or the styles simply never arrived.
+        window.addEventListener('load', function () {
+          if (!getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()) heal();
+          else try { sessionStorage.removeItem(KEY); } catch (e) {}
+        });
+      })();
+    </script>
   </head>
   <body>
     <div id="ghosts" aria-hidden="true"></div>
