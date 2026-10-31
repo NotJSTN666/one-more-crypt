@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { NEWS, liveNews, unreadNews, type NewsDay } from './news';
 
-const day = (date: string): NewsDay => ({ date, title: date, new: ['✨ x'] });
+const day = (date: string): NewsDay => ({ date, title: date, notes: ['✨ x'] });
 
 describe("What's new", () => {
   it('has one entry per day, each with a real date, a title and something in it', () => {
@@ -9,7 +9,7 @@ describe("What's new", () => {
     for (const n of NEWS) {
       expect(n.date, n.title).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(n.title.length, n.date).toBeGreaterThan(0);
-      expect((n.new?.length ?? 0) + (n.changes?.length ?? 0) + (n.fixes?.length ?? 0), n.date).toBeGreaterThan(0);
+      expect(n.notes.length, n.date).toBeGreaterThan(0);
     }
   });
 

@@ -4383,13 +4383,8 @@ body.tutorial #relic-bar {
   text-align: left;
 }
 
-/* One day of patch notes: a headline, its date, then New, Changes and Fixes. */
-.news-update {
-  padding: 14px 2px 16px;
-  border-bottom: 1px solid var(--line);
-}
-
-.news-update:last-child { border-bottom: 0; }
+/* One day of notes: a headline and its date, what's different line by line, and any fixes. */
+.news-update { padding: 6px 2px 4px; }
 
 .news-update h3 {
   margin: 0;
@@ -4401,39 +4396,42 @@ body.tutorial #relic-bar {
 }
 
 .news-date {
-  margin: 2px 0 8px;
-  font-family: var(--read);
-  font-size: 13px;
-  color: var(--muted);
-}
-
-.news-kind {
-  display: inline-block;
-  margin: 10px 0 4px;
-  padding: 2px 10px;
-  border-radius: 999px;
+  margin: 2px 0 10px;
   font-family: var(--pixel);
   font-size: 10px;
   letter-spacing: 1px;
-  color: #120c18;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
-.news-kind.new { background: #7ee081; }
-.news-kind.changes { background: #7fb4ff; }
-.news-kind.fixes { background: #f2994e; }
-
-.news-list-notes {
+.news-notes {
   margin: 0;
-  padding-left: 18px;
+  padding: 0;
+  list-style: none;
 }
 
-.news-list-notes li {
-  margin: 4px 0;
+.news-notes li {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 4px;
+  margin: 0 0 8px;
   font-family: var(--read);
   font-size: 14px;
-  line-height: 1.45;
+  line-height: 1.5;
   color: var(--text);
 }
+
+.nl-emoji { text-align: center; }
+
+.news-fixed {
+  margin: 8px 0 0;
+  font-family: var(--read);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.news-fixed b { color: var(--text); font-weight: 600; }
 
 .news-new {
   margin-left: 6px;
@@ -4449,15 +4447,24 @@ body.tutorial #relic-bar {
 .news-gos {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 10px;
+  gap: 4px 16px;
+  margin: 8px 0 0;
 }
 
-.btn.news-go {
-  width: auto;
-  margin: 0;
-  padding: 6px 10px;
+.link-btn.news-go {
+  padding: 0;
+  font-family: var(--pixel);
   font-size: 10px;
+  color: var(--gold);
+}
+
+/* A small ornament between days. */
+.news-sep {
+  margin: 14px 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--line);
+  letter-spacing: 12px;
 }
 
 @media (prefers-reduced-motion: reduce) {

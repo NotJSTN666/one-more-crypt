@@ -799,17 +799,19 @@ const NEWS_GO: Record<NewsGo, string> = {
 function showWhatsNew(back: () => void) {
   const live = liveNews(centralDate());
   const unread = newsUnread();
-  const section = (kind: string, label: string, lines: string[] | undefined) =>
-    lines?.length ? `<p class="news-kind ${kind}">${label}</p><ul class="news-list-notes">${lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>` : '';
+  // Each line leads with its emoji; set it apart so the words line up beneath one another.
+  const line = (l: string) => {
+    const [, emoji = '', rest = l] = /^(\p{Extended_Pictographic}[\u{FE0F}\u{200D}\p{Extended_Pictographic}]*)\s*(.*)$/u.exec(l) ?? [];
+    return `<li><span class="nl-emoji" aria-hidden="true">${emoji}</span><span>${esc(rest)}</span></li>`;
+  };
   const days = live.map((d, i) => `
-      <section class="news-update${i < unread ? ' unread' : ''}">
+      <article class="news-update${i < unread ? ' unread' : ''}">
         <h3>${esc(d.title)}${i < unread ? ' <span class="news-new">NEW</span>' : ''}</h3>
         <p class="news-date">${esc(newsDay(d.date))}</p>
-        ${section('new', 'New', d.new)}
-        ${section('changes', 'Changes', d.changes)}
-        ${section('fixes', 'Fixes', d.fixes)}
-        ${d.go?.length ? `<div class="news-gos">${d.go.map((g) => `<button class="btn news-go" data-go="${g}">${NEWS_GO[g]}</button>`).join('')}</div>` : ''}
-      </section>`).join('');
+        <ul class="news-notes">${d.notes.map(line).join('')}</ul>
+        ${d.fixes?.length ? `<p class="news-fixed"><b>Also fixed:</b> ${d.fixes.map((f) => esc(f.replace(/^\p{Extended_Pictographic}[\u{FE0F}\u{200D}\p{Extended_Pictographic}]*\s*/u, ''))).join(' ')}</p>` : ''}
+        ${d.go?.length ? `<p class="news-gos">${d.go.map((g) => `<button type="button" class="link-btn news-go" data-go="${g}">${NEWS_GO[g]} →</button>`).join('')}</p>` : ''}
+      </article>`).join('<div class="news-sep" aria-hidden="true">✦</div>');
   showOverlay('whats-new', `
     <h2>📰 What's new</h2>
     <div class="news-feed">${days || '<p class="fine">Nothing yet.</p>'}</div>
