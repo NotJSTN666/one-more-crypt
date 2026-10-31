@@ -473,6 +473,7 @@ export function showNightShift(back: () => void) {
   // The bosses up last frame, so one that falls can be named; and when the last fell, for the flash.
   let bossesUp: { id: number; kind: string }[] = [];
   let felledAt = -10;
+  let warnedGrasp = false;
   const frame = (now: number) => {
     if (!canvas.isConnected) return cleanup();
     const dt = Math.min(0.1, (now - last) / 1000);
@@ -497,6 +498,10 @@ export function showNightShift(back: () => void) {
       sfx.toll();
       const boss = [...n.foes].reverse().find((f) => f.boss);
       if (boss) toast(`☠️ ${BOSS_NAME[boss.kind]} rises`);
+    }
+    if (n.grasps && !warnedGrasp) {
+      warnedGrasp = true;
+      toast('🖐️ Keep moving: the dead claw up under anyone who stands still');
     }
     if (n.bossKills > seen.felled) {
       sfx.bossDown();
@@ -587,6 +592,27 @@ export function showNightShift(back: () => void) {
     for (const l of n.lanes) {
       const left = Math.max(0, l.at - n.t);
       const blink = left < 0.3 ? (Math.floor(t * 20) % 2 ? 0.55 : 0.3) : 0.22;
+      if (l.grasp) {
+        // the earth splitting where you stand, with fingers working up through it
+        const r = l.w * TILE;
+        ctx.fillStyle = `rgba(120, 40, 140, ${blink + 0.1})`;
+        ctx.beginPath();
+        ctx.arc(sx(l.x), sy(l.y), r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(210, 140, 255, 0.8)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 3]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        const up = 1 - left / 0.9;
+        for (let k = 0; k < 5; k++) {
+          const a = (k / 5) * Math.PI * 2 + l.x;
+          const fx = Math.round(sx(l.x) + Math.cos(a) * r * 0.55);
+          const fy = Math.round(sy(l.y) + Math.sin(a) * r * 0.45);
+          px(fx, fy - Math.round(3 * up), 2, Math.round(3 * up) + 1, '#b9c99a');
+        }
+        continue;
+      }
       ctx.save();
       ctx.translate(sx(l.x), sy(l.y));
       ctx.rotate(l.ang);
@@ -690,9 +716,19 @@ export function showNightShift(back: () => void) {
       ctx.globalAlpha = 1;
     }
 
-    // you
+    // you: a warm pool of lantern light and a gold ring at your feet, so you're easy to find
     const hx = Math.round(sx(n.x) - 6);
     const hy = Math.round(sy(n.y) - 9);
+    const glow = ctx.createRadialGradient(sx(n.x), sy(n.y), 2, sx(n.x), sy(n.y), 26);
+    glow.addColorStop(0, 'rgba(255, 200, 120, 0.32)');
+    glow.addColorStop(1, 'rgba(255, 200, 120, 0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(sx(n.x) - 26, sy(n.y) - 26, 52, 52);
+    ctx.strokeStyle = `rgba(242, 193, 78, ${0.65 + 0.25 * Math.sin(t * 4)})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(sx(n.x), hy + 13, 8, 3.5, 0, 0, Math.PI * 2);
+    ctx.stroke();
     px(hx + 2, hy + 12, 8, 2, 'rgba(0,0,0,0.4)');
     drawAura(ctx, fit.aura, hx + 6, hy + 12, 12, t, 'back');
     const hurt = n.t < n.hurtUntil && Math.floor(t * 20) % 2 === 0;
@@ -780,6 +816,21 @@ export function showNightShift(back: () => void) {
         ctx.fillStyle = '#dff8ff';
         ctx.fillRect(0, -2, (fl.r ?? 6) * TILE, 4);
         ctx.restore();
+      } else if (fl.kind === 'grasp') {
+        // hands burst up from the grave-dirt
+        const r = (fl.r ?? 1) * TILE;
+        ctx.fillStyle = 'rgba(60, 30, 50, 0.7)';
+        ctx.beginPath();
+        ctx.arc(sx(fl.x), sy(fl.y), r * (0.8 + 0.2 * age), 0, Math.PI * 2);
+        ctx.fill();
+        for (let k = 0; k < 7; k++) {
+          const a = (k / 7) * Math.PI * 2 + fl.x;
+          const hx2 = Math.round(sx(fl.x) + Math.cos(a) * r * 0.6);
+          const hy2 = Math.round(sy(fl.y) + Math.sin(a) * r * 0.5);
+          px(hx2, hy2 - 7, 2, 7, '#b9c99a');
+          px(hx2 - 1, hy2 - 9, 1, 2, '#d4e0b4');
+          px(hx2 + 2, hy2 - 9, 1, 2, '#d4e0b4');
+        }
       } else {
         ctx.save();
         ctx.translate(sx(fl.x), sy(fl.y));
@@ -792,6 +843,17 @@ export function showNightShift(back: () => void) {
       }
     }
     ctx.globalAlpha = 1;
+
+    // a gold marker over your head, on top of everything, so you never lose yourself in a crowd
+    {
+      const mx = Math.round(sx(n.x));
+      const my = Math.round(sy(n.y) - 15 + Math.sin(t * 5) * 1.5);
+      px(mx - 3, my, 7, 1, '#2a1a08');
+      px(mx - 3, my - 1, 7, 1, '#f2c14e');
+      px(mx - 2, my, 5, 1, '#f2c14e');
+      px(mx - 1, my + 1, 3, 1, '#f2c14e');
+      px(mx, my + 2, 1, 1, '#f2c14e');
+    }
 
     // the night closes in round your lantern
     const g = ctx.createRadialGradient(sx(n.x), sy(n.y), 30, sx(n.x), sy(n.y), Math.max(W, H) * 0.75);

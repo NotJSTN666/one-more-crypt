@@ -59,9 +59,9 @@ export interface Shot { x: number; y: number; vx: number; vy: number; r: number;
  * A boss's lane: marked on the ground first, then it strikes everything along it. A Gravelord's
  * lane is the path of his charge.
  */
-export interface Lane { x: number; y: number; ang: number; len: number; w: number; at: number; dmg: number; charge?: number }
+export interface Lane { x: number; y: number; ang: number; len: number; w: number; at: number; dmg: number; charge?: number; grasp?: boolean }
 /** Things to draw for a moment: a spade swing, a lightning strike, a bell's ring, spikes, a lance, a lane bursting. */
-export interface Flash { kind: 'swing' | 'bolt' | 'ring' | 'spike' | 'beam' | 'lane'; x: number; y: number; at: number; ang?: number; r?: number }
+export interface Flash { kind: 'swing' | 'bolt' | 'ring' | 'spike' | 'beam' | 'lane' | 'grasp'; x: number; y: number; at: number; ang?: number; r?: number }
 
 /** Relics in the Night Shift: weapons that fight on their own, and charms that help. */
 export type RelicKind =
@@ -139,6 +139,13 @@ export interface Night {
   /** The dash: when it can be used again, and when the one under way ends (you can't be hit till then). */
   dashReady: number;
   dashUntil: number;
+  /** Where you last were when you moved a fair way, and when: stand too long and the dead claw up from below. */
+  anchorX: number;
+  anchorY: number;
+  anchorT: number;
+  graspAt: number;
+  /** Graves that have clawed at you this night (the first comes with a warning). */
+  grasps: number;
   level: number;
   xp: number;
   /** Levels waiting to be chosen. */
@@ -174,6 +181,11 @@ export function newNight(rand: () => number = Math.random): Night {
     hurtUntil: 0,
     dashReady: 0,
     dashUntil: 0,
+    anchorX: FIELD / 2,
+    anchorY: FIELD / 2,
+    anchorT: 0,
+    graspAt: 0,
+    grasps: 0,
     level: 1,
     xp: 0,
     pendingLevels: 0,
@@ -214,7 +226,7 @@ export const frostRadius = (n: Night) => (lv(n, 'frost') ? (1.5 + 0.2 * lv(n, 'f
  * bosses, and the dead shrug it off as the night goes on, so standing still in it never lasts.
  */
 export function frostSlow(n: Night, f: Foe): number {
-  const base = 0.2 + 0.03 * lv(n, 'frost');
+  const base = 0.15 + 0.03 * lv(n, 'frost');
   const hardy = f.boss || f.kind === 'brute' ? 0.5 : 1;
   const used = Math.max(0.35, 1 - n.t / 600);
   return base * hardy * used;
@@ -408,6 +420,10 @@ function bossAttack(n: Night, f: Foe) {
   f.atkN++;
 }
 
+/** Stay within this many tiles for GRASP_AFTER seconds and the dead claw up at you. */
+const GRASP_ROAM = 2;
+export const GRASP_AFTER = 4;
+
 /** The dash: how long it lasts, how much faster than walking, and how long until the next. */
 export const DASH_TIME = 0.2;
 const DASH_BURST = 4.5;
@@ -444,6 +460,17 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
     n.y = Math.max(0.5, Math.min(FIELD - 0.5, n.y + (dy / len) * sp));
     n.fx = dx / len;
     n.fy = dy / len;
+  }
+  // Standing your ground only works for so long: after a few seconds in one spot, hands claw up
+  // from the earth under you (marked first, so there's time to step off).
+  if (Math.hypot(n.x - n.anchorX, n.y - n.anchorY) > GRASP_ROAM) {
+    n.anchorX = n.x;
+    n.anchorY = n.y;
+    n.anchorT = n.t;
+  } else if (n.t > 20 && n.t - n.anchorT > GRASP_AFTER && n.t >= n.graspAt) {
+    n.lanes.push({ x: n.x, y: n.y, ang: 0, len: 0, w: 1.1, at: n.t + 0.9, dmg: 3 + Math.floor(n.t / 120), grasp: true });
+    n.graspAt = n.t + 2.2;
+    n.grasps++;
   }
   const mossEvery = 6 - lv(n, 'moss');
   if (lv(n, 'moss') && Math.floor(n.t / mossEvery) !== Math.floor((n.t - dt) / mossEvery)) n.hp = Math.min(n.maxHp, n.hp + 1);
@@ -623,7 +650,7 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
   const fr = frostRadius(n);
   if (fr) for (const f of n.foes) if (near(n, f) < fr + f.r) {
     f.slowUntil = n.t + 0.2;
-    hurtFoe(n, f, (2 + 1.5 * L('frost')) * dt);
+    hurtFoe(n, f, (1 + 0.6 * L('frost')) * dt);
   }
 
   // The bell: a toll that throws everything back.
@@ -690,7 +717,7 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
   n.shots = n.shots.filter((s) => s.life > 0 && s.x > -1 && s.y > -1 && s.x < FIELD + 1 && s.y < FIELD + 1);
   for (const l of n.lanes) {
     if (n.t < l.at) continue;
-    n.flashes.push({ kind: 'lane', x: l.x, y: l.y, at: n.t, ang: l.ang, r: l.len });
+    n.flashes.push({ kind: l.grasp ? 'grasp' : 'lane', x: l.x, y: l.y, at: n.t, ang: l.ang, r: l.grasp ? l.w : l.len });
     if (laneDist(l, n.x, n.y) < l.w + PLAYER_R) hurtYou(n, l.dmg);
     const charger = l.charge ? n.foes.find((f) => f.id === l.charge) : undefined;
     if (charger) {
