@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { cleanGraveState, newGraveState } from './graveshift';
-import { DAWN, FIELD, MAX_LEVEL, chooseRelic, levelChoices, newNight, nightPay, step, xpToLevel } from './nightshift';
+import { FIELD, FIRST_BOSS, MAX_LEVEL, chooseRelic, levelChoices, newNight, nightSouls, step, xpToLevel } from './nightshift';
 
 /** A small fixed random source, so every run of a test is the same night. */
 function seeded(seed: number) {
@@ -74,25 +74,44 @@ describe('the Night Shift', () => {
     expect(n.maxHp).toBe(25);
   });
 
-  it('standing still with only a spade does not last the night', () => {
+  it('standing still with only a spade does not last', () => {
     const n = newNight(seeded(6));
-    for (let k = 0; k < DAWN * 60 && !n.over; k++) {
+    for (let k = 0; k < 600 * 60 && !n.over; k++) {
       if (n.pendingLevels) n.pendingLevels = 0;
       step(n, 1 / 60, 0, 0);
     }
-    expect(n.over).toBe('dead');
+    expect(n.over).toBe(true);
   });
 
-  it('ends at dawn, and dawn pays more', () => {
+  it('has no dawn: the night runs on, and bosses keep rising', () => {
     const n = newNight(seeded(7));
-    n.t = DAWN - 0.01;
-    n.kills = 400;
-    step(n, 1 / 60, 0, 0);
-    expect(n.over).toBe('dawn');
-    const dawnPay = nightPay(n);
-    expect(dawnPay).toBe(Math.min(600, 100 + 100 + 150));
-    n.over = 'dead';
-    expect(nightPay(n)).toBe(dawnPay - 150);
+    n.maxHp = n.hp = 1e9;
+    for (let k = 0; k < (FIRST_BOSS + 125) * 60; k++) {
+      if (n.pendingLevels) n.pendingLevels = 0;
+      step(n, 1 / 60, 0, 0);
+    }
+    expect(n.over).toBe(false);
+    expect(n.bossesRisen).toBe(2);
+  });
+
+  it('bosses fire bolts or mark lanes to dodge', () => {
+    const n = newNight(seeded(8));
+    n.maxHp = n.hp = 1e9;
+    let seen = false;
+    for (let k = 0; k < (FIRST_BOSS + 10) * 60 && !seen; k++) {
+      if (n.pendingLevels) n.pendingLevels = 0;
+      step(n, 1 / 60, 0, 0);
+      seen = n.lanes.length > 0 || n.shots.length > 0;
+    }
+    expect(seen).toBe(true);
+  });
+
+  it('pays Souls for kills', () => {
+    const n = newNight(seeded(9));
+    n.kills = 600;
+    expect(nightSouls(n)).toBe(100);
+    n.kills = 99999;
+    expect(nightSouls(n)).toBe(500);
   });
 
   it('needs more souls for each level', () => {

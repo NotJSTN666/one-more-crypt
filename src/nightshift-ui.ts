@@ -1,14 +1,15 @@
-// The Night Shift on screen: the plot at night seen from above, the dead closing in, your relics
-// fighting on their own, a level-up choice whenever you fill the soul bar, and what the night paid.
+// The Night Shift on screen: the graveyard at night seen from above, the dead closing in, your
+// relics fighting on their own, a level-up choice whenever you fill the soul bar, the bosses'
+// bolts and lanes to dodge, and how many you put down. On phones a joystick sits at the bottom.
 
 import { sfx } from './audio';
 import { drawAura } from './aura';
-import { DAWN_GIFT } from './graveshift';
+import { NIGHT_GIFT, NIGHT_GIFT_KILLS } from './graveshift';
 import { heroSprite } from './hero';
 import { grave, groundFor, hash, paintGround, tree, type Px } from './hollow-art';
 import { graveState, meta, outfitFor, receiveGift, saveMeta } from './meta';
 import {
-  BOSS_AT, DAWN, FIELD, MAX_LEVEL, NIGHT_RELIC, NIGHT_RELICS, chooseRelic, frostRadius, levelChoices, newNight, nightPay, skullCount, step, xpToLevel, type RelicKind,
+  FIELD, MAX_LEVEL, NIGHT_RELIC, NIGHT_RELICS, chooseRelic, frostRadius, levelChoices, newNight, nextBossAt, nightSouls, skullCount, step, xpToLevel, type RelicKind,
 } from './nightshift';
 import { enemyFrames, type Sprite } from './sprites';
 import { esc, on, overlay, showOverlay, toast } from './ui';
@@ -17,6 +18,17 @@ const TILE = 16;
 const STEP = 1 / 60;
 
 const BOSS_NAME: Record<string, string> = { boss: 'The Gravelord', abbot: 'The Drowned Abbot', lich: 'The Lich' };
+
+type StickSide = 'left' | 'middle' | 'right';
+const STICK_KEY = 'omc:ns-stick';
+function stickSide(): StickSide {
+  try {
+    const v = localStorage.getItem(STICK_KEY);
+    return v === 'left' || v === 'middle' ? v : 'right';
+  } catch {
+    return 'right';
+  }
+}
 
 // The field is painted once: grass and paths, with old graves and trees scattered about.
 let field: HTMLCanvasElement | null = null;
@@ -56,39 +68,44 @@ function fieldCanvas(): HTMLCanvasElement {
   return c;
 }
 
-/** Stand a night on the plot. `back` returns to Grave Shift. */
+/** Stand a night in the graveyard. `back` leaves. */
 export function showNightShift(back: () => void) {
   const touch = matchMedia('(pointer: coarse)').matches;
-  const wide = window.innerWidth >= 700;
-  const VW = wide ? 18 : 12;
-  const VH = wide ? 12 : 15;
-  const S = 3;
+  const side = stickSide();
   showOverlay('nightshift', `
-    <div class="ns-wrap">
+    <div class="ns-wrap ${touch ? 'touch' : ''}">
       <div class="ns-hud">
         <div class="ns-row">
           <span class="ns-hp"><i id="ns-hp-bar"></i><b id="ns-hp">20</b></span>
-          <span class="ns-clock" id="ns-clock">10:00</span>
           <span class="ns-kills">💀 <b id="ns-kills">0</b></span>
           <button type="button" class="ns-pause" id="ns-pause" aria-label="Pause">⏸</button>
         </div>
         <div class="ns-xp"><i id="ns-xp-bar"></i><span id="ns-level">Lv 1</span></div>
-        <div class="ns-relics" id="ns-relics"></div>
+        <div class="ns-row ns-sub">
+          <span class="ns-relics" id="ns-relics"></span>
+          <span class="ns-time"><span id="ns-clock">0:00</span> · ☠️ <span id="ns-next">1:30</span></span>
+        </div>
       </div>
       <div class="ns-stage" id="ns-stage">
-        <canvas id="ns-canvas" width="${VW * TILE * S}" height="${VH * TILE * S}" aria-label="The plot at night, with the dead closing in"></canvas>
+        <canvas id="ns-canvas" aria-label="The graveyard at night, with the dead closing in"></canvas>
         <div class="ns-boss" id="ns-boss" hidden><span id="ns-boss-name"></span><i><b id="ns-boss-bar"></b></i></div>
-        <div class="ns-hint" id="ns-hint">${touch ? 'Drag anywhere to move.' : 'WASD or arrows to move.'} Your relics fight on their own. Hold out until dawn.</div>
+        <div class="ns-hint" id="ns-hint">${touch ? 'Use the stick to move.' : 'WASD or arrows to move.'} Your relics fight on their own. Put down as many as you can.</div>
         <div class="ns-modal" id="ns-modal" hidden></div>
       </div>
+      ${touch ? `<div class="ns-pad" id="ns-pad"><div class="ns-joy ${side}" id="ns-joy"><i id="ns-knob"></i></div></div>` : ''}
     </div>`);
   const canvas = overlay.querySelector<HTMLCanvasElement>('#ns-canvas')!;
   const stage = overlay.querySelector<HTMLElement>('#ns-stage')!;
   const modal = overlay.querySelector<HTMLElement>('#ns-modal')!;
+  const pad = overlay.querySelector<HTMLElement>('#ns-pad');
+  const joy = overlay.querySelector<HTMLElement>('#ns-joy');
+  const knob = overlay.querySelector<HTMLElement>('#ns-knob');
   const ctx = canvas.getContext('2d')!;
   const $id = (id: string) => overlay.querySelector<HTMLElement>(`#${id}`)!;
 
   const n = newNight();
+  // Local development only: the night, for poking at from the console.
+  if (import.meta.env.DEV) (window as unknown as { night?: unknown }).night = n;
   const fit = outfitFor(meta.hero);
   const hero = heroSprite(meta.hero, {}, [], fit.look, fit.head);
   const ground = fieldCanvas();
@@ -96,7 +113,26 @@ export function showNightShift(back: () => void) {
   let ended = false;
   let choosing: RelicKind[] | null = null;
 
-  // ---- input: keys held, or a drag anywhere on the stage ----
+  // ---- the canvas fills the stage, with a set number of tiles across ----
+  let W = 0;
+  let H = 0;
+  let S = 1;
+  const fitCanvas = () => {
+    const r = stage.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    const across = r.width < 600 ? 12 : r.width < 1000 ? 18 : 22;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = Math.round(r.width * dpr);
+    canvas.height = Math.round(r.height * dpr);
+    S = canvas.width / (across * TILE);
+    W = across * TILE;
+    H = canvas.height / S;
+  };
+  fitCanvas();
+  const onResize = () => fitCanvas();
+  window.addEventListener('resize', onResize);
+
+  // ---- input: keys held, the stick, or a drag on the stage ----
   const held = new Set<string>();
   const KEY_DIR: Record<string, [number, number]> = {
     ArrowUp: [0, -1], w: [0, -1], W: [0, -1],
@@ -104,7 +140,7 @@ export function showNightShift(back: () => void) {
     ArrowLeft: [-1, 0], a: [-1, 0], A: [-1, 0],
     ArrowRight: [1, 0], d: [1, 0], D: [1, 0],
   };
-  let stick: { ox: number; oy: number; x: number; y: number; id: number } | null = null;
+  let stick: { ox: number; oy: number; x: number; y: number; id: number; fixed: boolean } | null = null;
   const dir = (): [number, number] => {
     if (stick) {
       const dx = stick.x - stick.ox;
@@ -143,7 +179,10 @@ export function showNightShift(back: () => void) {
     }
   };
   const onKeyUp = (e: KeyboardEvent) => held.delete(e.key);
-  const onBlur = () => held.clear();
+  const onBlur = () => {
+    held.clear();
+    letGo();
+  };
   const onHide = () => {
     if (document.hidden && !ended) pause();
   };
@@ -155,48 +194,96 @@ export function showNightShift(back: () => void) {
     window.removeEventListener('keydown', onKey);
     window.removeEventListener('keyup', onKeyUp);
     window.removeEventListener('blur', onBlur);
+    window.removeEventListener('resize', onResize);
     document.removeEventListener('visibilitychange', onHide);
   }
-  stage.addEventListener('pointerdown', (e) => {
-    if ((e.target as HTMLElement).closest('.ns-modal')) return;
-    stick = { ox: e.clientX, oy: e.clientY, x: e.clientX, y: e.clientY, id: e.pointerId };
-    stage.setPointerCapture(e.pointerId);
-  });
-  stage.addEventListener('pointermove', (e) => {
-    if (!stick || e.pointerId !== stick.id) return;
-    // The stick's centre follows a finger dragged far, so turning back is quick.
-    const dx = e.clientX - stick.ox;
-    const dy = e.clientY - stick.oy;
+  const STICK_R = 46;
+  const showKnob = () => {
+    if (!knob) return;
+    const dx = stick?.fixed ? stick.x - stick.ox : 0;
+    const dy = stick?.fixed ? stick.y - stick.oy : 0;
     const d = Math.hypot(dx, dy);
-    if (d > 50) {
-      stick.ox = e.clientX - (dx / d) * 50;
-      stick.oy = e.clientY - (dy / d) * 50;
-    }
-    stick.x = e.clientX;
-    stick.y = e.clientY;
-  });
-  const lift = (e: PointerEvent) => {
-    if (stick && e.pointerId === stick.id) stick = null;
+    const k = d > STICK_R ? STICK_R / d : 1;
+    knob.style.transform = `translate(${dx * k}px, ${dy * k}px)`;
   };
-  stage.addEventListener('pointerup', lift);
-  stage.addEventListener('pointercancel', lift);
+  function letGo() {
+    stick = null;
+    showKnob();
+  }
+  const grab = (el: HTMLElement, fixed: boolean) => {
+    el.addEventListener('pointerdown', (e) => {
+      if ((e.target as HTMLElement).closest('.ns-modal') || paused || choosing) return;
+      e.preventDefault();
+      let ox = e.clientX;
+      let oy = e.clientY;
+      if (fixed && joy) {
+        // The stick pivots round its own centre, wherever in the pad you touch.
+        const r = joy.getBoundingClientRect();
+        ox = r.left + r.width / 2;
+        oy = r.top + r.height / 2;
+      }
+      stick = { ox, oy, x: e.clientX, y: e.clientY, id: e.pointerId, fixed };
+      el.setPointerCapture(e.pointerId);
+      showKnob();
+    });
+    el.addEventListener('pointermove', (e) => {
+      if (!stick || e.pointerId !== stick.id) return;
+      if (!stick.fixed) {
+        // A drag's centre follows a finger dragged far, so turning back is quick.
+        const dx = e.clientX - stick.ox;
+        const dy = e.clientY - stick.oy;
+        const d = Math.hypot(dx, dy);
+        if (d > 50) {
+          stick.ox = e.clientX - (dx / d) * 50;
+          stick.oy = e.clientY - (dy / d) * 50;
+        }
+      }
+      stick.x = e.clientX;
+      stick.y = e.clientY;
+      showKnob();
+    });
+    const lift = (e: PointerEvent) => {
+      if (stick && e.pointerId === stick.id) letGo();
+    };
+    el.addEventListener('pointerup', lift);
+    el.addEventListener('pointercancel', lift);
+  };
+  grab(stage, false);
+  if (pad) grab(pad, true);
 
   // ---- pause, level-up and the end ----
   function pause() {
     if (ended || choosing || paused) return;
     paused = true;
     held.clear();
-    stick = null;
+    letGo();
     modal.hidden = false;
+    const at = stickSide();
     modal.innerHTML = `<h3>Paused</h3>
-      <p class="fine">${fmt(DAWN - n.t)} until dawn · level ${n.level} · ${n.kills} put down</p>
+      <p class="fine">${fmt(n.t)} · level ${n.level} · ${n.kills} put down</p>
       <button type="button" class="btn primary" id="ns-resume">Keep going</button>
+      ${touch ? `<p class="fine ns-side-label">Joystick</p><div class="ns-side">${(['left', 'middle', 'right'] as StickSide[])
+        .map((s) => `<button type="button" class="btn ${s === at ? 'on' : ''}" data-side="${s}">${s === 'left' ? 'Left' : s === 'middle' ? 'Middle' : 'Right'}</button>`)
+        .join('')}</div>` : ''}
       <button type="button" class="btn" id="ns-quit">Give up the night</button>`;
     modal.querySelector('#ns-resume')!.addEventListener('click', resume);
     modal.querySelector('#ns-quit')!.addEventListener('click', () => {
-      n.over = 'dead';
+      n.over = true;
       finish();
     });
+    modal.querySelectorAll<HTMLElement>('[data-side]').forEach((b) =>
+      b.addEventListener('click', () => {
+        const s = b.dataset.side as StickSide;
+        try {
+          localStorage.setItem(STICK_KEY, s);
+        } catch {
+          /* kept for this night only */
+        }
+        joy?.classList.remove('left', 'middle', 'right');
+        joy?.classList.add(s);
+        modal.querySelectorAll('[data-side]').forEach((o) => o.classList.toggle('on', o === b));
+      }),
+    );
     (modal.querySelector('#ns-resume') as HTMLElement).focus();
   }
   function resume() {
@@ -217,7 +304,7 @@ export function showNightShift(back: () => void) {
     }
     choosing = opts;
     held.clear();
-    stick = null;
+    letGo();
     sfx.relic();
     modal.hidden = false;
     modal.innerHTML = `<h3>Level ${n.level - n.pendingLevels + 1}</h3>
@@ -254,40 +341,38 @@ export function showNightShift(back: () => void) {
     ended = true;
     cleanup();
     const s = graveState();
-    const pay = nightPay(n);
-    const best = Math.floor(n.t) > s.nightBest;
-    s.obols += pay;
-    if (n.ecto) s.inv.ecto = (s.inv.ecto ?? 0) + n.ecto;
+    const souls = nightSouls(n);
+    const best = n.kills > s.nightKills;
+    meta.souls += souls;
+    meta.earned += souls;
     s.nights++;
-    if (n.over === 'dawn') s.dawns++;
     s.nightBest = Math.max(s.nightBest, Math.floor(n.t));
     s.nightKills = Math.max(s.nightKills, n.kills);
-    const title = n.over === 'dawn' && !meta.gifts.includes(DAWN_GIFT);
-    if (title) receiveGift(DAWN_GIFT);
+    const title = n.kills >= NIGHT_GIFT_KILLS && !meta.gifts.includes(NIGHT_GIFT);
+    if (title) receiveGift(NIGHT_GIFT);
     saveMeta();
-    if (n.over === 'dawn') sfx.toll();
-    else sfx.death();
+    sfx.death();
     const build = NIGHT_RELICS.filter((r) => n.relics[r.id]).map((r) => `${r.emoji}<small>${n.relics[r.id]}</small>`).join(' ');
     window.setTimeout(() => {
       if (!overlay.querySelector('#ns-canvas')) return;
       showOverlay('nightshift-end', `
-        <h2>${n.over === 'dawn' ? 'Dawn breaks' : 'The night takes you'}</h2>
-        <p class="sub">${n.over === 'dawn' ? '"You held the plot all night. Not bad for a digger." Mortimer' : '"Back on your feet. The dead don\'t sleep, and neither do we." Mortimer'}</p>
+        <h2>The night takes you</h2>
+        <div class="ns-score"><b>${n.kills}</b><span>put down${best ? ' · new best' : ''}</span></div>
         <div class="ns-results">
-          <div><b>${fmt(Math.floor(n.t))}</b><span>survived${best ? ' · best' : ''}</span></div>
-          <div><b>${n.kills}</b><span>put down</span></div>
+          <div><b>${fmt(n.t)}</b><span>survived</span></div>
           <div><b>${n.level}</b><span>level</span></div>
+          <div><b>${n.bossKills}</b><span>bosses felled</span></div>
         </div>
         <p class="ns-build">${build}</p>
-        <div class="souls-chip">🪙 <b>+${pay}</b> Obols${n.ecto ? ` · 👻 +${n.ecto} ectoplasm` : ''}</div>
-        ${title ? '<p class="fine">🏅 New title: <b>Who Saw the Dawn</b></p>' : ''}
-        <p class="fine">Best night ${fmt(s.nightBest)} · most put down ${s.nightKills} · dawns seen ${s.dawns}</p>
+        <div class="souls-chip">💀 <b>+${souls}</b> Souls</div>
+        ${title ? '<p class="fine">🏅 New title: <b>The Unsleeping</b></p>' : ''}
+        <p class="fine">Best: ${s.nightKills} put down · longest night ${fmt(s.nightBest)} · ${s.nights} night${s.nights === 1 ? '' : 's'} stood</p>
         <button class="btn primary" id="ns-again">🌙 Stand another night</button>
-        <button class="btn" id="back">← Back to the plot</button>`);
+        <button class="btn" id="back">← Back</button>`);
       on('#ns-again', () => showNightShift(back));
       on('#back', back);
-      if (title) toast('🏅 Title unlocked: Who Saw the Dawn');
-    }, n.over === 'dawn' ? 900 : 1200);
+      if (title) toast('🏅 Title unlocked: The Unsleeping');
+    }, 1200);
   }
 
   // ---- the HUD ----
@@ -299,12 +384,13 @@ export function showNightShift(back: () => void) {
   }
   relicRow();
   function hud() {
-    const key = `${Math.ceil(n.hp)}/${n.maxHp}|${Math.ceil(DAWN - n.t)}|${n.kills}|${n.level}|${n.xp}`;
+    const key = `${Math.ceil(n.hp)}/${n.maxHp}|${Math.floor(n.t)}|${n.kills}|${n.level}|${n.xp}`;
     if (key === hudKey) return;
     hudKey = key;
     $id('ns-hp').textContent = `${Math.max(0, Math.ceil(n.hp))}`;
     $id('ns-hp-bar').style.width = `${Math.max(0, (n.hp / n.maxHp) * 100)}%`;
-    $id('ns-clock').textContent = fmt(DAWN - n.t);
+    $id('ns-clock').textContent = fmt(n.t);
+    $id('ns-next').textContent = fmt(nextBossAt(n) - n.t);
     $id('ns-kills').textContent = String(n.kills);
     $id('ns-level').textContent = `Lv ${n.level}`;
     $id('ns-xp-bar').style.width = `${Math.min(100, (n.xp / xpToLevel(n.level)) * 100)}%`;
@@ -334,7 +420,7 @@ export function showNightShift(back: () => void) {
         step(n, STEP, dx, dy);
         acc -= STEP;
       }
-      if (n.pendingLevels) {
+      if (n.pendingLevels && !n.over) {
         acc = 0;
         offerLevel();
       }
@@ -345,22 +431,22 @@ export function showNightShift(back: () => void) {
     if (n.hp < seen.hp) play('hurt', 150);
     if (n.bossesRisen > seen.bosses) {
       sfx.toll();
-      const name = BOSS_NAME[BOSS_AT[n.bossesRisen - 1][1]];
-      toast(`☠️ ${name} rises`);
+      const boss = [...n.foes].reverse().find((f) => f.boss);
+      if (boss) toast(`☠️ ${BOSS_NAME[boss.kind]} rises`);
     }
     if (n.flashes.some((f) => f.kind === 'bolt' && n.t - f.at < dt)) play('zap', 200);
     if (n.flashes.some((f) => f.kind === 'ring' && n.t - f.at < dt)) play('block', 300);
+    if (n.flashes.some((f) => f.kind === 'lane' && n.t - f.at < dt)) play('crit', 250);
     seen = { kills: n.kills, hp: n.hp, bosses: n.bossesRisen };
-    if (n.t > 5) $id('ns-hint').classList.add('gone');
+    if (n.t > 6) $id('ns-hint').classList.add('gone');
     draw(now / 1000);
     hud();
     requestAnimationFrame(frame);
   };
 
   // ---- drawing ----
-  const W = VW * TILE;
-  const H = VH * TILE;
   function draw(t: number) {
+    if (!W) fitCanvas();
     ctx.setTransform(S, 0, 0, S, 0, 0);
     ctx.imageSmoothingEnabled = false;
     const px: Px = (x, y, w, h, c) => {
@@ -368,12 +454,12 @@ export function showNightShift(back: () => void) {
       ctx.fillRect(x, y, w, h);
     };
     const camX = Math.max(0, Math.min(FIELD * TILE - W, n.x * TILE - W / 2));
-    const camY = Math.max(0, Math.min(FIELD * TILE - H, n.y * TILE - H / 2));
+    const camY = H >= FIELD * TILE ? (FIELD * TILE - H) / 2 : Math.max(0, Math.min(FIELD * TILE - H, n.y * TILE - H / 2));
     const sx = (x: number) => x * TILE - camX;
     const sy = (y: number) => y * TILE - camY;
     ctx.fillStyle = '#0b0910';
     ctx.fillRect(0, 0, W, H);
-    ctx.drawImage(ground, Math.round(camX), Math.round(camY), W, H, 0, 0, W, H);
+    ctx.drawImage(ground, -Math.round(camX), -Math.round(camY));
 
     // burning ground and the frost ring, under everything
     for (const fl of n.flames) {
@@ -403,6 +489,21 @@ export function showNightShift(back: () => void) {
       }
     }
 
+    // the bosses' lanes, marked on the ground before they strike
+    for (const l of n.lanes) {
+      const left = Math.max(0, l.at - n.t);
+      const blink = left < 0.3 ? (Math.floor(t * 20) % 2 ? 0.55 : 0.3) : 0.22;
+      ctx.save();
+      ctx.translate(sx(l.x), sy(l.y));
+      ctx.rotate(l.ang);
+      ctx.fillStyle = `rgba(210, 40, 60, ${blink})`;
+      ctx.fillRect(0, -l.w * TILE, l.len * TILE, l.w * 2 * TILE);
+      ctx.strokeStyle = 'rgba(255, 90, 100, 0.7)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(0, -l.w * TILE, l.len * TILE, l.w * 2 * TILE);
+      ctx.restore();
+    }
+
     // pickups
     for (const p of n.pickups) {
       const x = Math.round(sx(p.x));
@@ -415,13 +516,10 @@ export function showNightShift(back: () => void) {
         px(x - 3, y - 3, 6, 6, 'rgba(190, 130, 255, 0.28)');
         px(x - 2, y - 2, 4, 4, '#c79bff');
         px(x - 1, y - 1, 1, 1, '#f2e6ff');
-      } else if (p.kind === 'glowcap') {
+      } else {
         px(x - 3, y - 3, 6, 2, '#7cf5c4');
         px(x - 2, y - 4, 4, 1, '#b4ffe0');
         px(x - 1, y - 1, 2, 3, '#d8d0bd');
-      } else {
-        px(x - 2, y - 2, 4, 4, 'rgba(140, 255, 140, 0.3)');
-        px(x - 1, y - 2, 3, 3, '#9bff8a');
       }
     }
 
@@ -433,10 +531,17 @@ export function showNightShift(back: () => void) {
       const y = sy(f.y) - size * 0.75;
       if (x < -size || y < -size || x > W + size || y > H + size) continue;
       const frames = enemyFrames(f.kind);
-      const sp: Sprite = Math.hypot(f.x - n.x, f.y - n.y) < f.r + 0.8 ? frames.attack : frames.idle[Math.floor(t * 3 + f.id) % 2];
+      const sp: Sprite = Math.hypot(f.x - n.x, f.y - n.y) < f.r + 0.8 || (f.boss && f.atkAt - n.t < 0.4) ? frames.attack : frames.idle[Math.floor(t * 3 + f.id) % 2];
       const img = n.t - f.hitAt < 0.08 ? sp.white : sp.normal;
       px(Math.round(x + size * 0.2), Math.round(y + size * 0.92), Math.round(size * 0.6), 2, 'rgba(0,0,0,0.4)');
-      if (f.slowUntil > n.t) ctx.filter = 'hue-rotate(160deg) saturate(0.6) brightness(1.2)';
+      if (f.boss) {
+        // a red glow under the bosses, so they stand out in the crowd
+        ctx.fillStyle = 'rgba(210, 40, 60, 0.18)';
+        ctx.beginPath();
+        ctx.arc(sx(f.x), sy(f.y), f.r * TILE * 1.3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      if (f.slowUntil > n.t) ctx.globalAlpha = 0.75;
       ctx.save();
       if (f.x > n.x) {
         ctx.translate(Math.round(x) + size, Math.round(y));
@@ -444,18 +549,40 @@ export function showNightShift(back: () => void) {
         ctx.drawImage(img, 0, 0, size, size);
       } else ctx.drawImage(img, Math.round(x), Math.round(y), size, size);
       ctx.restore();
-      ctx.filter = 'none';
+      if (f.slowUntil > n.t) {
+        ctx.globalAlpha = 0.35;
+        px(Math.round(x + 2), Math.round(y + 2), size - 4, size - 4, '#9fd8ff');
+      }
+      ctx.globalAlpha = 1;
     }
 
-    // darts
-    ctx.strokeStyle = '#efe6cf';
-    ctx.lineWidth = 1.5;
+    // darts, scythes and wisps
     for (const d of n.darts) {
-      const sp = Math.hypot(d.vx, d.vy) || 1;
-      ctx.beginPath();
-      ctx.moveTo(sx(d.x), sy(d.y));
-      ctx.lineTo(sx(d.x - (d.vx / sp) * 0.4), sy(d.y - (d.vy / sp) * 0.4));
-      ctx.stroke();
+      const x = sx(d.x);
+      const y = sy(d.y);
+      if (d.kind === 'scythe') {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(t * 18);
+        ctx.strokeStyle = '#e6eefc';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, 5, 0, Math.PI * 1.2);
+        ctx.stroke();
+        ctx.restore();
+      } else if (d.kind === 'wisp') {
+        px(x - 3, y - 3, 6, 6, 'rgba(170, 255, 230, 0.25)');
+        px(x - 2, y - 2, 4, 4, '#bff7e6');
+        px(x - 1, y + 2, 2, 2, 'rgba(190, 255, 235, 0.5)');
+      } else {
+        const sp = Math.hypot(d.vx, d.vy) || 1;
+        ctx.strokeStyle = '#efe6cf';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(sx(d.x - (d.vx / sp) * 0.4), sy(d.y - (d.vy / sp) * 0.4));
+        ctx.stroke();
+      }
     }
 
     // you
@@ -487,16 +614,25 @@ export function showNightShift(back: () => void) {
       px(x + 1, y - 1, 1, 1, '#1a1420');
     }
 
-    // swings, strikes and tolls
+    // the bosses' bolts
+    for (const s of n.shots) {
+      const x = Math.round(sx(s.x));
+      const y = Math.round(sy(s.y));
+      if (x < -6 || y < -6 || x > W + 6 || y > H + 6) continue;
+      px(x - 3, y - 3, 6, 6, 'rgba(200, 70, 255, 0.3)');
+      px(x - 2, y - 2, 4, 4, '#c86bff');
+      px(x - 1, y - 1, 2, 2, '#f4dcff');
+    }
+
+    // swings, strikes, tolls, spikes, beams and bursting lanes
     for (const fl of n.flashes) {
       const age = (n.t - fl.at) / 0.4;
       ctx.globalAlpha = Math.max(0, 1 - age);
       if (fl.kind === 'swing') {
         ctx.strokeStyle = '#f4e9c8';
         ctx.lineWidth = 2.5;
-        const half = 1;
         ctx.beginPath();
-        ctx.arc(sx(fl.x), sy(fl.y), (fl.r ?? 1.5) * TILE * (0.7 + 0.3 * age), (fl.ang ?? 0) - half, (fl.ang ?? 0) + half);
+        ctx.arc(sx(fl.x), sy(fl.y), (fl.r ?? 1.5) * TILE * (0.7 + 0.3 * age), (fl.ang ?? 0) - 1, (fl.ang ?? 0) + 1);
         ctx.stroke();
       } else if (fl.kind === 'bolt') {
         ctx.strokeStyle = '#bfe3ff';
@@ -513,43 +649,64 @@ export function showNightShift(back: () => void) {
         ctx.lineTo(sx(fl.x), sy(fl.y));
         ctx.stroke();
         px(sx(fl.x) - 3, sy(fl.y) - 3, 6, 6, 'rgba(220, 240, 255, 0.6)');
-      } else {
+      } else if (fl.kind === 'ring') {
         ctx.strokeStyle = '#f2c14e';
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.arc(sx(fl.x), sy(fl.y), (fl.r ?? 2) * TILE * (0.3 + 0.7 * age), 0, Math.PI * 2);
         ctx.stroke();
+      } else if (fl.kind === 'spike') {
+        const r = (fl.r ?? 1) * TILE;
+        const up = Math.min(1, age * 4);
+        for (let k = 0; k < 7; k++) {
+          const a = (k / 7) * Math.PI * 2 + fl.at;
+          const bx = sx(fl.x) + Math.cos(a) * r * 0.6;
+          const by = sy(fl.y) + Math.sin(a) * r * 0.5;
+          px(Math.round(bx), Math.round(by - 6 * up), 2, Math.round(6 * up) + 1, '#e9e1cc');
+          px(Math.round(bx), Math.round(by - 6 * up), 2, 1, '#ffffff');
+        }
+      } else if (fl.kind === 'beam') {
+        ctx.save();
+        ctx.translate(sx(fl.x), sy(fl.y));
+        ctx.rotate(fl.ang ?? 0);
+        ctx.fillStyle = 'rgba(140, 230, 255, 0.35)';
+        ctx.fillRect(0, -6, (fl.r ?? 6) * TILE, 12);
+        ctx.fillStyle = '#dff8ff';
+        ctx.fillRect(0, -2, (fl.r ?? 6) * TILE, 4);
+        ctx.restore();
+      } else {
+        ctx.save();
+        ctx.translate(sx(fl.x), sy(fl.y));
+        ctx.rotate(fl.ang ?? 0);
+        ctx.fillStyle = 'rgba(255, 120, 90, 0.6)';
+        ctx.fillRect(0, -8, (fl.r ?? 8) * TILE, 16);
+        ctx.fillStyle = '#ffe2c8';
+        ctx.fillRect(0, -2, (fl.r ?? 8) * TILE, 4);
+        ctx.restore();
       }
     }
     ctx.globalAlpha = 1;
 
-    // the night closes in round your lantern, lifting as dawn comes
-    const dawn = Math.max(0, (n.t - (DAWN - 60)) / 60);
+    // the night closes in round your lantern
     const g = ctx.createRadialGradient(sx(n.x), sy(n.y), 30, sx(n.x), sy(n.y), Math.max(W, H) * 0.75);
     g.addColorStop(0, 'rgba(7, 4, 11, 0)');
-    g.addColorStop(1, `rgba(7, 4, 11, ${0.6 * (1 - dawn)})`);
+    g.addColorStop(1, 'rgba(7, 4, 11, 0.6)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
-    if (dawn) {
-      ctx.fillStyle = `rgba(255, 170, 120, ${0.12 * dawn})`;
-      ctx.fillRect(0, 0, W, H);
-    }
     // red at the edges when you're hurt
     if (n.t < n.hurtUntil) {
       ctx.fillStyle = 'rgba(200, 30, 40, 0.12)';
       ctx.fillRect(0, 0, W, H);
     }
 
-    // the stick under your finger
-    if (stick) {
+    // a drag on the stage shows its stick under your finger
+    if (stick && !stick.fixed) {
       const r = canvas.getBoundingClientRect();
       const k = W / r.width;
-      const ox = (stick.ox - r.left) * k;
-      const oy = (stick.oy - r.top) * k;
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.arc(ox, oy, 50 * k, 0, Math.PI * 2);
+      ctx.arc((stick.ox - r.left) * k, (stick.oy - r.top) * k, 50 * k, 0, Math.PI * 2);
       ctx.stroke();
       ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
       ctx.beginPath();
@@ -571,6 +728,6 @@ export function showNightShift(back: () => void) {
 }
 
 function fmt(sec: number): string {
-  const s = Math.max(0, Math.ceil(sec));
+  const s = Math.max(0, Math.floor(sec));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }

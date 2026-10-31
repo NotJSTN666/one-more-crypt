@@ -137,7 +137,7 @@ export const TITLES: TitleDef[] = [
   // Gifted by hand by the Crypt Keeper.
   { id: 'gift:exterminator', name: 'Bug Exterminator', how: 'A gift from the Crypt Keeper, for hunting down bugs and reporting them.' },
   { id: 'gift:plotkeeper', name: 'Keeper of the Old Plot', how: 'Put 25 graves back to rest in Grave Shift.' },
-  { id: 'gift:sawdawn', name: 'Who Saw the Dawn', how: 'Live through a whole Night Shift in Grave Shift.' },
+  { id: 'gift:sawdawn', name: 'The Unsleeping', how: 'Put down 1,000 of the dead in one Night Shift.' },
   { id: 'gift:brightidea', name: 'Bright Idea', how: 'A gift from the Crypt Keeper, for an idea that made it into the game.' },
   // Deaths of Shame: silly ways to fall, each worn as a title.
   ...SHAME.map((d) => ({ id: `shame:${d.id}`, name: d.title, how: d.how })),

@@ -385,8 +385,9 @@ export const JOBS_REWARD = 'grave:mortimercap';
 /** Graves to settle for the title Keeper of the Old Plot (owned as the gift 'plotkeeper'). */
 export const KEEPER_GRAVES = 25;
 export const KEEPER_GIFT = 'plotkeeper';
-/** The title Who Saw the Dawn, for living through a whole Night Shift (owned as the gift 'sawdawn'). */
-export const DAWN_GIFT = 'sawdawn';
+/** The title The Unsleeping, for putting down this many in one Night Shift (owned as the gift 'sawdawn'). */
+export const NIGHT_GIFT = 'sawdawn';
+export const NIGHT_GIFT_KILLS = 1000;
 
 /** Note something done. Pays the job's Obols the first time; true when it finishes the list. */
 export function noteJob(s: GraveState, id: JobId): { pay: number; finished: boolean } | null {

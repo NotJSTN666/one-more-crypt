@@ -1156,7 +1156,7 @@ function showTitle() {
       ${storyTileHtml()}
       ${titleTile('hollow', '🌙', 'The Hollow', 'Graveyard & your isle')}
       ${titleTile('act2', '🔔', 'Act II', act2Open() ? 'Part 1 open' : 'Opens Friday', 'act2-tile')}
-      ${graveTileHtml()}
+      ${nightShiftOpen() ? nightTileHtml() : graveTileHtml()}
     </div>
     <h2 class="title-section">Your crypt</h2>
     <div class="tiles">
@@ -1181,6 +1181,7 @@ function showTitle() {
   on('#grimoire', () => showGrimoire(showTitle));
   on('#hall', () => openHall(showTitle));
   on('#hollow', () => enterHollow());
+  on('#nightshift', () => showNightShift(showTitle));
   on('#graveshift', () => {
     if (!graveShiftOpen()) return toast('🌾 Grave Shift is coming soon: keep the old plot behind Gravesend.');
     setHollowSpot('farm', FARM_SPAWN.x, FARM_SPAWN.y + 1);
@@ -1352,7 +1353,7 @@ function hollowHooks(): HollowHooks {
     dungeon: dungeonDoor,
     enterDungeon: (n) => QUEST_BY_N[n] && beginDungeon(QUEST_BY_N[n]),
     gate: (n) => ['active', 'cleared', 'done'].includes(questStatus(QUEST_BY_N[n], storyState())),
-    areaOpen: (id) => id !== 'cloister' || meta.story.done.includes(21),
+    areaOpen: (id) => (id === 'farm' ? graveShiftOpen() : id !== 'cloister' || meta.story.done.includes(21)),
     lore: (id) => LORE[id] ?? null,
     readLore: (id) => {
       if (readLore(id)) sfx.relic();
@@ -1363,8 +1364,6 @@ function hollowHooks(): HollowHooks {
     graveOpen: graveShiftOpen,
     graveShop: () => showGraveShop(enterHollow),
     graveRequests: () => showGraveRequests(enterHollow),
-    nightOpen: nightShiftOpen,
-    nightShift: () => showNightShift(enterHollow),
     graveFx: (what) => {
       if (what === 'harvest' || what === 'settle') sfx.relic();
       else if (what === 'hit') sfx.hit();
@@ -3142,12 +3141,12 @@ function storyOpen(): boolean {
   return true;
 }
 
-/** Grave Shift is open to everyone. */
+/** Grave Shift is open until the Night Shift takes its place. */
 function graveShiftOpen(): boolean {
-  return true;
+  return !nightShiftOpen();
 }
 
-// The Night Shift is still being tested: only its tester (JSTN) sees it.
+// The Night Shift is still being tested: only its tester (JSTN) sees it, in Grave Shift's place.
 const NIGHT_TESTERS = ['ad5d6ad6-bd7b-4952-a0cb-9917d15909fd'];
 
 function nightShiftOpen(): boolean {
@@ -3280,6 +3279,11 @@ function showStoryNews() {
 /** A compact square on the title screen: an icon, a name and one short line. */
 function titleTile(id: string, icon: string, name: string, sub: string, cls = ''): string {
   return `<button class="tile ${cls}" id="${id}"><span class="tile-icon">${icon}</span><span class="tile-name">${name}</span><small>${sub}</small></button>`;
+}
+
+function nightTileHtml(): string {
+  const best = meta.grave?.nightKills ?? 0;
+  return titleTile('nightshift', '🌙', 'Night Shift', best ? `Best: ${best} put down` : 'New: hold back the dead', best ? '' : 'graveshift-new');
 }
 
 function graveTileHtml(): string {
