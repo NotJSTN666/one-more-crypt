@@ -5007,3 +5007,173 @@ body.tutorial #relic-bar {
   height: 64px;
   font-size: 20px;
 }
+
+/* ---------- desktop ----------
+   On a computer the game fills the window instead of sitting in a phone-wide column: the run
+   puts the board in the middle at full height with the HUD on the left and relics and tips on
+   the right; the title screen splits into two columns; menus and the Hollow grow. Keep the
+   width and height in step with DESKTOP in main.ts. */
+@media (min-width: 1000px) and (min-height: 560px) {
+  #app {
+    max-width: 2200px;
+    height: 100dvh;
+    min-height: 0;
+    padding: 24px 32px;
+    display: grid;
+    grid-template-columns: minmax(200px, min(300px, 20vw)) minmax(0, 1fr) minmax(200px, min(300px, 20vw));
+    grid-template-rows: repeat(6, auto) 1fr;
+    grid-template-areas:
+      'hud stage relics'
+      'surge stage tip'
+      'boss stage coach'
+      '. stage wait'
+      '. stage bow'
+      '. stage dpad'
+      '. stage .';
+    column-gap: 32px;
+    row-gap: 12px;
+    align-content: start;
+  }
+
+  /* The ghost runs behind stay quiet beside the side panels. */
+  body:not(.menu)::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background: linear-gradient(90deg, rgba(7, 4, 11, 0.82), rgba(7, 4, 11, 0.45) 28%, rgba(7, 4, 11, 0.45) 72%, rgba(7, 4, 11, 0.82));
+  }
+
+  #hud {
+    grid-area: hud;
+    flex-wrap: wrap;
+    padding: 14px;
+    gap: 12px;
+    font-size: 14px;
+    background: rgba(14, 9, 20, 0.72);
+    border: 1px solid var(--line);
+  }
+
+  #hud .hp {
+    flex: 1 1 100%;
+  }
+
+  #hud .hp-bar {
+    height: 16px;
+  }
+
+  #hud .stats {
+    flex: 1;
+    gap: 16px;
+  }
+
+  #surge-bar { grid-area: surge; }
+  #boss-bar { grid-area: boss; }
+
+  #stage {
+    grid-area: stage;
+    grid-row: 1 / -1;
+    align-self: center;
+  }
+
+  #relic-bar {
+    grid-area: relics;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    height: auto;
+    min-height: 0;
+    max-height: 46vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 10px;
+    background: rgba(14, 9, 20, 0.72);
+    border: 1px solid var(--line);
+  }
+
+  #relic-bar:empty {
+    display: none;
+  }
+
+  #relic-bar.overflowing {
+    -webkit-mask: none;
+    mask: none;
+  }
+
+  #tip {
+    grid-area: tip;
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.7;
+    text-align: left;
+  }
+
+  #coach { grid-area: coach; }
+
+  #wait-btn {
+    grid-area: wait;
+    margin: 0;
+    justify-self: stretch;
+  }
+
+  #bow-btn {
+    grid-area: bow;
+    margin: 0;
+    justify-self: stretch;
+  }
+
+  #dpad {
+    grid-area: dpad;
+  }
+
+  /* Menus get room to breathe. */
+  .panel {
+    max-width: 640px;
+  }
+
+  /* The title screen: what to play on the left, adventure and your crypt on the right. */
+  .panel:has(.title-cols) {
+    max-width: 1180px;
+  }
+
+  .title-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 36px;
+    align-items: start;
+    text-align: left;
+  }
+
+  .title-cols .btn,
+  .title-cols .card,
+  .title-cols .streak {
+    text-align: center;
+  }
+
+  .title-more .title-section:first-child {
+    margin-top: 0;
+  }
+
+  .title-more .tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .title-more .tile {
+    min-height: 92px;
+  }
+
+  .title-more .foot-links {
+    justify-content: center;
+  }
+
+  /* The Hollow: as big as the window allows, keeping its shape. */
+  .panel:has(> .hollow-wrap) {
+    max-width: 1500px;
+  }
+
+  .hollow-wrap {
+    max-width: min(100%, calc((100dvh - 150px) * var(--cols, 17) / var(--rows, 13)));
+    margin: 0 auto;
+  }
+}

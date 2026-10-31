@@ -572,7 +572,7 @@ function open() {
         ? '<button class="btn" id="hollow-quests">📜 Quests</button>'
         : `<span class="souls-chip">💀 <b>${meta.souls}</b></span>`;
   showOverlay('hollow', `
-    <div class="hollow-wrap">
+    <div class="hollow-wrap" style="--cols: ${build ? cols() : window.innerWidth < 600 ? 11 : 17}; --rows: ${STAGE_ROWS}">
       <div class="hollow-top">
         ${visiting ? '<button class="btn" id="hollow-back">← Back</button>' : '<button class="btn" id="hollow-menu">☰ Menu</button>'}
         <span class="hollow-title">${esc(title)}</span>

@@ -76,12 +76,18 @@ let runCombos: ComboDef[] = [];
 /** The guided first run. While it's on, nothing is saved or counted. */
 let tutorial: { step: number; busy: boolean; then: () => void; label: string } | null = null;
 
+/** A computer screen with room for the board between two side columns (see the desktop layout in style.css). */
+const DESKTOP = '(min-width: 1000px) and (min-height: 560px)';
+
 function fitBoard() {
   const app = $('app');
   const width = app.clientWidth - 24;
   const touch = matchMedia('(pointer: coarse)').matches;
-  const reserved = (touch ? 330 : 190) + (tutorial ? 40 : 0);
-  const size = Math.max(200, Math.min(width, window.innerHeight - reserved));
+  // On a computer the board sits between the side columns and takes the full height.
+  const desk = matchMedia(DESKTOP).matches;
+  const reserved = desk ? 48 : (touch ? 330 : 190) + (tutorial ? 40 : 0);
+  const room = desk ? $('stage').clientWidth - 8 : width;
+  const size = Math.max(200, Math.min(room, window.innerHeight - reserved));
   renderer.resize(size);
 }
 window.addEventListener('resize', fitBoard);
@@ -1137,11 +1143,13 @@ function showTitle() {
     ? `<button class="btn primary" id="continue">▶ Continue ${resumable.mode === 'daily' ? `Daily #${resumable.dailyNo}` : 'Endless'}<small>${HERO_BY_ID[resumable.hero].name} · floor ${resumable.floor} · ${resumable.player.hp}/${resumable.player.maxHp} HP</small></button>`
     : '';
   const ns = (n: number) => n.toLocaleString();
+  // Two columns on a computer: what to play on the left, everything else on the right.
   showOverlay('title', `
     ${accountChip()}
     <h1 class="logo">One More Crypt</h1>
     <p class="tagline">One crypt. One try a day. How deep can you go?</p>
     ${onlineCountHtml()}
+    <div class="title-cols"><div class="title-play">
     ${continueBlock}
     ${dailyBlock}
     ${raid.phase !== 'soon' ? raidCardHtml(raid) : ''}
@@ -1151,6 +1159,7 @@ function showTitle() {
     ${raid.phase === 'soon' ? raidCardHtml(raid) : ''}
     ${welcomeTitleHtml()}
     ${bountiesHtml(today)}
+    </div><div class="title-more">
     <h2 class="title-section">Adventure</h2>
     <div class="tiles">
       ${storyTileHtml()}
@@ -1170,6 +1179,7 @@ function showTitle() {
       ${titleTile('help', '❔', 'How to play', 'The basics')}
     </div>
     <div class="foot-links">${followXHtml}${discordHtml}${kofiHtml}</div>
+    </div></div>
   `);
   on('#account', () => (unclaimed() ? showLogin(showTitle, 'claim') : showProfile(showTitle)));
   on('#leaderboard', () => showLeaderboard(showTitle));
