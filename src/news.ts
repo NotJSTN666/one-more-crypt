@@ -24,10 +24,11 @@ export interface NewsDay {
 export const NEWS: NewsDay[] = [
   {
     date: '2026-10-30',
-    title: 'Act II opens, a new forge and fairer rules',
+    title: 'Act II opens, Grave Shift, a new forge and fairer rules',
     notes: [
       '⛪ Act II, Part 1: The Sunken Cloister. Under the lid lies a drowned monastery: meet Brother Ambrose, fight through plague mist, hold the Chapter House and creep past the sleepers. 2 quests, 3 side quests and story-only rewards.',
       '🏅 Open the lid before 12 November for First Down the Lid.',
+      '🌾 Grave Shift is open to everyone: Mortimer\'s old plot behind Gravesend. Grow crops, put restless graves back to rest, and trade with Mortimer for Obols, then spend them on cloaks, headwear and an aura only he sells.',
       '🔥 Fusing relics at the Soul Forge draws a magic circle in the colours of the two relics. They spiral in and meet in a burst, and the new relic gets its own reveal.',
       '✍️ Guests go straight onto the leaderboards. Type a name on the results screen to make it yours, and every run you have posted moves over to it.',
       '📖 A new How to play, with live demos of every rule and picture cards for every hero, foe and mode.',
