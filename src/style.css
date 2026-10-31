@@ -3163,6 +3163,31 @@ body.tutorial #relic-bar {
   text-align: left;
 }
 
+/* Mortimer's next job, above the seeds. */
+.farm-job {
+  margin-bottom: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--gold);
+  border-radius: 4px;
+  background: rgba(242, 193, 78, 0.08);
+  font-family: var(--read);
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.farm-job b {
+  display: block;
+  margin-bottom: 2px;
+  font-family: var(--pixel);
+  font-weight: normal;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--gold);
+}
+
+.farm-job span { color: var(--gold); white-space: nowrap; }
+
 .farm-fight {
   margin-bottom: 8px;
   padding: 6px 10px;
@@ -4470,3 +4495,9 @@ body.tutorial #relic-bar {
 @media (prefers-reduced-motion: reduce) {
   .news-dot { animation: none; }
 }
+
+/* The Grave Shift tile: green while something is waiting out on the plot, gold when new. */
+.tile.graveshift-ready { border-color: #7ee081; box-shadow: 0 0 12px rgba(126, 224, 129, 0.35); }
+.tile.graveshift-ready small { color: #b5e07a; }
+.tile.graveshift-new { border-color: var(--gold); box-shadow: 0 0 12px rgba(242, 193, 78, 0.35); }
+.tile.graveshift-new small { color: var(--gold); }

@@ -136,6 +136,7 @@ export const TITLES: TitleDef[] = [
   { id: 'podium:1', name: 'Crypt Champion', how: 'Finish 1st in a Daily Descent.' },
   // Gifted by hand by the Crypt Keeper.
   { id: 'gift:exterminator', name: 'Bug Exterminator', how: 'A gift from the Crypt Keeper, for hunting down bugs and reporting them.' },
+  { id: 'gift:plotkeeper', name: 'Keeper of the Old Plot', how: 'Put 25 graves back to rest in Grave Shift.' },
   { id: 'gift:brightidea', name: 'Bright Idea', how: 'A gift from the Crypt Keeper, for an idea that made it into the game.' },
   // Deaths of Shame: silly ways to fall, each worn as a title.
   ...SHAME.map((d) => ({ id: `shame:${d.id}`, name: d.title, how: d.how })),
@@ -366,6 +367,13 @@ LOOKS.push(
   { id: 'oldoak', name: 'Old Oak', cloak: { p: '#6b4a2a', P: '#2e2219' }, aura: '#d9a03a', ...harvested(900) },
 );
 
+// Grave Shift: Mortimer sells these for Obols, the farm's coin; his cap is for finishing his first jobs.
+const wares = (price: number) => ({ how: `Sold at Mortimer's shed in Grave Shift for ${price.toLocaleString()} Obols.` });
+LOOKS.push(
+  { id: 'plotcoat', name: "Plot-Keeper's Coat", cloak: { p: '#5a4a3a', P: '#2a2018' }, aura: '#b5e07a', unlock: { gift: 'grave:plotcoat' }, ...wares(600) },
+  { id: 'scarecrowrags', name: 'Scarecrow Rags', cloak: { p: '#c4a046', P: '#6b4a2a' }, aura: '#e8c25a', unlock: { gift: 'grave:scarecrowrags' }, ...wares(900) },
+);
+
 const wintry = (cost: number) => ({ unlock: { cost, season: 'midwinter' as const }, how: `Sold in the Ossuary during Midwinter (the day after Thanksgiving to January 6) for ${cost.toLocaleString()} Souls.` });
 LOOKS.push(
   { id: 'midwintermantle', name: 'Midwinter Mantle', cloak: { p: '#2e7d4f', P: '#8a1f2c' }, aura: '#ffffff', unlock: { season: 'midwinter' }, how: 'Play any run during Midwinter (the day after Thanksgiving to January 6).' },
@@ -558,7 +566,10 @@ export const HEADS: HeadDef[] = [
   { id: 'ghostsheet', name: 'Ghost Sheet', ...hallowed(700), pixels: [...row(0, 4, 7, '#f2f2f2'), ...row(1, 3, 8, '#f2f2f2'), ...row(2, 2, 9, '#f2f2f2'), ...row(3, 2, 9, '#f2f2f2'), [4, 3, '#0d0812'], [7, 3, '#0d0812'], ...row(4, 2, 9, '#e2e6ee'), [5, 4, '#0d0812'], [6, 4, '#0d0812'], ...row(5, 2, 9, '#d2d8e2'), [2, 6, '#c8d0dc'], [4, 6, '#c8d0dc'], [7, 6, '#c8d0dc'], [9, 6, '#c8d0dc']] },
   { id: 'mummy', name: 'Mummy Wraps', ...hallowed(800), pixels: [...row(1, 3, 8, '#d8d2c2'), ...row(2, 3, 8, '#b8b0a0'), ...row(3, 4, 7, '#d8d2c2'), [4, 4, '#b8b0a0'], [5, 4, '#ffd23f'], [6, 4, '#b8b0a0'], [7, 4, '#b8b0a0'], [3, 3, '#b8b0a0'], [8, 3, '#d8d2c2'], [9, 2, '#d8d2c2'], [10, 3, '#d8d2c2']] },
   { id: 'vampire', name: 'Vampire Count', ...hallowed(900), pixels: [...row(1, 3, 8, '#141119'), [3, 2, '#141119'], [4, 2, '#e8e0e8'], [5, 2, '#141119'], [6, 2, '#141119'], [7, 2, '#e8e0e8'], [8, 2, '#141119'], ...row(3, 4, 7, '#e8e0e8'), [4, 4, '#e8e0e8'], [5, 4, RED], [6, 4, '#e8e0e8'], [7, 4, RED], [5, 5, '#ffffff'], [6, 5, '#701826'], [7, 5, '#ffffff']] },
-  // The Harvest Feast: sold only November 16 to 30.
+  // Grave Shift.
+  { id: 'mortimercap', name: "Mortimer's Cap", unlock: { gift: 'grave:mortimercap' }, how: "Finish Mortimer's first jobs in Grave Shift.", pixels: [...row(1, 3, 8, '#5a4a3a'), ...row(2, 2, 9, '#4a3a2a'), [3, 1, '#6b5a48'], [9, 2, '#3a2a1a'], [10, 2, '#3a2a1a']] },
+  { id: 'gourdhelm', name: 'Gourd Helm', unlock: { gift: 'grave:gourdhelm' }, ...wares(700), pixels: [[5, 0, '#5a3a1a'], [6, 0, '#3d6b2a'], ...row(1, 3, 8, '#5f8a3a'), ...row(2, 2, 9, '#4f7a2a'), [4, 1, '#8ab85a'], [7, 1, '#e8c25a'], [3, 2, '#e8c25a'], [8, 2, '#e8c25a']] },
+  // The Harvest Feast: sold only November 1 to Thanksgiving.
   { id: 'acorncap', name: 'Acorn Cap', ...harvestHead(400), pixels: [[5, 0, '#5a3a1a'], [6, 0, '#5a3a1a'], ...row(1, 3, 8, '#8a5a28'), ...row(2, 2, 9, '#a8743a'), [3, 1, '#6b4420'], [5, 1, '#6b4420'], [7, 1, '#6b4420'], [4, 2, '#8a5a28'], [6, 2, '#8a5a28'], [8, 2, '#8a5a28']] },
   { id: 'leafcrown', name: 'Autumn Wreath', ...harvestHead(500), pixels: [[2, 2, '#d9822b'], [3, 1, '#c0392b'], [4, 1, '#ffd23f'], [5, 0, '#d9822b'], [6, 0, '#c0392b'], [7, 1, '#ffd23f'], [8, 1, '#d9822b'], [9, 2, '#c0392b'], [3, 2, '#8a3b12'], [8, 2, '#8a3b12'], [5, 1, '#e67e22'], [6, 1, '#8a3b12']] },
   { id: 'buckle', name: 'Buckle Hat', ...harvestHead(650), pixels: [...row(0, 4, 7, '#4a4458'), ...row(1, 4, 7, '#3d3546'), ...row(2, 4, 7, '#2a2433'), [5, 2, GOLD], [6, 2, GOLD], [4, 0, '#5d5568'], ...row(3, 2, 9, '#4a4458'), [2, 3, '#5d5568']] },
@@ -774,6 +785,8 @@ export const AURAS: AuraDef[] = [
   { id: 'bloodmist', name: 'Bloodmist', style: 'mist', color: '#d23a46', ...auraSold(10000) },
   // The Hallowed Season.
   { id: 'hallowedwisps', name: 'Hallowed Wisps', style: 'wisps', color: '#ff8a2a', unlock: { cost: 3000, season: 'halloween' }, how: 'Sold in the Ossuary during the Hallowed Season (October 19 to November 2) for 3,000 Souls.' },
+  // Grave Shift: sold at Mortimer's shed for Obols.
+  { id: 'fireflyswarm', name: 'Firefly Swarm', style: 'favour', color: '#c8f05a', unlock: { gift: 'grave:fireflyswarm' }, how: "Sold at Mortimer's shed in Grave Shift for 1,500 Obols." },
   // The Harvest Feast.
   { id: 'harvestmoon', name: 'Harvest Moon', style: 'moon', color: '#e8902a', unlock: { cost: 3500, season: 'harvest' }, how: 'Sold in the Ossuary during the Harvest Feast (November 1 to Thanksgiving) for 3,500 Souls.' },
   { id: 'fallingleaves', name: 'Falling Leaves', style: 'leaves', color: '#e67e22', unlock: { cost: 2500, season: 'harvest' }, how: 'Sold in the Ossuary during the Harvest Feast (November 1 to Thanksgiving) for 2,500 Souls.' },

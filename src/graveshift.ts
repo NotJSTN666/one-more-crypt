@@ -30,6 +30,10 @@ export interface GraveState {
   reqDone: boolean[];
   /** Graves put to rest, for the record. */
   settled: number;
+  /** Mortimer has shown you round. */
+  met: boolean;
+  /** Mortimer's first jobs, done. */
+  jobsDone: JobId[];
   at: number;
 }
 
@@ -125,6 +129,8 @@ export function newGraveState(now: number): GraveState {
     reqDay: '',
     reqDone: [],
     settled: 0,
+    met: false,
+    jobsDone: [],
     at: now,
   };
 }
@@ -154,6 +160,8 @@ export function cleanGraveState(raw: unknown, now: number): GraveState {
     reqDay: typeof r.reqDay === 'string' ? r.reqDay : '',
     reqDone: Array.isArray(r.reqDone) ? r.reqDone.map(Boolean) : [],
     settled: Math.max(0, Math.floor(Number(r.settled) || 0)),
+    met: r.met === true,
+    jobsDone: Array.isArray(r.jobsDone) ? JOBS.map((j) => j.id).filter((id) => r.jobsDone!.includes(id)) : [],
     at: Number(r.at) || 0,
   };
 }
@@ -341,6 +349,53 @@ export function fillRequest(s: GraveState, day: string, k: number, now: number):
   return true;
 }
 
+// ---------- Mortimer's first jobs ----------
+// A short list that walks a new keeper through the plot, each paid in Obols. Done in any
+// order; the panel shows the first one still to do. Finishing them all earns Mortimer's Cap.
+
+export type JobId = 'till' | 'plant' | 'water' | 'settle' | 'harvest' | 'sell' | 'request';
+
+export const JOBS: { id: JobId; text: string; pay: number }[] = [
+  { id: 'till', text: 'Tap a plot of wild ground to clear it', pay: 5 },
+  { id: 'plant', text: 'Tap it again to plant the seed in hand', pay: 5 },
+  { id: 'water', text: 'Tap the seedling to water it: it grows faster', pay: 5 },
+  { id: 'settle', text: 'Walk into a glowing grave and put the risen back down', pay: 15 },
+  { id: 'harvest', text: 'Harvest a ripe crop (tap it when it glints)', pay: 10 },
+  { id: 'sell', text: "Sell your satchel at Mortimer's shed", pay: 10 },
+  { id: 'request', text: 'Fill a request on the board', pay: 20 },
+];
+
+/** The reward for finishing every job: a gift id, so it joins the Wardrobe like any other. */
+export const JOBS_REWARD = 'grave:mortimercap';
+
+/** Graves to settle for the title Keeper of the Old Plot (owned as the gift 'plotkeeper'). */
+export const KEEPER_GRAVES = 25;
+export const KEEPER_GIFT = 'plotkeeper';
+
+/** Note something done. Pays the job's Obols the first time; true when it finishes the list. */
+export function noteJob(s: GraveState, id: JobId): { pay: number; finished: boolean } | null {
+  if (s.jobsDone.includes(id)) return null;
+  const job = JOBS.find((j) => j.id === id);
+  if (!job) return null;
+  s.jobsDone.push(id);
+  s.obols += job.pay;
+  return { pay: job.pay, finished: s.jobsDone.length === JOBS.length };
+}
+
+/** The first job still to do, if any. */
+export const nextJob = (s: GraveState) => JOBS.find((j) => !s.jobsDone.includes(j.id)) ?? null;
+
+// ---------- Mortimer's wares ----------
+// Cosmetics sold for Obols, the farm's own coin, so the plot pays into the crypt.
+// Each is owned as a gift id ('grave:<id>'); the pieces themselves live in progression.ts.
+
+export const WARES: { id: string; kind: 'look' | 'head' | 'aura'; price: number }[] = [
+  { id: 'plotcoat', kind: 'look', price: 600 },
+  { id: 'gourdhelm', kind: 'head', price: 700 },
+  { id: 'scarecrowrags', kind: 'look', price: 900 },
+  { id: 'fireflyswarm', kind: 'aura', price: 1500 },
+];
+
 // ---------- drawing ----------
 
 type Px = (x: number, y: number, w: number, h: number, c: string) => void;
@@ -353,21 +408,32 @@ export function drawPlot(ctx: CanvasRenderingContext2D, px: Px, s: GraveState, i
   const Y = y * T;
   const p = s.plots[i];
   if (!plotOpen(s, i)) {
-    // wild and overgrown, not yet cleared
-    px(X, Y, T, T, '#141a17');
-    px(X + 2, Y + 3, 3, 5, '#2c3a2f');
-    px(X + 9, Y + 6, 4, 6, '#2c3a2f');
-    px(X + 5, Y + 10, 3, 4, '#3a2a2a');
+    // overgrown with brambles: ground Mortimer has yet to clear
+    px(X, Y, T, T, '#121813');
+    for (const [bx, by] of [[2, 3], [9, 2], [5, 8], [11, 9], [3, 12]]) {
+      px(X + bx, Y + by, 4, 3, '#24331f');
+      px(X + bx + 1, Y + by - 1, 2, 1, '#2f4528');
+      px(X + bx + 3, Y + by + 1, 1, 1, '#6b2a3a');
+    }
     return;
   }
   if (p.crop === '') {
-    px(X, Y, T, T, '#1d1a14');
-    px(X + 3, Y + 4, 2, 2, '#2c3a2f');
-    px(X + 10, Y + 9, 2, 3, '#2c3a2f');
+    // wild ground inside the field: rough earth, tufts and stones, edged so it reads as a plot
+    px(X + 1, Y + 1, T - 2, T - 2, '#2a2016');
+    px(X + 1, Y + 1, T - 2, 1, '#3a2c1e');
+    px(X + 1, Y + T - 2, T - 2, 1, '#1a130c');
+    for (const [bx, by] of [[3, 4], [10, 3], [6, 10], [11, 11]]) {
+      px(X + bx, Y + by, 2, 3, '#3f5a32');
+      px(X + bx + 1, Y + by - 1, 1, 1, '#5f8a4a');
+    }
+    px(X + 8, Y + 7, 2, 1, '#4b4259');
     return;
   }
-  px(X + 1, Y + 1, T - 2, T - 2, p.watered ? '#2a1c12' : '#3a2818');
-  for (const fy of [4, 8, 12]) px(X + 2, Y + fy, T - 4, 1, p.watered ? '#1a120c' : '#2a1c12');
+  // tilled earth in furrows, darker once it's been watered
+  px(X + 1, Y + 1, T - 2, T - 2, p.watered ? '#2e1e12' : '#4a3220');
+  px(X + 1, Y + 1, T - 2, 1, p.watered ? '#3a2818' : '#5d4028');
+  for (const fy of [4, 8, 12]) px(X + 2, Y + fy, T - 4, 1, p.watered ? '#1a120c' : '#2e1e12');
+  if (p.watered) px(X + 12, Y + 12, 2, 1, '#5fa8ff');
   const def = CROP_BY_ID[p.crop];
   if (!def) return;
   const g = growth(p, now);

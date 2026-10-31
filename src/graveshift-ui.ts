@@ -4,9 +4,12 @@
 import { sfx } from './audio';
 import { centralDate } from './daily';
 import {
-  CAN_CUT, CROPS, FIELD_NAME, ITEM_EMOJI, ITEM_NAME, SELL, SPADE_DMG, buySeed, buyUpgrade, fillRequest, requestsFor, sellAll, upgradeCost, type Upgrade,
+  CAN_CUT, CROPS, FIELD_NAME, ITEM_EMOJI, ITEM_NAME, SELL, SPADE_DMG, WARES, buySeed, buyUpgrade, fillRequest, requestsFor, sellAll, upgradeCost, type Upgrade,
 } from './graveshift';
-import { graveState, saveMeta } from './meta';
+import { heroPortrait } from './hero';
+import { farmJob } from './hollow';
+import { graveState, meta, outfitFor, receiveGift, saveMeta } from './meta';
+import { AURA_BY_ID, HEAD_BY_ID, LOOK_BY_ID } from './progression';
 import { esc, on, overlay, showOverlay, toast } from './ui';
 
 /** Mortimer's shed: buy seeds, sell the satchel, and buy upgrades. */
@@ -32,6 +35,19 @@ export function showGraveShop(back: () => void) {
     </div>`;
   };
   const nextCan = Math.round(CAN_CUT[Math.min(s.can + 1, CAN_CUT.length - 1)] * 100);
+  // Mortimer's wares: cosmetics for Obols, shown on your own hero.
+  const ware = (w: (typeof WARES)[number]) => {
+    const owned = meta.gifts.includes(`grave:${w.id}`);
+    const def = w.kind === 'look' ? LOOK_BY_ID[w.id] : w.kind === 'head' ? HEAD_BY_ID[w.id] : AURA_BY_ID[w.id];
+    const o = outfitFor(meta.hero);
+    const pic = w.kind === 'aura' ? '✨' : `<img class="px" src="${heroPortrait(meta.hero, {}, [], 3, w.kind === 'look' ? w.id : o.look, w.kind === 'head' ? w.id : o.head)}" alt="" width="36" height="36" />`;
+    const kind = w.kind === 'look' ? 'Cloak' : w.kind === 'head' ? 'Headwear' : 'Aura';
+    return `<div class="shop-item ${owned ? 'owned' : ''}">
+      <span class="shop-emoji">${pic}</span>
+      <span class="shop-info"><span class="name">${esc(def?.name ?? w.id)}</span><span class="desc">${kind} for any hero. Only from Mortimer.</span></span>
+      ${owned ? '<span class="owned-tag">Owned</span>' : `<button class="buy" data-ware="${w.id}" ${s.obols < w.price ? 'disabled' : ''}>🪙 ${w.price}</button>`}
+    </div>`;
+  };
   showOverlay('grave-shop', `
     <h2>Mortimer's Shed</h2>
     <p class="sub">"Seeds, spades, and no questions asked."</p>
@@ -47,6 +63,9 @@ export function showGraveShop(back: () => void) {
       ${upgrade('spade', 'Sharper spade', `Hit the risen for ${SPADE_DMG[Math.min(s.spade + 1, SPADE_DMG.length - 1)]} a swing.`)}
       ${upgrade('field', FIELD_NAME[Math.min(s.fields + 1, FIELD_NAME.length - 1)] || 'Clear more ground', 'Ten more plots, and new seeds in the shed.')}
     </div>
+    <h3 class="shop-head">Mortimer's wares</h3>
+    <p class="fine">Things to wear, only sold here, only for Obols.</p>
+    <div class="shop">${WARES.map(ware).join('')}</div>
     <button class="btn primary" id="back">Back to the plot</button>`);
   const reopen = () => {
     const top = overlay.scrollTop;
@@ -58,6 +77,7 @@ export function showGraveShop(back: () => void) {
     if (made) {
       sfx.relic();
       toast(`Sold for ${made} Obols.`);
+      farmJob('sell');
       saveMeta();
     }
     reopen();
@@ -77,6 +97,19 @@ export function showGraveShop(back: () => void) {
         sfx.fuse();
         saveMeta();
       }
+      reopen();
+    }),
+  );
+  overlay.querySelectorAll<HTMLButtonElement>('[data-ware]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const w = WARES.find((x) => x.id === b.dataset.ware);
+      const gs = graveState();
+      if (!w || meta.gifts.includes(`grave:${w.id}`) || gs.obols < w.price) return;
+      gs.obols -= w.price;
+      receiveGift(`grave:${w.id}`);
+      sfx.relic();
+      toast('Yours. Wear it from the Wardrobe.');
+      saveMeta();
       reopen();
     }),
   );
@@ -106,6 +139,7 @@ export function showGraveRequests(back: () => void) {
     b.addEventListener('click', () => {
       if (fillRequest(graveState(), day, Number(b.dataset.req), Date.now())) {
         sfx.relic();
+        farmJob('request');
         saveMeta();
       }
       showGraveRequests(back);

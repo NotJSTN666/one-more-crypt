@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { AURA_BY_ID, HEAD_BY_ID, LOOK_BY_ID } from './progression';
 import {
-  CROP_BY_ID, FARM_MAP, GRAVE_TILES, PLOT_TILES, buySeed, buyUpgrade, cleanGraveState, fillRequest, growth, isRestless, newGraveState, plotOpen, requestsFor, sellAll, settleGrave, tapPlot,
+  CROP_BY_ID, FARM_MAP, GRAVE_TILES, JOBS, PLOT_TILES, WARES, buySeed, buyUpgrade, cleanGraveState, fillRequest, growth, isRestless, newGraveState, nextJob, noteJob, plotOpen, requestsFor, sellAll, settleGrave, tapPlot,
 } from './graveshift';
 
 const MIN = 60_000;
@@ -81,5 +82,40 @@ describe('Grave Shift', () => {
     expect(s.inv).toEqual({ glowcap: 2 });
     expect(s.can).toBe(2);
     expect(s.plots).toHaveLength(PLOT_TILES.length);
+  });
+});
+
+describe("Mortimer's first jobs and wares", () => {
+  it('pays each job once, in any order, and says when the list is done', () => {
+    const s = newGraveState(0);
+    const start = s.obols;
+    expect(nextJob(s)?.id).toBe('till');
+    expect(noteJob(s, 'settle')).toEqual({ pay: 15, finished: false });
+    expect(noteJob(s, 'settle')).toBeNull();
+    expect(s.obols).toBe(start + 15);
+    expect(nextJob(s)?.id).toBe('till');
+    let last = null;
+    for (const j of JOBS) last = noteJob(s, j.id) ?? last;
+    expect(last?.finished).toBe(true);
+    expect(nextJob(s)).toBeNull();
+    expect(s.obols).toBe(start + JOBS.reduce((a, j) => a + j.pay, 0));
+  });
+
+  it('keeps jobs and the welcome across a save, dropping anything unknown', () => {
+    const s = newGraveState(0);
+    s.met = true;
+    noteJob(s, 'water');
+    const back = cleanGraveState({ ...JSON.parse(JSON.stringify(s)), jobsDone: ['water', 'nonsense'] }, 0);
+    expect(back.met).toBe(true);
+    expect(back.jobsDone).toEqual(['water']);
+    expect(cleanGraveState({}, 0).met).toBe(false);
+  });
+
+  it("sells real cosmetics, each a piece the Wardrobe knows", () => {
+    for (const w of WARES) {
+      const def = w.kind === 'look' ? LOOK_BY_ID[w.id] : w.kind === 'head' ? HEAD_BY_ID[w.id] : AURA_BY_ID[w.id];
+      expect(def, w.id).toBeTruthy();
+      expect(def!.unlock, w.id).toEqual({ gift: `grave:${w.id}` });
+    }
   });
 });

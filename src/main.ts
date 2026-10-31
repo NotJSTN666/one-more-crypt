@@ -3137,13 +3137,9 @@ function storyOpen(): boolean {
   return true;
 }
 
-// Grave Shift is still being tested: it shows as coming soon to everyone but its tester (JSTN).
-const GRAVE_TESTERS = ['ad5d6ad6-bd7b-4952-a0cb-9917d15909fd'];
-
+/** Grave Shift is open to everyone. */
 function graveShiftOpen(): boolean {
-  // Local development only (never in a real build): a switch for testing Grave Shift.
-  if (import.meta.env.DEV && localStorage.getItem('omc:grave-test')) return true;
-  return Boolean(session.account && GRAVE_TESTERS.includes(session.account.id));
+  return true;
 }
 
 // ---------- news for returning players ----------
@@ -3275,8 +3271,13 @@ function titleTile(id: string, icon: string, name: string, sub: string, cls = ''
 function graveTileHtml(): string {
   if (!graveShiftOpen()) return titleTile('graveshift', '🌾', 'Grave Shift', 'Coming soon', 'soon');
   const s = meta.grave;
-  const ripe = s ? s.plots.filter((p) => CROP_BY_ID[p.crop] && isRipe(p, Date.now())).length : 0;
-  return titleTile('graveshift', '🌾', 'Grave Shift', s ? (ripe ? `${ripe} ready to harvest` : `🪙 ${s.obols} Obols`) : 'Tend the old plot');
+  if (!s) return titleTile('graveshift', '🌾', 'Grave Shift', 'New: tend the old plot', 'graveshift-new');
+  const now = Date.now();
+  const ripe = s.plots.filter((p) => CROP_BY_ID[p.crop] && isRipe(p, now)).length;
+  const restless = s.graves.filter((g) => now >= g).length;
+  // What's waiting out there, so there's a reason to look in.
+  const waiting = [ripe ? `🌱 ${ripe} ready` : '', restless ? `👻 ${restless} restless` : ''].filter(Boolean).join(' · ');
+  return titleTile('graveshift', '🌾', 'Grave Shift', waiting || `🪙 ${s.obols} Obols`, waiting ? 'graveshift-ready' : '');
 }
 
 function storyTileHtml(): string {

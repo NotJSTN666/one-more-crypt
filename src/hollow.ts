@@ -14,10 +14,10 @@ import {
 import { centralDate, dailyNumber } from './daily';
 import { heroSprite } from './hero';
 import {
-  CROP_BY_ID, FARM_MAP, GRAVE_TILES, PLOT_TILES, SPADE_DMG, drawGrave, drawNight, drawPlot, graveAt, isNight, isRestless, plotAt, risenCount, settleGrave, tapPlot,
+  CROP_BY_ID, FARM_MAP, GRAVE_TILES, JOBS, JOBS_REWARD, KEEPER_GIFT, KEEPER_GRAVES, PLOT_TILES, SPADE_DMG, drawGrave, drawNight, drawPlot, graveAt, isNight, isRestless, nextJob, noteJob, plotAt, risenCount, settleGrave, tapPlot, type JobId,
   type Risen,
 } from './graveshift';
-import { buyLand, graveState, meta, outfitFor, pickUpIsleItem, placeIsleItem, saveMeta } from './meta';
+import { buyLand, graveState, meta, outfitFor, pickUpIsleItem, placeIsleItem, receiveGift, saveMeta } from './meta';
 import { LOOK_BY_ID, seasonDress } from './progression';
 import { enemyFrames, onCanvasReset } from './sprites';
 import { npcFigure, type NpcId } from './story';
@@ -662,6 +662,14 @@ function open() {
     risen = [];
     shiftHp = SHIFT_HP;
     farmPanel();
+    // The first time: Mortimer shows you round.
+    const gs = graveState();
+    if (!gs.met) {
+      gs.met = true;
+      saveMeta();
+      dialog = 'mortimer';
+      showDialog("<b>Mortimer</b>This old plot's yours to keep. Clear the ground, plant what you like and sell it at my shed for Obols. Mind the graves: when one glows, the dead are climbing out, and someone has to put them back. I've left you a list of jobs to start you off.");
+    }
   }
   overlay.querySelector('#hollow-dialog')?.addEventListener('click', (e) => {
     // The finger that walked into a sign or door shouldn't also dismiss what it opened, nor a
@@ -1022,6 +1030,20 @@ function farmTap(i: number) {
   if (r.did === 'harvest') float(x, y, `+${r.n} ${CROP_BY_ID[r.crop].emoji}`);
   if (r.did === 'water') float(x, y, '💧', '#5fe3ff');
   hooks.graveFx?.(r.did);
+  farmJob(r.did);
+  saveMeta();
+  farmPanel();
+}
+
+/** One of Mortimer's first jobs done: pay for it, and his cap once they're all done. */
+export function farmJob(id: JobId) {
+  const done = noteJob(graveState(), id);
+  if (!done) return;
+  toast(`✅ Job done: +${done.pay} Obols`);
+  if (done.finished) {
+    receiveGift(JOBS_REWARD);
+    toast("🎩 Mortimer's jobs, all done. His cap is yours: wear it from the Wardrobe.");
+  }
   saveMeta();
   farmPanel();
 }
@@ -1049,6 +1071,11 @@ function farmStep(x: number, y: number, tile: string): boolean {
         const g = GRAVE_TILES[foe.grave];
         float(g.x, g.y, `At rest · +${reward} 🪙`, '#b5e07a');
         shiftHp = SHIFT_HP;
+        farmJob('settle');
+        if (s.settled >= KEEPER_GRAVES && !meta.gifts.includes(KEEPER_GIFT)) {
+          receiveGift(KEEPER_GIFT);
+          toast('📜 Twenty-five graves put to rest. New title: Keeper of the Old Plot.');
+        }
       }
       saveMeta();
       farmPanel();
@@ -1149,7 +1176,8 @@ function farmPanel() {
   const seeds = Object.entries(s.inv).filter(([k, n]) => k.startsWith('seed:') && n > 0);
   if (!s.inv[`seed:${seedInHand}`] && seeds.length) seedInHand = seeds[0][0].slice(5);
   const harvest = Object.entries(s.inv).filter(([k, n]) => !k.startsWith('seed:') && n > 0);
-  el.innerHTML = `${risen.length ? `<div class="farm-fight">⚔️ ${risen.length} risen · ❤️ ${'■'.repeat(Math.max(0, shiftHp))}${'□'.repeat(Math.max(0, SHIFT_HP - shiftHp))}</div>` : ''}
+  const job = nextJob(s);
+  el.innerHTML = `${job ? `<div class="farm-job"><b>Mortimer's jobs ${s.jobsDone.length}/${JOBS.length}</b> ${esc(job.text)} <span>+${job.pay} 🪙</span></div>` : ''}${risen.length ? `<div class="farm-fight">⚔️ ${risen.length} risen · ❤️ ${'■'.repeat(Math.max(0, shiftHp))}${'□'.repeat(Math.max(0, SHIFT_HP - shiftHp))}</div>` : ''}
     <div class="farm-seeds">${seeds.length ? seeds.map(([k, n]) => {
       const id = k.slice(5);
       return `<button type="button" class="farm-seed ${id === seedInHand ? 'on' : ''}" data-seed="${id}">${CROP_BY_ID[id]?.emoji ?? '🌱'}<small>${n}</small></button>`;
