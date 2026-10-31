@@ -87,7 +87,7 @@ export const NIGHT_RELICS: NightRelic[] = [
   { id: 'quiver', name: 'Bone Quiver', emoji: '🏹', weapon: true, text: (l) => (l === 1 ? 'Fires a bone dart at the nearest foe.' : 'More darts, and they pierce.') },
   { id: 'ember', name: 'Ember Brand', emoji: '🔥', weapon: true, text: (l) => (l === 1 ? 'You leave burning ground behind you.' : 'Hotter flames that burn for longer.') },
   { id: 'storm', name: 'Storm Rune', emoji: '⚡', weapon: true, text: (l) => (l === 1 ? 'Lightning strikes a foe near you now and then.' : 'Strikes one more foe, harder and sooner.') },
-  { id: 'frost', name: 'Frost Sigil', emoji: '❄️', weapon: true, text: (l) => (l === 1 ? 'A cold that slows and bites everything close to you.' : 'A wider, colder ring.') },
+  { id: 'frost', name: 'Frost Sigil', emoji: '❄️', weapon: true, text: (l) => (l === 1 ? 'A cold that slows and bites everything close to you. The dead grow used to it as the night goes on.' : 'A wider ring that bites harder.') },
   { id: 'bell', name: 'Grave Bell', emoji: '🔔', weapon: true, text: (l) => (l === 1 ? 'Tolls now and then, throwing back everything near you.' : 'A louder toll that hits harder and more often.') },
   { id: 'scythe', name: 'Crescent Scythe', emoji: '🌙', weapon: true, text: (l) => (l === 1 ? 'A spinning blade that flies out and comes back, cutting through all in its way.' : 'More blades, and they cut deeper.') },
   { id: 'wisps', name: 'Wandering Wisps', emoji: '👻', weapon: true, text: (l) => (l === 1 ? 'Little ghosts that hunt down the dead for you.' : 'More wisps, and they bite harder.') },
@@ -208,7 +208,17 @@ export const spadeReach = (n: Night) => (1.5 + 0.2 * lv(n, 'spade')) * area(n);
 export const pickupRadius = (n: Night) => 1.3 + 1.2 * lv(n, 'magnet');
 export const playerSpeed = (n: Night) => 4 * (1 + 0.08 * lv(n, 'boots'));
 export const skullCount = (n: Night) => (lv(n, 'skulls') ? 1 + lv(n, 'skulls') : 0);
-export const frostRadius = (n: Night) => (lv(n, 'frost') ? (1.6 + 0.3 * lv(n, 'frost')) * area(n) : 0);
+export const frostRadius = (n: Night) => (lv(n, 'frost') ? (1.5 + 0.2 * lv(n, 'frost')) * area(n) : 0);
+/**
+ * How much the Frost Sigil slows a foe (0 to 1): less than it used to, half on brutes and
+ * bosses, and the dead shrug it off as the night goes on, so standing still in it never lasts.
+ */
+export function frostSlow(n: Night, f: Foe): number {
+  const base = 0.2 + 0.03 * lv(n, 'frost');
+  const hardy = f.boss || f.kind === 'brute' ? 0.5 : 1;
+  const used = Math.max(0.35, 1 - n.t / 600);
+  return base * hardy * used;
+}
 export const PLAYER_R = 0.35;
 /** When the next boss rises. */
 export const nextBossAt = (n: Night) => FIRST_BOSS + n.bossesRisen * BOSS_EVERY;
@@ -613,7 +623,7 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
   const fr = frostRadius(n);
   if (fr) for (const f of n.foes) if (near(n, f) < fr + f.r) {
     f.slowUntil = n.t + 0.2;
-    hurtFoe(n, f, (1 + L('frost')) * dt);
+    hurtFoe(n, f, (2 + 1.5 * L('frost')) * dt);
   }
 
   // The bell: a toll that throws everything back.
@@ -653,7 +663,7 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
       d = near(n, f) || 1;
     }
     if (f.boss) bossAttack(n, f);
-    const slow = f.slowUntil > n.t ? 1 - (0.3 + 0.05 * L('frost')) * (f.boss ? 0.5 : 1) : 1;
+    const slow = f.slowUntil > n.t ? 1 - frostSlow(n, f) : 1;
     // Bats weave as they come.
     const wob = f.kind === 'bat' ? Math.sin(n.t * 6 + f.id) * 0.6 : 0;
     const ux = (n.x - f.x) / d;
