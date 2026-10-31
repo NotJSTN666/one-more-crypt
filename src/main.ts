@@ -1363,6 +1363,7 @@ function hollowHooks(): HollowHooks {
     graveOpen: graveShiftOpen,
     graveShop: () => showGraveShop(enterHollow),
     graveRequests: () => showGraveRequests(enterHollow),
+    nightOpen: nightShiftOpen,
     nightShift: () => showNightShift(enterHollow),
     graveFx: (what) => {
       if (what === 'harvest' || what === 'settle') sfx.relic();
@@ -3144,6 +3145,15 @@ function storyOpen(): boolean {
 /** Grave Shift is open to everyone. */
 function graveShiftOpen(): boolean {
   return true;
+}
+
+// The Night Shift is still being tested: only its tester (JSTN) sees it.
+const NIGHT_TESTERS = ['ad5d6ad6-bd7b-4952-a0cb-9917d15909fd'];
+
+function nightShiftOpen(): boolean {
+  // Local development only (never in a real build): a switch for testing it.
+  if (import.meta.env.DEV && localStorage.getItem('omc:night-test')) return true;
+  return Boolean(session.account && NIGHT_TESTERS.includes(session.account.id));
 }
 
 // ---------- news for returning players ----------
