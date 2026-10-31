@@ -5177,3 +5177,8 @@ body.tutorial #relic-bar {
     margin: 0 auto;
   }
 }
+
+.ns-choice.on {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 1px var(--gold), 0 0 18px rgba(242, 193, 78, 0.25);
+}

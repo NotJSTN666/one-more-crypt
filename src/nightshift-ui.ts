@@ -113,6 +113,9 @@ export function showNightShift(back: () => void) {
   let paused = false;
   let ended = false;
   let choosing: RelicKind[] | null = null;
+  // The level-up choice the keyboard has lit, and when the choices appeared.
+  let choiceAt = 0;
+  let choiceShown = 0;
 
   // ---- the canvas fills the stage, with a set number of tiles across ----
   let W = 0;
@@ -162,12 +165,26 @@ export function showNightShift(back: () => void) {
   const onKey = (e: KeyboardEvent) => {
     if (!canvas.isConnected) return cleanup();
     if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const up = e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W';
+    const down = e.key === 'ArrowDown' || e.key === 's' || e.key === 'S';
+    const press = e.key === 'Enter' || e.key === ' ';
     if (choosing) {
+      // 1, 2 or 3 to take one straight away; or up and down to look, and Enter or Space to take it.
+      e.preventDefault();
       const i = ['1', '2', '3'].indexOf(e.key);
-      if (i >= 0 && choosing[i]) {
-        e.preventDefault();
-        pick(choosing[i]);
-      }
+      if (i >= 0 && choosing[i]) return pick(choosing[i]);
+      if (up || down) return highlight(choiceAt + (down ? 1 : -1));
+      // Not a key still held from dashing, and not in the first moment the choice appears.
+      if (press && !e.repeat && performance.now() - choiceShown > 350) pick(choosing[choiceAt]);
+      return;
+    }
+    if (paused && (up || down || press)) {
+      // The pause menu, from the keyboard too.
+      e.preventDefault();
+      const list = [...modal.querySelectorAll<HTMLElement>('button')];
+      const at = list.indexOf(document.activeElement as HTMLElement);
+      if (press) (list[at] ?? list[0])?.click();
+      else list[(Math.max(0, at) + (down ? 1 : -1) + list.length) % list.length]?.focus();
       return;
     }
     if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
@@ -322,12 +339,13 @@ export function showNightShift(back: () => void) {
       return;
     }
     choosing = opts;
+    choiceShown = performance.now();
     held.clear();
     letGo();
     sfx.relic();
     modal.hidden = false;
     modal.innerHTML = `<h3>Level ${n.level - n.pendingLevels + 1}</h3>
-      <p class="fine">Choose a relic${touch ? '' : ' (1, 2 or 3)'}</p>
+      <p class="fine">Choose a relic${touch ? '' : ' · ↑ ↓ and Enter, or 1, 2, 3'}</p>
       <div class="ns-choices">${opts.map((id, i) => {
         const r = NIGHT_RELIC[id];
         const at = n.relics[id] ?? 0;
@@ -344,6 +362,13 @@ export function showNightShift(back: () => void) {
         if (performance.now() - shown > 300) pick(b.dataset.pick as RelicKind);
       }),
     );
+    if (!touch) highlight(0);
+  }
+  /** Light up one of the level-up choices (wrapping round), for the keyboard. */
+  function highlight(i: number) {
+    if (!choosing) return;
+    choiceAt = (i + choosing.length) % choosing.length;
+    modal.querySelectorAll<HTMLElement>('[data-pick]').forEach((b, k) => b.classList.toggle('on', k === choiceAt));
   }
   function pick(id: RelicKind) {
     if (!choosing) return;
