@@ -6,6 +6,7 @@ import { HEROES } from './content';
 import { Game, fullPool } from './game';
 import { RELICS } from './relics';
 import { Renderer } from './render';
+import { calmMotion } from './ui';
 
 const TARGET_BOARD = 640; // rough board size in CSS px; boards are stretched to tile exactly
 const STEP_MS = 340;
@@ -142,7 +143,7 @@ let stepMs = STEP_MS;
 export function startGhosts() {
   container = document.getElementById('ghosts');
   if (!container) return;
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) stepMs = STEP_MS * 4;
+  if (calmMotion()) stepMs = STEP_MS * 4;
   layout();
   window.addEventListener('resize', layout);
   window.addEventListener('pageshow', layout);

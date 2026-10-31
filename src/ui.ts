@@ -41,13 +41,39 @@ overlay.addEventListener(
 
 const calm = matchMedia('(prefers-reduced-motion: reduce)');
 
+const CALM_KEY = 'omc:calm';
+
+/**
+ * Calm motion, chosen in Settings: skips the forge's fusion and softens movement. Off unless the
+ * player turns it on; a device set to reduce motion only softens the smaller touches (see
+ * calmMotion), since many computers have that set without anyone choosing it.
+ */
+export function calmChosen(): boolean {
+  try {
+    return localStorage.getItem(CALM_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function setCalm(on: boolean) {
+  try {
+    localStorage.setItem(CALM_KEY, on ? '1' : '0');
+  } catch {
+    /* this visit only */
+  }
+}
+
+/** Soften small movement: when the player chose calm motion, or the device asks for it. */
+export const calmMotion = () => calmChosen() || calm.matches;
+
 /**
  * Leave a copy of the screen that's going away, animating out on top, so screens hand over
  * instead of snapping. With `veil`, the dark backdrop fades too (nothing new is coming).
  */
 function ghostOut(veil: boolean) {
   const panel = overlay.querySelector<HTMLElement>(':scope > .panel');
-  if (calm.matches || overlay.hidden || !panel) return;
+  if (calmMotion() || overlay.hidden || !panel) return;
   const rect = panel.getBoundingClientRect();
   const ghost = document.createElement('div');
   ghost.className = `overlay-ghost ${veil ? 'veil' : ''} ${overlay.classList.contains('menu') ? 'menu' : 'run'} screen-${screen}`;

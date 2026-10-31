@@ -37,7 +37,7 @@ import { enableReminders, loadReminders, reminderPrefs, remindersAvailable, remi
 import { claimPodiums, claimWeekly, clearBeat, lastBeat, type PodiumFinish, type WeeklyFinish } from './social';
 import { claimInlineHtml, wireClaimInline, endlessRecord, ensureGuest, initSocial, needsName, unclaimed, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
 import { currentStreak, loadSave, recordDaily, streakStats, writeSave, type RunResult } from './storage';
-import { $, esc, formStatus, hideOverlay, on, onSubmit, overlay, overlayShownAt, screen, showOverlay, toast } from './ui';
+import { $, calmChosen, esc, formStatus, hideOverlay, on, onSubmit, overlay, overlayShownAt, screen, setCalm, showOverlay, toast } from './ui';
 
 const canvas = $<HTMLCanvasElement>('board');
 const renderer = new Renderer(canvas);
@@ -866,6 +866,7 @@ function showSettings(back: () => void) {
     <h3 class="shop-head">Display</h3>
     ${row('set-shake', '📳', 'Screen shake', !save.shakeOff, 'A short shake on big hits')}
     ${row('set-contrast', '🔲', 'High contrast', save.highContrast, 'Light walls with bright edges, a plain floor, outlined foes, no fog')}
+    ${row('set-calm', '🌀', 'Calm motion', calmChosen(), 'Skip the Soul Forge\'s fusion and soften movement')}
     <button class="btn" id="set-help">❔ How to play</button>
     <button class="btn primary" id="back">Back</button>`);
   const again = () => showSettings(back);
@@ -890,6 +891,10 @@ function showSettings(back: () => void) {
     save.highContrast = !save.highContrast;
     writeSave(save);
     applyDisplay();
+    again();
+  });
+  on('#set-calm', () => {
+    setCalm(!calmChosen());
     again();
   });
   on('#set-help', () => showHelp(again));

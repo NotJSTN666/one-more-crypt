@@ -3,6 +3,8 @@
 // spiral in and lightning starts to leap; they meet in a bloom of light, the circle bursts
 // outward with the shockwaves, and the new relic hangs in turning rays among twinkling stars.
 
+import { calmChosen } from './ui';
+
 const DURATION = 3.1;
 /** When the two relics collide, in seconds (matches fusionSound). */
 export const IMPACT = 1.9;
@@ -182,7 +184,7 @@ function twinkle(ctx: CanvasRenderingContext2D, x: number, y: number, s: number)
 }
 
 export function playFusion(opts: { a: string; b: string; out: string; name: string; ascended: boolean; onDone: () => void }) {
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return opts.onDone();
+  if (calmChosen()) return opts.onDone();
   // The forge's own colour (blue, or gold when ascended) lights the new relic; the two relics
   // going in each bring their own colour to the circle, their trails, the sparks and the waves.
   const color = opts.ascended ? '#f2c14e' : '#7fb4ff';
@@ -552,7 +554,7 @@ export function animateReveal(canvas: HTMLCanvasElement, ascended: boolean) {
   const H = canvas.height;
   const cx = W / 2;
   const cy = H / 2;
-  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const still = calmChosen();
   const embers = Array.from({ length: 22 }, (_, i) => ({ x: (i * 47) % W, p: (i * 0.137) % 1, v: 0.18 + (i % 5) * 0.05, s: i % 4 === 0 ? 3 : 2 }));
   const start = performance.now();
   const frame = (now: number) => {
