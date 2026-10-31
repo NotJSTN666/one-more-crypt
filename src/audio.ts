@@ -149,16 +149,44 @@ const CHORDS: Record<'crypt' | 'boss' | 'fallen', number[][]> = {
   fallen: [[50, 53, 57], [43, 46, 50], [46, 50, 53], [45, 49, 52]],
 };
 const FALLEN_TEMPO = 96;
-// The Night Shift has its own score: a fast E minor chase (i - VII - VI - VII) with a
-// galloping riff, and a darker turn (i - bII - v - bII) while a boss is up. It builds with
-// the night, from a driving start to double-time drums and a screaming lead.
-const NIGHT_CHORDS: Record<'night' | 'nightboss', number[][]> = {
-  night: [[52, 55, 59], [50, 54, 57], [48, 52, 55], [50, 54, 57]],
-  nightboss: [[52, 55, 59], [53, 57, 60], [47, 50, 54], [53, 57, 60]],
-};
+// The Night Shift has its own score: a fast E minor chase written as a song, so it doesn't loop
+// one bar forever. Eight-bar sections come round in turn: a verse with a galloping bass and the
+// main melody, a pre-chorus that climbs, the verse again an octave up, a half-time breakdown that
+// builds back with a snare roll and a riser, and a big chorus. While a boss is up it switches to a
+// darker section of its own, a chromatic riff over i - bII. The night's heat sets the tempo
+// (140 to 172 BPM) and how much of the kit plays.
 const NIGHT_TEMPO = [140, 148, 156, 164, 172];
-// The riff, a step at a time: which chord note (3 is the root an octave up), or -1 to rest.
-const RIFF = [0, -1, 0, 1, -1, 2, -1, 1, 0, -1, 3, -1, 2, -1, 1, 2];
+type Section = 'verse' | 'climb' | 'verse2' | 'break' | 'chorus' | 'boss';
+const SONG: Section[] = ['verse', 'climb', 'verse2', 'break', 'chorus'];
+// Each section's chords, a bar each (MIDI triads; E minor, with B major for the pull home).
+const Em = [52, 55, 59], C = [48, 52, 55], D = [50, 54, 57], B = [47, 51, 54], Am = [45, 48, 52], G = [43, 47, 50], F = [41, 45, 48], Ddim = [50, 53, 56];
+const SECTION_CHORDS: Record<Section, number[][]> = {
+  verse: [Em, Em, C, D, Em, Em, C, B],
+  climb: [Am, Am, Em, Em, C, D, B, B],
+  verse2: [Em, Em, C, D, Em, Em, C, B],
+  break: [Em, Em, C, C, Am, Am, B, B],
+  chorus: [Em, C, G, D, Em, C, B, B],
+  boss: [Em, F, Em, Ddim, Em, F, B, B],
+};
+// Melodies, two bars at a time: [step in the two bars, MIDI note, length in steps].
+type Phrase = [number, number, number][];
+const VERSE_A: Phrase = [[0, 76, 3], [3, 74, 1], [4, 71, 2], [6, 74, 2], [8, 76, 4], [12, 79, 2], [14, 78, 2], [16, 76, 3], [19, 74, 1], [20, 72, 4], [24, 71, 4], [28, 74, 2], [30, 71, 2]];
+const VERSE_B: Phrase = [[0, 72, 3], [3, 71, 1], [4, 72, 2], [6, 74, 2], [8, 76, 6], [14, 74, 2], [16, 71, 4], [20, 74, 2], [22, 72, 2], [24, 71, 6], [30, 66, 2]];
+const VERSE_END: Phrase = [[0, 72, 3], [3, 71, 1], [4, 72, 2], [6, 74, 2], [8, 76, 6], [14, 78, 2], [16, 75, 4], [20, 78, 2], [22, 81, 2], [24, 83, 8]];
+const CLIMB_A: Phrase = [[0, 81, 2], [2, 79, 2], [4, 76, 4], [8, 79, 2], [10, 81, 2], [12, 83, 4], [16, 79, 4], [20, 76, 2], [22, 74, 2], [24, 76, 8]];
+const CLIMB_B: Phrase = [[0, 79, 2], [2, 76, 2], [4, 72, 4], [8, 74, 2], [10, 76, 2], [12, 78, 4], [16, 75, 6], [22, 78, 2], [24, 83, 4], [28, 86, 4]];
+const CHORUS_A: Phrase = [[0, 83, 6], [6, 81, 2], [8, 79, 4], [12, 76, 4], [16, 79, 6], [22, 78, 2], [24, 74, 8]];
+const CHORUS_B: Phrase = [[0, 76, 6], [6, 79, 2], [8, 83, 4], [12, 81, 4], [16, 78, 8], [24, 75, 4], [28, 78, 4]];
+// The boss riff: low and chromatic, round the root and the flat second.
+const BOSS_RIFF: Phrase = [[0, 64, 2], [2, 64, 1], [3, 65, 1], [4, 64, 2], [6, 67, 2], [8, 65, 2], [10, 64, 2], [12, 63, 4], [16, 64, 2], [18, 64, 1], [19, 65, 1], [20, 64, 2], [22, 70, 2], [24, 69, 2], [26, 67, 2], [28, 65, 2], [30, 63, 2]];
+const SECTION_MELODY: Record<Section, Phrase[]> = {
+  verse: [VERSE_A, VERSE_B, VERSE_A, VERSE_END],
+  climb: [CLIMB_A, CLIMB_B, CLIMB_A, CLIMB_B],
+  verse2: [VERSE_A, VERSE_B, VERSE_A, VERSE_END],
+  break: [],
+  chorus: [CHORUS_A, CHORUS_B, CHORUS_A, CHORUS_B],
+  boss: [BOSS_RIFF, BOSS_RIFF, BOSS_RIFF, BOSS_RIFF],
+};
 let nightHeat = 0;
 const ARP = [0, 1, 2, 1, 2, 0, 2, 1];
 const TEMPO = [112, 120, 126, 133, 140]; // BPM per intensity level
@@ -190,12 +218,15 @@ export function setMusicEnabled(on: boolean) {
 /** Switch the score. Called on new floors, boss floors and death. */
 export function setMusicMood(next: Mood) {
   if (next === mood) return;
+  const prev = mood;
   mood = next;
   // The lament starts cleanly on a downbeat instead of waiting for the bar line.
   if (next === 'fallen') {
     level = 0;
     stepIndex = 0;
   }
+  // A new night starts its song from the first bar (a boss rising doesn't).
+  if (next === 'night' && prev !== 'nightboss') stepIndex = 0;
   applyMusicVolume();
 }
 
@@ -344,31 +375,176 @@ function nightStep(i: number, t: number) {
   const s = i % 16;
   const bar = Math.floor(i / 16);
   const boss = mood === 'nightboss';
-  const chord = NIGHT_CHORDS[boss ? 'nightboss' : 'night'][bar % 4];
+  const sec: Section = boss ? 'boss' : SONG[Math.floor(bar / 8) % SONG.length];
+  const b8 = bar % 8;
+  const chord = SECTION_CHORDS[sec][b8];
   const s16 = 60 / tempo() / 4;
   const L = level;
+  const lastBar = b8 === 7;
+  const half = sec === 'break' && b8 < 6;
 
-  if (s === 0) pad(chord, t, s16 * 16, boss ? 0.04 : 0.028);
-  if (s === 0 && bar % 4 === 0 && (L >= 3 || boss)) crash(t);
-  // Bass: rolling sixteenths, jumping the octave on the off-beats.
-  bassNote(midi(chord[0] - (s % 2 ? 0 : 12)), t, s16 * 0.9, s % 4 === 0 ? 1 : 0.75);
-  // Drums: four on the floor from the start, snare and hats at once, more as it builds.
-  if (s % 4 === 0) kick(t, 0.95);
-  if (L >= 3 && s % 4 === 3) kick(t, 0.45);
-  if (L >= 4 && s % 2 === 1 && s % 4 !== 3) kick(t, 0.35);
-  hat(t, s % 2 ? 0.05 : 0.08, s);
-  if (s === 4 || s === 12) snare(t, 0.42);
-  if (L >= 2 && (s === 7 || s === 15) && bar % 2 === 1) snare(t, 0.2);
-  if (bar % 4 === 3 && s >= 12) tom(t, [150, 125, 100, 80][s - 12], 0.45);
-  // The riff: from the start on a soft arp, the full lead from heat 2, an octave up at the top.
-  const r = RIFF[s];
-  if (r >= 0) {
-    const note = (r === 3 ? chord[0] + 12 : chord[r]) + (L >= 4 ? 24 : 12);
-    if (L <= 1) lead(midi(note), t, s16 * 0.8, 0.016, s);
-    else lead(midi(note), t, s16 * 0.95, L >= 4 ? 0.034 : 0.028, s);
+  // A crash to open every section, and on every fourth bar once it's hot.
+  if (s === 0 && (b8 === 0 || (b8 === 4 && (L >= 2 || sec === 'chorus' || boss)))) crash(t);
+  // Pads: a wash under everything, thicker in the breakdown and the chorus.
+  if (s === 0) pad(chord, t, s16 * 16, sec === 'break' ? 0.05 : sec === 'chorus' || boss ? 0.04 : 0.026);
+
+  // ---- bass ----
+  const root = chord[0] - 12;
+  if (sec === 'break' && b8 < 6) {
+    if (s === 0) bassNote(midi(root), t, s16 * 15, 0.8);
+  } else if (sec === 'verse' || sec === 'verse2' || boss) {
+    // the gallop: da-da-dum
+    if ([0, 2, 3, 4, 6, 7, 8, 10, 11, 12, 14, 15].includes(s)) bassNote(midi(root + (s === 8 && !boss ? 12 : 0)), t, s16 * 0.9, s % 4 === 0 ? 1 : 0.7);
+  } else if (sec === 'climb') {
+    // syncopated, with the fifth
+    if ([0, 3, 6, 8, 10, 11, 14].includes(s)) bassNote(midi(root + (s === 6 || s === 14 ? 7 : 0)), t, s16 * 1.6, 0.9);
+  } else {
+    // the chorus drives in octaves
+    bassNote(midi(root + (s % 2 ? 12 : 0)), t, s16 * 0.9, s % 4 === 0 ? 1 : 0.75);
   }
-  // A high counter-line over bosses: long notes on the chord's top.
-  if (boss && s % 8 === 0) lead(midi(chord[2] + 24), t, s16 * 7, 0.02, s);
+
+  // ---- drums ----
+  if (half) {
+    // the breakdown: half time, room to breathe
+    if (s === 0) kick(t, 0.9);
+    if (s === 8) snare(t, 0.4);
+    if (s % 4 === 2) hat(t, 0.04, s);
+  } else if (sec === 'break') {
+    // ...and the last two bars build: a snare roll that thickens, and a rising wash
+    if (s % 4 === 0) kick(t, 0.8);
+    const roll = b8 === 6 ? s % 2 === 0 : true;
+    if (roll) snare(t, 0.12 + 0.3 * ((b8 - 6) * 16 + s) / 32);
+    if (b8 === 6 && s === 0) riser(t, s16 * 32);
+  } else {
+    if (s % 4 === 0) kick(t, 0.95);
+    if (sec === 'climb' && (s === 7 || s === 10)) kick(t, 0.55);
+    if ((sec === 'chorus' || boss || L >= 3) && (s === 6 || s === 14)) kick(t, 0.45);
+    if (L >= 4 && s % 2 === 1 && s % 4 !== 3) kick(t, 0.3);
+    if (s === 4 || s === 12) snare(t, 0.42);
+    if ((L >= 2 || sec === 'chorus') && s === 15 && bar % 2 === 1) snare(t, 0.18);
+    // hats: eighths, then sixteenths, with an open hat on the off-beat in the chorus
+    if (s % 2 === 0 || L >= 2 || sec === 'chorus') hat(t, s % 2 ? 0.045 : 0.075, s);
+    if ((sec === 'chorus' || boss) && s % 4 === 2) burst(t, 0.18, 'highpass', 7000, 0.06);
+    // a fill to close every fourth bar
+    if ((b8 === 3 || lastBar) && s >= 12) tom(t, [160, 130, 105, 85][s - 12], 0.45);
+  }
+
+  // ---- melody ----
+  const phrases = SECTION_MELODY[sec];
+  if (phrases.length) {
+    const ph = phrases[Math.floor(b8 / 2)];
+    const at = (b8 % 2) * 16 + s;
+    const vol = boss ? 0.05 : L === 0 && sec === 'verse' ? 0.03 : 0.042;
+    for (const [st, note, len] of ph) {
+      if (st !== at) continue;
+      melody(midi(note), t, s16 * len * 0.95, vol, boss);
+      // the second verse is doubled an octave below, for weight
+      if (sec === 'verse2') melody(midi(note - 12), t, s16 * len * 0.95, vol * 0.6, false);
+    }
+  }
+  // ---- counter-lines ----
+  // a bright arpeggio over the climb and the chorus
+  if ((sec === 'climb' || sec === 'chorus') && (L >= 1 || sec === 'chorus')) lead(midi(chord[ARP[s % 8]] + 24), t, s16 * 0.8, 0.014, s);
+  // bells in the breakdown, slow and high
+  if (sec === 'break' && s % 4 === 0) bell(midi(chord[(s / 4 + b8) % 3] + 24), t, 0.05);
+  // the boss gets a high wail on top
+  if (boss && s === 0 && b8 % 2 === 0) melody(midi(chord[2] + 24), t, s16 * 14, 0.018, false);
+}
+
+/**
+ * Local development only: render the Night Shift's score offline, for listening to without
+ * playing. `plan` gives the heat (0-4) and whether a boss is up at each moment.
+ */
+export async function renderNight(seconds: number, plan: (t: number) => { heat: number; boss: boolean }): Promise<AudioBuffer> {
+  const saved = { ctx, bus, mood, level, stepIndex };
+  const off = new OfflineAudioContext(2, Math.ceil(44100 * seconds), 44100);
+  ctx = off as unknown as AudioContext;
+  makeBus();
+  bus!.out.gain.value = MUSIC_VOLUME;
+  let t = 0.05;
+  let i = 0;
+  while (t < seconds - 0.3) {
+    const p = plan(t);
+    mood = p.boss ? 'nightboss' : 'night';
+    nightHeat = p.heat;
+    if (i % 16 === 0) level = targetLevel();
+    playStep(i, t);
+    t += 60 / tempo() / 4;
+    i++;
+  }
+  const out = await off.startRendering();
+  ({ ctx, bus, mood, level, stepIndex } = saved);
+  return out;
+}
+if (import.meta.env.DEV) (window as unknown as { renderNight?: typeof renderNight }).renderNight = renderNight;
+
+/** The singing lead: a detuned saw and square, with a little vibrato on long notes. */
+function melody(freq: number, t: number, dur: number, vol: number, grit: boolean) {
+  const c = ctx!;
+  const g = c.createGain();
+  const f = c.createBiquadFilter();
+  f.type = 'lowpass';
+  f.frequency.setValueAtTime(grit ? 1800 : 3400, t);
+  f.frequency.linearRampToValueAtTime(grit ? 1200 : 2400, t + dur);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(vol, t + 0.012);
+  g.gain.linearRampToValueAtTime(vol * 0.7, t + 0.12);
+  g.gain.setValueAtTime(vol * 0.7, t + Math.max(0.13, dur - 0.05));
+  g.gain.linearRampToValueAtTime(0.0001, t + dur + 0.06);
+  g.connect(f);
+  f.connect(bus!.dry);
+  f.connect(bus!.wet);
+  const a = osc('sawtooth', freq, t, dur + 0.06, g, -7);
+  const b = osc(grit ? 'sawtooth' : 'square', freq, t, dur + 0.06, g, 7);
+  if (dur > 0.25) {
+    const lfo = c.createOscillator();
+    const depth = c.createGain();
+    lfo.frequency.value = 5.5;
+    depth.gain.setValueAtTime(0, t);
+    depth.gain.linearRampToValueAtTime(18, t + Math.min(0.3, dur));
+    lfo.connect(depth);
+    depth.connect(a.detune);
+    depth.connect(b.detune);
+    lfo.start(t);
+    lfo.stop(t + dur + 0.1);
+  }
+}
+
+/** A bell: a sine and its bright overtone, ringing out. */
+function bell(freq: number, t: number, vol: number) {
+  const c = ctx!;
+  const g = c.createGain();
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 1.4);
+  g.connect(bus!.dry);
+  g.connect(bus!.wet);
+  osc('sine', freq, t, 1.4, g);
+  const g2 = c.createGain();
+  g2.gain.setValueAtTime(vol * 0.35, t);
+  g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+  g2.connect(bus!.wet);
+  osc('sine', freq * 2.76, t, 0.5, g2);
+}
+
+/** Rising noise into the drop. */
+function riser(t: number, dur: number) {
+  const c = ctx!;
+  const src = c.createBufferSource();
+  src.buffer = noiseBuf;
+  src.loop = true;
+  const f = c.createBiquadFilter();
+  f.type = 'bandpass';
+  f.Q.value = 2;
+  f.frequency.setValueAtTime(400, t);
+  f.frequency.exponentialRampToValueAtTime(7000, t + dur);
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.16, t + dur);
+  g.gain.linearRampToValueAtTime(0.0001, t + dur + 0.05);
+  src.connect(f).connect(g).connect(bus!.wet);
+  g.connect(bus!.dry);
+  src.start(t);
+  src.stop(t + dur + 0.1);
 }
 
 function osc(type: OscillatorType, freq: number, t: number, dur: number, dest: AudioNode, detune = 0) {
