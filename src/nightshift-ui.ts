@@ -571,6 +571,64 @@ export function showNightShift(back: () => void) {
   };
 
   // ---- drawing ----
+  // Soft glows are drawn from small cached gradients, added onto what's under them.
+  const glowCache = new Map<string, HTMLCanvasElement>();
+  function glowAt(x: number, y: number, rgb: string, r: number, alpha: number) {
+    if (alpha <= 0.01 || r < 1) return;
+    const R = Math.max(2, Math.round(r));
+    const key = `${rgb}|${R}`;
+    let c = glowCache.get(key);
+    if (!c) {
+      c = document.createElement('canvas');
+      c.width = c.height = R * 2;
+      const g = c.getContext('2d')!;
+      const grad = g.createRadialGradient(R, R, 0, R, R, R);
+      grad.addColorStop(0, `rgba(${rgb},1)`);
+      grad.addColorStop(0.4, `rgba(${rgb},0.45)`);
+      grad.addColorStop(1, `rgba(${rgb},0)`);
+      g.fillStyle = grad;
+      g.fillRect(0, 0, R * 2, R * 2);
+      glowCache.set(key, c);
+    }
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = Math.min(1, alpha);
+    ctx.drawImage(c, x - R, y - R);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  /** A lick of flame: an outer colour and a hot core, pointed at the top. */
+  function flameTongue(x: number, y: number, w: number, h: number, outer: string, core: string) {
+    ctx.fillStyle = outer;
+    ctx.beginPath();
+    ctx.moveTo(x - w, y);
+    ctx.quadraticCurveTo(x - w * 0.6, y - h * 0.6, x, y - h);
+    ctx.quadraticCurveTo(x + w * 0.6, y - h * 0.6, x + w, y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = core;
+    ctx.beginPath();
+    ctx.moveTo(x - w * 0.45, y);
+    ctx.quadraticCurveTo(x, y - h * 0.55, x + w * 0.45, y);
+    ctx.closePath();
+    ctx.fill();
+  }
+  /** A scythe blade's crescent, centred on the origin. */
+  function crescent(r: number, edge: string, back: string) {
+    ctx.fillStyle = back;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, -0.2, Math.PI * 1.15);
+    ctx.arc(r * 0.35, -r * 0.15, r * 0.75, Math.PI * 1.15, -0.2, true);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = edge;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, -0.2, Math.PI * 1.15);
+    ctx.stroke();
+  }
+  let sparks: { x: number; y: number; vx: number; vy: number; life: number; max: number; color: string; size: number }[] = [];
+  let lastDraw = performance.now() / 1000;
+
   function draw(t: number) {
     if (!W) fitCanvas();
     ctx.setTransform(S, 0, 0, S, 0, 0);
@@ -587,31 +645,59 @@ export function showNightShift(back: () => void) {
     ctx.fillRect(0, 0, W, H);
     ctx.drawImage(ground, -Math.round(camX), -Math.round(camY));
 
-    // burning ground and the frost ring, under everything
+    // burning ground: a scorched glow, tongues of flame that lick upward, and rising sparks
+    const hot = n.fused.hellwalk;
     for (const fl of n.flames) {
-      const left = fl.until - n.t;
-      const r = fl.r * TILE * (0.8 + 0.2 * Math.sin(t * 20 + fl.x));
-      ctx.globalAlpha = Math.min(1, left) * 0.55;
-      ctx.fillStyle = '#ff7a2a';
+      const left = Math.min(1, fl.until - n.t);
+      const x = sx(fl.x);
+      const y = sy(fl.y);
+      if (x < -30 || y < -30 || x > W + 30 || y > H + 30) continue;
+      const r = fl.r * TILE;
+      ctx.globalAlpha = left * 0.5;
+      ctx.fillStyle = hot ? '#3a0a2a' : '#2a0a04';
       ctx.beginPath();
-      ctx.arc(sx(fl.x), sy(fl.y), r, 0, Math.PI * 2);
+      ctx.ellipse(x, y + 1, r, r * 0.6, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.globalAlpha = Math.min(1, left) * 0.8;
-      for (let k = 0; k < 3; k++) px(sx(fl.x) - 3 + k * 3, sy(fl.y) - 2 - ((t * 30 + k * 7 + fl.x * 9) % 6), 1, 2, k % 2 ? '#ffd24a' : '#ff9a3a');
+      ctx.globalAlpha = 1;
+      glowAt(x, y, hot ? '255,90,200' : '255,120,40', r * 1.1, left * (hot ? 0.22 : 0.3));
+      for (let k = 0; k < 4; k++) {
+        const fx = x + (k - 1.5) * r * 0.45;
+        const h = (4 + 3 * Math.sin(t * 14 + k * 2.1 + fl.x * 5)) * (0.6 + 0.4 * left) * (hot ? 1.4 : 1);
+        ctx.globalAlpha = left;
+        flameTongue(fx, y + 1, 3, h, hot ? '#ff5ad2' : '#ff7a1a', hot ? '#ffd6f4' : '#ffd24a');
+      }
+      ctx.globalAlpha = 1;
+      if (Math.random() < 0.15) sparks.push({ x: fl.x + (Math.random() - 0.5) * fl.r, y: fl.y, vx: (Math.random() - 0.5) * 0.6, vy: -1.5 - Math.random(), life: 0.6, max: 0.6, color: hot ? '#ffb0ec' : '#ffcf5a', size: 1 });
     }
-    ctx.globalAlpha = 1;
+    // the frost ring: a band of cold light at the edge, with shards of ice turning round it
     const fr = frostRadius(n);
     if (fr) {
-      ctx.strokeStyle = 'rgba(160, 220, 255, 0.45)';
-      ctx.fillStyle = 'rgba(120, 190, 255, 0.08)';
-      ctx.lineWidth = 1;
+      const cx = sx(n.x);
+      const cy = sy(n.y);
+      const r = fr * TILE;
+      const deep = n.fused.glacier;
+      const band = ctx.createRadialGradient(cx, cy, r * 0.55, cx, cy, r);
+      band.addColorStop(0, 'rgba(120, 200, 255, 0)');
+      band.addColorStop(0.85, deep ? 'rgba(150, 220, 255, 0.22)' : 'rgba(140, 210, 255, 0.14)');
+      band.addColorStop(1, 'rgba(220, 245, 255, 0.35)');
+      ctx.fillStyle = band;
       ctx.beginPath();
-      ctx.arc(sx(n.x), sy(n.y), fr * TILE, 0, Math.PI * 2);
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.arc(cx, cy, r * 0.55, 0, Math.PI * 2, true);
       ctx.fill();
-      ctx.stroke();
-      for (let k = 0; k < 6; k++) {
-        const a = t * 0.6 + (k / 6) * Math.PI * 2;
-        px(sx(n.x) + Math.cos(a) * fr * TILE, sy(n.y) + Math.sin(a) * fr * TILE, 1, 1, '#e6f6ff');
+      const shards = deep ? 14 : 8;
+      for (let k = 0; k < shards; k++) {
+        const a = t * 0.5 + (k / shards) * Math.PI * 2;
+        const x = Math.round(cx + Math.cos(a) * r);
+        const y = Math.round(cy + Math.sin(a) * r);
+        glowAt(x, y, '170,225,255', 5, 0.5);
+        px(x, y - 2, 1, 5, '#e6f6ff');
+        px(x - 2, y, 5, 1, '#e6f6ff');
+        px(x, y, 1, 1, '#ffffff');
+      }
+      if (Math.random() < (deep ? 0.6 : 0.3)) {
+        const a = Math.random() * Math.PI * 2;
+        sparks.push({ x: n.x + Math.cos(a) * fr, y: n.y + Math.sin(a) * fr, vx: -Math.cos(a) * 0.8, vy: -Math.sin(a) * 0.8, life: 0.9, max: 0.9, color: '#dff4ff', size: 1 });
       }
     }
 
@@ -729,28 +815,51 @@ export function showNightShift(back: () => void) {
     for (const d of n.darts) {
       const x = sx(d.x);
       const y = sy(d.y);
+      if (x < -20 || y < -20 || x > W + 20 || y > H + 20) continue;
+      const sp = Math.hypot(d.vx, d.vy) || 1;
+      const ux = d.vx / sp;
+      const uy = d.vy / sp;
       if (d.kind === 'scythe') {
+        // a spinning crescent with a smear of light behind it
+        const dark = n.fused.eclipse;
+        for (let k = 3; k >= 0; k--) {
+          ctx.save();
+          ctx.translate(x - ux * k * 3, y - uy * k * 3);
+          ctx.rotate(t * 18 - k * 0.5);
+          ctx.globalAlpha = k ? 0.18 * (4 - k) : 1;
+          crescent(6, dark ? '#b48cff' : '#e8eefc', dark ? '#4a2a7a' : '#8a96b8');
+          ctx.restore();
+        }
+        ctx.globalAlpha = 1;
+        glowAt(x, y, dark ? '160,110,255' : '200,215,255', 9, 0.45);
+      } else if (d.kind === 'wisp') {
+        // ghost-fire: a flickering head with a fading tail
+        const fl = 0.8 + 0.2 * Math.sin(t * 30 + d.x * 7);
+        for (let k = 1; k <= 4; k++) {
+          ctx.globalAlpha = 0.5 - k * 0.1;
+          px(Math.round(x - ux * k * 2.5) - 1, Math.round(y - uy * k * 2.5) - 1, 2, 2, '#9ff5d8');
+        }
+        ctx.globalAlpha = 1;
+        glowAt(x, y, '120,255,210', 8 * fl, 0.6);
+        px(Math.round(x) - 2, Math.round(y) - 2, 4, 4, '#c8fff0');
+        px(Math.round(x) - 1, Math.round(y) - 1, 2, 2, '#ffffff');
+      } else {
+        // a bone dart: shaft and knuckles, pointing the way it flies
         ctx.save();
         ctx.translate(x, y);
-        ctx.rotate(t * 18);
-        ctx.strokeStyle = '#e6eefc';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(0, 0, 5, 0, Math.PI * 1.2);
-        ctx.stroke();
+        ctx.rotate(Math.atan2(uy, ux));
+        ctx.globalAlpha = 0.35;
+        ctx.fillStyle = '#efe6cf';
+        ctx.fillRect(-12, -0.5, 8, 1);
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = '#efe6cf';
+        ctx.fillRect(-4, -0.5, 7, 1.5);
+        ctx.fillRect(-5, -1.5, 2, 3.5);
+        ctx.fillRect(2, -1.5, 2, 3.5);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(3, -0.5, 1, 1);
         ctx.restore();
-      } else if (d.kind === 'wisp') {
-        px(x - 3, y - 3, 6, 6, 'rgba(170, 255, 230, 0.25)');
-        px(x - 2, y - 2, 4, 4, '#bff7e6');
-        px(x - 1, y + 2, 2, 2, 'rgba(190, 255, 235, 0.5)');
-      } else {
-        const sp = Math.hypot(d.vx, d.vy) || 1;
-        ctx.strokeStyle = '#efe6cf';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        ctx.lineTo(sx(d.x - (d.vx / sp) * 0.4), sy(d.y - (d.vy / sp) * 0.4));
-        ctx.stroke();
+        if (n.fused.barrage) glowAt(x, y, '255,230,170', 5, 0.35);
       }
     }
 
@@ -791,17 +900,25 @@ export function showNightShift(back: () => void) {
     ctx.restore();
     drawAura(ctx, fit.aura, hx + 6, hy + 12, 12, t, 'front');
 
-    // whirling skulls
+    // whirling skulls: glowing, with a fading trail behind each
     const skulls = skullCount(n);
+    const halo = n.fused.halo;
     for (let k = 0; k < skulls; k++) {
       const a = n.t * 3 + (k / skulls) * Math.PI * 2;
+      for (let j = 3; j >= 1; j--) {
+        const b = a - j * 0.13;
+        ctx.globalAlpha = 0.12 * (4 - j);
+        px(Math.round(sx(n.x + Math.cos(b) * skullOrbit(n))) - 2, Math.round(sy(n.y + Math.sin(b) * skullOrbit(n))) - 2, 4, 3, halo ? '#d9b8ff' : '#ffe6a8');
+      }
+      ctx.globalAlpha = 1;
       const x = Math.round(sx(n.x + Math.cos(a) * skullOrbit(n)));
       const y = Math.round(sy(n.y + Math.sin(a) * skullOrbit(n)));
-      px(x - 3, y - 3, 6, 6, 'rgba(255, 240, 200, 0.18)');
-      px(x - 2, y - 2, 4, 3, '#efe6cf');
-      px(x - 1, y + 1, 2, 1, '#cfc4a8');
-      px(x - 1, y - 1, 1, 1, '#1a1420');
-      px(x + 1, y - 1, 1, 1, '#1a1420');
+      glowAt(x, y, halo ? '190,150,255' : '255,220,140', 7, 0.5);
+      px(x - 2, y - 3, 5, 4, '#f4ecd8');
+      px(x - 3, y - 2, 7, 2, '#f4ecd8');
+      px(x - 1, y + 1, 3, 2, '#d8ceb4');
+      px(x - 2, y - 1, 2, 1, halo ? '#7a3cff' : '#ff4a2a');
+      px(x + 1, y - 1, 2, 1, halo ? '#7a3cff' : '#ff4a2a');
     }
 
     // the bosses' bolts
@@ -818,80 +935,175 @@ export function showNightShift(back: () => void) {
     const lensed = area(n) > 1;
     for (const fl of n.flashes) {
       const age = (n.t - fl.at) / 0.4;
-      ctx.globalAlpha = Math.max(0, 1 - age);
+      const fade = Math.max(0, 1 - age);
+      const x0 = sx(fl.x);
+      const y0 = sy(fl.y);
       if (fl.kind === 'swing') {
-        ctx.strokeStyle = lensed ? '#e2ccff' : '#f4e9c8';
-        ctx.lineWidth = 2.5;
+        // a crescent that sweeps out and thins, with a glint at its leading edge
+        const r = (fl.r ?? 1.5) * TILE * (0.75 + 0.25 * age);
+        const ang = fl.ang ?? 0;
+        const span = n.fused.cleaver ? Math.PI : 1.05;
+        const sweep = ang - span + span * 2 * Math.min(1, age * 3);
+        const col = n.fused.cleaver ? '255,150,90' : lensed ? '220,190,255' : '255,240,200';
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = `rgba(${col},${0.35 * fade})`;
+        ctx.lineWidth = 7;
         ctx.beginPath();
-        ctx.arc(sx(fl.x), sy(fl.y), (fl.r ?? 1.5) * TILE * (0.7 + 0.3 * age), (fl.ang ?? 0) - 1, (fl.ang ?? 0) + 1);
+        ctx.arc(x0, y0, r, ang - span, sweep);
         ctx.stroke();
+        ctx.strokeStyle = `rgba(255,255,255,${0.9 * fade})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(x0, y0, r, ang - span, sweep);
+        ctx.stroke();
+        ctx.globalCompositeOperation = 'source-over';
+        glowAt(x0 + Math.cos(sweep) * r, y0 + Math.sin(sweep) * r, col, 6, fade);
       } else if (fl.kind === 'bolt') {
-        ctx.strokeStyle = '#bfe3ff';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        let x = sx(fl.x);
-        let y = sy(fl.y) - 60;
-        ctx.moveTo(x, y);
-        for (let k = 0; k < 5; k++) {
-          x += (hash(Math.round(fl.at * 100), k) - 0.5) * 10;
-          y += 12;
-          ctx.lineTo(x, y);
-        }
-        ctx.lineTo(sx(fl.x), sy(fl.y));
-        ctx.stroke();
-        px(sx(fl.x) - 3, sy(fl.y) - 3, 6, 6, 'rgba(220, 240, 255, 0.6)');
-      } else if (fl.kind === 'ring') {
-        ctx.strokeStyle = lensed ? '#d9b8ff' : '#f2c14e';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(sx(fl.x), sy(fl.y), (fl.r ?? 2) * TILE * (0.3 + 0.7 * age), 0, Math.PI * 2);
-        ctx.stroke();
-      } else if (fl.kind === 'spike') {
-        const r = (fl.r ?? 1) * TILE;
-        const up = Math.min(1, age * 4);
+        // forked lightning from the sky, a flash on the ground and sparks
+        const seed = Math.round(fl.at * 1000 + fl.x * 7);
+        const path: [number, number][] = [];
+        let x = x0 + (hash(seed, 9) - 0.5) * 16;
+        let y = y0 - 70;
         for (let k = 0; k < 7; k++) {
-          const a = (k / 7) * Math.PI * 2 + fl.at;
-          const bx = sx(fl.x) + Math.cos(a) * r * 0.6;
-          const by = sy(fl.y) + Math.sin(a) * r * 0.5;
-          px(Math.round(bx), Math.round(by - 6 * up), 2, Math.round(6 * up) + 1, '#e9e1cc');
-          px(Math.round(bx), Math.round(by - 6 * up), 2, 1, '#ffffff');
+          path.push([x, y]);
+          x += (hash(seed, k) - 0.5) * 12 + (x0 - x) * 0.25;
+          y += 10;
         }
+        path.push([x0, y0]);
+        const col = n.fused.tempest ? '200,160,255' : '150,210,255';
+        ctx.globalCompositeOperation = 'lighter';
+        for (const [w, a] of [[6, 0.25], [2.5, 0.6], [1, 1]] as const) {
+          ctx.strokeStyle = w === 1 ? `rgba(255,255,255,${a * fade})` : `rgba(${col},${a * fade})`;
+          ctx.lineWidth = w;
+          ctx.beginPath();
+          path.forEach(([px2, py2], i) => (i ? ctx.lineTo(px2, py2) : ctx.moveTo(px2, py2)));
+          ctx.stroke();
+        }
+        const [fx, fy] = path[3];
+        ctx.strokeStyle = `rgba(${col},${0.6 * fade})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(fx, fy);
+        ctx.lineTo(fx + (hash(seed, 20) > 0.5 ? 12 : -12), fy + 14);
+        ctx.stroke();
+        ctx.globalCompositeOperation = 'source-over';
+        glowAt(x0, y0, col, 14, fade * 0.9);
+        if (age < 0.1) for (let k = 0; k < 4; k++) sparks.push({ x: fl.x, y: fl.y, vx: (Math.random() - 0.5) * 4, vy: (Math.random() - 0.5) * 4, life: 0.35, max: 0.35, color: '#e8f6ff', size: 1 });
+      } else if (fl.kind === 'ring') {
+        // the bell's toll: a gold shockwave, a softer echo behind it
+        const R = (fl.r ?? 2) * TILE;
+        const col = n.fused.requiem ? '255,120,120' : lensed ? '220,190,255' : '242,193,78';
+        ctx.globalCompositeOperation = 'lighter';
+        for (const [lag, w, a] of [[0, 3, 0.9], [0.18, 6, 0.3], [0.32, 2, 0.4]] as const) {
+          const e = Math.max(0, Math.min(1, age - lag)) ;
+          if (age < lag) continue;
+          ctx.strokeStyle = `rgba(${col},${a * (1 - e)})`;
+          ctx.lineWidth = w * (1 - e * 0.6);
+          ctx.beginPath();
+          ctx.arc(x0, y0, R * (0.25 + 0.75 * Math.min(1, (age - lag) * 1.6)), 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.globalCompositeOperation = 'source-over';
+        if (age < 0.25) glowAt(x0, y0, col, R * 0.5, (0.25 - age) * 2);
+      } else if (fl.kind === 'spike') {
+        // pointed bone spikes thrust up, with a puff of grave-dust round them
+        const r = (fl.r ?? 1) * TILE;
+        const up = Math.min(1, age * 5) * (age > 0.7 ? Math.max(0, (1 - age) / 0.3) : 1);
+        ctx.globalAlpha = 0.4 * fade;
+        ctx.fillStyle = '#5a4a3a';
+        ctx.beginPath();
+        ctx.ellipse(x0, y0, r * 0.8, r * 0.45, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        const count = n.fused.ossuary ? 9 : 6;
+        for (let k = 0; k < count; k++) {
+          const a = (k / count) * Math.PI * 2 + fl.at * 3;
+          const bx = x0 + Math.cos(a) * r * 0.55;
+          const by = y0 + Math.sin(a) * r * 0.35;
+          const h = (7 + (k % 3) * 2) * up;
+          ctx.fillStyle = '#e9e1cc';
+          ctx.beginPath();
+          ctx.moveTo(bx - 2, by);
+          ctx.lineTo(bx + 2, by);
+          ctx.lineTo(bx, by - h);
+          ctx.closePath();
+          ctx.fill();
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(Math.round(bx), Math.round(by - h), 1, 2);
+        }
+        if (age < 0.08) for (let k = 0; k < 3; k++) sparks.push({ x: fl.x + (Math.random() - 0.5) * 0.8, y: fl.y, vx: (Math.random() - 0.5) * 1.5, vy: -0.5 - Math.random(), life: 0.5, max: 0.5, color: '#b8a888', size: 2 });
       } else if (fl.kind === 'beam') {
+        // the soul lance: a tapered beam, white at the core, with motes along it
+        const len = (fl.r ?? 6) * TILE;
+        const col = n.fused.judgement ? '255,230,140' : '140,230,255';
         ctx.save();
-        ctx.translate(sx(fl.x), sy(fl.y));
+        ctx.translate(x0, y0);
         ctx.rotate(fl.ang ?? 0);
-        ctx.fillStyle = 'rgba(140, 230, 255, 0.35)';
-        ctx.fillRect(0, -6, (fl.r ?? 6) * TILE, 12);
-        ctx.fillStyle = '#dff8ff';
-        ctx.fillRect(0, -2, (fl.r ?? 6) * TILE, 4);
+        ctx.globalCompositeOperation = 'lighter';
+        const g2 = ctx.createLinearGradient(0, 0, len, 0);
+        g2.addColorStop(0, `rgba(${col},${0.55 * fade})`);
+        g2.addColorStop(1, `rgba(${col},0)`);
+        ctx.fillStyle = g2;
+        ctx.beginPath();
+        ctx.moveTo(0, -7 * fade);
+        ctx.lineTo(len, -2 * fade);
+        ctx.lineTo(len, 2 * fade);
+        ctx.lineTo(0, 7 * fade);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = `rgba(255,255,255,${0.95 * fade})`;
+        ctx.fillRect(0, -1.2 * fade, len * (1 - age * 0.3), 2.4 * fade);
+        for (let k = 0; k < 6; k++) {
+          const mx = ((k * 0.17 + age * 1.5) % 1) * len;
+          ctx.fillRect(mx, (hash(k, Math.round(fl.at * 10)) - 0.5) * 8, 1.5, 1.5);
+        }
+        ctx.globalCompositeOperation = 'source-over';
         ctx.restore();
+        glowAt(x0, y0, col, 9, fade);
       } else if (fl.kind === 'grasp') {
         // hands burst up from the grave-dirt
+        ctx.globalAlpha = fade;
         const r = (fl.r ?? 1) * TILE;
         ctx.fillStyle = 'rgba(60, 30, 50, 0.7)';
         ctx.beginPath();
-        ctx.arc(sx(fl.x), sy(fl.y), r * (0.8 + 0.2 * age), 0, Math.PI * 2);
+        ctx.arc(x0, y0, r * (0.8 + 0.2 * age), 0, Math.PI * 2);
         ctx.fill();
         for (let k = 0; k < 7; k++) {
           const a = (k / 7) * Math.PI * 2 + fl.x;
-          const hx2 = Math.round(sx(fl.x) + Math.cos(a) * r * 0.6);
-          const hy2 = Math.round(sy(fl.y) + Math.sin(a) * r * 0.5);
+          const hx2 = Math.round(x0 + Math.cos(a) * r * 0.6);
+          const hy2 = Math.round(y0 + Math.sin(a) * r * 0.5);
           px(hx2, hy2 - 7, 2, 7, '#b9c99a');
           px(hx2 - 1, hy2 - 9, 1, 2, '#d4e0b4');
           px(hx2 + 2, hy2 - 9, 1, 2, '#d4e0b4');
         }
+        ctx.globalAlpha = 1;
       } else {
+        ctx.globalAlpha = fade;
         ctx.save();
-        ctx.translate(sx(fl.x), sy(fl.y));
+        ctx.translate(x0, y0);
         ctx.rotate(fl.ang ?? 0);
         ctx.fillStyle = 'rgba(255, 120, 90, 0.6)';
         ctx.fillRect(0, -8, (fl.r ?? 8) * TILE, 16);
         ctx.fillStyle = '#ffe2c8';
         ctx.fillRect(0, -2, (fl.r ?? 8) * TILE, 4);
         ctx.restore();
+        ctx.globalAlpha = 1;
       }
     }
     ctx.globalAlpha = 1;
+
+    // sparks: embers, ice, grave-dust and lightning, drifting and fading
+    const dtDraw = Math.min(0.1, Math.max(0, t - lastDraw));
+    lastDraw = t;
+    for (const p of sparks) {
+      p.life -= dtDraw;
+      p.x += p.vx * dtDraw;
+      p.y += p.vy * dtDraw;
+      ctx.globalAlpha = Math.max(0, p.life / p.max);
+      px(Math.round(sx(p.x)), Math.round(sy(p.y)), p.size, p.size, p.color);
+    }
+    ctx.globalAlpha = 1;
+    if (sparks.length) sparks = sparks.filter((p) => p.life > 0).slice(-300);
 
     // a gold marker over your head, on top of everything, so you never lose yourself in a crowd
     {
