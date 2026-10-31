@@ -34,6 +34,8 @@ export interface Foe {
   /** A boss's next attack, and how many it has made. */
   atkAt: number;
   atkN: number;
+  /** Which boss of the night this is (0 for the first), for how hard it hits. */
+  tier: number;
 }
 
 export type Pickup = { x: number; y: number; kind: 'soul' | 'bigsoul' | 'glowcap'; v: number };
@@ -251,12 +253,14 @@ function spawn(n: Night, kind: FoeKind, at?: { x: number; y: number }) {
   const s = STATS[kind];
   const { x, y } = at ?? edgeSpot(n);
   const boss = isBoss(kind);
-  // They grow tougher as the night wears on; each boss is tougher than the one before.
-  const hp = Math.round(s.hp * (boss ? 1 + 0.7 * n.bossesRisen : 1 + n.t / 120 + (n.t / 300) ** 2));
-  const dmg = s.dmg + Math.floor(n.t / (boss ? 240 : 180));
+  // They grow tougher as the night wears on; each boss is tougher than the one before, and
+  // the first goes easier, since you're still finding your feet.
+  const tier = n.bossesRisen;
+  const hp = Math.round(s.hp * (boss ? (tier === 0 ? 0.65 : 1 + 0.7 * tier) : 1 + n.t / 120 + (n.t / 300) ** 2));
+  const dmg = s.dmg + Math.floor(n.t / (boss ? 240 : 180)) - (boss && tier === 0 ? 2 : 0);
   n.foes.push({
     id: n.nextId++, kind, x, y, hp, maxHp: hp, speed: s.speed * (boss ? 1 + 0.05 * n.bossesRisen : 1), dmg, r: s.r, xp: s.xp,
-    slowUntil: 0, skullAt: 0, kx: 0, ky: 0, hitAt: -1, boss, atkAt: n.t + 2.5, atkN: 0,
+    slowUntil: 0, skullAt: 0, kx: 0, ky: 0, hitAt: -1, boss, atkAt: n.t + (tier === 0 ? 4 : 2.5), atkN: 0, tier,
   });
 }
 
@@ -361,11 +365,13 @@ function bossAttack(n: Night, f: Foe) {
   if (n.t < f.atkAt) return;
   const aim = Math.atan2(n.y - f.y, n.x - f.x);
   const bolt = Math.max(2, f.dmg - 1);
-  const k = n.bossesRisen;
+  // how fierce: the first boss gently, the rest as before (one step per boss risen)
+  const k = f.tier === 0 ? 0 : f.tier + 1;
   if (f.kind === 'boss') {
     const len = Math.min(10, Math.hypot(n.x - f.x, n.y - f.y) + 3);
-    n.lanes.push({ x: f.x, y: f.y, ang: aim, len, w: f.r, at: n.t + 0.9, dmg: f.dmg + 1, charge: f.id });
-    f.atkAt = n.t + Math.max(2.6, 4 - 0.15 * k);
+    // the first Gravelord marks his charge longer, so there's time to step aside
+    n.lanes.push({ x: f.x, y: f.y, ang: aim, len, w: f.r, at: n.t + (k === 0 ? 1.3 : 0.9), dmg: f.dmg + 1, charge: f.id });
+    f.atkAt = n.t + (k === 0 ? 5 : Math.max(2.6, 4 - 0.15 * k));
   } else if (f.kind === 'abbot') {
     if (f.atkN % 3 === 2) volley(n, f, bolt, 16 + 2 * k, 3.6, null);
     else volley(n, f, bolt, 5, 4.5, aim, 0.7);
@@ -656,7 +662,7 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
       const end = { x: Math.max(1, Math.min(FIELD - 1, l.x + ux * l.len)), y: Math.max(1, Math.min(FIELD - 1, l.y + uy * l.len)) };
       charger.kx = (end.x - charger.x) / 0.83;
       charger.ky = (end.y - charger.y) / 0.83;
-      volley(n, end, Math.max(2, charger.dmg - 1), 8 + n.bossesRisen, 3.4, null);
+      volley(n, end, Math.max(2, charger.dmg - 1), charger.tier === 0 ? 6 : 9 + charger.tier, charger.tier === 0 ? 2.8 : 3.4, null);
     }
   }
   n.lanes = n.lanes.filter((l) => n.t < l.at);
