@@ -1039,29 +1039,34 @@ function progressUnlocks(game: Game): UnlockNote[] {
     meta.rankSeen = rank;
     notes.push({ icon: '👑', title: `Soul Rank: ${SOUL_RANKS[rank].name}`, detail: 'New title unlocked in your Hall' });
   }
+  // A keeper's vault already holds every cosmetic, so pieces added later join it quietly
+  // instead of each arriving as a new unlock.
+  const wardrobe = (note: UnlockNote) => {
+    if (!meta.vault) notes.push(note);
+  };
   for (const look of LOOKS) {
     if (!meta.looksSeen.includes(look.id) && lookUnlocked(look)) {
       meta.looksSeen.push(look.id);
-      notes.push({ icon: '🎨', title: `New cloak: ${look.name}`, detail: 'Dress your heroes in the Wardrobe' });
+      wardrobe({ icon: '🎨', title: `New cloak: ${look.name}`, detail: 'Dress your heroes in the Wardrobe' });
     }
   }
   for (const head of HEADS) {
     if (!meta.headsSeen.includes(head.id) && headUnlocked(head)) {
       meta.headsSeen.push(head.id);
-      notes.push({ icon: '🎩', title: `New costume: ${head.name}`, detail: head.hero ? `For the ${HERO_BY_ID[head.hero].name}, in the Wardrobe` : 'For any hero, in the Wardrobe' });
+      wardrobe({ icon: '🎩', title: `New costume: ${head.name}`, detail: head.hero ? `For the ${HERO_BY_ID[head.hero].name}, in the Wardrobe` : 'For any hero, in the Wardrobe' });
     }
   }
   for (const a of AURAS) {
     const seen = `aura:${a.id}`;
     if (!meta.looksSeen.includes(seen) && auraUnlocked(a)) {
       meta.looksSeen.push(seen);
-      notes.push({ icon: '✨', title: `New aura: ${a.name}`, detail: 'Radiate it in the Wardrobe' });
+      wardrobe({ icon: '✨', title: `New aura: ${a.name}`, detail: 'Radiate it in the Wardrobe' });
     }
   }
   for (const c of HERO_CLOAKS) {
     if (!meta.looksSeen.includes(c.id) && lookUnlocked(c)) {
       meta.looksSeen.push(c.id);
-      notes.push({ icon: '🎨', title: `New cloak: ${c.name}`, detail: `For the ${HERO_BY_ID[c.hero].name}, in the Wardrobe` });
+      wardrobe({ icon: '🎨', title: `New cloak: ${c.name}`, detail: `For the ${HERO_BY_ID[c.hero].name}, in the Wardrobe` });
     }
   }
   return notes;
