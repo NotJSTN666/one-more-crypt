@@ -9,7 +9,7 @@ import { heroSprite } from './hero';
 import { grave, groundFor, hash, paintGround, tree, type Px } from './hollow-art';
 import { graveState, meta, outfitFor, receiveGift, saveMeta } from './meta';
 import {
-  DASH_COOLDOWN, FIELD, MAX_LEVEL, type Night, area, dash, spadeReach, NIGHT_RELIC, NIGHT_RELICS, chooseRelic, frostRadius, levelChoices, newNight, nextBossAt, nightSouls, skullCount, step, xpToLevel, type RelicKind,
+  DASH_COOLDOWN, FIELD, MAX_LEVEL, type Night, area, dash, spadeReach, NIGHT_RELIC, NIGHT_RELICS, chooseRelic, frostRadius, levelChoices, newNight, nextBossAt, nightSouls, skullCount, skullOrbit, step, xpToLevel, NIGHT_FUSION, fusionOf, isFusion, type NightPick,
 } from './nightshift';
 import { ONLINE, nightBoard, submitNight } from './online';
 import { claimInlineHtml, ensureGuest, playerName, showLeaderboard, signedIn, unclaimed, wireClaimInline } from './social';
@@ -121,7 +121,7 @@ export function showNightShift(back: () => void) {
   const ground = fieldCanvas();
   let paused = false;
   let ended = false;
-  let choosing: RelicKind[] | null = null;
+  let choosing: NightPick[] | null = null;
   // The level-up choice the keyboard has lit, and when the choices appeared.
   let choiceAt = 0;
   let choiceShown = 0;
@@ -356,6 +356,15 @@ export function showNightShift(back: () => void) {
     modal.innerHTML = `<h3>Level ${n.level - n.pendingLevels + 1}</h3>
       <p class="fine">Choose a relic${touch ? '' : ' · ↑ ↓ and Enter, or 1, 2, 3'}</p>
       <div class="ns-choices">${opts.map((id, i) => {
+        if (isFusion(id)) {
+          // a fusion at the Soul Forge: the weapon and its charm become one
+          const f = NIGHT_FUSION[id];
+          return `<button type="button" class="ns-choice forge" data-pick="${id}">
+            <span class="ns-choice-emoji">${f.emoji}</span>
+            <span class="ns-choice-info"><b>${esc(f.name)}</b> <small>🔥 Soul Forge · ${NIGHT_RELIC[f.weapon].emoji} + ${NIGHT_RELIC[f.charm].emoji}</small><span>${esc(f.text)}</span></span>
+            ${touch ? '' : `<kbd>${i + 1}</kbd>`}
+          </button>`;
+        }
         const r = NIGHT_RELIC[id];
         const at = n.relics[id] ?? 0;
         return `<button type="button" class="ns-choice" data-pick="${id}">
@@ -368,7 +377,7 @@ export function showNightShift(back: () => void) {
     const shown = performance.now();
     modal.querySelectorAll<HTMLElement>('[data-pick]').forEach((b) =>
       b.addEventListener('click', () => {
-        if (performance.now() - shown > 300) pick(b.dataset.pick as RelicKind);
+        if (performance.now() - shown > 300) pick(b.dataset.pick as NightPick);
       }),
     );
     if (!touch) highlight(0);
@@ -379,12 +388,15 @@ export function showNightShift(back: () => void) {
     choiceAt = (i + choosing.length) % choosing.length;
     modal.querySelectorAll<HTMLElement>('[data-pick]').forEach((b, k) => b.classList.toggle('on', k === choiceAt));
   }
-  function pick(id: RelicKind) {
+  function pick(id: NightPick) {
     if (!choosing) return;
     chooseRelic(n, id);
     choosing = null;
     modal.hidden = true;
-    sfx.heal();
+    if (isFusion(id)) {
+      sfx.relic();
+      toast(`🔥 Forged: ${NIGHT_FUSION[id].name}`);
+    } else sfx.heal();
     relicRow();
     last = performance.now();
   }
@@ -406,7 +418,7 @@ export function showNightShift(back: () => void) {
     saveMeta();
     sfx.death();
     setMusicMood('fallen');
-    const build = NIGHT_RELICS.filter((r) => n.relics[r.id]).map((r) => `${r.emoji}<small>${n.relics[r.id]}</small>`).join(' ');
+    const build = NIGHT_RELICS.filter((r) => n.relics[r.id]).map((r) => `${fusionOf(n, r.id)?.emoji ?? r.emoji}<small>${fusionOf(n, r.id) ? '★' : n.relics[r.id]}</small>`).join(' ');
     window.setTimeout(() => {
       if (!overlay.querySelector('#ns-canvas')) return;
       showOverlay('nightshift-end', `
@@ -456,7 +468,12 @@ export function showNightShift(back: () => void) {
   let hudKey = '';
   function relicRow() {
     $id('ns-relics').innerHTML = NIGHT_RELICS.filter((r) => n.relics[r.id])
-      .map((r) => `<span class="ns-relic ${r.weapon ? '' : 'charm'}" title="${esc(r.name)}">${r.emoji}<small>${n.relics[r.id]}</small></span>`)
+      .map((r) => {
+        const f = fusionOf(n, r.id);
+        return f
+          ? `<span class="ns-relic fused" title="${esc(f.name)}">${f.emoji}<small>★</small></span>`
+          : `<span class="ns-relic ${r.weapon ? '' : 'charm'}" title="${esc(r.name)}">${r.emoji}<small>${n.relics[r.id]}</small></span>`;
+      })
       .join('');
   }
   relicRow();
@@ -778,8 +795,8 @@ export function showNightShift(back: () => void) {
     const skulls = skullCount(n);
     for (let k = 0; k < skulls; k++) {
       const a = n.t * 3 + (k / skulls) * Math.PI * 2;
-      const x = Math.round(sx(n.x + Math.cos(a) * 1.6));
-      const y = Math.round(sy(n.y + Math.sin(a) * 1.6));
+      const x = Math.round(sx(n.x + Math.cos(a) * skullOrbit(n)));
+      const y = Math.round(sy(n.y + Math.sin(a) * skullOrbit(n)));
       px(x - 3, y - 3, 6, 6, 'rgba(255, 240, 200, 0.18)');
       px(x - 2, y - 2, 4, 3, '#efe6cf');
       px(x - 1, y + 1, 2, 1, '#cfc4a8');

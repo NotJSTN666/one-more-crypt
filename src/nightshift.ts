@@ -104,6 +104,32 @@ export const NIGHT_RELICS: NightRelic[] = [
   { id: 'lens', name: "Seer's Lens", emoji: '🔮', weapon: false, text: () => 'A violet ring round you: your spade, bell, frost, flames and spikes all reach 15% further.' },
   { id: 'coin', name: "Reaper's Coin", emoji: '🪙', weapon: false, text: () => 'Souls count 15% more.' },
 ];
+/**
+ * The Soul Forge: a weapon at its top level fuses with its partner charm (any level) into
+ * something stronger. A fusion is offered as one of the level-up choices once it's ready.
+ */
+export type FusionId = 'cleaver' | 'halo' | 'barrage' | 'hellwalk' | 'tempest' | 'glacier' | 'requiem' | 'eclipse' | 'legion' | 'ossuary' | 'judgement';
+export interface NightFusion { id: FusionId; name: string; emoji: string; weapon: RelicKind; charm: RelicKind; text: string }
+export const NIGHT_FUSIONS: NightFusion[] = [
+  { id: 'cleaver', name: 'Grave Cleaver', emoji: '🪓', weapon: 'spade', charm: 'lens', text: 'The spade swings all the way round, twice as hard.' },
+  { id: 'halo', name: 'Bone Halo', emoji: '☠️', weapon: 'skulls', charm: 'heart', text: 'Twice the skulls on a wider orbit, hitting twice as hard.' },
+  { id: 'barrage', name: 'Bone Barrage', emoji: '🎯', weapon: 'quiver', charm: 'hourglass', text: 'Darts at eight foes at once, piercing through three more.' },
+  { id: 'hellwalk', name: 'Hellwalk', emoji: '🌋', weapon: 'ember', charm: 'boots', text: 'Your trail of fire burns wider, hotter and longer.' },
+  { id: 'tempest', name: 'Tempest', emoji: '🌩️', weapon: 'storm', charm: 'magnet', text: 'Lightning twice as often, on twice as many, from further away.' },
+  { id: 'glacier', name: 'Glacier', emoji: '🧊', weapon: 'frost', charm: 'moss', text: 'A far wider ring of cold that bites much harder.' },
+  { id: 'requiem', name: 'Requiem Bell', emoji: '🛎️', weapon: 'bell', charm: 'thorns', text: 'Tolls twice as often and hits three times as hard.' },
+  { id: 'eclipse', name: 'Eclipse Scythe', emoji: '🌑', weapon: 'scythe', charm: 'whetstone', text: 'Six blades at once, cutting twice as deep.' },
+  { id: 'legion', name: 'Spirit Legion', emoji: '🕯️', weapon: 'wisps', charm: 'fang', text: 'Three times the wisps, and a wisp kill may heal you.' },
+  { id: 'ossuary', name: 'Ossuary', emoji: '⚰️', weapon: 'spikes', charm: 'coin', text: 'Twice the spikes, wider and harder.' },
+  { id: 'judgement', name: 'Judgement', emoji: '✨', weapon: 'lance', charm: 'hourglass', text: 'Four beams at once, one each way, and harder.' },
+];
+export const NIGHT_FUSION = Object.fromEntries(NIGHT_FUSIONS.map((f) => [f.id, f])) as Record<FusionId, NightFusion>;
+/** The fusion a weapon became, if it did. */
+export const fusionOf = (n: Night, weapon: RelicKind) => NIGHT_FUSIONS.find((f) => f.weapon === weapon && n.fused[f.id]);
+/** A level-up choice: a relic, or a fusion at the forge. */
+export type NightPick = RelicKind | FusionId;
+export const isFusion = (id: NightPick): id is FusionId => id in NIGHT_FUSION;
+
 export const NIGHT_RELIC = Object.fromEntries(NIGHT_RELICS.map((r) => [r.id, r])) as Record<RelicKind, NightRelic>;
 
 /** The first boss rises at this time, then one more every BOSS_EVERY seconds. */
@@ -139,6 +165,10 @@ export interface Night {
   /** The dash: when it can be used again, and when the one under way ends (you can't be hit till then). */
   dashReady: number;
   dashUntil: number;
+  /** Foes already struck by the dash under way. */
+  dashHit: number[];
+  /** Weapons fused at the Soul Forge. */
+  fused: Partial<Record<FusionId, boolean>>;
   /** Where you last were when you moved a fair way, and when: stand too long and the dead claw up from below. */
   anchorX: number;
   anchorY: number;
@@ -181,6 +211,8 @@ export function newNight(rand: () => number = Math.random): Night {
     hurtUntil: 0,
     dashReady: 0,
     dashUntil: 0,
+    dashHit: [],
+    fused: {},
     anchorX: FIELD / 2,
     anchorY: FIELD / 2,
     anchorT: 0,
@@ -219,8 +251,10 @@ export const area = (n: Night) => 1 + 0.15 * lv(n, 'lens');
 export const spadeReach = (n: Night) => (1.5 + 0.2 * lv(n, 'spade')) * area(n);
 export const pickupRadius = (n: Night) => 1.3 + 1.2 * lv(n, 'magnet');
 export const playerSpeed = (n: Night) => 4 * (1 + 0.08 * lv(n, 'boots'));
-export const skullCount = (n: Night) => (lv(n, 'skulls') ? 1 + lv(n, 'skulls') : 0);
-export const frostRadius = (n: Night) => (lv(n, 'frost') ? (1.5 + 0.2 * lv(n, 'frost')) * area(n) : 0);
+export const skullCount = (n: Night) => (lv(n, 'skulls') ? (1 + lv(n, 'skulls')) * (n.fused.halo ? 2 : 1) : 0);
+/** How far the skulls circle. */
+export const skullOrbit = (n: Night) => (n.fused.halo ? 2.2 : 1.6);
+export const frostRadius = (n: Night) => (lv(n, 'frost') ? (1.5 + 0.2 * lv(n, 'frost')) * area(n) * (n.fused.glacier ? 1.5 : 1) : 0);
 /**
  * How much the Frost Sigil slows a foe (0 to 1): less than it used to, half on brutes and
  * bosses, and the dead shrug it off as the night goes on, so standing still in it never lasts.
@@ -236,7 +270,14 @@ export const PLAYER_R = 0.35;
 export const nextBossAt = (n: Night) => FIRST_BOSS + n.bossesRisen * BOSS_EVERY;
 
 /** Three choices for a level-up: relics you can still add or sharpen. */
-export function levelChoices(n: Night): RelicKind[] {
+export function levelChoices(n: Night): NightPick[] {
+  // A fusion ready at the forge is always offered first.
+  const ready = NIGHT_FUSIONS.filter((f) => !n.fused[f.id] && lv(n, f.weapon) >= MAX_LEVEL && lv(n, f.charm) > 0);
+  const forge: NightPick[] = ready.length ? [ready[Math.floor(n.rand() * ready.length)].id] : [];
+  return [...forge, ...relicChoices(n)].slice(0, 3);
+}
+
+function relicChoices(n: Night): RelicKind[] {
   const weapons = NIGHT_RELICS.filter((r) => r.weapon && lv(n, r.id) > 0).length;
   const open = NIGHT_RELICS.filter((r) => lv(n, r.id) < MAX_LEVEL && (lv(n, r.id) > 0 || !r.weapon || weapons < MAX_WEAPONS));
   const out: RelicKind[] = [];
@@ -255,8 +296,15 @@ export function levelChoices(n: Night): RelicKind[] {
 }
 
 /** Take a relic (or its next level) for a waiting level. */
-export function chooseRelic(n: Night, id: RelicKind) {
-  if (n.pendingLevels <= 0 || lv(n, id) >= MAX_LEVEL) return;
+export function chooseRelic(n: Night, id: NightPick) {
+  if (n.pendingLevels <= 0) return;
+  if (isFusion(id)) {
+    if (n.fused[id]) return;
+    n.fused[id] = true;
+    n.pendingLevels--;
+    return;
+  }
+  if (lv(n, id) >= MAX_LEVEL) return;
   n.relics[id] = lv(n, id) + 1;
   n.pendingLevels--;
   if (id === 'heart') {
@@ -283,13 +331,20 @@ function spawn(n: Night, kind: FoeKind, at?: { x: number; y: number }) {
   // They grow tougher as the night wears on; each boss is tougher than the one before, and
   // the first goes easier, since you're still finding your feet.
   const tier = n.bossesRisen;
-  const hp = Math.round(s.hp * (boss ? (tier === 0 ? 0.65 : 1 + 0.7 * tier) : 1 + n.t / 120 + (n.t / 300) ** 2));
-  const dmg = s.dmg + Math.floor(n.t / (boss ? 240 : 180)) - (boss && tier === 0 ? 2 : 0);
+  // Past ten minutes the dead harden every minute, so even a finished build can't stand forever.
+  const late = lateNight(n);
+  const hp = Math.round(s.hp * (boss ? (tier === 0 ? 0.65 : 1 + 0.7 * tier) : 1 + n.t / 120 + (n.t / 300) ** 2) * LATE_HP ** late);
+  const dmg = s.dmg + Math.floor(n.t / (boss ? 240 : 180)) - (boss && tier === 0 ? 2 : 0) + Math.floor(late / 1.5);
   n.foes.push({
-    id: n.nextId++, kind, x, y, hp, maxHp: hp, speed: s.speed * (boss ? 1 + 0.05 * n.bossesRisen : 1), dmg, r: s.r, xp: s.xp,
+    id: n.nextId++, kind, x, y, hp, maxHp: hp, speed: s.speed * (boss ? 1 + 0.05 * n.bossesRisen : 1 + Math.min(0.6, 0.06 * late)), dmg, r: s.r, xp: s.xp,
     slowUntil: 0, skullAt: 0, kx: 0, ky: 0, hitAt: -1, boss, atkAt: n.t + (tier === 0 ? 4 : 2.5), atkN: 0, tier,
   });
 }
+
+/** Minutes past the tenth: how far into the late night it is (0 before). */
+export const lateNight = (n: Night) => Math.max(0, (n.t - 600) / 60);
+/** How much tougher the dead get with each late minute. */
+const LATE_HP = 1.25;
 
 /** Which of the dead come at this point in the night. */
 function pickKind(n: Night): FoeKind {
@@ -431,6 +486,9 @@ export const DASH_TIME = 0.2;
 const DASH_BURST = 4.5;
 export const DASH_COOLDOWN = 2.5;
 
+/** What the dash does to each foe it hits: more as the night (and the dead) get tougher. */
+export const dashDamage = (n: Night) => (8 + n.t / 10) * dmgMul(n);
+
 /** Dash the way you're facing, if it's ready: a quick burst you can't be hurt during. */
 export function dash(n: Night, dx = 0, dy = 0): boolean {
   if (n.over || n.pendingLevels > 0 || n.t < n.dashReady) return false;
@@ -441,6 +499,7 @@ export function dash(n: Night, dx = 0, dy = 0): boolean {
   }
   n.dashUntil = n.t + DASH_TIME;
   n.dashReady = n.t + DASH_COOLDOWN;
+  n.dashHit = [];
   return true;
 }
 
@@ -456,6 +515,18 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
     const sp = playerSpeed(n) * DASH_BURST * dt;
     n.x = Math.max(0.5, Math.min(FIELD - 0.5, n.x + n.fx * sp));
     n.y = Math.max(0.5, Math.min(FIELD - 0.5, n.y + n.fy * sp));
+    // Ploughing through the dead: each one in the way is struck once and thrown aside.
+    for (const f of n.foes) {
+      if (f.hp <= 0 || n.dashHit.includes(f.id) || Math.hypot(f.x - n.x, f.y - n.y) > f.r + PLAYER_R + 0.35) continue;
+      n.dashHit.push(f.id);
+      hurtFoe(n, f, dashDamage(n));
+      if (!f.boss) {
+        // to whichever side of your path it was on
+        const side = (f.x - n.x) * -n.fy + (f.y - n.y) * n.fx >= 0 ? 1 : -1;
+        f.kx += -n.fy * side * 1.6 + n.fx * 0.4;
+        f.ky += n.fx * side * 1.6 + n.fy * 0.4;
+      }
+    }
   } else if (len > 0.1) {
     const sp = playerSpeed(n) * dt;
     n.x = Math.max(0.5, Math.min(FIELD - 0.5, n.x + (dx / len) * sp));
@@ -522,7 +593,7 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
   // The spade: an arc toward the nearest foe in reach (or the way you're going).
   if (ready('spade', Math.max(0.4, 1.0 - 0.12 * L('spade')))) {
     const reach = spadeReach(n);
-    const half = ((55 + 10 * L('spade')) * Math.PI) / 180;
+    const half = n.fused.cleaver ? Math.PI : ((55 + 10 * L('spade')) * Math.PI) / 180;
     const target = nearest(n, reach + 1.5);
     const facing = target ? Math.atan2(target.y - n.y, target.x - n.x) : Math.atan2(n.fy, n.fx);
     n.flashes.push({ kind: 'swing', x: n.x, y: n.y, at: n.t, ang: facing, r: reach });
@@ -532,7 +603,7 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
       let diff = Math.abs(Math.atan2(f.y - n.y, f.x - n.x) - facing);
       if (diff > Math.PI) diff = Math.PI * 2 - diff;
       if (diff <= half || d < 0.6) {
-        hurtFoe(n, f, 4 + 2 * L('spade'));
+        hurtFoe(n, f, (4 + 2 * L('spade')) * (n.fused.cleaver ? 2 : 1));
         if (!f.boss) {
           f.kx += ((f.x - n.x) / (d || 1)) * 0.5;
           f.ky += ((f.y - n.y) / (d || 1)) * 0.5;
@@ -545,36 +616,36 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
   const skulls = skullCount(n);
   for (let k = 0; k < skulls; k++) {
     const a = n.t * 3 + (k / skulls) * Math.PI * 2;
-    const sx = n.x + Math.cos(a) * 1.6;
-    const sy = n.y + Math.sin(a) * 1.6;
+    const sx = n.x + Math.cos(a) * skullOrbit(n);
+    const sy = n.y + Math.sin(a) * skullOrbit(n);
     for (const f of n.foes) {
       if (f.skullAt > n.t || Math.hypot(f.x - sx, f.y - sy) > f.r + 0.35) continue;
       f.skullAt = n.t + 0.4;
-      hurtFoe(n, f, 3 + L('skulls'));
+      hurtFoe(n, f, (3 + L('skulls')) * (n.fused.halo ? 2 : 1));
     }
   }
 
   // Bone darts at the nearest foes.
   if (ready('quiver', Math.max(0.35, 0.9 - 0.08 * L('quiver')))) {
-    const targets = n.foes.filter((f) => f.hp > 0).sort((a, b) => near(n, a) - near(n, b)).slice(0, Math.min(4, Math.ceil(L('quiver') / 1.5)));
+    const targets = n.foes.filter((f) => f.hp > 0).sort((a, b) => near(n, a) - near(n, b)).slice(0, n.fused.barrage ? 8 : Math.min(4, Math.ceil(L('quiver') / 1.5)));
     for (const f of targets) {
       const d = near(n, f) || 1;
-      n.darts.push({ x: n.x, y: n.y, vx: ((f.x - n.x) / d) * 10, vy: ((f.y - n.y) / d) * 10, dmg: 4 + L('quiver'), pierce: Math.floor(L('quiver') / 2), life: 1.2, hit: [], kind: 'dart' });
+      n.darts.push({ x: n.x, y: n.y, vx: ((f.x - n.x) / d) * 10, vy: ((f.y - n.y) / d) * 10, dmg: 4 + L('quiver'), pierce: Math.floor(L('quiver') / 2) + (n.fused.barrage ? 3 : 0), life: 1.2, hit: [], kind: 'dart' });
     }
   }
   // The scythe: out toward a foe, then home again, cutting through everything both ways.
   if (ready('scythe', Math.max(1.2, 2.4 - 0.2 * L('scythe')))) {
-    const count = 1 + Math.floor(L('scythe') / 2);
+    const count = n.fused.eclipse ? 6 : 1 + Math.floor(L('scythe') / 2);
     const f = nearest(n);
     const base = f ? Math.atan2(f.y - n.y, f.x - n.x) : Math.atan2(n.fy, n.fx);
     for (let k = 0; k < count; k++) {
-      const a = base + (k - (count - 1) / 2) * 0.5;
-      n.darts.push({ x: n.x, y: n.y, vx: Math.cos(a) * 9, vy: Math.sin(a) * 9, dmg: 6 + 2 * L('scythe'), pierce: 999, life: 1.6, hit: [], kind: 'scythe' });
+      const a = n.fused.eclipse ? base + (k / count) * Math.PI * 2 : base + (k - (count - 1) / 2) * 0.5;
+      n.darts.push({ x: n.x, y: n.y, vx: Math.cos(a) * 9, vy: Math.sin(a) * 9, dmg: (6 + 2 * L('scythe')) * (n.fused.eclipse ? 2 : 1), pierce: 999, life: 1.6, hit: [], kind: 'scythe' });
     }
   }
   // Wisps: slow little ghosts that turn toward the nearest foe.
   if (ready('wisps', Math.max(0.7, 1.6 - 0.15 * L('wisps')))) {
-    for (let k = 0; k < 1 + Math.floor(L('wisps') / 2); k++) {
+    for (let k = 0; k < (1 + Math.floor(L('wisps') / 2)) * (n.fused.legion ? 3 : 1); k++) {
       const a = n.rand() * Math.PI * 2;
       n.darts.push({ x: n.x, y: n.y, vx: Math.cos(a) * 5, vy: Math.sin(a) * 5, dmg: 5 + 2 * L('wisps'), pierce: 0, life: 3, hit: [], kind: 'wisp' });
     }
@@ -602,6 +673,7 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
       if (f.hp <= 0 || d.hit.includes(f.id) || Math.hypot(f.x - d.x, f.y - d.y) > f.r + (d.kind === 'scythe' ? 0.45 : 0.15)) continue;
       d.hit.push(f.id);
       hurtFoe(n, f, d.dmg);
+      if (d.kind === 'wisp' && n.fused.legion && f.hp <= 0 && n.rand() < 0.1) n.hp = Math.min(n.maxHp, n.hp + 1);
       if (d.hit.length > d.pierce) {
         d.life = 0;
         break;
@@ -611,16 +683,19 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
   n.darts = n.darts.filter((d) => d.life > 0);
 
   // Ember: burning ground left behind you.
-  if (ready('ember', 0.35)) n.flames.push({ x: n.x, y: n.y, until: n.t + 1.6 + 0.4 * L('ember'), r: (0.6 + 0.05 * L('ember')) * area(n), dps: 4 + 2 * L('ember') });
+  if (ready('ember', 0.35)) {
+    const hell = n.fused.hellwalk ? 1 : 0;
+    n.flames.push({ x: n.x, y: n.y, until: n.t + (1.6 + 0.4 * L('ember')) * (1 + 0.5 * hell), r: (0.6 + 0.05 * L('ember')) * area(n) * (1 + 0.8 * hell), dps: (4 + 2 * L('ember')) * (1 + hell) });
+  }
   if (n.flames.length) {
     for (const fl of n.flames) for (const f of n.foes) if (Math.hypot(f.x - fl.x, f.y - fl.y) < fl.r + f.r) hurtFoe(n, f, fl.dps * dt);
     n.flames = n.flames.filter((fl) => fl.until > n.t);
   }
 
   // Storm: lightning on foes near you.
-  if (ready('storm', Math.max(0.9, 2.3 - 0.25 * L('storm')))) {
-    const close = n.foes.filter((f) => f.hp > 0 && near(n, f) < 7);
-    for (let k = 0; k < 1 + L('storm') && close.length; k++) {
+  if (ready('storm', Math.max(0.9, 2.3 - 0.25 * L('storm')) * (n.fused.tempest ? 0.5 : 1))) {
+    const close = n.foes.filter((f) => f.hp > 0 && near(n, f) < (n.fused.tempest ? 10 : 7));
+    for (let k = 0; k < (1 + L('storm')) * (n.fused.tempest ? 2 : 1) && close.length; k++) {
       const f = close.splice(Math.floor(n.rand() * close.length), 1)[0];
       n.flashes.push({ kind: 'bolt', x: f.x, y: f.y, at: n.t });
       hurtFoe(n, f, 8 + 4 * L('storm'));
@@ -630,39 +705,42 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
   // Bone spikes: burst up under foes near you, hurting all round each.
   if (ready('spikes', Math.max(1, 2.2 - 0.2 * L('spikes')))) {
     const close = n.foes.filter((f) => f.hp > 0 && near(n, f) < 6);
-    const r = (0.8 + 0.1 * L('spikes')) * area(n);
-    for (let k = 0; k < 1 + L('spikes') && close.length; k++) {
+    const r = (0.8 + 0.1 * L('spikes')) * area(n) * (n.fused.ossuary ? 1.4 : 1);
+    for (let k = 0; k < (1 + L('spikes')) * (n.fused.ossuary ? 2 : 1) && close.length; k++) {
       const c = close.splice(Math.floor(n.rand() * close.length), 1)[0];
       const at = { x: c.x, y: c.y };
       n.flashes.push({ kind: 'spike', x: at.x, y: at.y, at: n.t, r });
-      for (const f of n.foes) if (near(at, f) < r + f.r) hurtFoe(n, f, 7 + 3 * L('spikes'));
+      for (const f of n.foes) if (near(at, f) < r + f.r) hurtFoe(n, f, (7 + 3 * L('spikes')) * (n.fused.ossuary ? 1.5 : 1));
     }
   }
 
   // The soul lance: a beam through every foe in a line.
   if (ready('lance', Math.max(1.1, 2.6 - 0.25 * L('lance')))) {
     const f = nearest(n);
-    const ang = f ? Math.atan2(f.y - n.y, f.x - n.x) : Math.atan2(n.fy, n.fx);
-    const beam: Lane = { x: n.x, y: n.y, ang, len: 6 + L('lance'), w: 0.45, at: n.t, dmg: 0 };
-    n.flashes.push({ kind: 'beam', x: n.x, y: n.y, at: n.t, ang, r: beam.len });
-    for (const o of n.foes) if (laneDist(beam, o.x, o.y) < beam.w + o.r) hurtFoe(n, o, 10 + 5 * L('lance'));
+    const base = f ? Math.atan2(f.y - n.y, f.x - n.x) : Math.atan2(n.fy, n.fx);
+    for (let k = 0; k < (n.fused.judgement ? 4 : 1); k++) {
+      const ang = base + (k * Math.PI) / 2;
+      const beam: Lane = { x: n.x, y: n.y, ang, len: 6 + L('lance'), w: 0.45, at: n.t, dmg: 0 };
+      n.flashes.push({ kind: 'beam', x: n.x, y: n.y, at: n.t, ang, r: beam.len });
+      for (const o of n.foes) if (laneDist(beam, o.x, o.y) < beam.w + o.r) hurtFoe(n, o, (10 + 5 * L('lance')) * (n.fused.judgement ? 1.5 : 1));
+    }
   }
 
   // Frost: a ring of cold that slows and bites.
   const fr = frostRadius(n);
   if (fr) for (const f of n.foes) if (near(n, f) < fr + f.r) {
     f.slowUntil = n.t + 0.2;
-    hurtFoe(n, f, (1 + 0.6 * L('frost')) * dt);
+    hurtFoe(n, f, (1 + 0.6 * L('frost')) * (n.fused.glacier ? 2.5 : 1) * dt);
   }
 
   // The bell: a toll that throws everything back.
-  if (ready('bell', Math.max(1.6, 4 - 0.45 * L('bell')))) {
+  if (ready('bell', Math.max(1.6, 4 - 0.45 * L('bell')) * (n.fused.requiem ? 0.5 : 1))) {
     const r = (2.4 + 0.4 * L('bell')) * area(n);
     n.flashes.push({ kind: 'ring', x: n.x, y: n.y, at: n.t, r });
     for (const f of n.foes) {
       const d = near(n, f);
       if (d > r + f.r) continue;
-      hurtFoe(n, f, 5 + 3 * L('bell'));
+      hurtFoe(n, f, (5 + 3 * L('bell')) * (n.fused.requiem ? 3 : 1));
       if (!f.boss) {
         f.kx += ((f.x - n.x) / (d || 1)) * 1.6;
         f.ky += ((f.y - n.y) / (d || 1)) * 1.6;

@@ -435,8 +435,9 @@ function nightStep(i: number, t: number) {
     const ph = phrases[Math.floor(b8 / 2)];
     const at = (b8 % 2) * 16 + s;
     const vol = boss ? 0.05 : L === 0 && sec === 'verse' ? 0.03 : 0.042;
-    for (const [st, note, len] of ph) {
+    for (const [st, raw, len] of ph) {
       if (st !== at) continue;
+      const note = boss ? raw : fitNote(raw, chord, len >= 2 || st % 4 === 0);
       melody(midi(note), t, s16 * len * 0.95, vol, boss);
       // the second verse is doubled an octave below, for weight
       if (sec === 'verse2') melody(midi(note - 12), t, s16 * len * 0.95, vol * 0.6, false);
@@ -477,6 +478,20 @@ export async function renderNight(seconds: number, plan: (t: number) => { heat: 
   return out;
 }
 if (import.meta.env.DEV) (window as unknown as { renderNight?: typeof renderNight }).renderNight = renderNight;
+
+/**
+ * Keep the melody in tune with the chord under it: a held or on-beat note moves to the nearest
+ * note of the chord; a quick passing note to the nearest note in the key (E minor, with D sharp
+ * over the B major chord).
+ */
+function fitNote(note: number, chord: number[], strong: boolean): number {
+  const tones = strong ? chord.map((n) => n % 12) : chord === B ? [4, 6, 7, 9, 11, 0, 3] : [4, 6, 7, 9, 11, 0, 2];
+  for (let d = 0; d <= 6; d++) {
+    if (tones.includes((note + d) % 12)) return note + d;
+    if (tones.includes((note - d + 120) % 12)) return note - d;
+  }
+  return note;
+}
 
 /** The singing lead: a detuned saw and square, with a little vibrato on long notes. */
 function melody(freq: number, t: number, dur: number, vol: number, grit: boolean) {

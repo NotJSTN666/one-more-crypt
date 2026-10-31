@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { cleanGraveState, newGraveState } from './graveshift';
-import { DASH_COOLDOWN, FIELD, FIRST_BOSS, dash, MAX_LEVEL, chooseRelic, levelChoices, newNight, nightSouls, step, xpToLevel } from './nightshift';
+import { DASH_COOLDOWN, FIELD, FIRST_BOSS, dash, lateNight, MAX_LEVEL, chooseRelic, levelChoices, newNight, nightSouls, step, xpToLevel } from './nightshift';
 
 /** A small fixed random source, so every run of a test is the same night. */
 function seeded(seed: number) {
@@ -122,6 +122,37 @@ describe('the Night Shift', () => {
     const hp = n.hp;
     step(n, 1 / 60, 0, 0);
     expect(n.hp).toBe(hp);
+  });
+
+  it('offers the Soul Forge once a weapon is maxed and its charm is held', () => {
+    const n = newNight(seeded(11));
+    n.relics = { spade: 5 };
+    expect(levelChoices(n)).not.toContain('cleaver');
+    n.relics.lens = 1;
+    const c = levelChoices(n);
+    expect(c[0]).toBe('cleaver');
+    n.pendingLevels = 1;
+    chooseRelic(n, 'cleaver');
+    expect(n.fused.cleaver).toBe(true);
+    expect(levelChoices(n)).not.toContain('cleaver');
+  });
+
+  it('a dash strikes the dead in its way and throws them aside', () => {
+    const n = newNight(seeded(12));
+    n.foes.push({ id: 900, kind: 'ghoul', x: n.x + 1, y: n.y + 0.2, hp: 999, maxHp: 999, speed: 0, dmg: 1, r: 0.35, xp: 1, slowUntil: 0, skullAt: 0, kx: 0, ky: 0, hitAt: -1, boss: false, atkAt: 0, atkN: 0, tier: 0 });
+    n.relics = {};
+    dash(n, 1, 0);
+    for (let k = 0; k < 6; k++) step(n, 1 / 60, 0, 0);
+    const f = n.foes.find((x) => x.id === 900)!;
+    expect(f.hp).toBeLessThan(999);
+    expect(Math.abs(f.y - n.y)).toBeGreaterThan(0.4);
+  });
+
+  it('the late night hardens the dead every minute past ten', () => {
+    const n = newNight(seeded(13));
+    expect(lateNight(n)).toBe(0);
+    n.t = 900;
+    expect(lateNight(n)).toBe(5);
   });
 
   it('pays Souls for kills', () => {
