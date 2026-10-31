@@ -136,6 +136,9 @@ export interface Night {
   hp: number;
   maxHp: number;
   hurtUntil: number;
+  /** The dash: when it can be used again, and when the one under way ends (you can't be hit till then). */
+  dashReady: number;
+  dashUntil: number;
   level: number;
   xp: number;
   /** Levels waiting to be chosen. */
@@ -169,6 +172,8 @@ export function newNight(rand: () => number = Math.random): Night {
     hp: 20,
     maxHp: 20,
     hurtUntil: 0,
+    dashReady: 0,
+    dashUntil: 0,
     level: 1,
     xp: 0,
     pendingLevels: 0,
@@ -296,7 +301,7 @@ function hurtFoe(n: Night, f: Foe, amount: number) {
 
 /** You take a hit, unless you've just been hit. */
 function hurtYou(n: Night, dmg: number, from?: Foe) {
-  if (n.t < n.hurtUntil) return;
+  if (n.t < n.hurtUntil || n.t < n.dashUntil) return;
   n.hp -= dmg;
   n.hurtUntil = n.t + 0.75;
   if (from && lv(n, 'thorns')) hurtFoe(n, from, 5 * lv(n, 'thorns'));
@@ -393,6 +398,24 @@ function bossAttack(n: Night, f: Foe) {
   f.atkN++;
 }
 
+/** The dash: how long it lasts, how much faster than walking, and how long until the next. */
+export const DASH_TIME = 0.2;
+const DASH_BURST = 4.5;
+export const DASH_COOLDOWN = 2.5;
+
+/** Dash the way you're facing, if it's ready: a quick burst you can't be hurt during. */
+export function dash(n: Night, dx = 0, dy = 0): boolean {
+  if (n.over || n.pendingLevels > 0 || n.t < n.dashReady) return false;
+  const len = Math.hypot(dx, dy);
+  if (len > 0.1) {
+    n.fx = dx / len;
+    n.fy = dy / len;
+  }
+  n.dashUntil = n.t + DASH_TIME;
+  n.dashReady = n.t + DASH_COOLDOWN;
+  return true;
+}
+
 /** Advance the night by dt seconds, with (dx, dy) the direction held (any length; 0 to stand). */
 export function step(n: Night, dt: number, dx: number, dy: number) {
   if (n.over || n.pendingLevels > 0) return;
@@ -400,7 +423,12 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
 
   // ---- you ----
   const len = Math.hypot(dx, dy);
-  if (len > 0.1) {
+  if (n.t < n.dashUntil) {
+    // mid-dash: a burst the way you were facing, through anything
+    const sp = playerSpeed(n) * DASH_BURST * dt;
+    n.x = Math.max(0.5, Math.min(FIELD - 0.5, n.x + n.fx * sp));
+    n.y = Math.max(0.5, Math.min(FIELD - 0.5, n.y + n.fy * sp));
+  } else if (len > 0.1) {
     const sp = playerSpeed(n) * dt;
     n.x = Math.max(0.5, Math.min(FIELD - 0.5, n.x + (dx / len) * sp));
     n.y = Math.max(0.5, Math.min(FIELD - 0.5, n.y + (dy / len) * sp));

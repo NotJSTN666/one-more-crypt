@@ -9,7 +9,7 @@ import { heroSprite } from './hero';
 import { grave, groundFor, hash, paintGround, tree, type Px } from './hollow-art';
 import { graveState, meta, outfitFor, receiveGift, saveMeta } from './meta';
 import {
-  FIELD, MAX_LEVEL, area, spadeReach, NIGHT_RELIC, NIGHT_RELICS, chooseRelic, frostRadius, levelChoices, newNight, nextBossAt, nightSouls, skullCount, step, xpToLevel, type RelicKind,
+  DASH_COOLDOWN, FIELD, MAX_LEVEL, area, dash, spadeReach, NIGHT_RELIC, NIGHT_RELICS, chooseRelic, frostRadius, levelChoices, newNight, nextBossAt, nightSouls, skullCount, step, xpToLevel, type RelicKind,
 } from './nightshift';
 import { enemyFrames, type Sprite } from './sprites';
 import { esc, on, overlay, showOverlay, toast } from './ui';
@@ -89,10 +89,11 @@ export function showNightShift(back: () => void) {
       <div class="ns-stage" id="ns-stage">
         <canvas id="ns-canvas" aria-label="The graveyard at night, with the dead closing in"></canvas>
         <div class="ns-boss" id="ns-boss" hidden><span id="ns-boss-name"></span><i><b id="ns-boss-bar"></b></i></div>
-        <div class="ns-hint" id="ns-hint">${touch ? 'Use the stick to move.' : 'WASD or arrows to move.'} Your relics fight on their own. Put down as many as you can.</div>
+        <div class="ns-hint" id="ns-hint">${touch ? 'Use the stick to move, and 💨 to dash.' : 'WASD or arrows to move, Space to dash.'} Your relics fight on their own. Put down as many as you can.</div>
+        ${touch ? '' : dashButton('desk')}
         <div class="ns-modal" id="ns-modal" hidden></div>
       </div>
-      ${touch ? `<div class="ns-pad" id="ns-pad"><div class="ns-joy ${side}" id="ns-joy"><i id="ns-knob"></i></div></div>` : ''}
+      ${touch ? `<div class="ns-pad" id="ns-pad"><div class="ns-joy ${side}" id="ns-joy"><i id="ns-knob"></i></div>${dashButton(dashSide(side))}</div>` : ''}
     </div>`);
   const canvas = overlay.querySelector<HTMLCanvasElement>('#ns-canvas')!;
   const stage = overlay.querySelector<HTMLElement>('#ns-stage')!;
@@ -173,10 +174,19 @@ export function showNightShift(back: () => void) {
       e.preventDefault();
       return paused ? resume() : pause();
     }
+    if (e.key === ' ') {
+      e.preventDefault();
+      if (!e.repeat && !paused) doDash();
+      return;
+    }
     if (KEY_DIR[e.key]) {
       e.preventDefault();
       held.add(e.key);
     }
+  };
+  const doDash = () => {
+    const [dx, dy] = dir();
+    if (dash(n, dx, dy)) sfx.dash();
   };
   const onKeyUp = (e: KeyboardEvent) => held.delete(e.key);
   const onBlur = () => {
@@ -248,6 +258,13 @@ export function showNightShift(back: () => void) {
     el.addEventListener('pointerup', lift);
     el.addEventListener('pointercancel', lift);
   };
+  const dashBtn = overlay.querySelector<HTMLElement>('#ns-dash')!;
+  // The dash button takes its own touch, so pressing it never moves the stick.
+  dashBtn.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!paused && !choosing) doDash();
+  });
   grab(stage, false);
   if (pad) grab(pad, true);
 
@@ -281,6 +298,8 @@ export function showNightShift(back: () => void) {
         }
         joy?.classList.remove('left', 'middle', 'right');
         joy?.classList.add(s);
+        dashBtn.classList.remove('left', 'right');
+        dashBtn.classList.add(dashSide(s));
         modal.querySelectorAll('[data-side]').forEach((o) => o.classList.toggle('on', o === b));
       }),
     );
@@ -384,7 +403,15 @@ export function showNightShift(back: () => void) {
       .join('');
   }
   relicRow();
+  let dashShown = -1;
   function hud() {
+    const ready = Math.max(0, Math.min(1, 1 - (n.dashReady - n.t) / DASH_COOLDOWN));
+    const step10 = Math.round(ready * 40);
+    if (step10 !== dashShown) {
+      dashShown = step10;
+      dashBtn.style.setProperty('--cd', `${ready * 360}deg`);
+      dashBtn.classList.toggle('ready', ready >= 1);
+    }
     const key = `${Math.ceil(n.hp)}/${n.maxHp}|${Math.floor(n.t)}|${n.kills}|${n.level}|${n.xp}`;
     if (key === hudKey) return;
     hudKey = key;
@@ -417,7 +444,10 @@ export function showNightShift(back: () => void) {
   };
   let last = performance.now();
   let acc = 0;
-  let seen = { kills: 0, hp: n.hp, bosses: 0 };
+  let seen = { kills: 0, hp: n.hp, bosses: 0, felled: 0 };
+  // The bosses up last frame, so one that falls can be named; and when the last fell, for the flash.
+  let bossesUp: { id: number; kind: string }[] = [];
+  let felledAt = -10;
   const frame = (now: number) => {
     if (!canvas.isConnected) return cleanup();
     const dt = Math.min(0.1, (now - last) / 1000);
@@ -443,10 +473,17 @@ export function showNightShift(back: () => void) {
       const boss = [...n.foes].reverse().find((f) => f.boss);
       if (boss) toast(`☠️ ${BOSS_NAME[boss.kind]} rises`);
     }
+    if (n.bossKills > seen.felled) {
+      sfx.bossDown();
+      felledAt = n.t;
+      const fell = bossesUp.find((b) => !n.foes.some((f) => f.id === b.id));
+      toast(`🏆 ${fell ? BOSS_NAME[fell.kind] : 'The boss'} falls`);
+    }
+    bossesUp = n.foes.filter((f) => f.boss).map((f) => ({ id: f.id, kind: f.kind }));
     if (n.flashes.some((f) => f.kind === 'bolt' && n.t - f.at < dt)) play('zap', 200);
     if (n.flashes.some((f) => f.kind === 'ring' && n.t - f.at < dt)) play('block', 300);
     if (n.flashes.some((f) => f.kind === 'lane' && n.t - f.at < dt)) play('crit', 250);
-    seen = { kills: n.kills, hp: n.hp, bosses: n.bossesRisen };
+    seen = { kills: n.kills, hp: n.hp, bosses: n.bossesRisen, felled: n.bossKills };
     if (!ended) music();
     if (n.t > 6) $id('ns-hint').classList.add('gone');
     draw(now / 1000);
@@ -617,6 +654,17 @@ export function showNightShift(back: () => void) {
       }
     }
 
+    // a dash leaves a trail of fading afterimages
+    if (n.t < n.dashUntil) {
+      for (let k = 3; k >= 1; k--) {
+        ctx.globalAlpha = 0.18 * (4 - k);
+        const gx = Math.round(sx(n.x - n.fx * 0.45 * k) - 6);
+        const gy = Math.round(sy(n.y - n.fy * 0.45 * k) - 9);
+        ctx.drawImage(hero.white, gx, gy, 12, 12);
+      }
+      ctx.globalAlpha = 1;
+    }
+
     // you
     const hx = Math.round(sx(n.x) - 6);
     const hy = Math.round(sy(n.y) - 9);
@@ -726,6 +774,11 @@ export function showNightShift(back: () => void) {
     g.addColorStop(1, 'rgba(7, 4, 11, 0.6)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
+    // a flash of gold when a boss falls
+    if (n.t - felledAt < 0.5) {
+      ctx.fillStyle = `rgba(255, 220, 140, ${0.35 * (1 - (n.t - felledAt) / 0.5)})`;
+      ctx.fillRect(0, 0, W, H);
+    }
     // red at the edges when you're hurt
     if (n.t < n.hurtUntil) {
       ctx.fillStyle = 'rgba(200, 30, 40, 0.12)';
@@ -758,6 +811,13 @@ export function showNightShift(back: () => void) {
   }
 
   requestAnimationFrame(frame);
+}
+
+/** The dash goes on the other side from the joystick (on the right when the stick's in the middle). */
+const dashSide = (stick: StickSide): 'left' | 'right' => (stick === 'right' ? 'left' : 'right');
+
+function dashButton(side: 'left' | 'right' | 'desk'): string {
+  return `<button type="button" class="ns-dash ${side} ready" id="ns-dash" aria-label="Dash">💨<small>${side === 'desk' ? 'Space' : 'Dash'}</small></button>`;
 }
 
 function fmt(sec: number): string {

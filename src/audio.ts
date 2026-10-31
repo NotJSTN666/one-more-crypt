@@ -117,6 +117,19 @@ export const sfx = {
     tone(293, 0.9, 'sine', 0.04);
   },
   timestop: () => tone(1400, 0.5, 'sine', 0.06, 180),
+  /** A dash: a quick rush of air. */
+  dash: () => {
+    noise(0.16, 0.12, 2600);
+    tone(380, 0.16, 'sine', 0.05, 1100);
+  },
+  /** A boss falls: a deep crash and a falling groan, then a bright rising peal. */
+  bossDown: () => {
+    noise(0.9, 0.35, 700);
+    tone(110, 1.1, 'sawtooth', 0.13, 30);
+    tone(55, 1.4, 'sine', 0.2, 30);
+    [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, 0.6, 'triangle', 0.075, undefined, 0.35 + i * 0.08));
+    tone(1568, 1.2, 'sine', 0.04, undefined, 0.75);
+  },
 };
 
 // ---------- music ----------

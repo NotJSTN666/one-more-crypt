@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { cleanGraveState, newGraveState } from './graveshift';
-import { FIELD, FIRST_BOSS, MAX_LEVEL, chooseRelic, levelChoices, newNight, nightSouls, step, xpToLevel } from './nightshift';
+import { DASH_COOLDOWN, FIELD, FIRST_BOSS, dash, MAX_LEVEL, chooseRelic, levelChoices, newNight, nightSouls, step, xpToLevel } from './nightshift';
 
 /** A small fixed random source, so every run of a test is the same night. */
 function seeded(seed: number) {
@@ -104,6 +104,24 @@ describe('the Night Shift', () => {
       seen = n.lanes.length > 0 || n.shots.length > 0;
     }
     expect(seen).toBe(true);
+  });
+
+  it('dashes: a burst you cannot be hurt in, then a cooldown', () => {
+    const n = newNight(seeded(10));
+    const x = n.x;
+    expect(dash(n, 1, 0)).toBe(true);
+    for (let k = 0; k < 12; k++) step(n, 1 / 60, 0, 0);
+    expect(n.x - x).toBeGreaterThan(2);
+    expect(dash(n, 1, 0)).toBe(false);
+    n.t = n.dashReady - 0.01;
+    expect(dash(n)).toBe(false);
+    n.t += DASH_COOLDOWN;
+    expect(dash(n)).toBe(true);
+    // mid-dash, a bite does nothing
+    n.foes.push({ ...n.foes[0], id: 999, kind: 'ghoul', x: n.x, y: n.y, hp: 99, maxHp: 99, speed: 0, dmg: 5, r: 0.4, xp: 1, slowUntil: 0, skullAt: 0, kx: 0, ky: 0, hitAt: -1, boss: false, atkAt: 0, atkN: 0, tier: 0 });
+    const hp = n.hp;
+    step(n, 1 / 60, 0, 0);
+    expect(n.hp).toBe(hp);
   });
 
   it('pays Souls for kills', () => {

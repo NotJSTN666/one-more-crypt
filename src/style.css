@@ -4954,3 +4954,56 @@ body.tutorial #relic-bar {
   align-items: center;
   justify-content: center;
 }
+
+/* The dash: a round button that refills like a clock while it cools down. */
+.ns-dash {
+  --cd: 360deg;
+  position: absolute;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  width: 82px;
+  height: 82px;
+  padding: 0;
+  border: 2px solid rgba(160, 220, 255, 0.35);
+  border-radius: 50%;
+  background:
+    conic-gradient(rgba(140, 210, 255, 0.28) var(--cd), rgba(0, 0, 0, 0.45) var(--cd)),
+    rgba(20, 16, 30, 0.85);
+  color: #e8f4ff;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: none;
+  opacity: 0.7;
+  transition: opacity 0.15s, border-color 0.15s;
+}
+
+.ns-dash small {
+  margin-top: 3px;
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.ns-dash.ready {
+  opacity: 1;
+  border-color: rgba(170, 230, 255, 0.85);
+  box-shadow: 0 0 12px rgba(140, 210, 255, 0.35);
+}
+
+.ns-pad .ns-dash {
+  top: 50%;
+  margin-top: -41px;
+}
+
+.ns-pad .ns-dash.left { left: 34px; }
+.ns-pad .ns-dash.right { right: 34px; }
+
+.ns-dash.desk {
+  right: 12px;
+  bottom: 12px;
+  width: 64px;
+  height: 64px;
+  font-size: 20px;
+}
