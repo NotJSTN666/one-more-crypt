@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Game, H, REAPER_FLOOR, W, fullPool, type RunConfig } from './game';
+import { RELICS } from './relics';
 import type { HeroId } from './content';
 
 const config = (hero: HeroId, fair: boolean): RunConfig => ({ hero, pool: fullPool(), forge: true, mercy: true, depths: true, boons: true, reaper: true, deep: true, lurk: true, volley: true, ...(fair ? { fair } : {}) });
@@ -93,6 +94,35 @@ describe('the fairer rules (log version 18)', () => {
       g.player.hp = 10;
       inside(g).enterFloor(2);
       expect(g.player.hp).toBe(fair ? 14 : 11);
+    }
+  });
+});
+
+describe('the leaner deep gifts (log version 19)', () => {
+  /** A deep run that holds every relic, standing on a blood shrine. */
+  function onShrine(lean: boolean): Game {
+    const g = new Game('endless', 7, 0, { ...config('knight', true), ...(lean ? { lean } : {}) });
+    for (const r of RELICS) inside(g).relics[r.id] = r.maxStack;
+    g.feature = { x: g.player.x, y: g.player.y, kind: 'shrine', used: false };
+    g.phase = 'event';
+    return g;
+  }
+  const boonCount = (g: Game) => Object.values((g as unknown as { boons: Record<string, number> }).boons).reduce((a, b) => a + b, 0);
+
+  it('log as version 19 and replay with the same rules', () => {
+    const g = new Game('endless', 3, 0, { ...config('mage', true), lean: true });
+    expect(g.header()).toMatch(/^#19\|/);
+    expect(Game.parseLog(g.header() + 'W').config.lean).toBe(true);
+    expect(Game.parseLog('#18|mage||0|W').config.lean).toBeUndefined();
+  });
+
+  it('a blood shrine gives one Abyss boon, where it used to give two', () => {
+    for (const [lean, n] of [[true, 1], [false, 2]] as const) {
+      const g = onShrine(lean);
+      expect(g.outOfRelics()).toBe(true);
+      const before = boonCount(g);
+      g.resolveEvent(true);
+      expect(boonCount(g) - before).toBe(n);
     }
   });
 });

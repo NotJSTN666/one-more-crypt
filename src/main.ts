@@ -5,7 +5,7 @@ import { liveNews, unreadNews, type NewsGo } from './news';
 import { ELITES, FEATURES, HERO_BY_ID, dailyHero, hordeHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait, heroSprite } from './hero';
 import { BOON_BY_ID, ENEMY_INFO, MIST_BITE, REAPER_FLOOR, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode } from './game';
-import { acceptQuest, checkRun, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, finishHordeMeta, receiveGift, equipTitle, FAIR_DAILY, type RunReward } from './meta';
+import { acceptQuest, checkRun, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, finishHordeMeta, receiveGift, equipTitle, FAIR_DAILY, LEAN_DAILY, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
@@ -1785,7 +1785,7 @@ function showEvent() {
     kind === 'shrine' && !can
       ? 'You have too little life left to offer.'
       : game.outOfRelics() && kind === 'shrine'
-        ? 'No relics are left to find down here. The shrine gives two Abyss boons instead.'
+        ? `No relics are left to find down here. The shrine gives ${game.config.lean ? 'an Abyss boon' : 'two Abyss boons'} instead.`
         : game.outOfRelics() && kind === 'chest'
           ? `No relics are left to find down here. It holds ${game.r('key') ? 'two Abyss boons, and your Skeleton Key opens it cleanly' : 'an Abyss boon'} instead.`
           : kind === 'chest' && game.r('key')
@@ -2934,7 +2934,7 @@ function startHorde() {
   challenge = null;
   storyRun = null;
   raidRun = null;
-  showGame(new Game('horde', hashSeed('horde', n), n, { hero: hordeHero(n), pool: fullPool(), mercy: true, boons: true, surge: true, waves: true, magnet: true, armory: true, arsenal: true, volley: true, ...(n >= FAIR_DAILY ? { fair: true } : {}) }));
+  showGame(new Game('horde', hashSeed('horde', n), n, { hero: hordeHero(n), pool: fullPool(), mercy: true, boons: true, surge: true, waves: true, magnet: true, armory: true, arsenal: true, volley: true, ...(n >= FAIR_DAILY ? { fair: true } : {}), ...(n >= LEAN_DAILY ? { lean: true } : {}) }));
   startClock();
   setMusicDepth(1);
   setMusicMood('crypt');
@@ -3705,6 +3705,7 @@ function startStory(q: Quest, ghost: GhostInfo | null) {
     mercy: true,
     volley: true,
     fair: true,
+    lean: true,
     story: {
       start: d.floors[0],
       end: d.floors[1],

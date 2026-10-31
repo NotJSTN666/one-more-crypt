@@ -245,6 +245,8 @@ export interface RunConfig {
    * Mage's bonus grows with their attack, and the Knight's Second Wind heals a tenth of max HP.
    */
   fair?: boolean;
+  /** Once the relics run out, a blood shrine or a hidden vault gives one Abyss boon instead of two (log version 19 and later). */
+  lean?: boolean;
 }
 
 /** Something the Grave Magnet pulled, and where from. */
@@ -384,6 +386,8 @@ const ARSENAL_LOG_VERSION = 16;
 const VOLLEY_LOG_VERSION = 17;
 /** Adds the fairer rules: see RunConfig.fair. */
 const FAIR_LOG_VERSION = 18;
+/** Adds the leaner deep gifts: see RunConfig.lean. */
+const LEAN_LOG_VERSION = 19;
 export const REAPER_FLOOR = 150;
 
 // ---------- Horde ----------
@@ -652,6 +656,7 @@ export class Game {
   header(): string {
     const unlocked = UNLOCKABLE_RELICS.filter((id) => this.config.pool.includes(id));
     // Pools without any post-launch relic are logged as version 2 so they replay with the launch set.
+    if (this.config.lean) return `#${LEAN_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.fair) return `#${FAIR_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.volley) return `#${VOLLEY_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.arsenal) return `#${ARSENAL_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
@@ -993,8 +998,8 @@ export class Game {
     const rng = mulberry32(hashSeed(this.seed, 'vault', this.floor));
     const relic = this.randomRelic(rng, (r) => r.rarity === 'rare') ?? this.randomRelic(rng, (r) => r.rarity === 'common');
     if (relic) this.addRelic(relic.id);
-    // No relics left to find: the vault holds two boons instead.
-    else if (this.config.deep) this.giveBoons(rng, 2);
+    // No relics left to find: the vault holds boons instead (one with the leaner rules, two before).
+    else if (this.config.deep) this.giveBoons(rng, this.config.lean ? 1 : 2);
     this.heal(POTION_HEAL);
     this.stats.vaults++;
   }
@@ -1521,7 +1526,7 @@ export class Game {
         this.changeMaxHp(-3);
         const gift = this.randomRelic(rng, (r) => r.rarity === 'rare') ?? this.randomRelic(rng, () => true);
         if (gift) this.addRelic(gift.id);
-        else if (this.config.deep) this.giveBoons(rng, 2);
+        else if (this.config.deep) this.giveBoons(rng, this.config.lean ? 1 : 2);
       } else if (f.kind === 'chest') {
         if (!this.r('key')) {
           const cut = Math.min(2, this.player.hp - 1);
@@ -2645,7 +2650,8 @@ export class Game {
     const arsenal = horde && Number(m[1]) >= ARSENAL_LOG_VERSION;
     const volley = Number(m[1]) >= VOLLEY_LOG_VERSION;
     const fair = Number(m[1]) >= FAIR_LOG_VERSION;
-    const config: RunConfig = { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy, ...(depths ? { depths } : {}), ...(boons ? { boons } : {}), ...(reaper ? { reaper } : {}), ...(deep ? { deep } : {}), ...(lurk ? { lurk } : {}), ...(surge ? { surge } : {}), ...(waves ? { waves } : {}), ...(magnet ? { magnet } : {}), ...(armory ? { armory } : {}), ...(arsenal ? { arsenal } : {}), ...(volley ? { volley } : {}), ...(fair ? { fair } : {}) };
+    const lean = Number(m[1]) >= LEAN_LOG_VERSION;
+    const config: RunConfig = { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy, ...(depths ? { depths } : {}), ...(boons ? { boons } : {}), ...(reaper ? { reaper } : {}), ...(deep ? { deep } : {}), ...(lurk ? { lurk } : {}), ...(surge ? { surge } : {}), ...(waves ? { waves } : {}), ...(magnet ? { magnet } : {}), ...(armory ? { armory } : {}), ...(arsenal ? { arsenal } : {}), ...(volley ? { volley } : {}), ...(fair ? { fair } : {}), ...(lean ? { lean } : {}) };
     let rest = full.slice(m[0].length);
     // Version 7 adds one field: the isle's extra max HP.
     const isle = Number(m[1]) >= ISLE_LOG_VERSION ? /^(\d+)\|/.exec(rest) : null;
