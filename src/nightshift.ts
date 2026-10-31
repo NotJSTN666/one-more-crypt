@@ -400,9 +400,11 @@ function bossAttack(n: Night, f: Foe) {
     n.lanes.push({ x: f.x, y: f.y, ang: aim, len, w: f.r, at: n.t + (k === 0 ? 1.3 : 0.9), dmg: f.dmg + 1, charge: f.id });
     f.atkAt = n.t + (k === 0 ? 5 : Math.max(2.6, 4 - 0.15 * k));
   } else if (f.kind === 'abbot') {
-    if (f.atkN % 3 === 2) volley(n, f, bolt, 16 + 2 * k, 3.6, null);
-    else volley(n, f, bolt, 5, 4.5, aim, 0.7);
-    f.atkAt = n.t + Math.max(1.3, 2.2 - 0.1 * k);
+    // Spaced so there's always room to slip between the bolts: a ring with gaps wider than you,
+    // and a fan spread wide enough to step into one of its gaps.
+    if (f.atkN % 3 === 2) volley(n, f, bolt, 11 + k, 3.1, null);
+    else volley(n, f, bolt, 5, 3.8, aim, 1.4);
+    f.atkAt = n.t + Math.max(1.5, 2.6 - 0.1 * k);
   } else {
     if (f.atkN % 4 === 3) {
       // a spiral, poured out over two seconds
