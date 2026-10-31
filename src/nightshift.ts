@@ -99,7 +99,7 @@ export const NIGHT_RELICS: NightRelic[] = [
   { id: 'hourglass', name: 'Stopped Hourglass', emoji: '⏳', weapon: false, text: () => 'Weapons come round 8% sooner.' },
   { id: 'moss', name: 'Grave Moss', emoji: '🍄', weapon: false, text: () => 'Slowly heal over time.' },
   { id: 'thorns', name: 'Thorn Mail', emoji: '🌵', weapon: false, text: () => 'Whatever bites you gets hurt back.' },
-  { id: 'lens', name: "Seer's Lens", emoji: '🔮', weapon: false, text: () => 'Swings, rings, flames and spikes reach 12% further.' },
+  { id: 'lens', name: "Seer's Lens", emoji: '🔮', weapon: false, text: () => 'A violet ring round you: your spade, bell, frost, flames and spikes all reach 15% further.' },
   { id: 'coin', name: "Reaper's Coin", emoji: '🪙', weapon: false, text: () => 'Souls count 15% more.' },
 ];
 export const NIGHT_RELIC = Object.fromEntries(NIGHT_RELICS.map((r) => [r.id, r])) as Record<RelicKind, NightRelic>;
@@ -194,7 +194,10 @@ const lv = (n: Night, r: RelicKind) => n.relics[r] ?? 0;
 export const xpToLevel = (level: number) => 2 + level * 2 + Math.floor((level * level) / 10);
 const dmgMul = (n: Night) => 1 + 0.12 * lv(n, 'whetstone');
 const cdMul = (n: Night) => 1 - 0.08 * lv(n, 'hourglass');
-const area = (n: Night) => 1 + 0.12 * lv(n, 'lens');
+/** How far the Seer's Lens stretches every area weapon. */
+export const area = (n: Night) => 1 + 0.15 * lv(n, 'lens');
+/** How far the spade's swing reaches. */
+export const spadeReach = (n: Night) => (1.5 + 0.2 * lv(n, 'spade')) * area(n);
 export const pickupRadius = (n: Night) => 1.3 + 1.2 * lv(n, 'magnet');
 export const playerSpeed = (n: Night) => 4 * (1 + 0.08 * lv(n, 'boots'));
 export const skullCount = (n: Night) => (lv(n, 'skulls') ? 1 + lv(n, 'skulls') : 0);
@@ -445,7 +448,7 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
 
   // The spade: an arc toward the nearest foe in reach (or the way you're going).
   if (ready('spade', Math.max(0.4, 1.0 - 0.12 * L('spade')))) {
-    const reach = (1.5 + 0.2 * L('spade')) * area(n);
+    const reach = spadeReach(n);
     const half = ((55 + 10 * L('spade')) * Math.PI) / 180;
     const target = nearest(n, reach + 1.5);
     const facing = target ? Math.atan2(target.y - n.y, target.x - n.x) : Math.atan2(n.fy, n.fx);

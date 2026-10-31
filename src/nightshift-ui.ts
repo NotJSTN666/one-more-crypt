@@ -9,7 +9,7 @@ import { heroSprite } from './hero';
 import { grave, groundFor, hash, paintGround, tree, type Px } from './hollow-art';
 import { graveState, meta, outfitFor, receiveGift, saveMeta } from './meta';
 import {
-  FIELD, MAX_LEVEL, NIGHT_RELIC, NIGHT_RELICS, chooseRelic, frostRadius, levelChoices, newNight, nextBossAt, nightSouls, skullCount, step, xpToLevel, type RelicKind,
+  FIELD, MAX_LEVEL, area, spadeReach, NIGHT_RELIC, NIGHT_RELICS, chooseRelic, frostRadius, levelChoices, newNight, nextBossAt, nightSouls, skullCount, step, xpToLevel, type RelicKind,
 } from './nightshift';
 import { enemyFrames, type Sprite } from './sprites';
 import { esc, on, overlay, showOverlay, toast } from './ui';
@@ -499,6 +499,28 @@ export function showNightShift(back: () => void) {
       }
     }
 
+    // the Seer's Lens: a violet ring of runes at the spade's reach, growing with each level
+    if (n.relics.lens) {
+      const r = spadeReach(n) * TILE;
+      const cx = sx(n.x);
+      const cy = sy(n.y);
+      ctx.strokeStyle = `rgba(190, 140, 255, ${0.25 + 0.1 * Math.sin(t * 2)})`;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 4]);
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, t * 0.4, t * 0.4 + Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      const runes = 4 + 2 * (n.relics.lens ?? 0);
+      for (let k = 0; k < runes; k++) {
+        const a = -t * 0.7 + (k / runes) * Math.PI * 2;
+        const x = Math.round(cx + Math.cos(a) * r);
+        const y = Math.round(cy + Math.sin(a) * r);
+        px(x - 1, y - 1, 3, 3, 'rgba(200, 160, 255, 0.35)');
+        px(x, y, 1, 1, '#e6d4ff');
+      }
+    }
+
     // the bosses' lanes, marked on the ground before they strike
     for (const l of n.lanes) {
       const left = Math.max(0, l.at - n.t);
@@ -635,11 +657,12 @@ export function showNightShift(back: () => void) {
     }
 
     // swings, strikes, tolls, spikes, beams and bursting lanes
+    const lensed = area(n) > 1;
     for (const fl of n.flashes) {
       const age = (n.t - fl.at) / 0.4;
       ctx.globalAlpha = Math.max(0, 1 - age);
       if (fl.kind === 'swing') {
-        ctx.strokeStyle = '#f4e9c8';
+        ctx.strokeStyle = lensed ? '#e2ccff' : '#f4e9c8';
         ctx.lineWidth = 2.5;
         ctx.beginPath();
         ctx.arc(sx(fl.x), sy(fl.y), (fl.r ?? 1.5) * TILE * (0.7 + 0.3 * age), (fl.ang ?? 0) - 1, (fl.ang ?? 0) + 1);
@@ -660,7 +683,7 @@ export function showNightShift(back: () => void) {
         ctx.stroke();
         px(sx(fl.x) - 3, sy(fl.y) - 3, 6, 6, 'rgba(220, 240, 255, 0.6)');
       } else if (fl.kind === 'ring') {
-        ctx.strokeStyle = '#f2c14e';
+        ctx.strokeStyle = lensed ? '#d9b8ff' : '#f2c14e';
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.arc(sx(fl.x), sy(fl.y), (fl.r ?? 2) * TILE * (0.3 + 0.7 * age), 0, Math.PI * 2);
