@@ -1,26 +1,30 @@
 import { describe, expect, it } from 'vitest';
-import { NEWS, liveNews, unreadNews, type NewsItem } from './news';
+import { NEWS, liveNews, unreadNews, type NewsDay } from './news';
 
-const item = (id: string, date: string): NewsItem => ({ id, date, emoji: '✨', title: id, lines: ['x'] });
+const day = (date: string): NewsDay => ({ date, title: date, new: ['✨ x'] });
 
 describe("What's new", () => {
-  it('has unique ids and real dates', () => {
-    expect(new Set(NEWS.map((n) => n.id)).size).toBe(NEWS.length);
-    for (const n of NEWS) expect(n.date, n.id).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  it('has one entry per day, each with a real date, a title and something in it', () => {
+    expect(new Set(NEWS.map((n) => n.date)).size).toBe(NEWS.length);
+    for (const n of NEWS) {
+      expect(n.date, n.title).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(n.title.length, n.date).toBeGreaterThan(0);
+      expect((n.new?.length ?? 0) + (n.changes?.length ?? 0) + (n.fixes?.length ?? 0), n.date).toBeGreaterThan(0);
+    }
   });
 
-  it('shows entries only from their day, newest first', () => {
-    const all = [item('a', '2026-10-26'), item('c', '2026-11-01'), item('b', '2026-10-30')];
-    expect(liveNews('2026-10-30', all).map((n) => n.id)).toEqual(['b', 'a']);
-    expect(liveNews('2026-11-01', all).map((n) => n.id)).toEqual(['c', 'b', 'a']);
+  it('shows days only from their date, newest first', () => {
+    const all = [day('2026-10-26'), day('2026-11-01'), day('2026-10-30')];
+    expect(liveNews('2026-10-30', all).map((n) => n.date)).toEqual(['2026-10-30', '2026-10-26']);
+    expect(liveNews('2026-11-01', all).map((n) => n.date)).toEqual(['2026-11-01', '2026-10-30', '2026-10-26']);
   });
 
-  it('counts what is newer than the last one read', () => {
-    const all = [item('a', '2026-10-26'), item('b', '2026-10-29'), item('c', '2026-10-30')];
+  it('counts the days newer than the last one read', () => {
+    const all = [day('2026-10-26'), day('2026-10-29'), day('2026-10-30')];
     expect(unreadNews('2026-10-30', null, all)).toBe(3);
-    expect(unreadNews('2026-10-30', 'b', all)).toBe(1);
-    expect(unreadNews('2026-10-30', 'c', all)).toBe(0);
-    // An entry that isn't live yet doesn't light the dot.
-    expect(unreadNews('2026-10-29', 'b', all)).toBe(0);
+    expect(unreadNews('2026-10-30', '2026-10-29', all)).toBe(1);
+    expect(unreadNews('2026-10-30', '2026-10-30', all)).toBe(0);
+    // A day that isn't live yet doesn't light the dot.
+    expect(unreadNews('2026-10-29', '2026-10-29', all)).toBe(0);
   });
 });

@@ -764,7 +764,8 @@ document.addEventListener('click', (e) => {
 
 // ---------- what's new ----------
 
-const NEWS_READ_KEY = 'omc:news-read';
+// The date of the newest day of notes this player has opened.
+const NEWS_READ_KEY = 'omc:news-read-day';
 
 function newsRead(): string | null {
   try {
@@ -794,32 +795,29 @@ const NEWS_GO: Record<NewsGo, string> = {
   wardrobe: '👘 Wardrobe', endless: '♾️ Play Endless', daily: "📅 Today's crypt",
 };
 
-/** What's new: every update so far, newest first, grouped by day. Opening it marks them read. */
+/** What's new: patch notes for every day of updates, newest first. Opening it marks them read. */
 function showWhatsNew(back: () => void) {
   const live = liveNews(centralDate());
   const unread = newsUnread();
-  let day = '';
-  const items = live.map((n, i) => {
-    const head = n.date !== day ? `<h3 class="news-day">${esc(newsDay(n.date))}</h3>` : '';
-    day = n.date;
-    return `${head}<article class="news-item${i < unread ? ' unread' : ''}">
-        <div class="news-emoji" aria-hidden="true">${n.emoji}</div>
-        <div class="news-body">
-          <h4>${esc(n.title)}${i < unread ? ' <span class="news-new">NEW</span>' : ''}</h4>
-          ${n.lines.map((l) => `<p>${esc(l)}</p>`).join('')}
-          ${n.go ? `<button class="btn news-go" data-go="${n.go}">${NEWS_GO[n.go]}</button>` : ''}
-        </div>
-      </article>`;
-  }).join('');
+  const section = (kind: string, label: string, lines: string[] | undefined) =>
+    lines?.length ? `<p class="news-kind ${kind}">${label}</p><ul class="news-list-notes">${lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>` : '';
+  const days = live.map((d, i) => `
+      <section class="news-update${i < unread ? ' unread' : ''}">
+        <h3>${esc(d.title)}${i < unread ? ' <span class="news-new">NEW</span>' : ''}</h3>
+        <p class="news-date">${esc(newsDay(d.date))}</p>
+        ${section('new', 'New', d.new)}
+        ${section('changes', 'Changes', d.changes)}
+        ${section('fixes', 'Fixes', d.fixes)}
+        ${d.go?.length ? `<div class="news-gos">${d.go.map((g) => `<button class="btn news-go" data-go="${g}">${NEWS_GO[g]}</button>`).join('')}</div>` : ''}
+      </section>`).join('');
   showOverlay('whats-new', `
     <h2>📰 What's new</h2>
-    <p class="sub">Every update to the crypt, newest first.</p>
-    <div class="news-feed">${items || '<p class="fine">Nothing yet.</p>'}</div>
+    <div class="news-feed">${days || '<p class="fine">Nothing yet.</p>'}</div>
     <p class="fine">Talk about it, report bugs and suggest ideas in the <a href="${DISCORD_URL}" target="_blank" rel="noopener">Discord</a> 💬</p>
     <button class="btn primary" id="back">Back</button>`);
   if (live[0]) {
     try {
-      localStorage.setItem(NEWS_READ_KEY, live[0].id);
+      localStorage.setItem(NEWS_READ_KEY, live[0].date);
     } catch {
       // Private mode: the dot may show again, which is harmless.
     }
