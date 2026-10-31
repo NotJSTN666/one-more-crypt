@@ -15,7 +15,9 @@ import {
   endlessWeekPlace,
   dailyBoard,
   hordeBoard,
+  nightBoard,
   type HordeRow,
+  type NightRow,
   endlessBoard,
   type EndlessPeriod,
   linkEmail,
@@ -819,7 +821,7 @@ function statGrid(s: Stats): string {
 
 // ---------- leaderboards ----------
 
-type Tab = 'today' | 'yesterday' | 'endless' | 'horde';
+type Tab = 'today' | 'yesterday' | 'endless' | 'horde' | 'night';
 
 /** Rows shown at first, and after tapping Show more. */
 const BOARD_FIRST = 25;
@@ -838,6 +840,7 @@ export function showLeaderboard(back: () => void, tab: Tab = 'today', limit = BO
     ['yesterday', `#${today - 1}`],
     ['endless', 'Endless'],
     ['horde', '🛡️ Horde'],
+    ['night', '🌙 Night'],
   ];
   showOverlay('board', `
     <button class="back-top" id="back-top" aria-label="Back">← Back</button>
@@ -849,13 +852,13 @@ export function showLeaderboard(back: () => void, tab: Tab = 'today', limit = BO
         .join('')}
     </div>
     ${
-      tab === 'endless'
-        ? `<div class="subtabs" role="tablist" aria-label="Endless period">${PERIODS.map(
+      tab === 'endless' || tab === 'night'
+        ? `<div class="subtabs" role="tablist" aria-label="Period">${PERIODS.filter(([p]) => tab === 'endless' || p !== 'day').map(
             ([p, label]) => `<button role="tab" data-period="${p}" aria-selected="${p === period}">${label}</button>`,
           ).join('')}</div>`
         : ''
     }
-    <p class="fine">${tab === 'horde' ? `Today's Horde #${today}: everyone's best score. ` : ''}${tab === 'endless' && period !== 'all' ? `Best endless run ${period === 'week' ? 'since Monday' : 'since midnight'} (Central Time). ` : ''}Tap a name to visit their Crypt Hall.</p>
+    <p class="fine">${tab === 'horde' ? `Today's Horde #${today}: everyone's best score. ` : ''}${tab === 'night' ? `The Night Shift: everyone's best night, by how many they put down${period === 'week' ? ', since Monday (Central Time)' : ''}. ` : ''}${tab === 'endless' && period !== 'all' ? `Best endless run ${period === 'week' ? 'since Monday' : 'since midnight'} (Central Time). ` : ''}Tap a name to visit their Crypt Hall.</p>
     <div id="board-body" class="board"><p class="sub">Summoning the dead…</p></div>
     ${signedIn() && !unclaimed() ? '' : `<button class="btn" id="join">${unclaimed() ? `Claim your name<small>You're on the boards as ${esc(playerName())}</small>` : 'Claim a name to join'}</button>`}
     <button class="btn primary" id="back">Back</button>`);
@@ -863,13 +866,30 @@ export function showLeaderboard(back: () => void, tab: Tab = 'today', limit = BO
     b.addEventListener('click', () => showLeaderboard(back, b.dataset.tab as Tab)),
   );
   document.querySelectorAll<HTMLButtonElement>('.subtabs button').forEach((b) =>
-    b.addEventListener('click', () => showLeaderboard(back, 'endless', BOARD_FIRST, b.dataset.period as EndlessPeriod)),
+    b.addEventListener('click', () => showLeaderboard(back, tab === 'night' ? 'night' : 'endless', BOARD_FIRST, b.dataset.period as EndlessPeriod)),
   );
   on('#back', back);
   on('#back-top', back);
   on('#join', () => showLogin(() => showLeaderboard(back, tab, BOARD_FIRST, period)));
 
   const uid = session.account?.id ?? null;
+  if (tab === 'night') {
+    const p = period === 'week' ? 'week' : 'all';
+    void nightBoard(p)
+      .then((rows) => {
+        const body = document.getElementById('board-body');
+        if (screen !== 'board' || !body) return;
+        body.innerHTML = nightBoardHtml(rows ?? [], p);
+        body.querySelectorAll<HTMLElement>('[data-hall]').forEach((li) =>
+          li.addEventListener('click', () => showPublicHall(li.dataset.hall!, () => showLeaderboard(back, 'night', BOARD_FIRST, p))),
+        );
+      })
+      .catch(() => {
+        const body = document.getElementById('board-body');
+        if (body) body.innerHTML = '<p class="sub">Could not reach the board. Try again in a moment.</p>';
+      });
+    return;
+  }
   if (tab === 'horde') {
     void hordeBoard(today)
       .then((rows) => {
@@ -945,6 +965,28 @@ function hordeBoardHtml(rows: HordeRow[]): string {
           <img class="board-hero ${aura.cls}" style="${aura.style}" src="${boardPortrait({ hero, outfit_look: r.outfit_look, outfit_head: r.outfit_head })}" alt="" width="24" height="24" />
           <span class="who"><span style="color:${rankFor(Number(r.earned) || 0).color}">${esc(r.name)}</span>${title ? ` <em class="title-tag ${titleFxClass(r.title)}">${esc(title)}</em>` : ''}<small>${esc(HERO_BY_ID[hero].name)}</small></span>
           <span class="depth">${r.score.toLocaleString()}<small>wave ${r.wave} · ${r.kills} kills</small></span>
+        </li>`;
+      })
+      .join('')}</ol>`;
+}
+
+/** The Night Shift: each player's best night, most put down first. */
+function nightBoardHtml(rows: NightRow[], period: 'all' | 'week'): string {
+  if (!rows.length) return `<p class="sub">Nobody has stood the Night Shift ${period === 'week' ? 'this week' : 'yet'}. Be the first.</p>`;
+  const me = playerName();
+  const time = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  return `
+    <p class="sub">${rows.length} ${rows.length === 1 ? 'watcher' : 'watchers'} on the board</p>
+    <ol>${rows
+      .map((r, i) => {
+        const hero = (HERO_BY_ID[r.hero as HeroId] ? r.hero : 'knight') as HeroId;
+        const aura = auraClass(r.outfit_aura);
+        const title = titleName(r.title);
+        return `<li class="${r.name === me ? 'me' : ''}" data-hall="${esc(r.name)}" tabindex="0" title="Visit ${esc(r.name)}'s Hall">
+          <span class="rank">${i < 3 ? ['🥇', '🥈', '🥉'][i] : `#${i + 1}`}</span>
+          <img class="board-hero ${aura.cls}" style="${aura.style}" src="${boardPortrait({ hero, outfit_look: r.outfit_look, outfit_head: r.outfit_head })}" alt="" width="24" height="24" />
+          <span class="who"><span style="color:${rankFor(Number(r.earned) || 0).color}">${esc(r.name)}</span>${title ? ` <em class="title-tag ${titleFxClass(r.title)}">${esc(title)}</em>` : ''}<small>${esc(HERO_BY_ID[hero].name)}</small></span>
+          <span class="depth">💀 ${r.kills.toLocaleString()}<small>${time(r.seconds)} · level ${r.level}</small></span>
         </li>`;
       })
       .join('')}</ol>`;

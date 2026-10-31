@@ -737,3 +737,16 @@ revoke all on function public.submit_horde(int, int, int, int, text, text) from 
 revoke all on function public.horde_board(int) from public;
 grant execute on function public.submit_horde(int, int, int, int, text, text) to authenticated;
 grant execute on function public.horde_board(int) to anon, authenticated;
+
+-- ---------- The Night Shift ----------
+-- A survival mode: each run's kills, how long it lasted and the level reached. The board is
+-- each player's best night by kills, all time or since Monday (Central Time).
+create table if not exists public.night_runs (id bigserial primary key, user_id uuid not null references public.profiles(id) on delete cascade, kills int not null, seconds int not null, level int not null, hero text not null, created_at timestamptz not null default now());
+create index if not exists night_runs_kills on public.night_runs (kills desc);
+alter table public.night_runs enable row level security;
+create or replace function public.submit_night(p_kills int, p_seconds int, p_level int, p_hero text) returns json language plpgsql security definer set search_path = public as $$ declare v_best int; v_rank int; begin if auth.uid() is null or not exists(select 1 from profiles where id = auth.uid() and name is not null) then raise exception 'Sign in first.'; end if; if p_kills < 0 or p_kills > 100000 or p_seconds < 0 or p_seconds > 36000 or p_level < 1 or p_level > 1000 or p_kills > (p_seconds + 1) * 40 then raise exception 'Bad run.'; end if; insert into night_runs (user_id, kills, seconds, level, hero) values (auth.uid(), p_kills, p_seconds, p_level, left(coalesce(p_hero, ''), 16)); select max(kills) into v_best from night_runs where user_id = auth.uid(); select 1 + count(*) into v_rank from (select user_id, max(kills) as k from night_runs group by user_id) b where b.k > v_best; return json_build_object('rank', v_rank, 'best', v_best); end $$;
+create or replace function public.night_board(p_period text) returns json language sql stable security definer set search_path = public as $$ select coalesce(json_agg(row_to_json(t)), '[]'::json) from (select * from (select distinct on (r.user_id) p.name, r.kills, r.seconds, r.level, r.hero, left(coalesce(p.meta->'outfits'->r.hero->>'look', p.meta->>'look'), 24) as outfit_look, left(p.meta->'outfits'->r.hero->>'head', 24) as outfit_head, left(p.meta->'outfits'->r.hero->>'aura', 24) as outfit_aura, left(p.meta->>'title', 40) as title, case when jsonb_typeof(p.meta->'earned') = 'number' then least(greatest((p.meta->>'earned')::numeric, 0), 1000000000)::bigint else 0 end as earned from night_runs r join profiles p on p.id = r.user_id where r.created_at >= case when p_period = 'week' then date_trunc('week', now() at time zone 'America/Chicago') at time zone 'America/Chicago' else '-infinity'::timestamptz end order by r.user_id, r.kills desc, r.created_at) b order by b.kills desc limit 50) t $$;
+revoke all on function public.submit_night(int, int, int, text) from public;
+revoke all on function public.night_board(text) from public;
+grant execute on function public.submit_night(int, int, int, text) to authenticated;
+grant execute on function public.night_board(text) to anon, authenticated;

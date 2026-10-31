@@ -11,6 +11,8 @@ import { graveState, meta, outfitFor, receiveGift, saveMeta } from './meta';
 import {
   DASH_COOLDOWN, FIELD, MAX_LEVEL, area, dash, spadeReach, NIGHT_RELIC, NIGHT_RELICS, chooseRelic, frostRadius, levelChoices, newNight, nextBossAt, nightSouls, skullCount, step, xpToLevel, type RelicKind,
 } from './nightshift';
+import { ONLINE, nightBoard, submitNight } from './online';
+import { claimInlineHtml, ensureGuest, playerName, showLeaderboard, signedIn, unclaimed, wireClaimInline } from './social';
 import { enemyFrames, type Sprite } from './sprites';
 import { esc, on, overlay, showOverlay, toast } from './ui';
 
@@ -413,11 +415,34 @@ export function showNightShift(back: () => void) {
         ${title ? '<p class="fine">🏅 New title: <b>The Unsleeping</b></p>' : ''}
         <p class="fine">Best: ${s.nightKills} put down · longest night ${fmt(s.nightBest)} · ${s.nights} night${s.nights === 1 ? '' : 's'} stood</p>
         <button class="btn primary" id="ns-again">🌙 Stand another night</button>
+        ${ONLINE ? `<h3 class="shop-head">This week's Night Shift</h3><p class="fine" id="ns-rank">Posting your night…</p><ol class="raid-top" id="ns-board"><li class="fine">Loading…</li></ol><button class="btn" id="ns-boards">🏆 All Night Shift boards</button>` : ''}
+        ${ONLINE && (!signedIn() || unclaimed()) ? claimInlineHtml(`You're on the Night Shift board as ${unclaimed() ? esc(playerName()) : 'a guest'}. Type a name and your nights show under it.`) : ''}
         <button class="btn" id="back">← Back</button>`);
       on('#ns-again', () => showNightShift(back));
       on('#back', back);
+      on('#ns-boards', () => showLeaderboard(back, 'night', 25, 'week'));
+      wireClaimInline(() => {
+        document.getElementById('claim-form')?.remove();
+        if (ONLINE) void loadBoard(false);
+      }, () => showLeaderboard(back, 'night', 25, 'week'));
+      if (ONLINE) void loadBoard(n.kills > 0);
       if (title) toast('🏅 Title unlocked: The Unsleeping');
     }, 1200);
+  }
+
+  /** Post the night (players without a name go on as a guest they can claim later), then show this week's top ten. */
+  async function loadBoard(post: boolean) {
+    const rank = document.getElementById('ns-rank');
+    if (post && (signedIn() || (await ensureGuest()))) {
+      const posted = await submitNight({ kills: n.kills, seconds: Math.floor(n.t), level: n.level, hero: meta.hero }).catch(() => null);
+      if (rank?.isConnected) rank.textContent = posted ? `Your best night is #${posted.rank} of all time.` : 'Could not post your night. Your best is saved here.';
+    } else if (rank) rank.textContent = 'Your best night counts.';
+    const rows = await nightBoard('week').catch(() => null);
+    const list = document.getElementById('ns-board');
+    if (!list) return;
+    list.innerHTML = rows?.length
+      ? rows.slice(0, 10).map((r, i) => `<li><span>${['🥇', '🥈', '🥉'][i] ?? `${i + 1}.`} ${esc(r.name)} <small>${fmt(r.seconds)} · lv ${r.level}</small></span><b>💀 ${r.kills.toLocaleString()}</b></li>`).join('')
+      : '<li class="fine">No one on the board yet this week. Be the first.</li>';
   }
 
   // ---- the HUD ----

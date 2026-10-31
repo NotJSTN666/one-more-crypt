@@ -764,3 +764,46 @@ export async function hordeBoard(dailyNo: number): Promise<HordeRow[] | null> {
     earned: Math.max(0, Math.floor(Number(r.earned) || 0)),
   }));
 }
+
+// ---------- The Night Shift ----------
+
+export interface NightRow {
+  name: string;
+  kills: number;
+  seconds: number;
+  level: number;
+  hero: string;
+  outfit_look?: string | null;
+  outfit_head?: string | null;
+  outfit_aura?: string | null;
+  title?: string | null;
+  earned?: number | null;
+}
+
+/** Post a night to the board. Returns your place (your best night counts), or null if it couldn't be posted. */
+export async function submitNight(run: { kills: number; seconds: number; level: number; hero: string }): Promise<{ rank: number; best: number } | null> {
+  const sb = await client();
+  const { data, error } = await sb.rpc('submit_night', { p_kills: run.kills, p_seconds: run.seconds, p_level: run.level, p_hero: run.hero });
+  if (error || !data) return null;
+  const d = data as Record<string, unknown>;
+  return { rank: Math.max(0, Math.floor(Number(d.rank) || 0)), best: Math.max(0, Math.floor(Number(d.best) || 0)) };
+}
+
+/** The Night Shift board: each player's best night by kills, all time or this week. */
+export async function nightBoard(period: 'all' | 'week'): Promise<NightRow[] | null> {
+  const sb = await client();
+  const { data, error } = await sb.rpc('night_board', { p_period: period });
+  if (error) return null;
+  return (Array.isArray(data) ? data : []).map((r: Record<string, unknown>) => ({
+    name: String(r.name ?? ''),
+    kills: Math.max(0, Math.floor(Number(r.kills) || 0)),
+    seconds: Math.max(0, Math.floor(Number(r.seconds) || 0)),
+    level: Math.max(0, Math.floor(Number(r.level) || 0)),
+    hero: String(r.hero ?? ''),
+    outfit_look: typeof r.outfit_look === 'string' ? r.outfit_look : null,
+    outfit_head: typeof r.outfit_head === 'string' ? r.outfit_head : null,
+    outfit_aura: typeof r.outfit_aura === 'string' ? r.outfit_aura : null,
+    title: typeof r.title === 'string' ? r.title : null,
+    earned: Math.max(0, Math.floor(Number(r.earned) || 0)),
+  }));
+}

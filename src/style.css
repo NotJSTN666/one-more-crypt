@@ -5182,3 +5182,65 @@ body.tutorial #relic-bar {
   border-color: var(--gold);
   box-shadow: 0 0 0 1px var(--gold), 0 0 18px rgba(242, 193, 78, 0.25);
 }
+
+/* The Night Shift's button: Horde's shine and NEW badge, in moonlit blue. */
+.btn.horde-btn.night-btn {
+  border-color: #6f8fff;
+  background: linear-gradient(180deg, rgba(40, 52, 122, 0.6), rgba(10, 12, 34, 0.6));
+  animation: night-glow 2.4s ease-in-out infinite;
+}
+
+.btn.horde-btn.night-btn::after {
+  background: linear-gradient(100deg, transparent, rgba(170, 200, 255, 0.22), transparent);
+}
+
+@keyframes night-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(111, 143, 255, 0.25), inset 0 0 8px rgba(111, 143, 255, 0.08); border-color: #4b5fa8; }
+  50% { box-shadow: 0 0 18px rgba(111, 143, 255, 0.55), inset 0 0 12px rgba(111, 143, 255, 0.15); border-color: #9fb4ff; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn.horde-btn.night-btn { animation: none; box-shadow: 0 0 16px rgba(111, 143, 255, 0.5); }
+}
+
+/* An odd tile out spans the row. */
+.tiles > .tile:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+/* The Night Shift's first-play tutorial. */
+.ns-intro {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 16px;
+  text-align: left;
+}
+
+.ns-intro > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  animation: ns-in 0.3s ease-out both;
+}
+
+.ns-intro > div:nth-child(2) { animation-delay: 0.08s; }
+.ns-intro > div:nth-child(3) { animation-delay: 0.16s; }
+.ns-intro > div:nth-child(4) { animation-delay: 0.24s; }
+.ns-intro > div:nth-child(5) { animation-delay: 0.32s; }
+
+.ns-intro span {
+  font-size: 26px;
+}
+
+.ns-intro p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.ns-intro b {
+  color: var(--gold);
+}

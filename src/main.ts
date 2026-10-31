@@ -23,7 +23,7 @@ import {
 import { EPITAPHS, hollowKey, setHollowSpot, showHollow, showIsleVisit, type HollowHooks, type HollowPlace } from './hollow';
 import { auraClass, drawAura } from './aura';
 import { islePerks, type IsleState } from './isle';
-import { CROP_BY_ID, FARM_SPAWN, isRipe } from './graveshift';
+import { FARM_SPAWN } from './graveshift';
 import { showGraveRequests, showGraveShop } from './graveshift-ui';
 import { showNightShift } from './nightshift-ui';
 import { showWardrobe } from './wardrobe';
@@ -1160,6 +1160,7 @@ function showTitle() {
     ${raid.phase !== 'soon' ? raidCardHtml(raid) : ''}
     ${endlessBtn}
     ${hordeButtonHtml()}
+    ${nightButtonHtml()}
     ${streak > 1 ? `<div class="streak">🕯️ ${streak}-day streak</div>` : ''}
     ${raid.phase === 'soon' ? raidCardHtml(raid) : ''}
     ${welcomeTitleHtml()}
@@ -1170,7 +1171,6 @@ function showTitle() {
       ${storyTileHtml()}
       ${titleTile('hollow', '🌙', 'The Hollow', 'Graveyard & your isle')}
       ${titleTile('act2', '🔔', 'Act II', act2Open() ? 'Part 1 open' : 'Opens Friday', 'act2-tile')}
-      ${nightShiftOpen() ? nightTileHtml() : graveTileHtml()}
     </div>
     <h2 class="title-section">Your crypt</h2>
     <div class="tiles">
@@ -1196,7 +1196,7 @@ function showTitle() {
   on('#grimoire', () => showGrimoire(showTitle));
   on('#hall', () => openHall(showTitle));
   on('#hollow', () => enterHollow());
-  on('#nightshift', () => showNightShift(showTitle));
+  on('#nightshift', () => (nightIntroSeen() ? showNightShift(showTitle) : showNightIntro()));
   on('#graveshift', () => {
     if (!graveShiftOpen()) return toast('🌾 Grave Shift is coming soon: keep the old plot behind Gravesend.');
     setHollowSpot('farm', FARM_SPAWN.x, FARM_SPAWN.y + 1);
@@ -3156,18 +3156,9 @@ function storyOpen(): boolean {
   return true;
 }
 
-/** Grave Shift is open until the Night Shift takes its place. */
+/** Grave Shift is closed: the Night Shift took its place. (What players bought from Mortimer stays theirs.) */
 function graveShiftOpen(): boolean {
-  return !nightShiftOpen();
-}
-
-// The Night Shift is still being tested: only its tester (JSTN) sees it, in Grave Shift's place.
-const NIGHT_TESTERS = ['ad5d6ad6-bd7b-4952-a0cb-9917d15909fd'];
-
-function nightShiftOpen(): boolean {
-  // Local development only (never in a real build): a switch for testing it.
-  if (import.meta.env.DEV && localStorage.getItem('omc:night-test')) return true;
-  return Boolean(session.account && NIGHT_TESTERS.includes(session.account.id));
+  return false;
 }
 
 // ---------- news for returning players ----------
@@ -3296,22 +3287,52 @@ function titleTile(id: string, icon: string, name: string, sub: string, cls = ''
   return `<button class="tile ${cls}" id="${id}"><span class="tile-icon">${icon}</span><span class="tile-name">${name}</span><small>${sub}</small></button>`;
 }
 
-function nightTileHtml(): string {
+/** The Night Shift's button wears a NEW badge for its first weeks. */
+const NIGHT_NEW_UNTIL = Date.UTC(2026, 11, 1);
+
+function nightButtonHtml(): string {
   const best = meta.grave?.nightKills ?? 0;
-  return titleTile('nightshift', '🌙', 'Night Shift', best ? `Best: ${best} put down` : 'New: hold back the dead', best ? '' : 'graveshift-new');
+  const fresh = Date.now() < NIGHT_NEW_UNTIL;
+  return `<button class="btn horde-btn night-btn" id="nightshift">${fresh ? '<span class="new-badge">NEW</span>' : ''}🌙 The Night Shift<small>${
+    best ? `Your best night: ${best.toLocaleString()} put down` : 'Survive the endless dead · relics fight for you'
+  }</small></button>`;
 }
 
-function graveTileHtml(): string {
-  if (!graveShiftOpen()) return titleTile('graveshift', '🌾', 'Grave Shift', 'Coming soon', 'soon');
-  const s = meta.grave;
-  if (!s) return titleTile('graveshift', '🌾', 'Grave Shift', 'New: tend the old plot', 'graveshift-new');
-  const now = Date.now();
-  const ripe = s.plots.filter((p) => CROP_BY_ID[p.crop] && isRipe(p, now)).length;
-  const restless = s.graves.filter((g) => now >= g).length;
-  // What's waiting out there, so there's a reason to look in.
-  const waiting = [ripe ? `🌱 ${ripe} ready` : '', restless ? `👻 ${restless} restless` : ''].filter(Boolean).join(' · ');
-  return titleTile('graveshift', '🌾', 'Grave Shift', waiting || `🪙 ${s.obols} Obols`, waiting ? 'graveshift-ready' : '');
+const NIGHT_INTRO_KEY = 'omc:ns-intro';
+function nightIntroSeen(): boolean {
+  try {
+    return localStorage.getItem(NIGHT_INTRO_KEY) === '1';
+  } catch {
+    return false;
+  }
 }
+
+/** Before the first night: what it's about, in five lines. */
+function showNightIntro() {
+  const touch = matchMedia('(pointer: coarse)').matches;
+  showOverlay('nightshift-intro', `
+    <h2>🌙 The Night Shift</h2>
+    <p class="sub">The dead come from every side, and they never stop.</p>
+    <div class="ns-intro">
+      <div><span>🕹️</span><p><b>Keep moving.</b> ${touch ? 'Use the stick at the bottom.' : 'WASD or the arrow keys.'} Your relics attack on their own.</p></div>
+      <div><span>💀</span><p><b>Grow stronger.</b> The dead drop souls. Fill the bar to take a new relic, or sharpen one you have.</p></div>
+      <div><span>💨</span><p><b>Dash</b> (${touch ? 'the 💨 button' : 'Space'}) to slip through anything. Don't stand still: the dead claw up from below.</p></div>
+      <div><span>☠️</span><p><b>A boss rises every two minutes.</b> Dodge its bolts, and step out of the red lanes before they burst.</p></div>
+      <div><span>🏆</span><p><b>Put down as many as you can.</b> Your best night goes on the leaderboard.</p></div>
+    </div>
+    <button class="btn primary" id="ns-start">Start the night</button>
+    <button class="btn" id="back">Back</button>`);
+  on('#ns-start', () => {
+    try {
+      localStorage.setItem(NIGHT_INTRO_KEY, '1');
+    } catch {
+      /* shown again next time */
+    }
+    showNightShift(showTitle);
+  });
+  on('#back', showTitle);
+}
+
 
 function storyTileHtml(): string {
   const main = MAIN_QUESTS.filter((q) => meta.story.done.includes(q.n)).length;
