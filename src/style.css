@@ -4501,3 +4501,311 @@ body.tutorial #relic-bar {
 .tile.graveshift-ready small { color: #b5e07a; }
 .tile.graveshift-new { border-color: var(--gold); box-shadow: 0 0 12px rgba(242, 193, 78, 0.35); }
 .tile.graveshift-new small { color: var(--gold); }
+
+/* ---------- the Night Shift ---------- */
+
+.farm-actions .farm-night {
+  grid-column: 1 / -1;
+}
+
+.farm-night small {
+  opacity: 0.75;
+  font-size: 10px;
+}
+
+.panel:has(> .ns-wrap) {
+  max-width: 900px;
+}
+
+.ns-wrap {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.ns-hud {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 6px;
+}
+
+.ns-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ns-hp {
+  position: relative;
+  flex: 1;
+  height: 18px;
+  border: 1px solid #5a2630;
+  background: #1c0c12;
+  text-align: center;
+}
+
+.ns-hp i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(180deg, #e04a58, #9e2734);
+  transition: width 0.15s;
+}
+
+.ns-hp b {
+  position: relative;
+  font-size: 11px;
+  line-height: 16px;
+  color: #fff;
+  text-shadow: 0 1px 0 #000;
+}
+
+.ns-clock {
+  font-family: var(--gothic);
+  font-size: 24px;
+  color: var(--gold);
+  min-width: 58px;
+}
+
+.ns-kills {
+  font-size: 13px;
+  min-width: 52px;
+  text-align: right;
+}
+
+.ns-pause {
+  width: 34px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.ns-xp {
+  position: relative;
+  height: 12px;
+  border: 1px solid #2c4b63;
+  background: #0b1520;
+}
+
+.ns-xp i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(90deg, #4fb6e8, #9fe8ff);
+}
+
+.ns-xp span {
+  position: relative;
+  font-size: 9px;
+  line-height: 10px;
+  letter-spacing: 1px;
+  color: #fff;
+  text-shadow: 0 1px 0 #000;
+}
+
+.ns-relics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 26px;
+}
+
+.ns-relic {
+  position: relative;
+  padding: 2px 6px 2px 4px;
+  border: 1px solid #6b5426;
+  background: rgba(242, 193, 78, 0.08);
+  font-size: 15px;
+}
+
+.ns-relic.charm {
+  border-color: #3d5a6b;
+  background: rgba(120, 190, 255, 0.07);
+}
+
+.ns-relic small,
+.ns-build small {
+  font-size: 9px;
+  vertical-align: bottom;
+  color: var(--gold);
+}
+
+.ns-stage {
+  position: relative;
+  touch-action: none;
+}
+
+#ns-canvas {
+  display: block;
+  width: 100%;
+  max-height: 72vh;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  image-rendering: pixelated;
+  touch-action: none;
+  background: #0b0910;
+}
+
+.ns-hint {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: 10px;
+  padding: 8px 10px;
+  background: rgba(14, 9, 20, 0.85);
+  border: 1px solid var(--line);
+  font-size: 12px;
+  pointer-events: none;
+  transition: opacity 0.8s;
+}
+
+.ns-hint.gone {
+  opacity: 0;
+}
+
+.ns-boss {
+  position: absolute;
+  top: 8px;
+  left: 12%;
+  right: 12%;
+  font-size: 11px;
+  color: #ffb3b3;
+  text-shadow: 0 1px 0 #000;
+  pointer-events: none;
+}
+
+.ns-boss i {
+  display: block;
+  height: 6px;
+  margin-top: 3px;
+  border: 1px solid #5a2630;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.ns-boss b {
+  display: block;
+  height: 100%;
+  background: #d23a46;
+}
+
+.ns-modal {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 14px;
+  background: rgba(10, 6, 16, 0.86);
+  backdrop-filter: blur(2px);
+}
+
+.ns-modal h3 {
+  margin: 0;
+  font-family: var(--gothic);
+  font-size: 30px;
+  color: var(--gold);
+}
+
+.ns-modal .btn {
+  margin: 4px auto;
+  max-width: 280px;
+}
+
+.ns-choices {
+  display: grid;
+  gap: 8px;
+  max-width: 440px;
+  width: 100%;
+  margin: 4px auto 0;
+}
+
+.ns-choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #6b5426;
+  background: linear-gradient(180deg, rgba(242, 193, 78, 0.1), rgba(0, 0, 0, 0.2)), var(--panel);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  animation: ns-in 0.25s ease-out both;
+}
+
+.ns-choice:nth-child(2) { animation-delay: 0.06s; }
+.ns-choice:nth-child(3) { animation-delay: 0.12s; }
+
+.ns-choice:hover,
+.ns-choice:focus-visible {
+  border-color: var(--gold);
+  outline: none;
+}
+
+@keyframes ns-in {
+  from { opacity: 0; transform: translateY(8px); }
+}
+
+.ns-choice-emoji {
+  font-size: 26px;
+}
+
+.ns-choice-info {
+  flex: 1;
+  display: grid;
+  gap: 2px;
+  font-size: 12px;
+}
+
+.ns-choice-info b {
+  font-size: 13px;
+  color: var(--gold);
+}
+
+.ns-choice-info small {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.ns-choice kbd {
+  font-size: 11px;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  opacity: 0.7;
+}
+
+.ns-results {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.ns-results div {
+  display: grid;
+  padding: 10px 4px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.ns-results b {
+  font-family: var(--gothic);
+  font-size: 28px;
+  color: var(--gold);
+}
+
+.ns-results span {
+  font-size: 11px;
+  opacity: 0.75;
+}
+
+.ns-build {
+  font-size: 20px;
+  letter-spacing: 2px;
+}
+
+.ns-modal[hidden],
+.ns-boss[hidden] {
+  display: none;
+}

@@ -34,6 +34,11 @@ export interface GraveState {
   met: boolean;
   /** Mortimer's first jobs, done. */
   jobsDone: JobId[];
+  /** The Night Shift: nights stood, dawns seen, the longest night (seconds) and most kills. */
+  nights: number;
+  dawns: number;
+  nightBest: number;
+  nightKills: number;
   at: number;
 }
 
@@ -131,6 +136,10 @@ export function newGraveState(now: number): GraveState {
     settled: 0,
     met: false,
     jobsDone: [],
+    nights: 0,
+    dawns: 0,
+    nightBest: 0,
+    nightKills: 0,
     at: now,
   };
 }
@@ -148,6 +157,7 @@ export function cleanGraveState(raw: unknown, now: number): GraveState {
   });
   const inv: Record<string, number> = {};
   for (const [k, v] of Object.entries(r.inv ?? {})) if (Number(v) > 0) inv[k] = Math.floor(Number(v));
+  const count = (v: unknown) => Math.max(0, Math.floor(Number(v) || 0));
   const level = (v: unknown, max: number) => Math.max(0, Math.min(max, Math.floor(Number(v) || 0)));
   return {
     obols: Math.max(0, Math.floor(Number(r.obols) || 0)),
@@ -162,6 +172,10 @@ export function cleanGraveState(raw: unknown, now: number): GraveState {
     settled: Math.max(0, Math.floor(Number(r.settled) || 0)),
     met: r.met === true,
     jobsDone: Array.isArray(r.jobsDone) ? JOBS.map((j) => j.id).filter((id) => r.jobsDone!.includes(id)) : [],
+    nights: count(r.nights),
+    dawns: count(r.dawns),
+    nightBest: count(r.nightBest),
+    nightKills: count(r.nightKills),
     at: Number(r.at) || 0,
   };
 }
@@ -371,6 +385,8 @@ export const JOBS_REWARD = 'grave:mortimercap';
 /** Graves to settle for the title Keeper of the Old Plot (owned as the gift 'plotkeeper'). */
 export const KEEPER_GRAVES = 25;
 export const KEEPER_GIFT = 'plotkeeper';
+/** The title Who Saw the Dawn, for living through a whole Night Shift (owned as the gift 'sawdawn'). */
+export const DAWN_GIFT = 'sawdawn';
 
 /** Note something done. Pays the job's Obols the first time; true when it finishes the list. */
 export function noteJob(s: GraveState, id: JobId): { pay: number; finished: boolean } | null {

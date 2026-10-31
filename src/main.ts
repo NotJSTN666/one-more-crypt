@@ -25,6 +25,7 @@ import { auraClass, drawAura } from './aura';
 import { islePerks, type IsleState } from './isle';
 import { CROP_BY_ID, FARM_SPAWN, isRipe } from './graveshift';
 import { showGraveRequests, showGraveShop } from './graveshift-ui';
+import { showNightShift } from './nightshift-ui';
 import { showWardrobe } from './wardrobe';
 import { IMPACT, animateReveal, playFusion } from './fusefx';
 import { howToHtml, startHowTo } from './howto';
@@ -626,6 +627,8 @@ let lastRepeat = 0;
 window.addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (!overlay.hidden) {
+    // The Night Shift reads the keys itself.
+    if (screen === 'nightshift') return;
     if (screen === 'hollow' && hollowKey(e)) return;
     if ((screen === 'choose' && game?.phase === 'choose' && game.offer) || (screen === 'event' && game?.phase === 'event')) choiceKey(e);
     else menuKey(e);
@@ -1360,6 +1363,7 @@ function hollowHooks(): HollowHooks {
     graveOpen: graveShiftOpen,
     graveShop: () => showGraveShop(enterHollow),
     graveRequests: () => showGraveRequests(enterHollow),
+    nightShift: () => showNightShift(enterHollow),
     graveFx: (what) => {
       if (what === 'harvest' || what === 'settle') sfx.relic();
       else if (what === 'hit') sfx.hit();

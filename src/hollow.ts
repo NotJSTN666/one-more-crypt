@@ -399,6 +399,7 @@ export interface HollowHooks {
   graveOpen?: () => boolean;
   graveShop?: () => void;
   graveRequests?: () => void;
+  nightShift?: () => void;
   graveFx?: (what: 'till' | 'plant' | 'water' | 'harvest' | 'hit' | 'hurt' | 'kill' | 'settle' | 'faint' | 'fail') => void;
 }
 
@@ -1186,6 +1187,7 @@ function farmPanel() {
     <div class="farm-actions">
       <button type="button" class="btn" id="farm-shop">🛒 Mortimer's shed</button>
       <button type="button" class="btn" id="farm-reqs">📋 Requests</button>
+      <button type="button" class="btn primary farm-night" id="farm-night">🌙 Stand the Night Shift${s.nightBest ? ` <small>best ${Math.floor(s.nightBest / 60)}:${String(s.nightBest % 60).padStart(2, '0')}</small>` : ''}</button>
     </div>`;
   el.querySelectorAll<HTMLElement>('[data-seed]').forEach((b) =>
     b.addEventListener('click', () => {
@@ -1195,6 +1197,7 @@ function farmPanel() {
   );
   el.querySelector('#farm-shop')?.addEventListener('click', () => hooks.graveShop?.());
   el.querySelector('#farm-reqs')?.addEventListener('click', () => hooks.graveRequests?.());
+  el.querySelector('#farm-night')?.addEventListener('click', () => hooks.nightShift?.());
 }
 
 /** Plots, graves, the risen and the night, over the plot's ground. */
