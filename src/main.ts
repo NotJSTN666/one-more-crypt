@@ -25,7 +25,7 @@ import { auraClass, drawAura } from './aura';
 import { islePerks, type IsleState } from './isle';
 import { FARM_SPAWN } from './graveshift';
 import { showGraveRequests, showGraveShop } from './graveshift-ui';
-import { showNightShift } from './nightshift-ui';
+import { nightPresence, showNightShift } from './nightshift-ui';
 import { showWardrobe } from './wardrobe';
 import { IMPACT, animateReveal, playFusion } from './fusefx';
 import { howToHtml, startHowTo } from './howto';
@@ -3932,6 +3932,9 @@ fitBoard();
 newGame('endless');
 // Starts restoring any session in the background; must run before the first screen draws.
 setPresenceSource(() => {
+  // A Night Shift under way: how far into it, for the Census.
+  const night = screen === 'nightshift' ? nightPresence() : null;
+  if (night) return { doing: 'nightshift', detail: night, hero: meta.hero };
   const inRun = Boolean(game) && !document.body.classList.contains('menu') && game.phase !== 'dead';
   if (!inRun) return { doing: screen || 'title', detail: '', hero: '' };
   const doing = game.mode === 'story' ? (raidRun ? 'raid' : 'story') : game.mode;

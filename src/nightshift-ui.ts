@@ -9,7 +9,7 @@ import { heroSprite } from './hero';
 import { grave, groundFor, hash, paintGround, tree, type Px } from './hollow-art';
 import { graveState, meta, outfitFor, receiveGift, saveMeta } from './meta';
 import {
-  DASH_COOLDOWN, FIELD, MAX_LEVEL, area, dash, spadeReach, NIGHT_RELIC, NIGHT_RELICS, chooseRelic, frostRadius, levelChoices, newNight, nextBossAt, nightSouls, skullCount, step, xpToLevel, type RelicKind,
+  DASH_COOLDOWN, FIELD, MAX_LEVEL, type Night, area, dash, spadeReach, NIGHT_RELIC, NIGHT_RELICS, chooseRelic, frostRadius, levelChoices, newNight, nextBossAt, nightSouls, skullCount, step, xpToLevel, type RelicKind,
 } from './nightshift';
 import { ONLINE, nightBoard, submitNight } from './online';
 import { claimInlineHtml, ensureGuest, playerName, showLeaderboard, signedIn, unclaimed, wireClaimInline } from './social';
@@ -70,6 +70,12 @@ function fieldCanvas(): HTMLCanvasElement {
   return c;
 }
 
+/** The night under way, if any, so the Census can say how it's going. */
+let current: Night | null = null;
+export function nightPresence(): string | null {
+  return current && !current.over ? `${current.kills} put down · ${fmt(current.t)}` : null;
+}
+
 /** Stand a night in the graveyard. `back` leaves. */
 export function showNightShift(back: () => void) {
   const touch = matchMedia('(pointer: coarse)').matches;
@@ -107,6 +113,7 @@ export function showNightShift(back: () => void) {
   const $id = (id: string) => overlay.querySelector<HTMLElement>(`#${id}`)!;
 
   const n = newNight();
+  current = n;
   // Local development only: the night, for poking at from the console.
   if (import.meta.env.DEV) (window as unknown as { night?: unknown }).night = n;
   const fit = outfitFor(meta.hero);
