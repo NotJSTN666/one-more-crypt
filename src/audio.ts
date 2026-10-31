@@ -126,7 +126,7 @@ export const sfx = {
 // (floor 30+). Boss floors play one level hotter on a darker progression. Every
 // sound is synthesized live; nothing to download.
 
-export type Mood = 'crypt' | 'boss' | 'fallen' | 'silent';
+export type Mood = 'crypt' | 'boss' | 'fallen' | 'silent' | 'night' | 'nightboss';
 
 // D minor i - VI - iv - V, and Phrygian dread i - bII - i - vii° for bosses (MIDI notes).
 const CHORDS: Record<'crypt' | 'boss' | 'fallen', number[][]> = {
@@ -136,6 +136,17 @@ const CHORDS: Record<'crypt' | 'boss' | 'fallen', number[][]> = {
   fallen: [[50, 53, 57], [43, 46, 50], [46, 50, 53], [45, 49, 52]],
 };
 const FALLEN_TEMPO = 96;
+// The Night Shift has its own score: a fast E minor chase (i - VII - VI - VII) with a
+// galloping riff, and a darker turn (i - bII - v - bII) while a boss is up. It builds with
+// the night, from a driving start to double-time drums and a screaming lead.
+const NIGHT_CHORDS: Record<'night' | 'nightboss', number[][]> = {
+  night: [[52, 55, 59], [50, 54, 57], [48, 52, 55], [50, 54, 57]],
+  nightboss: [[52, 55, 59], [53, 57, 60], [47, 50, 54], [53, 57, 60]],
+};
+const NIGHT_TEMPO = [140, 148, 156, 164, 172];
+// The riff, a step at a time: which chord note (3 is the root an octave up), or -1 to rest.
+const RIFF = [0, -1, 0, 1, -1, 2, -1, 1, 0, -1, 3, -1, 2, -1, 1, 2];
+let nightHeat = 0;
 const ARP = [0, 1, 2, 1, 2, 0, 2, 1];
 const TEMPO = [112, 120, 126, 133, 140]; // BPM per intensity level
 const MUSIC_VOLUME = 0.32;
@@ -181,7 +192,15 @@ export function setMusicDepth(floor: number, key = floor > 0 ? zoneAt(floor).def
   zoneKey = key;
 }
 
+/** How hot the Night Shift is (0-4): the music builds with it. */
+export function setNightHeat(heat: number) {
+  nightHeat = Math.max(0, Math.min(4, Math.floor(heat)));
+}
+
+const isNight = () => mood === 'night' || mood === 'nightboss';
+
 function targetLevel(): number {
+  if (isNight()) return Math.min(4, nightHeat + (mood === 'nightboss' ? 1 : 0));
   if (depth <= 0 || mood === 'fallen') return 0;
   const base = depth >= 30 ? 4 : depth >= 20 ? 3 : depth >= 10 ? 2 : 1;
   return Math.min(4, base + (mood === 'boss' ? 1 : 0));
@@ -266,10 +285,11 @@ function schedule() {
 }
 
 function tempo(): number {
-  return mood === 'fallen' ? FALLEN_TEMPO : TEMPO[level];
+  return mood === 'fallen' ? FALLEN_TEMPO : isNight() ? NIGHT_TEMPO[level] : TEMPO[level];
 }
 
 function playStep(i: number, t: number) {
+  if (isNight()) return nightStep(i, t);
   const s = i % 16;
   const bar = Math.floor(i / 16);
   const chords = CHORDS[mood === 'boss' ? 'boss' : mood === 'fallen' ? 'fallen' : 'crypt'];
@@ -304,6 +324,38 @@ function playStep(i: number, t: number) {
   } else if (L >= 2 && bar % 2 === 1 && s >= 12) {
     tom(t, [130, 110, 95, 80][s - 12], 0.4);
   }
+}
+
+/** A step of the Night Shift's score. */
+function nightStep(i: number, t: number) {
+  const s = i % 16;
+  const bar = Math.floor(i / 16);
+  const boss = mood === 'nightboss';
+  const chord = NIGHT_CHORDS[boss ? 'nightboss' : 'night'][bar % 4];
+  const s16 = 60 / tempo() / 4;
+  const L = level;
+
+  if (s === 0) pad(chord, t, s16 * 16, boss ? 0.04 : 0.028);
+  if (s === 0 && bar % 4 === 0 && (L >= 3 || boss)) crash(t);
+  // Bass: rolling sixteenths, jumping the octave on the off-beats.
+  bassNote(midi(chord[0] - (s % 2 ? 0 : 12)), t, s16 * 0.9, s % 4 === 0 ? 1 : 0.75);
+  // Drums: four on the floor from the start, snare and hats at once, more as it builds.
+  if (s % 4 === 0) kick(t, 0.95);
+  if (L >= 3 && s % 4 === 3) kick(t, 0.45);
+  if (L >= 4 && s % 2 === 1 && s % 4 !== 3) kick(t, 0.35);
+  hat(t, s % 2 ? 0.05 : 0.08, s);
+  if (s === 4 || s === 12) snare(t, 0.42);
+  if (L >= 2 && (s === 7 || s === 15) && bar % 2 === 1) snare(t, 0.2);
+  if (bar % 4 === 3 && s >= 12) tom(t, [150, 125, 100, 80][s - 12], 0.45);
+  // The riff: from the start on a soft arp, the full lead from heat 2, an octave up at the top.
+  const r = RIFF[s];
+  if (r >= 0) {
+    const note = (r === 3 ? chord[0] + 12 : chord[r]) + (L >= 4 ? 24 : 12);
+    if (L <= 1) lead(midi(note), t, s16 * 0.8, 0.016, s);
+    else lead(midi(note), t, s16 * 0.95, L >= 4 ? 0.034 : 0.028, s);
+  }
+  // A high counter-line over bosses: long notes on the chord's top.
+  if (boss && s % 8 === 0) lead(midi(chord[2] + 24), t, s16 * 7, 0.02, s);
 }
 
 function osc(type: OscillatorType, freq: number, t: number, dur: number, dest: AudioNode, detune = 0) {

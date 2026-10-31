@@ -2,7 +2,7 @@
 // relics fighting on their own, a level-up choice whenever you fill the soul bar, the bosses'
 // bolts and lanes to dodge, and how many you put down. On phones a joystick sits at the bottom.
 
-import { sfx } from './audio';
+import { setMusicDepth, setMusicMood, setNightHeat, sfx } from './audio';
 import { drawAura } from './aura';
 import { NIGHT_GIFT, NIGHT_GIFT_KILLS } from './graveshift';
 import { heroSprite } from './hero';
@@ -352,6 +352,7 @@ export function showNightShift(back: () => void) {
     if (title) receiveGift(NIGHT_GIFT);
     saveMeta();
     sfx.death();
+    setMusicMood('fallen');
     const build = NIGHT_RELICS.filter((r) => n.relics[r.id]).map((r) => `${r.emoji}<small>${n.relics[r.id]}</small>`).join(' ');
     window.setTimeout(() => {
       if (!overlay.querySelector('#ns-canvas')) return;
@@ -406,6 +407,14 @@ export function showNightShift(back: () => void) {
   };
 
   // ---- the loop ----
+  // The score builds with the night, and darkens while a boss is up.
+  setMusicDepth(0);
+  setNightHeat(0);
+  setMusicMood('night');
+  const music = () => {
+    setNightHeat(n.t < 40 ? 0 : n.t < 120 ? 1 : n.t < 240 ? 2 : n.t < 420 ? 3 : 4);
+    setMusicMood(n.foes.some((f) => f.boss) ? 'nightboss' : 'night');
+  };
   let last = performance.now();
   let acc = 0;
   let seen = { kills: 0, hp: n.hp, bosses: 0 };
@@ -438,6 +447,7 @@ export function showNightShift(back: () => void) {
     if (n.flashes.some((f) => f.kind === 'ring' && n.t - f.at < dt)) play('block', 300);
     if (n.flashes.some((f) => f.kind === 'lane' && n.t - f.at < dt)) play('crit', 250);
     seen = { kills: n.kills, hp: n.hp, bosses: n.bossesRisen };
+    if (!ended) music();
     if (n.t > 6) $id('ns-hint').classList.add('gone');
     draw(now / 1000);
     hud();
