@@ -11,11 +11,11 @@ import { ENEMY_INFO, type EnemyKind } from './game';
 import { dailyNumber } from './daily';
 import { ACT1_QUESTS } from './story';
 import { heroSprite } from './hero';
-import { equipTitle, meta, titleUnlocked, type Meta } from './meta';
+import { equipTitle, meta, setAllHallShown, setHallShown, titleUnlocked, type Meta } from './meta';
 import { showWardrobe } from './wardrobe';
 import { ONLINE, loadHall } from './online';
 import {
-  AURA_BY_ID, RAID_DECOR, BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, TITLE_FX, titleFxClass, HEAD_BY_ID, LOOK_BY_ID, TITLES, TITLE_BY_ID, TITLE_TIER, bestiaryTiers, rankFor, rankProgress,
+  AURA_BY_ID, RAID_DECOR, RAID_DECOR_BY_ID, BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, TITLE_FX, titleFxClass, HEAD_BY_ID, LOOK_BY_ID, TITLES, TITLE_BY_ID, TITLE_TIER, bestiaryTiers, rankFor, rankProgress,
   type BestRun, type BestRuns, type TitleFx,
 } from './progression';
 import { RELICS, RELIC_BY_ID, type RelicId } from './relics';
@@ -41,8 +41,10 @@ export interface HallData {
   best: BestRuns;
   /** Daily podium finishes: how many 1st, 2nd and 3rd places. */
   podiums: [number, number, number];
-  /** Decorations bought in the Ossuary. */
+  /** Decorations up in the Hall: owned, and not taken down. */
   decor: string[];
+  /** Every decoration owned, up or not. */
+  ownedDecor: string[];
   /** Weekly Endless top 3 finishes: how many 1st, 2nd and 3rd places. */
   weekly: [number, number, number];
   /** Daily play streak: days in a row right now (0 once broken) and the longest ever. */
@@ -95,6 +97,8 @@ export function hallData(name: string, m: Partial<Meta> | Record<string, unknown
   const raidWon = obj(raw.raid).won;
   const raids = Array.isArray(raidWon) ? new Set(raidWon.map(String)).size : 0;
   for (const d of RAID_DECOR) if (raw.vault === true || raids >= d.raid) decor.push(d.id);
+  const hidden = new Set(Array.isArray(raw.hallHidden) ? raw.hallHidden.map(String) : []);
+  const shown = decor.filter((id) => !hidden.has(id));
   const weekPlaces = Object.values(obj(raw.weekly)).map((p) => num(p, 9));
   const weekly: [number, number, number] = [1, 2, 3].map((p) => weekPlaces.filter((x) => x === p).length) as [number, number, number];
   const st = obj(raw.streak);
@@ -111,7 +115,8 @@ export function hallData(name: string, m: Partial<Meta> | Record<string, unknown
     ) as Partial<Record<HeroId, string>>,
     podiums,
     weekly,
-    decor,
+    decor: shown,
+    ownedDecor: decor,
     raids,
     streak,
     title: typeof raw.title === 'string' && TITLE_BY_ID[raw.title] ? raw.title : '',
@@ -1336,7 +1341,7 @@ export function drawHall(ctx: CanvasRenderingContext2D, d: HallData, t = 0) {
 
 // ---------- the screen ----------
 
-type HallTab = 'trophies' | 'titles' | 'bestiary';
+type HallTab = 'trophies' | 'titles' | 'bestiary' | 'decorate';
 
 let anim = 0;
 
@@ -1419,6 +1424,30 @@ function titlesBody(): string {
 }
 
 
+/** Every Hall piece you own, each with a switch to put it up or take it down. */
+function decorateBody(d: HallData): string {
+  if (!d.ownedDecor.length) return '<p class="fine">You have no decorations yet. Buy them in the Ossuary, and choose here which ones go up.</p>';
+  const piece = (id: string) => {
+    const def = DECOR_BY_ID[id] ?? RAID_DECOR_BY_ID[id];
+    const bell = id === 'greatbell';
+    const name = def?.name ?? (bell ? 'The Great Bell' : id);
+    const emoji = def?.emoji ?? (bell ? '🔔' : '✨');
+    const desc = def?.desc ?? (bell ? 'Hung for finishing every quest of Act I.' : '');
+    const up = d.decor.includes(id);
+    return `<button class="codex-item pick decor-pick ${up ? 'equipped' : ''}" data-decor="${esc(id)}" aria-pressed="${up}">
+      <span class="shop-emoji">${emoji}</span>
+      <span class="shop-info"><span class="name">${esc(name)}</span><span class="desc">${esc(desc)}</span></span>
+      <span class="decor-state ${up ? 'on' : ''}">${up ? 'Shown' : 'Hidden'}</span>
+    </button>`;
+  };
+  return `<p class="fine">Choose what hangs in your Hall. Hidden pieces stay yours: put them back up any time. ${d.decor.length}/${d.ownedDecor.length} up.</p>
+    <div class="row">
+      <button class="btn" id="decor-all">Show everything</button>
+      <button class="btn" id="decor-none">Clear the room</button>
+    </div>
+    <div class="codex">${d.ownedDecor.map(piece).join('')}</div>`;
+}
+
 function bestiaryBody(d: HallData): string {
   return `<p class="fine">Every foe you slay is counted. Milestones pay Souls, and the third earns a title.</p>
     <div class="codex">${BESTIARY_KINDS.map((k) => {
@@ -1492,8 +1521,9 @@ export function showHall(name: string, back: () => void, tab: HallTab = 'trophie
     ['trophies', 'Trophies'],
     ['titles', 'Titles'],
     ['bestiary', 'Bestiary'],
+    ['decorate', 'Decorate'],
   ];
-  const body = tab === 'titles' ? titlesBody() : tab === 'bestiary' ? bestiaryBody(d) : trophiesBody(d);
+  const body = tab === 'titles' ? titlesBody() : tab === 'bestiary' ? bestiaryBody(d) : tab === 'decorate' ? decorateBody(d) : trophiesBody(d);
   showOverlay('hall', `
     <h2>The Crypt Hall</h2>
     <canvas id="hall-canvas" class="hall-canvas" width="${W}" height="${H}" aria-label="Your trophy room"></canvas>
@@ -1521,6 +1551,23 @@ export function showHall(name: string, back: () => void, tab: HallTab = 'trophie
       again('titles');
     }),
   );
+  overlay.querySelectorAll<HTMLButtonElement>('[data-decor]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const id = b.dataset.decor ?? '';
+      setHallShown(id, !d.decor.includes(id));
+      sfx.step();
+      changed?.();
+      again('decorate');
+    }),
+  );
+  on('#decor-all', () => {
+    setAllHallShown(true, d.ownedDecor);
+    again('decorate');
+  });
+  on('#decor-none', () => {
+    setAllHallShown(false, d.ownedDecor);
+    again('decorate');
+  });
   on('#wardrobe', () => showWardrobe(() => showHall(name, back, tab, changed), meta.hero, changed));
   on('#hall-image', () => void saveImage(d));
   on('#hall-link', async () => toast((await copyText(hallLink(name))) ? 'Link copied! Show off your Hall.' : 'Copy failed'));

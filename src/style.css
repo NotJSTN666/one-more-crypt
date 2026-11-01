@@ -5261,3 +5261,27 @@ body.tutorial #relic-bar {
   background: rgba(255, 138, 42, 0.16);
   box-shadow: 0 0 8px rgba(255, 138, 42, 0.45);
 }
+
+/* The Hall's Decorate tab: a piece you own, with whether it's up. */
+.decor-pick {
+  grid-template-columns: 32px 1fr auto;
+}
+
+.decor-state {
+  align-self: center;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+
+.decor-state.on {
+  border-color: var(--heal);
+  color: var(--heal);
+}
+
+.decor-pick:not(.equipped) .shop-emoji {
+  opacity: 0.45;
+  filter: grayscale(1);
+}

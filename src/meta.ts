@@ -100,6 +100,8 @@ export interface Meta {
   invite: { from: string; claimed: boolean; friends: number };
   /** Rare items the Crypt Keeper (the developer) gifted this player by hand. */
   gifts: string[];
+  /** Hall decorations you own but took down. Still yours; put them back up any time. */
+  hallHidden: string[];
 }
 
 export interface RaidProgress {
@@ -156,7 +158,7 @@ function empty(): Meta {
     podiums: {}, podiumChecked: 0, bought: [], streak: { best: 0, count: 0, last: 0 },
     bounties: { day: 0, ids: [], progress: [], done: [] },
     weekly: {}, weeklyChecked: '',
-    story: emptyStory(), pet: '', summonsSeen: '', patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null, raid: { joined: [], won: [], lost: [] }, invite: { from: '', claimed: false, friends: 0 }, horde: { day: 0, best: 0, wave: 0 }, gifts: [],
+    story: emptyStory(), pet: '', summonsSeen: '', patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null, raid: { joined: [], won: [], lost: [] }, invite: { from: '', claimed: false, friends: 0 }, horde: { day: 0, best: 0, wave: 0 }, gifts: [], hallHidden: [],
   };
 }
 
@@ -187,6 +189,7 @@ function load(): Meta {
     m.raid = cleanRaid(m.raid);
     m.invite = cleanInvite(m.invite);
     m.gifts = ids(m.gifts);
+    m.hallHidden = ids(m.hallHidden);
     m.grave = m.grave ? cleanGraveState(m.grave, Date.now()) : null;
     m.story = m.story?.v === STORY_V ? { ...emptyStory(), ...m.story } : { ...emptyStory(), choices: m.story?.choices ?? {}, bond: m.story?.bond ?? 0 };
     return m;
@@ -249,6 +252,8 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   meta.raid = cleanRaid({ joined: [...meta.raid.joined, ...or.joined], won: [...meta.raid.won, ...or.won], lost: [...meta.raid.lost, ...or.lost] });
   meta.shame = { ...(other.shame ?? {}), ...meta.shame };
   meta.gifts = [...new Set([...meta.gifts, ...ids(other.gifts)])];
+  // How the Hall is decorated is a choice: keep this device's, unless it hasn't made one.
+  if (!meta.hallHidden.length) meta.hallHidden = ids(other.hallHidden);
   // Grave Shift is one plot: whichever device changed it last wins.
   if (other.grave && typeof other.grave === 'object' && (Number(other.grave.at) || 0) > (meta.grave?.at ?? -1)) meta.grave = cleanGraveState(other.grave, Date.now());
   meta.duels = [...new Set([...meta.duels, ...(Array.isArray(other.duels) ? other.duels.map(String) : [])])];
@@ -1302,4 +1307,16 @@ export function finishHordeMeta(dailyNo: number, score: number, wave: number, ki
   meta.horde = best ? { day: dailyNo, best: score, wave } : h;
   saveMeta();
   return { souls, best, feats };
+}
+
+/** Take a Hall decoration down, or put it back up. */
+export function setHallShown(id: string, shown: boolean) {
+  meta.hallHidden = shown ? meta.hallHidden.filter((x) => x !== id) : [...new Set([...meta.hallHidden, id])];
+  saveMeta();
+}
+
+/** Put every decoration up, or take every one down. */
+export function setAllHallShown(shown: boolean, owned: string[]) {
+  meta.hallHidden = shown ? [] : [...owned];
+  saveMeta();
 }
