@@ -14,7 +14,18 @@ export let overlayShownAt = 0;
 const RUN_SCREENS = ['choose', 'event', 'pause', 'fused', 'build'];
 
 /** Long screens get a small Back pinned at the top, so leaving doesn't mean scrolling to the end. */
-const TOP_BACK = ['hall', 'act2', 'hall-public', 'help', 'heroes', 'ossuary', 'grimoire', 'profile', 'wardrobe'];
+/** Screens that bring their own way out (a play area's bar, or no way back at all). */
+const OWN_EXIT = ['title', 'hollow', 'nightshift'];
+
+/**
+ * The button a screen's top-left Back presses: its Back, or else its Title (or a sign-in's Skip). Every menu screen
+ * gets the same ← Back in the same place, so there's always one spot to look for the way out.
+ */
+function exitButton(): HTMLElement | null {
+  const back = overlay.querySelector<HTMLElement>('#back');
+  if (back && /^\s*(←\s*)?back\b/i.test(back.textContent ?? '')) return back;
+  return overlay.querySelector<HTMLElement>('#title') ?? overlay.querySelector<HTMLElement>('#skip');
+}
 
 /** When the last finger or mouse button went down. */
 let lastPointerDownAt = 0;
@@ -94,8 +105,17 @@ export function showOverlay(name: string, html: string) {
   const menu = !RUN_SCREENS.includes(name);
   document.body.classList.toggle('menu', menu);
   overlay.classList.toggle('menu', menu);
-  const topBack = TOP_BACK.includes(name) && html.includes('id="back"') && !html.includes('back-top');
-  overlay.innerHTML = `<div class="panel">${topBack ? '<button class="back-top" data-top-back aria-label="Back">← Back</button>' : ''}${html}</div>`;
+  overlay.innerHTML = `<div class="panel">${html}</div>`;
+  const exit = menu && !OWN_EXIT.includes(name) && !overlay.querySelector('.back-top') ? exitButton() : null;
+  if (exit) {
+    const top = document.createElement('button');
+    top.className = 'back-top';
+    top.setAttribute('data-top-back', '');
+    top.setAttribute('aria-label', exit.id === 'title' ? 'Back to the title screen' : 'Back');
+    top.textContent = '← Back';
+    top.addEventListener('click', () => exit.click());
+    overlay.querySelector('.panel')!.prepend(top);
+  }
   overlay.hidden = false;
   overlay.scrollTop = 0;
   if (fresh) {
@@ -104,7 +124,6 @@ export function showOverlay(name: string, html: string) {
     void overlay.offsetWidth;
     overlay.classList.add('enter');
   }
-  overlay.querySelector('[data-top-back]')?.addEventListener('click', () => overlay.querySelector<HTMLElement>('#back')?.click());
 }
 
 export function hideOverlay() {

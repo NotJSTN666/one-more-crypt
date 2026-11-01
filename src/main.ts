@@ -655,6 +655,33 @@ window.addEventListener('keydown', (e) => {
   act(dir[0], dir[1]);
 });
 
+// ---------- the phone's own Back ----------
+// Android's back gesture (and the browser's Back) does what Escape does: closes a dialog,
+// goes back a screen, or pauses a run, instead of leaving the game. A spare history entry
+// catches it everywhere but the title screen, where Back leaves as usual.
+const GUARD = 'omc-back';
+const guarded = () => (history.state as { [GUARD]?: boolean } | null)?.[GUARD] === true;
+let unguarding = false;
+function guardBack() {
+  if (screen !== 'title' && !guarded()) history.pushState({ ...(history.state ?? {}), [GUARD]: true }, '');
+  else if (screen === 'title' && guarded() && !unguarding) {
+    // Home again: drop the spare entry, so Back on the title screen leaves straight away.
+    unguarding = true;
+    history.back();
+  }
+}
+window.addEventListener('popstate', () => {
+  if (unguarding) {
+    unguarding = false;
+    return;
+  }
+  if (screen === 'title') return;
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  // Still somewhere with a way back: be ready for the next press.
+  window.setTimeout(guardBack, 400);
+});
+new MutationObserver(() => window.setTimeout(guardBack, 0)).observe(overlay, { childList: true });
+
 // ---------- menus from the keyboard ----------
 // Arrows or WASD move between buttons, Enter or Space presses the highlighted one,
 // Escape goes back, and R on the death screen starts a new run straight away.
@@ -685,7 +712,7 @@ function menuKey(e: KeyboardEvent) {
   if (screen === 'death' && (e.key === 'r' || e.key === 'R')) return quickRestart();
   if (e.key === 'Escape') {
     if (screen === 'pause') hideOverlay();
-    else overlay.querySelector<HTMLElement>('#back')?.click();
+    else (overlay.querySelector<HTMLElement>('#back') ?? overlay.querySelector<HTMLElement>('[data-top-back]'))?.click();
     return;
   }
   const list = menuButtons();
