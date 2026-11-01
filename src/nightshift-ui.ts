@@ -4,14 +4,16 @@
 
 import { setMusicDepth, setMusicMood, setNightHeat, sfx } from './audio';
 import { drawAura } from './aura';
+import { centralDate } from './daily';
 import { NIGHT_GIFT, NIGHT_GIFT_KILLS } from './graveshift';
 import { heroSprite } from './hero';
-import { grave, groundFor, hash, paintGround, tree, type Px } from './hollow-art';
+import { grave, groundFor, hash, paintGround, seasonWeather, setDress, tree, type Dress, type Px } from './hollow-art';
 import { graveState, meta, outfitFor, receiveGift, saveMeta } from './meta';
 import {
   DASH_COOLDOWN, FIELD, MAX_LEVEL, type Night, area, dash, spadeReach, NIGHT_RELIC, NIGHT_RELICS, chooseRelic, frostRadius, levelChoices, newNight, nextBossAt, nightSouls, skullCount, skullOrbit, step, xpToLevel, NIGHT_FUSION, fusionOf, isFusion, type NightPick,
 } from './nightshift';
 import { ONLINE, nightBoard, submitNight } from './online';
+import { seasonDress } from './progression';
 import { claimInlineHtml, ensureGuest, playerName, showLeaderboard, signedIn, unclaimed, wireClaimInline } from './social';
 import { enemyFrames, type Sprite } from './sprites';
 import { esc, on, overlay, showOverlay, toast } from './ui';
@@ -32,10 +34,16 @@ function stickSide(): StickSide {
   }
 }
 
-// The field is painted once: grass and paths, with old graves and trees scattered about.
+// The field is painted once: grass and paths, with old graves and trees scattered about,
+// dressed for the season like the Hollow (leaves and pumpkins for the Harvest Feast, snow
+// for Midwinter).
 let field: HTMLCanvasElement | null = null;
+let fieldDress: Dress | undefined;
 function fieldCanvas(): HTMLCanvasElement {
-  if (field) return field;
+  const dress = seasonDress(centralDate());
+  setDress(dress);
+  if (field && fieldDress === dress) return field;
+  fieldDress = dress;
   const map: string[] = [];
   const mid = FIELD / 2;
   for (let y = 0; y < FIELD; y++) {
@@ -1104,6 +1112,9 @@ export function showNightShift(back: () => void) {
     }
     ctx.globalAlpha = 1;
     if (sparks.length) sparks = sparks.filter((p) => p.life > 0).slice(-300);
+
+    // the season's leaves or snow, falling over the whole field
+    seasonWeather(ctx, px, W, H, t);
 
     // a gold marker over your head, on top of everything, so you never lose yourself in a crowd
     {
