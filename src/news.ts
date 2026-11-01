@@ -23,6 +23,30 @@ export interface NewsDay {
 
 export const NEWS: NewsDay[] = [
   {
+    date: '2026-11-01',
+    title: 'The Harvest Feast',
+    notes: [
+      '🍂 The Harvest Feast runs from today to Thanksgiving. Leaves fall over the Hollow, pumpkins sit on every lit doorstep, and the story crypts take the autumn weather.',
+      '🧥 Play any run during the Feast for the Harvest Mantle.',
+      '🛍️ The Ossuary sells autumn cloaks, hats and auras until Thanksgiving, and the Hall has harvest decorations to buy.',
+    ],
+    go: ['wardrobe'],
+  },
+  {
+    date: '2026-10-31',
+    title: 'New mode: the Night Shift',
+    notes: [
+      '🌙 The Night Shift: survive as long as you can while the dead pour in. Your relics fight for you, a boss rises every two minutes, and kills are your score on its own leaderboard. Find it under Horde with the NEW button.',
+      '💨 Dash through the dead to knock them aside (Space on a computer, the dash button on phones).',
+      '🔥 Max a weapon and hold its charm to forge them together at the Soul Forge.',
+      '🌾 Grave Shift has closed; what you bought from Mortimer stays yours.',
+      '🖥️ On a computer the game fills the window, with your stats on one side and your relics on the other.',
+      '🌀 The Soul Forge\'s fusion now plays on every computer. A new Calm motion setting skips it and softens movement.',
+      '⚖️ On the deep floors, a blood shrine or a hidden vault gives one Abyss boon, the same as a chest. In Endless and the story now; in the Daily and Horde from Daily #19.',
+    ],
+    go: ['horde', 'settings'],
+  },
+  {
     date: '2026-10-30',
     title: 'Act II opens, Grave Shift, a new forge and fairer rules',
     notes: [
