@@ -26,7 +26,7 @@ export const NEWS: NewsDay[] = [
     date: '2026-11-01',
     title: 'The Harvest Feast',
     notes: [
-      '🍂 The Harvest Feast runs from today to Thanksgiving. Leaves fall over the Hollow, pumpkins sit on every lit doorstep, and the story crypts take the autumn weather.',
+      '🍂 The Harvest Feast runs from today to Thanksgiving. Leaves fall over the Hollow, pumpkins sit on every lit doorstep, and down in every crypt leaves drift over the floor and gourds lean on the walls.',
       '🧥 Play any run during the Feast for the Harvest Mantle.',
       '🛍️ The Ossuary sells autumn cloaks, hats and auras until Thanksgiving, and the Hall has harvest decorations to buy.',
     ],

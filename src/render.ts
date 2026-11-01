@@ -149,9 +149,10 @@ export class Renderer {
 
   setGame(game: Game) {
     this.game = game;
-    // Story crypts take the season's weather: leaves for the Harvest Feast, snow for Midwinter.
-    const dress = game.mode === 'story' ? seasonDress(centralDate()) : null;
+    // Every crypt takes the season, like the Hollow above: leaves for the Harvest Feast, snow for Midwinter.
+    const dress = seasonDress(centralDate());
     this.seasonWeather = dress === 'midwinter' ? 'snow' : dress === 'harvest' ? 'leaves' : null;
+    this.harvest = dress === 'harvest';
     this.petAt = null;
     this.heroAt = null;
     this.disp.clear();
@@ -1785,7 +1786,101 @@ export class Renderer {
     }
     this.drawStaticGround(ctx, g);
     this.deepDetail(ctx, g, wallAt);
+    if (this.harvest) this.harvestDetail(ctx, g, wallAt);
     return c;
+  }
+
+  /**
+   * The Harvest Feast, carried down from the Hollow: fallen leaves on the flagstones, drifts
+   * banked against the walls, and pumpkins, gourds and sheaves of wheat tucked along them.
+   */
+  private harvestDetail(ctx: CanvasRenderingContext2D, g: Game, wallAt: (x: number, y: number) => boolean) {
+    // Its own random stream, so the rest of the decoration stays as it was.
+    const rng = mulberry32(hashSeed(g.seed, 'harvest', g.lookFloor));
+    const LEAVES = ['#c0392b', '#d9822b', '#e0a030', '#a8581f', '#8a3b12', '#e67e22'];
+    const leaf = (x: number, y: number) => {
+      const c = LEAVES[Math.floor(rng() * LEAVES.length)];
+      ctx.fillStyle = c;
+      // a slanted leaf, one way or the other, with a dark stalk
+      const flip = rng() < 0.5;
+      ctx.fillRect(x + (flip ? 1 : 0), y, 2, 1);
+      ctx.fillRect(x + (flip ? 0 : 1), y + 1, 2, 1);
+      ctx.fillStyle = 'rgba(40, 20, 10, 0.6)';
+      ctx.fillRect(x + (flip ? 3 : -1), y + (flip ? -1 : 2), 1, 1);
+    };
+    const pumpkin = (x: number, y: number) => {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+      ctx.fillRect(x, y + 5, 7, 1);
+      ctx.fillStyle = '#b8561a';
+      ctx.fillRect(x, y + 1, 7, 4);
+      ctx.fillRect(x + 1, y, 5, 6);
+      ctx.fillStyle = '#e07a26';
+      ctx.fillRect(x + 1, y + 1, 2, 3);
+      ctx.fillRect(x + 4, y + 1, 2, 3);
+      ctx.fillStyle = '#ffb35a';
+      ctx.fillRect(x + 1, y + 1, 1, 1);
+      ctx.fillStyle = '#4a6a2a';
+      ctx.fillRect(x + 3, y - 1, 1, 2);
+      ctx.fillRect(x + 4, y - 1, 1, 1);
+    };
+    const gourd = (x: number, y: number) => {
+      const body = rng() < 0.5 ? '#d9b84a' : '#7a9a3a';
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+      ctx.fillRect(x, y + 4, 4, 1);
+      ctx.fillStyle = body;
+      ctx.fillRect(x, y + 2, 4, 2);
+      ctx.fillRect(x + 1, y, 2, 2);
+      ctx.fillStyle = 'rgba(255, 250, 220, 0.4)';
+      ctx.fillRect(x + 1, y + 2, 1, 1);
+      ctx.fillStyle = '#5a3a1a';
+      ctx.fillRect(x + 2, y - 1, 1, 1);
+    };
+    const sheaf = (x: number, y: number) => {
+      // ears fanned out at the top, stalks gathered at a twine tie, splayed at the foot
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+      ctx.fillRect(x, y + 8, 5, 1);
+      ctx.fillStyle = '#ecd27a';
+      ctx.fillRect(x - 1, y, 1, 2);
+      ctx.fillRect(x + 1, y - 1, 1, 2);
+      ctx.fillRect(x + 3, y - 1, 1, 2);
+      ctx.fillRect(x + 5, y, 1, 2);
+      ctx.fillStyle = '#c4a046';
+      ctx.fillRect(x, y + 1, 1, 2);
+      ctx.fillRect(x + 4, y + 1, 1, 2);
+      ctx.fillRect(x + 1, y + 1, 3, 7);
+      ctx.fillRect(x, y + 6, 1, 2);
+      ctx.fillRect(x + 4, y + 6, 1, 2);
+      ctx.fillStyle = '#9a7a2a';
+      ctx.fillRect(x + 2, y + 1, 1, 7);
+      ctx.fillStyle = '#7a3a1a';
+      ctx.fillRect(x + 1, y + 4, 3, 1);
+    };
+    const stairs = g.stairs;
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (wallAt(x, y) || g.isWater(x, y) || g.isLava(x, y) || g.bones[y * W + x]) continue;
+        const px = x * TILE;
+        const py = y * TILE;
+        const onStairs = stairs && stairs.x === x && stairs.y === y;
+        // leaves banked up against the wall behind
+        if (y > 0 && wallAt(x, y - 1)) {
+          for (let k = 0; k < 4; k++) leaf(px + 1 + Math.floor(rng() * 12), py + 1 + Math.floor(rng() * 2));
+          // and now and then a pumpkin, a gourd or a sheaf leant on it
+          const r = rng();
+          if (!onStairs && r < 0.12) {
+            const side = rng() < 0.5 ? 1 : 8;
+            if (r < 0.06) pumpkin(px + side, py + 2);
+            else if (r < 0.1) gourd(px + side + 1, py + 3);
+            else sheaf(px + side + 1, py + 1);
+          }
+        }
+        // a few leaves blown across the floor
+        if (!onStairs && rng() < 0.35) {
+          const n = 1 + Math.floor(rng() * 2);
+          for (let k = 0; k < n; k++) leaf(px + 1 + Math.floor(rng() * 12), py + 2 + Math.floor(rng() * 11));
+        }
+      }
+    }
   }
 
   /** The deeper passes' own floor detail: roots, frost, blood, stars or gold. */
@@ -1899,6 +1994,8 @@ export class Renderer {
   private weather: { x: number; y: number; vx: number; vy: number; t: number; life: number; size: number }[] = [];
   private weatherKind: Weather | 'leaves' | null = null;
   private seasonWeather: 'snow' | 'leaves' | null = null;
+  /** The Harvest Feast is on: leaf litter, drifts and gourds on the crypt floor. */
+  private harvest = false;
 
   /** Spores, snow, red rain, twinkling stars or rising gold, over everything. */
   private drawWeather(g: Game, dt: number) {
