@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>One More Crypt · Press Kit</title>
+<meta name="description" content="Press kit for One More Crypt, a free daily roguelike for the browser: fact sheet, trailers, screenshots, logos and contact." />
+<meta property="og:title" content="One More Crypt · Press Kit" />
+<meta property="og:description" content="Fact sheet, trailers, screenshots, logos and contact for One More Crypt, a free daily roguelike for the browser." />
+<meta property="og:image" content="https://onemorecrypt.com/og.png?v=3" />
+<link rel="icon" href="../favicon.svg" />
+<link href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Silkscreen&family=Barlow:wght@400;600&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --bg: #0e0a10; --panel: #18111a; --line: #33263a; --text: #e9e1cf; --muted: #a89aa0;
+  --red: #d93a4a; --gold: #f2c14e; --amber: #ffb35a;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.6 Barlow, system-ui, sans-serif; }
+a { color: var(--gold); }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+header { background: radial-gradient(ellipse at 50% 0%, #3a1d10 0%, var(--bg) 70%); text-align: center; padding: 48px 0 28px; }
+header img.logo { width: min(640px, 92%); height: auto; }
+.tag { font-family: Silkscreen, monospace; letter-spacing: 4px; font-size: 15px; color: var(--gold); margin-top: 6px; }
+.cta { display: inline-block; margin: 22px 6px 0; padding: 12px 22px; font-family: Silkscreen, monospace; font-size: 14px; letter-spacing: 2px; text-decoration: none; border: 2px solid var(--gold); color: var(--gold); }
+.cta.main { background: linear-gradient(#d93a4a, #8e1e2a); border-color: #ff6a74; color: #fff; }
+nav { position: sticky; top: 0; z-index: 2; background: rgba(14, 10, 16, 0.95); border-bottom: 1px solid var(--line); }
+nav .wrap { display: flex; gap: 18px; overflow-x: auto; padding-top: 10px; padding-bottom: 10px; }
+nav a { font-family: Silkscreen, monospace; font-size: 12px; letter-spacing: 2px; color: var(--muted); text-decoration: none; white-space: nowrap; }
+nav a:hover { color: var(--gold); }
+section { padding: 40px 0 8px; }
+h2 { font-family: 'Pirata One', serif; font-weight: normal; font-size: 44px; line-height: 1.1; color: var(--gold); margin: 0 0 16px; }
+h3 { font-family: Silkscreen, monospace; font-weight: normal; font-size: 15px; letter-spacing: 2px; color: var(--amber); margin: 24px 0 8px; }
+.grid2 { display: grid; grid-template-columns: 320px 1fr; gap: 32px; align-items: start; }
+.facts { background: var(--panel); border: 1px solid var(--line); padding: 18px 20px; }
+.facts dt { font-family: Silkscreen, monospace; font-size: 11px; letter-spacing: 2px; color: var(--muted); margin-top: 12px; }
+.facts dt:first-child { margin-top: 0; }
+.facts dd { margin: 2px 0 0; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 16px 0; }
+.stat { background: var(--panel); border: 1px solid var(--line); padding: 14px; text-align: center; }
+.stat b { display: block; font-family: 'Pirata One', serif; font-weight: normal; font-size: 40px; line-height: 1; color: var(--gold); }
+.stat span { font-family: Silkscreen, monospace; font-size: 11px; letter-spacing: 1px; color: var(--muted); }
+.fine { color: var(--muted); font-size: 14px; }
+ul.features { padding-left: 20px; }
+ul.features li { margin-bottom: 8px; }
+.videos { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+video { width: 100%; height: auto; display: block; background: #000; border: 1px solid var(--line); }
+.shots { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.shots a { display: block; border: 1px solid var(--line); background: #000; }
+.shots img { width: 100%; height: auto; display: block; aspect-ratio: 16 / 9; object-fit: cover; }
+.shots a.tall img { object-fit: contain; }
+.cap { display: block; font-size: 13px; color: var(--muted); padding: 6px 8px; background: var(--panel); }
+.art { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+.art a { display: flex; flex-direction: column; text-decoration: none; border: 1px solid var(--line); }
+.art .well { display: flex; align-items: center; justify-content: center; height: 150px; padding: 12px; background: repeating-conic-gradient(#2a2030 0 25%, #221a28 0 50%) 0 0 / 20px 20px; }
+.art .well.light { background: #ece4d4; }
+.art img { max-width: 100%; max-height: 100%; }
+.download { margin: 18px 0 0; }
+blockquote { margin: 12px 0; padding: 12px 18px; border-left: 4px solid var(--red); background: var(--panel); }
+footer { margin-top: 48px; padding: 24px 0 40px; border-top: 1px solid var(--line); text-align: center; color: var(--muted); font-size: 14px; }
+@media (max-width: 760px) {
+  .grid2, .videos { grid-template-columns: 1fr; }
+  h2 { font-size: 36px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <img class="logo" src="art/logo-red.png" alt="One More Crypt" />
+    <div class="tag">PRESS KIT · ONE CRYPT. ONE TRY A DAY.</div>
+    <a class="cta main" href="https://onemorecrypt.com/">▶ Play free</a>
+    <a class="cta" href="one-more-crypt-press-kit.zip" download>⬇ Download everything (.zip)</a>
+  </div>
+</header>
+<nav><div class="wrap">
+  <a href="#facts">Fact sheet</a><a href="#about">About</a><a href="#features">Features</a><a href="#numbers">Numbers</a>
+  <a href="#videos">Trailers</a><a href="#screenshots">Screenshots</a><a href="#logos">Logos &amp; art</a><a href="#contact">Contact</a>
+</div></nav>
+
+<main class="wrap">
+  <section id="facts" class="grid2">
+    <dl class="facts">
+      <dt>Developer</dt><dd>Justin McConnell (solo developer)</dd>
+      <dt>Released</dt><dd>October 2026, updated almost daily</dd>
+      <dt>Platforms</dt><dd>Any web browser: PC, Mac, iPhone, Android. Installs as an app.</dd>
+      <dt>Price</dt><dd>Free. No ads, no download, no sign-up needed.</dd>
+      <dt>Genre</dt><dd>Turn-based roguelike, daily challenge, survival</dd>
+      <dt>Play</dt><dd><a href="https://onemorecrypt.com/">onemorecrypt.com</a></dd>
+      <dt>Also on</dt><dd><a href="https://notjstn.itch.io/one-more-crypt">itch.io</a></dd>
+      <dt>Community</dt><dd><a href="https://discord.gg/V454sdbTQH">Discord</a> · <a href="https://x.com/OneMoreCrypt">@OneMoreCrypt</a></dd>
+      <dt>Press contact</dt><dd><a href="mailto:justinmmcconnell@gmail.com">justinmmcconnell@gmail.com</a></dd>
+    </dl>
+    <div id="about">
+      <h2>About the game</h2>
+      <p><b>One More Crypt</b> is a free dark-fantasy roguelike that plays in the browser in seconds, on phone or PC.</p>
+      <p>Its heart is the <b>Daily Crypt</b>: one crypt a day, the same for everyone in the world, and you get one try. You descend floor by floor, stack cursed relics into broken builds, and see how deep you can get before Death comes for you. Then you compare with everyone else on the day's leaderboard. Think Wordle, but you're fighting your way down.</p>
+      <p>Around it the game has grown fast: an Endless mode, a daily Horde arena, the Night Shift survival mode, world-boss raids everyone fights together, and a story campaign set in a little town above the crypt.</p>
+      <blockquote>Short version: <i>a free daily roguelike in the browser. One crypt a day, the same for everyone, one try.</i></blockquote>
+    </div>
+  </section>
+
+  <section id="features">
+    <h2>Features</h2>
+    <ul class="features">
+      <li><b>The Daily Crypt</b>: one shared crypt a day with its own leaderboard, a hero of the day, and a podium for the top three.</li>
+      <li><b>Endless</b>: go as deep as you can, with your own hero, through deeper zones with their own looks and foes.</li>
+      <li><b>The Night Shift</b>: endless survival in a graveyard. Relics fight for you, a boss rises every two minutes, and you dash through the crowd.</li>
+      <li><b>Horde</b>: one arena a day, the same for everyone. Hold it against waves and chain kills.</li>
+      <li><b>The Bell Tolls</b>: world bosses that everyone fights together at set times.</li>
+      <li><b>Story mode</b>: the Hollow, a small town above the crypt, with quests, characters and two acts so far.</li>
+      <li><b>8 heroes and 80+ relics</b>, with fusions at the Soul Forge that turn two relics into one stronger one.</li>
+      <li><b>The Crypt Hall</b>: a trophy room you can decorate and share, plus cloaks, hats and auras for your heroes.</li>
+      <li><b>Seasons</b>: right now the Harvest Feast dresses the whole game for autumn until Thanksgiving, with Midwinter next.</li>
+    </ul>
+  </section>
+
+  <section id="numbers">
+    <h2>First 17 days</h2>
+    <div class="stats">
+      <div class="stat"><b>1,400+</b><span>visitors</span></div>
+      <div class="stat"><b>582</b><span>players</span></div>
+      <div class="stat"><b>1,300+</b><span>leaderboard runs</span></div>
+      <div class="stat"><b>524,000+</b><span>foes slain</span></div>
+      <div class="stat"><b>456</b><span>deepest floor</span></div>
+    </div>
+    <p class="fine">October 16 to November 1, 2026. Busiest day: 97 players.</p>
+  </section>
+
+  <section id="videos">
+    <h2>Trailers</h2>
+    <div class="videos">
+      <div>
+        <video controls preload="none" poster="night-shift-trailer.jpg" src="night-shift-trailer.mp4"></video>
+        <p class="fine">The Night Shift (29s, 1080p) · <a href="night-shift-trailer.mp4" download>Download MP4</a></p>
+      </div>
+      <div>
+        <video controls preload="none" poster="harvest-feast-trailer.jpg" src="harvest-feast-trailer.mp4"></video>
+        <p class="fine">The Harvest Feast (25s, 1080p) · <a href="harvest-feast-trailer.mp4" download>Download MP4</a></p>
+      </div>
+    </div>
+  </section>
+
+  <section id="screenshots">
+    <h2>Screenshots</h2>
+    <p class="fine">1920×1080 (phone shots 1080×2400). Click for full size. All are real gameplay.</p>
+    <div class="shots">
+      <a href="shots/02-crypt-run.jpg"><img loading="lazy" src="shots/02-crypt-run.jpg" alt="A run in the crypt" /><span class="cap">A run in the crypt</span></a>
+      <a href="shots/03-night-shift.jpg"><img loading="lazy" src="shots/03-night-shift.jpg" alt="The Night Shift with a full build" /><span class="cap">The Night Shift: relics fight for you</span></a>
+      <a href="shots/04-night-shift-boss.jpg"><img loading="lazy" src="shots/04-night-shift-boss.jpg" alt="The Lich marking its lanes" /><span class="cap">A boss every two minutes</span></a>
+      <a href="shots/05-the-hollow.jpg"><img loading="lazy" src="shots/05-the-hollow.jpg" alt="The Hollow, the town above the crypt" /><span class="cap">The Hollow, the town above the crypt</span></a>
+      <a href="shots/06-horde.jpg"><img loading="lazy" src="shots/06-horde.jpg" alt="Horde mode" /><span class="cap">Horde: one arena a day</span></a>
+      <a href="shots/07-crypt-hall.jpg"><img loading="lazy" src="shots/07-crypt-hall.jpg" alt="A decorated Crypt Hall" /><span class="cap">The Crypt Hall, decorated for autumn</span></a>
+      <a href="shots/01-title.jpg"><img loading="lazy" src="shots/01-title.jpg" alt="The title screen" /><span class="cap">Every mode, one screen</span></a>
+      <a href="shots/08-harvest-shop.jpg"><img loading="lazy" src="shots/08-harvest-shop.jpg" alt="Harvest Feast cosmetics" /><span class="cap">Harvest Feast cloaks, hats and auras</span></a>
+      <a class="tall" href="shots/09-phone-night-shift.jpg"><img loading="lazy" src="shots/09-phone-night-shift.jpg" alt="The Night Shift on a phone" /><span class="cap">The Night Shift on a phone</span></a>
+      <a class="tall" href="shots/10-phone-crypt.jpg"><img loading="lazy" src="shots/10-phone-crypt.jpg" alt="The crypt on a phone" /><span class="cap">The crypt on a phone</span></a>
+    </div>
+  </section>
+
+  <section id="logos">
+    <h2>Logos &amp; art</h2>
+    <div class="art">
+      <a href="art/logo-red.png" download><span class="well"><img src="art/logo-red.png" alt="" /></span><span class="cap">Logo, red (PNG, transparent)</span></a>
+      <a href="art/logo-light.png" download><span class="well"><img src="art/logo-light.png" alt="" /></span><span class="cap">Logo, light (PNG, transparent)</span></a>
+      <a href="art/logo-dark.png" download><span class="well light"><img src="art/logo-dark.png" alt="" /></span><span class="cap">Logo, dark (PNG, transparent)</span></a>
+      <a href="art/logo-stack.png" download><span class="well"><img src="art/logo-stack.png" alt="" /></span><span class="cap">Logo with tagline (PNG)</span></a>
+      <a href="art/icon-512.png" download><span class="well"><img src="art/icon-512.png" alt="" /></span><span class="cap">App icon (512×512)</span></a>
+      <a href="art/key-art-1200x630.png" download><span class="well"><img src="art/key-art-1200x630.png" alt="" /></span><span class="cap">Key art (1200×630)</span></a>
+      <a href="art/banner-1920x600.png" download><span class="well"><img src="art/banner-1920x600.png" alt="" /></span><span class="cap">Banner (1920×600)</span></a>
+      <a href="art/cover-1260x1000.png" download><span class="well"><img src="art/cover-1260x1000.png" alt="" /></span><span class="cap">Cover (1260×1000)</span></a>
+    </div>
+    <p class="download"><a class="cta" href="one-more-crypt-press-kit.zip" download>⬇ Download everything (.zip)</a></p>
+    <p class="fine">You're free to use all of these, and any footage you capture yourself, in coverage of the game.</p>
+  </section>
+
+  <section id="contact">
+    <h2>Contact</h2>
+    <p>Questions, an interview, or more numbers? Happy to help.</p>
+    <p><b>Justin McConnell</b> · <a href="mailto:justinmmcconnell@gmail.com">justinmmcconnell@gmail.com</a><br />
+    <a href="https://discord.gg/V454sdbTQH">Discord</a> · <a href="https://x.com/OneMoreCrypt">X / Twitter</a> · <a href="https://notjstn.itch.io/one-more-crypt">itch.io</a></p>
+  </section>
+</main>
+<footer><div class="wrap">One More Crypt · <a href="https://onemorecrypt.com/">onemorecrypt.com</a></div></footer>
+</body>
+</html>
