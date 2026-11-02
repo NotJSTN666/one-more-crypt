@@ -24,11 +24,16 @@ export interface NewsDay {
 export const NEWS: NewsDay[] = [
   {
     date: '2026-11-01',
-    title: 'The Harvest Feast',
+    title: 'The Harvest Feast, and longer nights',
     notes: [
       '🍂 The Harvest Feast runs from today to Thanksgiving. Leaves fall over the Hollow, pumpkins sit on every lit doorstep, and down in every crypt leaves drift over the floor and gourds lean on the walls. The Night Shift\'s graveyard turns too.',
       '🧥 Play any run during the Feast for the Harvest Mantle.',
       '🛍️ The Ossuary sells autumn cloaks, hats and auras until Thanksgiving, and the Hall has harvest decorations to buy.',
+      '🏰 A Decorate tab in your Hall: choose which decorations go up. Hidden pieces stay yours.',
+      '🦇 Night Shift: the Shade Cloak, a new charm that brings your dash back sooner.',
+      '🧪 Night Shift: healing potions now drop, and every boss leaves an ember from the Soul Forge to forge or sharpen a weapon for free.',
+      '✨ Night Shift: once your relics are all maxed, blessings keep the level-ups coming.',
+      '↩️ Every screen has a Back button in the top corner, and your phone\'s Back goes back a screen or pauses instead of closing the game.',
     ],
     go: ['wardrobe'],
   },
