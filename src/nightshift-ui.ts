@@ -10,7 +10,7 @@ import { heroSprite } from './hero';
 import { grave, groundFor, hash, paintGround, seasonWeather, setDress, tree, type Dress, type Px } from './hollow-art';
 import { graveState, meta, outfitFor, receiveGift, saveMeta } from './meta';
 import {
-  dashCooldown, FIELD, MAX_LEVEL, type Night, area, dash, spadeReach, NIGHT_RELIC, NIGHT_RELICS, chooseRelic, frostRadius, levelChoices, newNight, nextBossAt, nightSouls, skullCount, skullOrbit, step, xpToLevel, NIGHT_FUSION, fusionOf, isFusion, type NightPick,
+  dashCooldown, FIELD, MAX_LEVEL, type Night, area, dash, spadeReach, NIGHT_RELIC, NIGHT_RELICS, chooseRelic, frostRadius, levelChoices, newNight, nextBossAt, nightSouls, skullCount, skullOrbit, step, xpToLevel, NIGHT_FUSION, fusionOf, isFusion, isBlessing, NIGHT_BLESSING, NIGHT_BLESSINGS, bl, type NightPick,
 } from './nightshift';
 import { ONLINE, nightBoard, submitNight } from './online';
 import { seasonDress } from './progression';
@@ -374,6 +374,16 @@ export function showNightShift(back: () => void) {
             ${touch ? '' : `<kbd>${i + 1}</kbd>`}
           </button>`;
         }
+        if (isBlessing(id)) {
+          // a blessing: no top level, take it as often as you like
+          const b = NIGHT_BLESSING[id];
+          const had = bl(n, id);
+          return `<button type="button" class="ns-choice blessing" data-pick="${id}">
+            <span class="ns-choice-emoji">${b.emoji}</span>
+            <span class="ns-choice-info"><b>${esc(b.name)}</b> <small>✨ Blessing${had ? ` · ×${had + 1}` : ''}</small><span>${esc(b.text)}</span></span>
+            ${touch ? '' : `<kbd>${i + 1}</kbd>`}
+          </button>`;
+        }
         const r = NIGHT_RELIC[id];
         const at = n.relics[id] ?? 0;
         return `<button type="button" class="ns-choice" data-pick="${id}">
@@ -483,6 +493,8 @@ export function showNightShift(back: () => void) {
           ? `<span class="ns-relic fused" title="${esc(f.name)}">${f.emoji}<small>★</small></span>`
           : `<span class="ns-relic ${r.weapon ? '' : 'charm'}" title="${esc(r.name)}">${r.emoji}<small>${n.relics[r.id]}</small></span>`;
       })
+      .join('') + NIGHT_BLESSINGS.filter((b) => bl(n, b.id))
+      .map((b) => `<span class="ns-relic blessing" title="${esc(b.name)} ×${bl(n, b.id)}">${b.emoji}<small>×${bl(n, b.id)}</small></span>`)
       .join('');
   }
   relicRow();

@@ -127,9 +127,28 @@ export const NIGHT_FUSIONS: NightFusion[] = [
 export const NIGHT_FUSION = Object.fromEntries(NIGHT_FUSIONS.map((f) => [f.id, f])) as Record<FusionId, NightFusion>;
 /** The fusion a weapon became, if it did. */
 export const fusionOf = (n: Night, weapon: RelicKind) => NIGHT_FUSIONS.find((f) => f.weapon === weapon && n.fused[f.id]);
-/** A level-up choice: a relic, or a fusion at the forge. */
-export type NightPick = RelicKind | FusionId;
+/**
+ * Blessings: small upgrades with no top level. They fill the level-up once there are fewer
+ * than three relics left to take or sharpen, so a long night keeps getting stronger. Each one
+ * is small, and the late night's dead toughen far faster, so they can't make you untouchable.
+ */
+export type BlessingId = 'might' | 'quickening' | 'vigor' | 'reach' | 'warding' | 'fleet' | 'greed';
+export interface NightBlessing { id: BlessingId; name: string; emoji: string; text: string }
+export const NIGHT_BLESSINGS: NightBlessing[] = [
+  { id: 'might', name: 'Blessing of Might', emoji: '💪', text: 'Everything hits 6% harder.' },
+  { id: 'quickening', name: 'Blessing of Quickening', emoji: '🌀', text: 'Weapons come round 4% sooner.' },
+  { id: 'vigor', name: 'Blessing of Vigor', emoji: '❤️', text: '+4 max health, and heal 4.' },
+  { id: 'reach', name: 'Blessing of Reach', emoji: '🌕', text: 'Area weapons reach 5% further.' },
+  { id: 'warding', name: 'Blessing of Warding', emoji: '🛡️', text: 'Take 4% less damage.' },
+  { id: 'fleet', name: 'Blessing of the Fleet', emoji: '🪶', text: 'Move 3% faster.' },
+  { id: 'greed', name: 'Blessing of Greed', emoji: '💰', text: 'Souls count 5% more.' },
+];
+export const NIGHT_BLESSING = Object.fromEntries(NIGHT_BLESSINGS.map((b) => [b.id, b])) as Record<BlessingId, NightBlessing>;
+
+/** A level-up choice: a relic, a fusion at the forge, or a blessing. */
+export type NightPick = RelicKind | FusionId | BlessingId;
 export const isFusion = (id: NightPick): id is FusionId => id in NIGHT_FUSION;
+export const isBlessing = (id: NightPick): id is BlessingId => id in NIGHT_BLESSING;
 
 export const NIGHT_RELIC = Object.fromEntries(NIGHT_RELICS.map((r) => [r.id, r])) as Record<RelicKind, NightRelic>;
 
@@ -188,6 +207,8 @@ export interface Night {
   /** Potions drunk this night. */
   potions: number;
   relics: Partial<Record<RelicKind, number>>;
+  /** Blessings taken, each as many times as you like. */
+  blessings: Partial<Record<BlessingId, number>>;
   foes: Foe[];
   pickups: Pickup[];
   darts: Dart[];
@@ -232,6 +253,7 @@ export function newNight(rand: () => number = Math.random): Night {
     potionAt: 0,
     potions: 0,
     relics: { spade: 1 },
+    blessings: {},
     foes: [],
     pickups: [],
     darts: [],
@@ -253,14 +275,20 @@ export function newNight(rand: () => number = Math.random): Night {
 const lv = (n: Night, r: RelicKind) => n.relics[r] ?? 0;
 /** Souls needed to go from this level to the next. */
 export const xpToLevel = (level: number) => 2 + level * 2 + Math.floor((level * level) / 10);
-const dmgMul = (n: Night) => 1 + 0.12 * lv(n, 'whetstone');
-const cdMul = (n: Night) => 1 - 0.08 * lv(n, 'hourglass');
-/** How far the Seer's Lens stretches every area weapon. */
-export const area = (n: Night) => 1 + 0.15 * lv(n, 'lens');
+/** How many times a blessing has been taken. */
+export const bl = (n: Night, b: BlessingId) => n.blessings?.[b] ?? 0;
+const dmgMul = (n: Night) => (1 + 0.12 * lv(n, 'whetstone')) * (1 + 0.06 * bl(n, 'might'));
+// Quickening and warding shrink by a share each time, so they never reach nothing.
+const cdMul = (n: Night) => (1 - 0.08 * lv(n, 'hourglass')) * 0.96 ** bl(n, 'quickening');
+/** What's left of a hit after the Blessing of Warding. */
+export const wardMul = (n: Night) => 0.96 ** bl(n, 'warding');
+/** How far the Seer's Lens (and the Blessing of Reach) stretch every area weapon. */
+export const area = (n: Night) => (1 + 0.15 * lv(n, 'lens')) * (1 + 0.05 * bl(n, 'reach'));
 /** How far the spade's swing reaches. */
 export const spadeReach = (n: Night) => (1.5 + 0.2 * lv(n, 'spade')) * area(n);
 export const pickupRadius = (n: Night) => 1.3 + 1.2 * lv(n, 'magnet');
-export const playerSpeed = (n: Night) => 4 * (1 + 0.08 * lv(n, 'boots'));
+// The fleet blessing stops adding past +60%, so you can still steer.
+export const playerSpeed = (n: Night) => 4 * (1 + 0.08 * lv(n, 'boots')) * (1 + Math.min(0.6, 0.03 * bl(n, 'fleet')));
 export const skullCount = (n: Night) => (lv(n, 'skulls') ? (1 + lv(n, 'skulls')) * (n.fused.halo ? 2 : 1) : 0);
 /** How far the skulls circle. */
 export const skullOrbit = (n: Night) => (n.fused.halo ? 2.2 : 1.6);
@@ -302,10 +330,10 @@ function forgeChoices(n: Night): NightPick[] {
   return relicChoices(n);
 }
 
-function relicChoices(n: Night): RelicKind[] {
+function relicChoices(n: Night): NightPick[] {
   const weapons = NIGHT_RELICS.filter((r) => r.weapon && lv(n, r.id) > 0).length;
   const open = NIGHT_RELICS.filter((r) => lv(n, r.id) < MAX_LEVEL && (lv(n, r.id) > 0 || !r.weapon || weapons < MAX_WEAPONS));
-  const out: RelicKind[] = [];
+  const out: NightPick[] = [];
   const pool = [...open];
   // With only the spade in hand, one choice is always a new weapon.
   if (weapons < 2) {
@@ -317,12 +345,25 @@ function relicChoices(n: Night): RelicKind[] {
     }
   }
   while (out.length < 3 && pool.length) out.push(pool.splice(Math.floor(n.rand() * pool.length), 1)[0].id);
+  // Running out of relics: blessings fill the rest, so there's always something to take.
+  const blessings = [...NIGHT_BLESSINGS];
+  while (out.length < 3) out.push(blessings.splice(Math.floor(n.rand() * blessings.length), 1)[0].id);
   return out;
 }
 
 /** Take a relic (or its next level) for a waiting level. */
 export function chooseRelic(n: Night, id: NightPick) {
   if (n.pendingLevels <= 0) return;
+  if (isBlessing(id)) {
+    n.blessings[id] = bl(n, id) + 1;
+    n.pendingLevels--;
+    if (n.forgeOffers > 0) n.forgeOffers--;
+    if (id === 'vigor') {
+      n.maxHp += 4;
+      n.hp = Math.min(n.maxHp, n.hp + 4);
+    }
+    return;
+  }
   if (isFusion(id)) {
     if (n.fused[id]) return;
     n.fused[id] = true;
@@ -413,7 +454,7 @@ function hurtFoe(n: Night, f: Foe, amount: number) {
 /** You take a hit, unless you've just been hit. */
 function hurtYou(n: Night, dmg: number, from?: Foe) {
   if (n.t < n.hurtUntil || n.t < n.dashUntil) return;
-  n.hp -= dmg;
+  n.hp -= dmg * wardMul(n);
   n.hurtUntil = n.t + 0.75;
   if (from && lv(n, 'thorns')) hurtFoe(n, from, 5 * lv(n, 'thorns'));
 }
@@ -860,7 +901,7 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
 
   // ---- pickups ----
   const pull = pickupRadius(n);
-  const soulMul = 1 + 0.15 * lv(n, 'coin');
+  const soulMul = (1 + 0.15 * lv(n, 'coin')) * (1 + 0.05 * bl(n, 'greed'));
   for (const p of n.pickups) {
     const d = near(n, p);
     if (d < pull) {

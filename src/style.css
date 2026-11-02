@@ -5262,6 +5262,21 @@ body.tutorial #relic-bar {
   box-shadow: 0 0 8px rgba(255, 138, 42, 0.45);
 }
 
+/* Night Shift blessings: endless small upgrades once the relics run out. */
+.ns-choice.blessing {
+  border-color: #c9a0ff;
+  background: linear-gradient(180deg, rgba(180, 140, 255, 0.16), rgba(0, 0, 0, 0.25)), var(--panel);
+}
+
+.ns-choice.blessing b {
+  color: #dcc4ff;
+}
+
+.ns-relic.blessing {
+  border-color: #7a5aa8;
+  background: rgba(180, 140, 255, 0.1);
+}
+
 /* The Hall's Decorate tab: a piece you own, with whether it's up. */
 .decor-pick {
   grid-template-columns: 32px 1fr auto;

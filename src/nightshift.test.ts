@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { cleanGraveState, newGraveState } from './graveshift';
-import { DASH_COOLDOWN, FIELD, FIRST_BOSS, POTION_HEAL, dash, dashCooldown, lateNight, MAX_LEVEL, chooseRelic, isFusion, levelChoices, newNight, nightSouls, step, xpToLevel } from './nightshift';
+import { DASH_COOLDOWN, FIELD, FIRST_BOSS, NIGHT_RELICS, POTION_HEAL, dash, dashCooldown, isBlessing, lateNight, MAX_LEVEL, chooseRelic, isFusion, levelChoices, newNight, nightSouls, step, wardMul, xpToLevel } from './nightshift';
 
 /** A small fixed random source, so every run of a test is the same night. */
 function seeded(seed: number) {
@@ -65,6 +65,47 @@ describe('the Night Shift', () => {
     chooseRelic(n, 'spade');
     expect(n.relics.spade).toBe(MAX_LEVEL);
     expect(n.pendingLevels).toBe(1);
+  });
+
+  it('never runs out of upgrades: blessings fill in once the relics are done', () => {
+    const n = newNight(seeded(30));
+    // six weapons and every charm at the top level, every fusion made
+    const weapons = NIGHT_RELICS.filter((r) => r.weapon).slice(0, 6);
+    for (const r of NIGHT_RELICS) if (!r.weapon || weapons.includes(r)) n.relics[r.id] = MAX_LEVEL;
+    n.fused = { cleaver: true, halo: true, barrage: true, hellwalk: true, tempest: true, glacier: true };
+    for (let k = 0; k < 40; k++) {
+      n.pendingLevels = 1;
+      const c = levelChoices(n);
+      expect(c).toHaveLength(3);
+      expect(new Set(c).size).toBe(3);
+      for (const id of c) expect(isBlessing(id)).toBe(true);
+      chooseRelic(n, c[0]);
+      expect(n.pendingLevels).toBe(0);
+    }
+    const taken = Object.values(n.blessings).reduce((a, b) => a + (b ?? 0), 0);
+    expect(taken).toBe(40);
+  });
+
+  it('blessings stack without a cap, but warding never makes you untouchable', () => {
+    const n = newNight(seeded(31));
+    n.pendingLevels = 1;
+    chooseRelic(n, 'vigor');
+    expect(n.maxHp).toBe(24);
+    n.blessings.warding = 30;
+    expect(wardMul(n)).toBeGreaterThan(0.25);
+    expect(wardMul(n)).toBeLessThan(0.35);
+  });
+
+  it('150 level-ups in a row always offer three choices', () => {
+    const n = newNight(seeded(32));
+    for (let k = 0; k < 150; k++) {
+      n.pendingLevels = 1;
+      const c = levelChoices(n);
+      expect(c).toHaveLength(3);
+      chooseRelic(n, c[k % 3]);
+      expect(n.pendingLevels).toBe(0);
+    }
+    expect(Object.keys(n.blessings).length).toBeGreaterThan(0);
   });
 
   it('an Iron Heart raises max health', () => {
