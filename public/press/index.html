@@ -183,5 +183,52 @@ footer { margin-top: 48px; padding: 24px 0 40px; border-top: 1px solid var(--lin
   </section>
 </main>
 <footer><div class="wrap">One More Crypt · <a href="https://onemorecrypt.com/">onemorecrypt.com</a></div></footer>
+<script>
+// A small, private visit counter: what was opened, played or downloaded, and from where.
+// No names, emails or addresses; a random ID per browser so repeat visits read as one person.
+(() => {
+  const URL_ = 'https://uxhxvfcdpmolznjwydcy.supabase.co/rest/v1/rpc/note_press';
+  const KEY = 'sb_publishable_rwItDhZ77GHuDa5mFRZp3w_VoBKkYgV';
+  const KEEPER = 'ad5d6ad6-bd7b-4952-a0cb-9917d15909fd';
+  const get = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+  let visitor = get('omc:press-visitor');
+  if (!visitor) {
+    visitor = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+    try { localStorage.setItem('omc:press-visitor', visitor); } catch {}
+  }
+  // Is this you, someone who has played the game, or someone new?
+  let who = get('wardenfall:meta') ? 'player' : 'new';
+  try {
+    const auth = JSON.parse(get('sb-uxhxvfcdpmolznjwydcy-auth-token') || 'null');
+    if (auth && auth.user && auth.user.id === KEEPER) who = 'keeper';
+  } catch {}
+  const tag = new URLSearchParams(location.search).get('ref') || '';
+  let from = '';
+  try { from = document.referrer ? new URL(document.referrer).hostname : ''; } catch {}
+  const phone = matchMedia('(pointer: coarse)').matches;
+  const note = (event, detail = '') => {
+    try {
+      fetch(URL_, {
+        method: 'POST', keepalive: true,
+        headers: { apikey: KEY, Authorization: 'Bearer ' + KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p_visitor: visitor, p_event: event, p_detail: String(detail).slice(0, 80), p_ref: (tag ? 'tag:' + tag : from).slice(0, 120), p_phone: phone, p_who: who }),
+      }).catch(() => {});
+    } catch {}
+  };
+  note('open');
+  const file = (href) => href.split('/').pop().split('?')[0];
+  document.querySelectorAll('video').forEach((v) => v.addEventListener('play', () => note('trailer', file(v.currentSrc || v.src)), { once: true }));
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a');
+    if (!a) return;
+    const href = a.getAttribute('href') || '';
+    if (a.hasAttribute('download')) note('download', file(href));
+    else if (href.startsWith('shots/')) note('shot', file(href));
+    else if (href.includes('onemorecrypt.com') && !href.includes('/press')) note('play', '');
+    else if (href.startsWith('mailto:')) note('link', 'email');
+    else if (/^https?:/.test(href)) { try { note('link', new URL(href).hostname); } catch {} }
+  });
+})();
+</script>
 </body>
 </html>
