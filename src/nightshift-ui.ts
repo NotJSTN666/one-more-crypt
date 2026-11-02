@@ -10,7 +10,7 @@ import { heroSprite } from './hero';
 import { grave, groundFor, hash, paintGround, seasonWeather, setDress, tree, type Dress, type Px } from './hollow-art';
 import { graveState, meta, outfitFor, receiveGift, saveMeta } from './meta';
 import {
-  DASH_COOLDOWN, FIELD, MAX_LEVEL, type Night, area, dash, spadeReach, NIGHT_RELIC, NIGHT_RELICS, chooseRelic, frostRadius, levelChoices, newNight, nextBossAt, nightSouls, skullCount, skullOrbit, step, xpToLevel, NIGHT_FUSION, fusionOf, isFusion, type NightPick,
+  dashCooldown, FIELD, MAX_LEVEL, type Night, area, dash, spadeReach, NIGHT_RELIC, NIGHT_RELICS, chooseRelic, frostRadius, levelChoices, newNight, nextBossAt, nightSouls, skullCount, skullOrbit, step, xpToLevel, NIGHT_FUSION, fusionOf, isFusion, type NightPick,
 } from './nightshift';
 import { ONLINE, nightBoard, submitNight } from './online';
 import { seasonDress } from './progression';
@@ -361,8 +361,9 @@ export function showNightShift(back: () => void) {
     letGo();
     sfx.relic();
     modal.hidden = false;
-    modal.innerHTML = `<h3>Level ${n.level - n.pendingLevels + 1}</h3>
-      <p class="fine">Choose a relic${touch ? '' : ' · ↑ ↓ and Enter, or 1, 2, 3'}</p>
+    const forge = n.forgeOffers > 0;
+    modal.innerHTML = `${forge ? '<h3>🔥 The Soul Forge</h3>' : `<h3>Level ${n.level - n.pendingLevels + 1}</h3>`}
+      <p class="fine">${forge ? 'A boss left an ember: forge two relics into one, or sharpen a weapon for free' : 'Choose a relic'}${touch ? '' : ' · ↑ ↓ and Enter, or 1, 2, 3'}</p>
       <div class="ns-choices">${opts.map((id, i) => {
         if (isFusion(id)) {
           // a fusion at the Soul Forge: the weapon and its charm become one
@@ -487,7 +488,7 @@ export function showNightShift(back: () => void) {
   relicRow();
   let dashShown = -1;
   function hud() {
-    const ready = Math.max(0, Math.min(1, 1 - (n.dashReady - n.t) / DASH_COOLDOWN));
+    const ready = Math.max(0, Math.min(1, 1 - (n.dashReady - n.t) / dashCooldown(n)));
     const step10 = Math.round(ready * 40);
     if (step10 !== dashShown) {
       dashShown = step10;
@@ -526,7 +527,7 @@ export function showNightShift(back: () => void) {
   };
   let last = performance.now();
   let acc = 0;
-  let seen = { kills: 0, hp: n.hp, bosses: 0, felled: 0 };
+  let seen = { kills: 0, hp: n.hp, bosses: 0, felled: 0, potions: 0 };
   // The bosses up last frame, so one that falls can be named; and when the last fell, for the flash.
   let bossesUp: { id: number; kind: string }[] = [];
   let felledAt = -10;
@@ -551,6 +552,10 @@ export function showNightShift(back: () => void) {
     // what happened, for the ears
     if (n.kills > seen.kills) play('kill', 70);
     if (n.hp < seen.hp) play('hurt', 150);
+    if (n.potions > seen.potions) {
+      sfx.heal();
+      toast('🧪 Potion: health restored');
+    }
     if (n.bossesRisen > seen.bosses) {
       sfx.toll();
       const boss = [...n.foes].reverse().find((f) => f.boss);
@@ -570,7 +575,7 @@ export function showNightShift(back: () => void) {
     if (n.flashes.some((f) => f.kind === 'bolt' && n.t - f.at < dt)) play('zap', 200);
     if (n.flashes.some((f) => f.kind === 'ring' && n.t - f.at < dt)) play('block', 300);
     if (n.flashes.some((f) => f.kind === 'lane' && n.t - f.at < dt)) play('crit', 250);
-    seen = { kills: n.kills, hp: n.hp, bosses: n.bossesRisen, felled: n.bossKills };
+    seen = { kills: n.kills, hp: n.hp, bosses: n.bossesRisen, felled: n.bossKills, potions: n.potions };
     if (!ended) music();
     if (n.t > 6) $id('ns-hint').classList.add('gone');
     draw(now / 1000);
@@ -779,6 +784,23 @@ export function showNightShift(back: () => void) {
         px(x - 3, y - 3, 6, 6, 'rgba(190, 130, 255, 0.28)');
         px(x - 2, y - 2, 4, 4, '#c79bff');
         px(x - 1, y - 1, 1, 1, '#f2e6ff');
+      } else if (p.kind === 'potion') {
+        // a red healing potion: glass flask, cork, a glint
+        glowAt(x, y, '255,80,90', 9, 0.35 + 0.15 * Math.sin(t * 5));
+        px(x - 1, y - 6, 2, 2, '#b08050');
+        px(x - 1, y - 4, 2, 1, '#d8e4f0');
+        px(x - 3, y - 3, 6, 5, '#d8e4f0');
+        px(x - 2, y - 2, 4, 4, '#e0283c');
+        px(x - 2, y - 2, 4, 1, '#ff6070');
+        px(x - 2, y - 2, 1, 1, '#ffffff');
+      } else if (p.kind === 'forge') {
+        // an ember from the Soul Forge: a coal that burns and throws sparks
+        glowAt(x, y, '255,140,40', 13, 0.5 + 0.2 * Math.sin(t * 6));
+        px(x - 3, y - 2, 7, 4, '#5a1e0a');
+        px(x - 2, y - 3, 5, 6, '#c2410c');
+        px(x - 1, y - 2, 3, 4, '#ff9a2a');
+        px(x, y - 1, 1, 2, '#fff2c0');
+        if (Math.random() < 0.2) sparks.push({ x: p.x + (Math.random() - 0.5) * 0.3, y: p.y, vx: (Math.random() - 0.5) * 0.6, vy: -1.4 - Math.random(), life: 0.5, max: 0.5, color: '#ffcf5a', size: 1 });
       } else {
         px(x - 3, y - 3, 6, 2, '#7cf5c4');
         px(x - 2, y - 4, 4, 1, '#b4ffe0');

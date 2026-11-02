@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { cleanGraveState, newGraveState } from './graveshift';
-import { DASH_COOLDOWN, FIELD, FIRST_BOSS, dash, lateNight, MAX_LEVEL, chooseRelic, levelChoices, newNight, nightSouls, step, xpToLevel } from './nightshift';
+import { DASH_COOLDOWN, FIELD, FIRST_BOSS, POTION_HEAL, dash, dashCooldown, lateNight, MAX_LEVEL, chooseRelic, isFusion, levelChoices, newNight, nightSouls, step, xpToLevel } from './nightshift';
 
 /** A small fixed random source, so every run of a test is the same night. */
 function seeded(seed: number) {
@@ -135,6 +135,70 @@ describe('the Night Shift', () => {
     chooseRelic(n, 'cleaver');
     expect(n.fused.cleaver).toBe(true);
     expect(levelChoices(n)).not.toContain('cleaver');
+  });
+
+  it('the Shade Cloak brings the dash back sooner', () => {
+    const n = newNight(seeded(21));
+    expect(dashCooldown(n)).toBe(DASH_COOLDOWN);
+    n.relics.cloak = 5;
+    expect(dashCooldown(n)).toBeCloseTo(DASH_COOLDOWN / 2);
+    expect(dash(n, 1, 0)).toBe(true);
+    expect(n.dashReady - n.t).toBeCloseTo(DASH_COOLDOWN / 2);
+  });
+
+  it('a potion heals a share of max health, and they stay rare', () => {
+    const n = newNight(seeded(22));
+    n.maxHp = 40;
+    n.hp = 10;
+    n.pickups.push({ x: n.x, y: n.y, kind: 'potion', v: 1 });
+    step(n, 1 / 60, 0, 0);
+    expect(n.hp).toBe(10 + Math.ceil(40 * POTION_HEAL));
+    expect(n.potions).toBe(1);
+    // ten minutes of ordinary kills drop a handful at most, never one every few seconds
+    const m = play(23, 600);
+    const dropped = m.potions + m.pickups.filter((p) => p.kind === 'potion').length;
+    expect(dropped).toBeLessThanOrEqual(600 / 25 + m.bossKills + 1);
+  });
+
+  it('a boss leaves a potion and a forge ember, and the ember opens the forge', () => {
+    const n = play(24, FIRST_BOSS + 1);
+    const boss = n.foes.find((f) => f.boss)!;
+    expect(boss).toBeTruthy();
+    // strike it down
+    boss.hp = 0.0001;
+    n.relics.spade = MAX_LEVEL;
+    n.relics.lens = 1;
+    n.x = boss.x - 0.5;
+    n.y = boss.y;
+    for (let i = 0; i < 120 && n.foes.some((f) => f.boss); i++) {
+      if (n.pendingLevels) chooseRelic(n, levelChoices(n)[0]);
+      step(n, 1 / 60, 0, 0);
+    }
+    const drops = n.pickups.filter((p) => p.kind === 'potion' || p.kind === 'forge').map((p) => p.kind);
+    // already gathered, or lying close by
+    expect(n.potions + drops.filter((k) => k === 'potion').length).toBeGreaterThanOrEqual(1);
+    // gather the ember: the next choice is the forge, with the ready fusion first
+    n.pickups.push({ x: n.x, y: n.y, kind: 'forge', v: 1 });
+    n.pendingLevels = 0;
+    n.forgeOffers = 0;
+    step(n, 1 / 60, 0, 0);
+    expect(n.pendingLevels).toBe(1);
+    expect(n.forgeOffers).toBe(1);
+    const c = levelChoices(n);
+    expect(c[0]).toBe('cleaver');
+    chooseRelic(n, c[0]);
+    expect(n.fused.cleaver).toBe(true);
+    expect(n.forgeOffers).toBe(0);
+  });
+
+  it('with nothing to fuse, the forge sharpens a weapon you carry', () => {
+    const n = newNight(seeded(25));
+    n.relics = { spade: 2, skulls: 1, heart: 1 };
+    n.pendingLevels = 1;
+    n.forgeOffers = 1;
+    const c = levelChoices(n);
+    expect(c.length).toBeGreaterThan(0);
+    for (const id of c) expect(!isFusion(id) && ['spade', 'skulls'].includes(id)).toBe(true);
   });
 
   it('a dash strikes the dead in its way and throws them aside', () => {

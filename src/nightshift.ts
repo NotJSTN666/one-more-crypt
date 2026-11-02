@@ -38,7 +38,7 @@ export interface Foe {
   tier: number;
 }
 
-export type Pickup = { x: number; y: number; kind: 'soul' | 'bigsoul' | 'glowcap'; v: number };
+export type Pickup = { x: number; y: number; kind: 'soul' | 'bigsoul' | 'glowcap' | 'potion' | 'forge'; v: number };
 
 /** Your thrown things: bone darts, the scythe (which comes back) and wisps (which seek). */
 export interface Dart {
@@ -66,7 +66,7 @@ export interface Flash { kind: 'swing' | 'bolt' | 'ring' | 'spike' | 'beam' | 'l
 /** Relics in the Night Shift: weapons that fight on their own, and charms that help. */
 export type RelicKind =
   | 'spade' | 'skulls' | 'quiver' | 'ember' | 'storm' | 'frost' | 'bell' | 'scythe' | 'wisps' | 'spikes' | 'lance'
-  | 'heart' | 'boots' | 'magnet' | 'fang' | 'whetstone' | 'hourglass' | 'moss' | 'thorns' | 'lens' | 'coin';
+  | 'heart' | 'boots' | 'magnet' | 'fang' | 'whetstone' | 'hourglass' | 'moss' | 'thorns' | 'lens' | 'coin' | 'cloak';
 
 export interface NightRelic {
   id: RelicKind;
@@ -103,6 +103,7 @@ export const NIGHT_RELICS: NightRelic[] = [
   { id: 'thorns', name: 'Thorn Mail', emoji: '🌵', weapon: false, text: () => 'Whatever bites you gets hurt back.' },
   { id: 'lens', name: "Seer's Lens", emoji: '🔮', weapon: false, text: () => 'A violet ring round you: your spade, bell, frost, flames and spikes all reach 15% further.' },
   { id: 'coin', name: "Reaper's Coin", emoji: '🪙', weapon: false, text: () => 'Souls count 15% more.' },
+  { id: 'cloak', name: 'Shade Cloak', emoji: '🦇', weapon: false, text: () => 'Your dash comes back 10% sooner.' },
 ];
 /**
  * The Soul Forge: a weapon at its top level fuses with its partner charm (any level) into
@@ -180,6 +181,12 @@ export interface Night {
   xp: number;
   /** Levels waiting to be chosen. */
   pendingLevels: number;
+  /** Of those, how many are the Soul Forge's (from a forge ember a boss dropped). */
+  forgeOffers: number;
+  /** When the last healing potion dropped, so they stay rare however fast the dead fall. */
+  potionAt: number;
+  /** Potions drunk this night. */
+  potions: number;
   relics: Partial<Record<RelicKind, number>>;
   foes: Foe[];
   pickups: Pickup[];
@@ -221,6 +228,9 @@ export function newNight(rand: () => number = Math.random): Night {
     level: 1,
     xp: 0,
     pendingLevels: 0,
+    forgeOffers: 0,
+    potionAt: 0,
+    potions: 0,
     relics: { spade: 1 },
     foes: [],
     pickups: [],
@@ -269,12 +279,27 @@ export const PLAYER_R = 0.35;
 /** When the next boss rises. */
 export const nextBossAt = (n: Night) => FIRST_BOSS + n.bossesRisen * BOSS_EVERY;
 
+const readyFusions = (n: Night) => NIGHT_FUSIONS.filter((f) => !n.fused[f.id] && lv(n, f.weapon) >= MAX_LEVEL && lv(n, f.charm) > 0);
+
 /** Three choices for a level-up: relics you can still add or sharpen. */
 export function levelChoices(n: Night): NightPick[] {
+  if (n.forgeOffers > 0) return forgeChoices(n);
   // A fusion ready at the forge is always offered first.
-  const ready = NIGHT_FUSIONS.filter((f) => !n.fused[f.id] && lv(n, f.weapon) >= MAX_LEVEL && lv(n, f.charm) > 0);
+  const ready = readyFusions(n);
   const forge: NightPick[] = ready.length ? [ready[Math.floor(n.rand() * ready.length)].id] : [];
   return [...forge, ...relicChoices(n)].slice(0, 3);
+}
+
+/**
+ * A forge ember picked up: every fusion that's ready, and if that's fewer than three, a free
+ * level for weapons you carry. With nothing to forge or sharpen, the usual choices.
+ */
+function forgeChoices(n: Night): NightPick[] {
+  const out: NightPick[] = readyFusions(n).map((f) => f.id);
+  const arms = NIGHT_RELICS.filter((r) => r.weapon && lv(n, r.id) > 0 && lv(n, r.id) < MAX_LEVEL).map((r) => r.id);
+  while (out.length < 3 && arms.length) out.push(arms.splice(Math.floor(n.rand() * arms.length), 1)[0]);
+  if (out.length) return out.slice(0, 3);
+  return relicChoices(n);
 }
 
 function relicChoices(n: Night): RelicKind[] {
@@ -302,11 +327,13 @@ export function chooseRelic(n: Night, id: NightPick) {
     if (n.fused[id]) return;
     n.fused[id] = true;
     n.pendingLevels--;
+    if (n.forgeOffers > 0) n.forgeOffers--;
     return;
   }
   if (lv(n, id) >= MAX_LEVEL) return;
   n.relics[id] = lv(n, id) + 1;
   n.pendingLevels--;
+  if (n.forgeOffers > 0) n.forgeOffers--;
   if (id === 'heart') {
     n.maxHp += 5;
     n.hp = Math.min(n.maxHp, n.hp + 5);
@@ -370,8 +397,15 @@ function hurtFoe(n: Night, f: Foe, amount: number) {
     n.kills++;
     n.pickups.push({ x: f.x, y: f.y, kind: f.xp >= 5 ? 'bigsoul' : 'soul', v: f.xp });
     if (f.boss) n.bossKills++;
-    if (f.boss) n.pickups.push({ x: f.x + 0.6, y: f.y, kind: 'glowcap', v: 10 });
-    else if (n.rand() < 0.012) n.pickups.push({ x: f.x, y: f.y + 0.3, kind: 'glowcap', v: 5 });
+    if (f.boss) {
+      // a boss leaves a healing potion and an ember from the Soul Forge
+      n.pickups.push({ x: f.x + 0.6, y: f.y, kind: 'potion', v: 1 });
+      n.pickups.push({ x: f.x - 0.6, y: f.y, kind: 'forge', v: 1 });
+    } else if (n.rand() < 0.012) n.pickups.push({ x: f.x, y: f.y + 0.3, kind: 'glowcap', v: 5 });
+    else if (n.t - n.potionAt > POTION_GAP && n.rand() < 0.006) {
+      n.potionAt = n.t;
+      n.pickups.push({ x: f.x, y: f.y + 0.3, kind: 'potion', v: 1 });
+    }
     if (lv(n, 'fang') && n.rand() < 0.05 * lv(n, 'fang')) n.hp = Math.min(n.maxHp, n.hp + 1);
   }
 }
@@ -485,6 +519,12 @@ export const GRASP_AFTER = 4;
 export const DASH_TIME = 0.2;
 const DASH_BURST = 4.5;
 export const DASH_COOLDOWN = 2.5;
+/** The dash's wait, shortened by the Shade Cloak. */
+export const dashCooldown = (n: Night) => DASH_COOLDOWN * (1 - 0.1 * lv(n, 'cloak'));
+/** A healing potion mends this share of your max health. */
+export const POTION_HEAL = 0.3;
+/** At most one potion from the ordinary dead in this many seconds. */
+const POTION_GAP = 25;
 
 /** What the dash does to each foe it hits: more as the night (and the dead) get tougher. */
 export const dashDamage = (n: Night) => (8 + n.t / 10) * dmgMul(n);
@@ -498,7 +538,7 @@ export function dash(n: Night, dx = 0, dy = 0): boolean {
     n.fy = dy / len;
   }
   n.dashUntil = n.t + DASH_TIME;
-  n.dashReady = n.t + DASH_COOLDOWN;
+  n.dashReady = n.t + dashCooldown(n);
   n.dashHit = [];
   return true;
 }
@@ -831,14 +871,24 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
     }
     if (near(n, p) < 0.45) {
       if (p.kind === 'glowcap') n.hp = Math.min(n.maxHp, n.hp + p.v);
-      else n.xp += p.v * soulMul;
+      else if (p.kind === 'potion') {
+        n.hp = Math.min(n.maxHp, n.hp + Math.ceil(n.maxHp * POTION_HEAL));
+        n.potions++;
+      }
+      else if (p.kind === 'forge') {
+        n.pendingLevels++;
+        n.forgeOffers++;
+      } else n.xp += p.v * soulMul;
       p.v = 0;
     }
   }
   n.pickups = n.pickups.filter((p) => p.v > 0);
   // Too many souls lying about: the oldest are gathered into one big one.
   if (n.pickups.length > 400) {
-    const old = n.pickups.splice(0, n.pickups.length - 300).filter((p) => p.kind !== 'glowcap');
+    const keep = (p: Pickup) => p.kind === 'glowcap' || p.kind === 'potion' || p.kind === 'forge';
+    const old = n.pickups.splice(0, n.pickups.length - 300);
+    n.pickups.unshift(...old.filter(keep));
+    old.splice(0, old.length, ...old.filter((p) => !keep(p)));
     if (old.length) n.pickups.push({ x: old[0].x, y: old[0].y, kind: 'bigsoul', v: old.reduce((a, p) => a + p.v, 0) });
   }
   while (n.xp >= xpToLevel(n.level)) {
