@@ -73,6 +73,8 @@ export interface Meta {
   pet: string;
   /** When your ghost's summons were last counted. */
   summonsSeen: string;
+  /** Summons your ghost has answered in all. */
+  summonsTotal: number;
   /** A supporter on Ko-fi (set from the patrons table): the Patron title is theirs. */
   patron: boolean;
   /** The crypt's keeper: every cosmetic and title, granted by account in social.ts. */
@@ -160,7 +162,7 @@ function empty(): Meta {
     podiums: {}, podiumChecked: 0, bought: [], streak: { best: 0, count: 0, last: 0 },
     bounties: { day: 0, ids: [], progress: [], done: [] },
     weekly: {}, weeklyChecked: '',
-    story: emptyStory(), pet: '', summonsSeen: '', patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null, raid: { joined: [], won: [], lost: [] }, invite: { from: '', claimed: false, friends: 0 }, horde: { day: 0, best: 0, wave: 0 }, gifts: [], hallHidden: [], dailyTotal: 0,
+    story: emptyStory(), pet: '', summonsSeen: '', summonsTotal: 0, patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null, raid: { joined: [], won: [], lost: [] }, invite: { from: '', claimed: false, friends: 0 }, horde: { day: 0, best: 0, wave: 0 }, gifts: [], hallHidden: [], dailyTotal: 0,
   };
 }
 
@@ -303,6 +305,7 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   }
   meta.pet ||= typeof other.pet === 'string' ? other.pet : '';
   if (typeof other.summonsSeen === 'string' && other.summonsSeen > meta.summonsSeen) meta.summonsSeen = other.summonsSeen;
+  meta.summonsTotal = Math.max(meta.summonsTotal ?? 0, Math.floor(Number(other.summonsTotal) || 0));
   for (const [w, place] of Object.entries(other.weekly ?? {})) {
     const p = Number(place);
     if (p >= 1 && p <= 3) meta.weekly[w] = Math.min(meta.weekly[w] ?? 9, p);
@@ -813,7 +816,9 @@ export function noteDuelWin(code: string): { souls: number; feat: AchievementDef
   meta.duels.push(code);
   meta.souls += DUEL_SOULS;
   meta.earned += DUEL_SOULS;
-  const feat = meta.duels.length >= 5 ? grant('duelist') : null;
+  const five = meta.duels.length >= 5 ? grant('duelist') : null;
+  const ten = meta.duels.length >= 10 ? grant('duelist10') : null;
+  const feat = ten ?? five;
   saveMeta();
   return { souls: DUEL_SOULS, feat };
 }

@@ -286,6 +286,8 @@ LOOKS.push({ id: 'siegelord', name: "Siege Lord's Mantle", cloak: { p: '#8a1f2c'
 LOOKS.push({ id: 'macabre', name: 'Danse Macabre', cloak: { p: '#141119', P: '#e8dcc4' }, aura: '#d3b0ff', unlock: { feat: 'hordedanced' }, how: 'Hold 10 Horde waves with Death in the arena.' });
 
 // Death's own: for outrunning him.
+// Friends: answering summons as a ghost.
+LOOKS.push({ id: 'shepherd', name: "Shepherd's Shroud", cloak: { p: '#9fb4cc', P: '#4a5a72' }, aura: '#c9f2ff', unlock: { feat: 'shepherd10' }, how: 'Have your ghost answer 10 summons from other players.' });
 // Feats of skill.
 LOOKS.push({ id: 'asceticrobe', name: "Ascetic's Robe", cloak: { p: '#b8a888', P: '#6a5a40' }, aura: null, unlock: { feat: 'ascetic' }, how: 'Reach floor 10 having taken no more than 1 relic.' });
 // The Bestiary.
@@ -450,6 +452,10 @@ export const DECOR: DecorDef[] = [
   { id: 'braziers', name: 'Twin Braziers', emoji: '🔥', cost: 900, desc: 'Two roaring braziers either side of your throne room.' },
   { id: 'tomb', name: 'Your Tomb', emoji: '🪦', cost: 1500, desc: 'A gravestone with your name and deepest floor carved in.' },
   { id: 'throne', name: 'Bone Throne', emoji: '🪑', cost: 2500, desc: 'A throne of bone at the heart of your Hall.' },
+  { id: 'bookshelf', name: 'Crypt Library', emoji: '📚', cost: 800, desc: 'A tall shelf of mouldering books and a skull for a bookend.' },
+  { id: 'houndbed', name: "Hound's Bed", emoji: '🐾', cost: 600, desc: 'A worn cushion by the wall, with a chewed bone, for the hound.' },
+  { id: 'pedestal', name: 'Trophy Pedestal', emoji: '🏆', cost: 1000, desc: 'A stone pedestal with your deepest floor carved in gold.' },
+  { id: 'hearth', name: 'Grave Hearth', emoji: '🔥', cost: 1200, desc: 'A stone fireplace with a fire that crackles and glows.' },
   // The Hallowed Season.
   { id: 'cobwebs', name: 'Cobwebs', emoji: '🕸️', cost: 400, desc: 'Great webs in the high corners, with a spider that comes down to look.', season: 'halloween' },
   { id: 'garland', name: 'Hallowed Garland', emoji: '🎏', cost: 500, desc: 'Orange and purple bunting strung along the top of the wall.', season: 'halloween' },
@@ -713,6 +719,8 @@ export const HEADS: HeadDef[] = [
   { id: 'wardenhelm', name: "Warden's Horned Helm", unlock: { beast: 'boss', tier: 2 }, how: 'Slay the Bone Warden 25 times.', pixels: [[1, 0, BONE], [2, 1, BONE], [10, 0, BONE], [9, 1, BONE], ...row(1, 3, 8, '#c9c3b2'), ...row(2, 3, 8, BONE), [3, 3, '#c9c3b2'], [8, 3, '#c9c3b2'], [5, 2, '#5d5568'], [6, 2, '#5d5568']] },
   { id: 'abbotcowl', name: "Plague Abbot's Cowl", unlock: { beast: 'abbot', tier: 2 }, how: 'Slay the Plague Abbot 25 times.', pixels: [...row(0, 4, 7, '#3a4a2a'), ...row(1, 3, 8, '#4a5e34'), ...row(2, 2, 9, '#3a4a2a'), [2, 3, '#3a4a2a'], [9, 3, '#3a4a2a'], [2, 4, '#3a4a2a'], [9, 4, '#3a4a2a'], [5, 1, '#b5e07a'], [6, 1, '#b5e07a']] },
   { id: 'lichcrown', name: "Lich King's Crown", unlock: { beast: 'lich', tier: 2 }, how: 'Slay the Lich King 25 times.', pixels: [[3, 0, '#d3b0ff'], [6, 0, '#d3b0ff'], [8, 0, '#d3b0ff'], [4, 0, '#5a2f8a'], ...row(1, 3, 8, '#5a2f8a'), ...row(2, 3, 8, '#311854'), [5, 1, '#9fe8ff'], [6, 1, '#9fe8ff'], [3, 2, '#d3b0ff'], [8, 2, '#d3b0ff']] },
+  // Grand Duelist: a sash and plume for beating 10 challenges.
+  { id: 'duelsash', name: "Duelist's Plume", unlock: { feat: 'duelist10' }, how: 'Beat 10 challenges from other players.', pixels: [...row(2, 3, 8, '#8a1f2c'), [4, 2, GOLD], [7, 2, GOLD], [8, 1, '#e8dcc4'], [9, 0, '#e8dcc4'], [9, 1, '#c9c3b2'], [10, 0, '#ffffff']] },
   // Courier: a winged cap for a fast descent.
   { id: 'couriercap', name: "Courier's Cap", unlock: { feat: 'courier' }, how: 'Reach floor 15 in 200 turns or fewer.', pixels: [...row(1, 4, 7, '#5a7ab0'), ...row(2, 3, 8, '#3a5a8a'), [2, 1, '#e8f6ff'], [1, 0, '#e8f6ff'], [2, 0, '#c9d1e0'], [9, 1, '#e8f6ff'], [10, 0, '#e8f6ff'], [9, 0, '#c9d1e0'], [5, 1, GOLD], [6, 1, GOLD]] },
   // Master of Beasts: the hunter's hat.
@@ -874,6 +882,7 @@ export const AURAS: AuraDef[] = [
   // Midwinter.
   { id: 'fairylights', name: 'Fairy Lights', style: 'fairylights', color: '#ffd23f', unlock: { cost: 2500, season: 'midwinter' }, how: 'Sold in the Ossuary during Midwinter (the day after Thanksgiving to January 6) for 2,500 Souls.' },
   { id: 'northernlights', name: 'Northern Lights', style: 'aurora', color: '#5fd3a6', unlock: { cost: 4000, season: 'midwinter' }, how: 'Sold in the Ossuary during Midwinter (the day after Thanksgiving to January 6) for 4,000 Souls.' },
+  { id: 'guidinglight', name: 'Guiding Light', style: 'wisps', color: '#c9f2ff', unlock: { feat: 'shepherd50' }, how: 'Have your ghost answer 50 summons from other players.' },
   { id: 'unscathed', name: 'Unscathed', style: 'shards', color: '#e8fbff', unlock: { feat: 'unscathed' }, how: 'Clear 5 floors in one run without taking damage (from floor 3).' },
   { id: 'trophyhunter', name: 'Trophy Hunter', style: 'bone', color: '#c4a046', unlock: { feat: 'hunterall' }, how: 'Master every foe in the Bestiary.' },
   // The Grave Market's auras.

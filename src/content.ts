@@ -201,6 +201,10 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'duelist', name: 'Duelist', desc: 'Beat 5 challenges from other players.', souls: 150 },
   // The Hollow.
   { id: 'gravekeeper', name: 'Gravekeeper', desc: 'Read every epitaph in the Hollow.', souls: 50 },
+  // Friends.
+  { id: 'duelist10', name: 'Grand Duelist', desc: 'Beat 10 challenges from other players.', souls: 300 },
+  { id: 'shepherd10', name: 'Shepherd of Souls', desc: 'Have your ghost answer 10 summons from other players.', souls: 200 },
+  { id: 'shepherd50', name: 'Guiding Light', desc: 'Have your ghost answer 50 summons from other players.', souls: 600 },
   // Feats of skill.
   { id: 'unscathed', name: 'Unscathed', desc: 'Clear 5 floors in one run without taking damage (from floor 3).', souls: 250 },
   { id: 'courier', name: 'Courier', desc: 'Reach floor 15 in 200 turns or fewer.', souls: 250 },

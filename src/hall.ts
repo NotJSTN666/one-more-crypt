@@ -1081,6 +1081,84 @@ function bellShardPile(ctx: CanvasRenderingContext2D, x: number, t: number) {
   ctx.fillRect(x - 46, 412, 92, 60);
 }
 
+/** A stone fireplace set in the wall, with a fire that flickers and lights the floor. */
+function hearth(ctx: CanvasRenderingContext2D, x: number, t: number) {
+  ctx.fillStyle = '#4a4458';
+  ctx.fillRect(x - 40, 380, 80, 86);
+  ctx.fillStyle = '#5d5568';
+  ctx.fillRect(x - 46, 374, 92, 10);
+  ctx.fillStyle = '#0b0710';
+  ctx.fillRect(x - 26, 404, 52, 62);
+  const f = 0.75 + 0.25 * Math.sin(t * 9) * Math.sin(t * 4.3);
+  ctx.fillStyle = `rgba(255, 120, 40, ${f})`;
+  ctx.fillRect(x - 18, 440, 36, 20);
+  ctx.fillStyle = `rgba(255, 200, 80, ${f})`;
+  ctx.fillRect(x - 10, 430 + Math.sin(t * 7) * 3, 8, 22);
+  ctx.fillRect(x + 4, 434 + Math.sin(t * 6 + 1) * 3, 6, 18);
+  ctx.fillStyle = '#4a3420';
+  ctx.fillRect(x - 20, 458, 40, 6);
+  const g = ctx.createRadialGradient(x, 450, 4, x, 450, 90);
+  g.addColorStop(0, `rgba(255, 140, 50, ${0.22 * f})`);
+  g.addColorStop(1, 'rgba(255, 140, 50, 0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(x - 90, 380, 180, 100);
+}
+
+/** A tall shelf of old books, a skull for a bookend. */
+function bookshelf(ctx: CanvasRenderingContext2D, x: number) {
+  ctx.fillStyle = '#3a2618';
+  ctx.fillRect(x - 26, 372, 52, 94);
+  ctx.fillStyle = '#4a3420';
+  for (const y of [372, 400, 428, 456]) ctx.fillRect(x - 26, y, 52, 4);
+  const colours = ['#8a1f2c', '#2a3a8a', '#3d6b2a', '#a8781f', '#5a2f8a', '#6b4a2a'];
+  for (const [row, y] of [[0, 380], [1, 408], [2, 436]] as const) {
+    for (let i = 0; i < 7; i++) {
+      if ((row + i) % 5 === 4) continue;
+      ctx.fillStyle = colours[(i * 3 + row) % colours.length];
+      ctx.fillRect(x - 22 + i * 6, y + (i % 2), 5, 20 - (i % 2));
+    }
+  }
+  ctx.fillStyle = '#e8dcc4';
+  ctx.fillRect(x + 12, 444, 10, 8);
+  ctx.fillStyle = '#1a1520';
+  ctx.fillRect(x + 14, 446, 2, 2);
+  ctx.fillRect(x + 18, 446, 2, 2);
+}
+
+/** A stone pedestal with your deepest floor carved into it in gold. */
+function pedestal(ctx: CanvasRenderingContext2D, x: number, floor: number) {
+  ctx.fillStyle = '#5d5568';
+  ctx.fillRect(x - 18, 418, 36, 48);
+  ctx.fillStyle = '#7a7288';
+  ctx.fillRect(x - 22, 412, 44, 8);
+  ctx.fillRect(x - 22, 462, 44, 4);
+  ctx.fillStyle = '#f2c14e';
+  ctx.font = '10px Silkscreen, monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('FLOOR', x, 436);
+  ctx.font = '16px Silkscreen, monospace';
+  ctx.fillText(String(floor), x, 456);
+  ctx.textAlign = 'left';
+  // a little gold cup on top
+  ctx.fillRect(x - 6, 398, 12, 8);
+  ctx.fillRect(x - 2, 406, 4, 4);
+  ctx.fillRect(x - 6, 410, 12, 2);
+}
+
+/** A worn cushion with a chewed bone, for the hound. */
+function houndBed(ctx: CanvasRenderingContext2D, x: number) {
+  ctx.fillStyle = '#5a2e2e';
+  ctx.fillRect(x - 24, 452, 48, 14);
+  ctx.fillStyle = '#7a3e3e';
+  ctx.fillRect(x - 20, 448, 40, 8);
+  ctx.fillStyle = '#8f4e4e';
+  ctx.fillRect(x - 16, 450, 32, 3);
+  ctx.fillStyle = '#e8dcc4';
+  ctx.fillRect(x + 8, 456, 12, 3);
+  ctx.fillRect(x + 6, 455, 3, 5);
+  ctx.fillRect(x + 19, 455, 3, 5);
+}
+
 /** An anvil from the Soul Forge on a stump, with a bed of coals that glows and spits sparks. */
 function forgeAnvil(ctx: CanvasRenderingContext2D, x: number, t: number) {
   // the stump
@@ -1249,6 +1327,11 @@ function drawDecor(ctx: CanvasRenderingContext2D, d: HallData, t: number, layer:
     if (has('hallsnow')) hallSnow(ctx, t);
     return;
   }
+  // Furniture against the back wall, behind everything else.
+  if (has('hearth')) hearth(ctx, 604, t);
+  if (has('bookshelf')) bookshelf(ctx, 840);
+  if (has('pedestal')) pedestal(ctx, 560, Math.max(0, ...Object.values(d.best).map((r) => r?.floor ?? 0)));
+  if (has('houndbed')) houndBed(ctx, 196);
   // The Harvest Feast and Midwinter, behind the Hallowed pieces.
   if (has('leafgarland')) leafGarland(ctx, t);
   if (has('stringlights')) stringLights(ctx, t);

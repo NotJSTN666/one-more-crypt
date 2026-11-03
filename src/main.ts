@@ -5,7 +5,7 @@ import { liveNews, unreadNews, type NewsGo } from './news';
 import { ELITES, FEATURES, HERO_BY_ID, dailyHero, hordeHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait, heroSprite } from './hero';
 import { BOON_BY_ID, ENEMY_INFO, MIST_BITE, REAPER_FLOOR, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode } from './game';
-import { acceptQuest, checkRun, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, finishHordeMeta, receiveGift, equipTitle, FAIR_DAILY, LEAN_DAILY, type RunReward } from './meta';
+import { acceptQuest, checkRun, grantFeats, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, finishHordeMeta, receiveGift, equipTitle, FAIR_DAILY, LEAN_DAILY, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
@@ -3840,8 +3840,14 @@ async function claimSummons() {
       const souls = n * SOULS_PER_SUMMONS;
       meta.souls += souls;
       meta.earned += souls;
+      meta.summonsTotal = (meta.summonsTotal ?? 0) + n;
+      const feats = grantFeats([meta.summonsTotal >= 10 ? 'shepherd10' : '', meta.summonsTotal >= 50 ? 'shepherd50' : ''].filter(Boolean));
       saveMeta();
       toast(`👻 Your ghost answered ${n} summons while you were away. +${souls} Souls`);
+      if (feats.length) {
+        celebrate(feats);
+        celebrateNotes(featCosmetics(feats.map((f) => f.id)));
+      }
       if (screen === 'title') showTitle();
     } else {
       saveMeta();
