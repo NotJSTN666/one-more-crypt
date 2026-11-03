@@ -275,6 +275,8 @@ LOOKS.push({ id: 'siegelord', name: "Siege Lord's Mantle", cloak: { p: '#8a1f2c'
 LOOKS.push({ id: 'macabre', name: 'Danse Macabre', cloak: { p: '#141119', P: '#e8dcc4' }, aura: '#d3b0ff', unlock: { feat: 'hordedanced' }, how: 'Hold 10 Horde waves with Death in the arena.' });
 
 // Death's own: for outrunning him.
+// Dailies played in all.
+LOOKS.push({ id: 'pilgrimmantle', name: "Pilgrim's Mantle", cloak: { p: '#8a6a3a', P: '#4a3418' }, aura: '#e8c27a', unlock: { feat: 'dailies30' }, how: 'Play 30 Daily Descents.' });
 // The Night Shift.
 LOOKS.push({ id: 'watchcoat', name: "Night Watchman's Coat", cloak: { p: '#4a3a2a', P: '#231a12' }, aura: '#cfa25a', unlock: { feat: 'ns15' }, how: 'Survive 15 minutes in the Night Shift.' });
 LOOKS.push({ id: 'ghostweave', name: 'Ghostweave', cloak: { p: '#c8d4e6', P: '#6a7890' }, aura: '#9fe8ff', unlock: { feat: 'nsuntouched' }, how: 'Get through the first 3 minutes of a Night Shift without being hit.' });
@@ -679,6 +681,8 @@ export const HEADS: HeadDef[] = [
   { id: 'lanternhood', name: 'Lantern Hood', unlock: { invite: 5 }, how: 'Bring 5 friends to the crypt.', pixels: [...row(1, 3, 8, '#5a2a12'), ...row(2, 2, 9, '#7a3a18'), [5, 0, '#3a3346'], [6, 0, '#3a3346'], [8, 0, '#3a3346'], [9, 1, '#ffd23f'], [10, 1, '#ff8a2a'], [9, 2, '#3a3346'], [10, 2, '#3a3346'], [4, 2, '#ffb35a'], [7, 2, '#ffb35a']] },
   // Death's own hood, skull and all: for cheating him.
   { id: 'deathshood', name: "Death's Hood", unlock: { feat: 'cheated' }, how: 'Reach floor 200 with Death on your heels.', pixels: [...row(0, 4, 7, '#141119'), ...row(1, 3, 8, '#141119'), ...row(2, 2, 9, '#1d1428'), [2, 3, '#1d1428'], [3, 3, '#1d1428'], ...row(3, 4, 7, BONE), [8, 3, '#1d1428'], [9, 3, '#1d1428'], [3, 4, '#1d1428'], [4, 4, '#d3b0ff'], [5, 4, BONE], [6, 4, BONE], [7, 4, '#d3b0ff'], [8, 4, '#1d1428'], [3, 5, '#1d1428'], [5, 5, '#c9c3b2'], [6, 5, '#c9c3b2'], [8, 5, '#1d1428']] },
+  // A year of Dailies: a crown of twelve points, one for each month.
+  { id: 'yearcrown', name: 'Crown of the Year', unlock: { feat: 'dailies365' }, how: 'Play 365 Daily Descents.', pixels: [[2, 0, GOLD], [4, 0, '#9fe8ff'], [6, 0, GOLD], [8, 0, '#ff8a2a'], [10, 0, GOLD], ...row(1, 2, 10, GOLD), ...row(2, 2, 10, '#a8781f'), [4, 2, '#ff4d5a'], [6, 2, '#7cf5c4'], [8, 2, '#d3b0ff']] },
   // The Night Shift: a hood with a lantern hung off it, and a crown of bone.
   { id: 'watchlantern', name: "Watchman's Lantern", unlock: { feat: 'ns1k' }, how: 'Put down 1,000 in one Night Shift.', pixels: [...row(0, 4, 7, '#2a2433'), ...row(1, 3, 8, '#2a2433'), ...row(2, 2, 9, '#3d3546'), [2, 3, '#3d3546'], [9, 3, '#3d3546'], [10, 1, '#5d5568'], [10, 2, '#5d5568'], [10, 3, '#ffb35a'], [11, 3, '#ff8a2a'], [10, 4, '#ffd23f'], [11, 4, '#5d5568']] },
   { id: 'bonecrown', name: 'Bone Crown', unlock: { feat: 'ns10k' }, how: 'Put down 10,000 in one Night Shift.', pixels: [[3, 0, BONE], [5, 0, BONE], [6, 0, BONE], [8, 0, BONE], ...row(1, 3, 8, BONE), ...row(2, 3, 8, '#c9c3b2'), [5, 1, '#d23a46'], [6, 1, '#d23a46'], [4, 2, '#8f8672'], [7, 2, '#8f8672']] },
@@ -819,6 +823,7 @@ export const AURAS: AuraDef[] = [
   // Midwinter.
   { id: 'fairylights', name: 'Fairy Lights', style: 'fairylights', color: '#ffd23f', unlock: { cost: 2500, season: 'midwinter' }, how: 'Sold in the Ossuary during Midwinter (the day after Thanksgiving to January 6) for 2,500 Souls.' },
   { id: 'northernlights', name: 'Northern Lights', style: 'aurora', color: '#5fd3a6', unlock: { cost: 4000, season: 'midwinter' }, how: 'Sold in the Ossuary during Midwinter (the day after Thanksgiving to January 6) for 4,000 Souls.' },
+  { id: 'hundreddawns', name: 'Hundred Dawns', style: 'sunburst', color: '#ffd9a0', unlock: { feat: 'dailies100' }, how: 'Play 100 Daily Descents.' },
   // The Night Shift.
   { id: 'moonlit', name: 'Moonlit', style: 'moon', color: '#cfe0ff', unlock: { feat: 'ns25' }, how: 'Survive 25 minutes in the Night Shift.' },
   { id: 'blessedhalo', name: 'Halo of Blessings', style: 'sunburst', color: '#dcc4ff', unlock: { feat: 'nsblessed' }, how: 'Take 25 blessings in one Night Shift.' },

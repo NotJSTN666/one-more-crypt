@@ -36,7 +36,7 @@ import { bountiesHtml, progressBounties } from './bounties';
 import { enableReminders, loadReminders, reminderPrefs, remindersAvailable, remindersNeedInstall, timeZone } from './push';
 import { claimPodiums, claimWeekly, clearBeat, lastBeat, type PodiumFinish, type WeeklyFinish } from './social';
 import { claimInlineHtml, wireClaimInline, endlessRecord, ensureGuest, initSocial, needsName, unclaimed, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
-import { currentStreak, loadSave, recordDaily, streakStats, writeSave, type RunResult } from './storage';
+import { currentStreak, loadSave, recordDaily, streakStats, WARD_EVERY, writeSave, type RunResult } from './storage';
 import { $, calmChosen, esc, formStatus, hideOverlay, on, onSubmit, overlay, overlayShownAt, screen, setCalm, showOverlay, toast } from './ui';
 
 const canvas = $<HTMLCanvasElement>('board');
@@ -2336,9 +2336,11 @@ function welcomeTitleHtml(): string {
 }
 
 function streakTeaseHtml(): string {
-  const { current } = streakStats(save, dailyNumber());
+  const { current, wards } = streakStats(save, dailyNumber());
   const next = STREAK_HELMS.find(([n]) => n > meta.streak.best);
-  const days = current === 1 ? 'Day 1 of your streak.' : `🕯️ ${current}-day streak.`;
+  // Grave Wards: one for every 7 days in a row, each covering one missed day.
+  const ward = wards ? ` 🛡️ ${wards === 1 ? 'A Grave Ward covers' : `${wards} Grave Wards cover`} a missed day.` : current >= 1 && current < WARD_EVERY ? ` Reach ${WARD_EVERY} days for a 🛡️ Grave Ward, which covers a missed day.` : '';
+  const days = (current === 1 ? 'Day 1 of your streak.' : `🕯️ ${current}-day streak.`) + ward;
   if (!next) return `<p class="streak">${days} Every streak helm is yours.</p>`;
   const [n, , name] = next;
   const left = n - current;

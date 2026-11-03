@@ -1,7 +1,7 @@
 // Progress that carries between runs: Souls, unlocks, achievements, the relic codex
 // and discovered combos. Saved locally and, when signed in, to the player's account.
 
-import { ACHIEVEMENT_BY_ID, COMBOS, HEROES, HERO_BY_ID, dailyHero, type AchievementDef, type ComboDef, type HeroId } from './content';
+import { ACHIEVEMENT_BY_ID, COMBOS, DAILY_TOTALS, HEROES, HERO_BY_ID, dailyHero, type AchievementDef, type ComboDef, type HeroId } from './content';
 import { Game, REAPER_FLOOR, TITHE_SOULS, UNDEAD, basePool, fullPool, type Mode, type RunConfig } from './game';
 import { cleanGraveState, newGraveState, type GraveState } from './graveshift';
 import { ISLE_ITEM, LAND, cleanIsle, emptyIsle, fits, homeKey, homeOf, islePerks, itemAt, layout, owned, type IsleState } from './isle';
@@ -102,6 +102,8 @@ export interface Meta {
   gifts: string[];
   /** Hall decorations you own but took down. Still yours; put them back up any time. */
   hallHidden: string[];
+  /** Dailies played in all, in a row or not (the most any device has counted). */
+  dailyTotal: number;
 }
 
 export interface RaidProgress {
@@ -158,7 +160,7 @@ function empty(): Meta {
     podiums: {}, podiumChecked: 0, bought: [], streak: { best: 0, count: 0, last: 0 },
     bounties: { day: 0, ids: [], progress: [], done: [] },
     weekly: {}, weeklyChecked: '',
-    story: emptyStory(), pet: '', summonsSeen: '', patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null, raid: { joined: [], won: [], lost: [] }, invite: { from: '', claimed: false, friends: 0 }, horde: { day: 0, best: 0, wave: 0 }, gifts: [], hallHidden: [],
+    story: emptyStory(), pet: '', summonsSeen: '', patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null, raid: { joined: [], won: [], lost: [] }, invite: { from: '', claimed: false, friends: 0 }, horde: { day: 0, best: 0, wave: 0 }, gifts: [], hallHidden: [], dailyTotal: 0,
   };
 }
 
@@ -254,6 +256,7 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   meta.gifts = [...new Set([...meta.gifts, ...ids(other.gifts)])];
   // How the Hall is decorated is a choice: keep this device's, unless it hasn't made one.
   if (!meta.hallHidden.length) meta.hallHidden = ids(other.hallHidden);
+  meta.dailyTotal = Math.max(meta.dailyTotal ?? 0, Math.floor(Number(other.dailyTotal) || 0));
   // Grave Shift is one plot: whichever device changed it last wins.
   if (other.grave && typeof other.grave === 'object' && (Number(other.grave.at) || 0) > (meta.grave?.at ?? -1)) meta.grave = cleanGraveState(other.grave, Date.now());
   meta.duels = [...new Set([...meta.duels, ...(Array.isArray(other.duels) ? other.duels.map(String) : [])])];
@@ -549,14 +552,15 @@ export function runSouls(game: Game): [string, number][] {
 }
 
 /** Keep the Hall's streak in step with the dailies played. Returns true if it changed. */
-export function noteStreak(s: { best: number; count: number; last: number }): boolean {
-  const before = JSON.stringify(meta.streak);
+export function noteStreak(s: { best: number; count: number; last: number; total?: number }): boolean {
+  const before = JSON.stringify(meta.streak) + meta.dailyTotal;
+  meta.dailyTotal = Math.max(meta.dailyTotal ?? 0, s.total ?? 0);
   meta.streak = {
     best: Math.max(meta.streak.best, s.best),
     count: s.last >= meta.streak.last ? s.count : meta.streak.count,
     last: Math.max(meta.streak.last, s.last),
   };
-  if (JSON.stringify(meta.streak) === before) return false;
+  if (JSON.stringify(meta.streak) + meta.dailyTotal === before) return false;
   saveMeta();
   return true;
 }
@@ -576,7 +580,8 @@ export function finishRunMeta(game: Game, streak: number): RunReward {
   meta.earned += souls;
   meta.elitesSlain += game.stats.elites;
   const achievements = checkRun(game);
-  for (const id of [streak >= 3 ? 'streak3' : '', streak >= 7 ? 'streak7' : '']) {
+  const total = meta.dailyTotal ?? 0;
+  for (const id of [streak >= 3 ? 'streak3' : '', streak >= 7 ? 'streak7' : '', ...DAILY_TOTALS.filter(([n]) => total >= n).map(([, id]) => id)]) {
     const got = id && grant(id);
     if (got) achievements.push(got);
   }

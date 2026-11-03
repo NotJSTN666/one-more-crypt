@@ -200,6 +200,11 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'duelist', name: 'Duelist', desc: 'Beat 5 challenges from other players.', souls: 150 },
   // The Hollow.
   { id: 'gravekeeper', name: 'Gravekeeper', desc: 'Read every epitaph in the Hollow.', souls: 50 },
+  // Dailies played in all, in a row or not.
+  { id: 'dailies10', name: 'Regular', desc: 'Play 10 Daily Descents.', souls: 100 },
+  { id: 'dailies30', name: 'Pilgrim', desc: 'Play 30 Daily Descents.', souls: 300 },
+  { id: 'dailies100', name: 'Hundred Dawns', desc: 'Play 100 Daily Descents.', souls: 1000 },
+  { id: 'dailies365', name: 'A Year Below', desc: 'Play 365 Daily Descents.', souls: 3650 },
   // The Night Shift.
   { id: 'nsfirst', name: 'First Light', desc: 'Survive 5 minutes in the Night Shift.', souls: 50 },
   { id: 'ns15', name: 'Graveyard Shift', desc: 'Survive 15 minutes in the Night Shift.', souls: 200 },
@@ -211,5 +216,8 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'nsbosses', name: 'Bossbreaker', desc: 'Fell the Gravelord, the Drowned Abbot and the Lich in one Night Shift.', souls: 300 },
   { id: 'nsblessed', name: 'Blessed', desc: 'Take 25 blessings in one Night Shift.', souls: 400 },
 ];
+
+/** Dailies played in all, and the achievement each count earns. */
+export const DAILY_TOTALS: [number, string][] = [[10, 'dailies10'], [30, 'dailies30'], [100, 'dailies100'], [365, 'dailies365']];
 
 export const ACHIEVEMENT_BY_ID = Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, a])) as Record<string, AchievementDef>;

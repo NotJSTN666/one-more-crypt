@@ -96,7 +96,14 @@ export interface StreakStats {
   /** The last daily played, and the run of days ending there. */
   last: number;
   count: number;
+  /** Grave Wards ready in the streak under way: each covers one missed day. */
+  wards: number;
+  /** Dailies played in all, in a row or not. */
+  total: number;
 }
+
+/** Every this-many days in a streak earns a Grave Ward, which covers one missed day. */
+export const WARD_EVERY = 7;
 
 /** Play streak from the dailies on record (on a signed-in account, from every device). */
 export function streakStats(save: Save, today: number): StreakStats {
@@ -104,8 +111,18 @@ export function streakStats(save: Save, today: number): StreakStats {
   let best = 0;
   let count = 0;
   let last = 0;
+  // Grave Wards spent in the streak under way: one carries it over a single missed day.
+  let used = 0;
+  const wardsLeft = () => Math.floor(count / WARD_EVERY) - used;
   for (const d of days) {
-    count = d === last + 1 ? count + 1 : 1;
+    if (d === last + 1) count++;
+    else if (d === last + 2 && wardsLeft() > 0) {
+      count++;
+      used++;
+    } else {
+      count = 1;
+      used = 0;
+    }
     last = d;
     best = Math.max(best, count);
   }
@@ -115,7 +132,9 @@ export function streakStats(save: Save, today: number): StreakStats {
     count = save.streak.count;
   }
   best = Math.max(best, count);
-  return { current: last >= today - 1 ? count : 0, best, last, count };
+  // A ward keeps the streak alive through one missed day.
+  const alive = last >= today - 1 || (last === today - 2 && wardsLeft() > 0);
+  return { current: alive ? count : 0, best, last, count, wards: Math.max(0, wardsLeft()), total: days.length };
 }
 
 export function currentStreak(save: Save, today: number): number {
