@@ -201,6 +201,11 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'duelist', name: 'Duelist', desc: 'Beat 5 challenges from other players.', souls: 150 },
   // The Hollow.
   { id: 'gravekeeper', name: 'Gravekeeper', desc: 'Read every epitaph in the Hollow.', souls: 50 },
+  // Feats of skill.
+  { id: 'unscathed', name: 'Unscathed', desc: 'Clear 5 floors in one run without taking damage (from floor 3).', souls: 250 },
+  { id: 'courier', name: 'Courier', desc: 'Reach floor 15 in 200 turns or fewer.', souls: 250 },
+  { id: 'ascetic', name: 'Ascetic', desc: 'Reach floor 10 having taken no more than 1 relic.', souls: 300 },
+  { id: 'giantkiller', name: 'Giant Killer', desc: 'Deal 100 or more damage in one hit.', souls: 200 },
   // The Bestiary: every milestone for a foe is mastering it.
   { id: 'hunterhalf', name: 'Monster Hunter', desc: 'Master 6 foes in the Bestiary (every milestone for each).', souls: 500 },
   { id: 'hunterall', name: 'Master of Beasts', desc: 'Master every foe in the Bestiary.', souls: 2000 },

@@ -323,8 +323,9 @@ export interface RunStats {
   revived: boolean;
   /** Foes slain this run, by kind (for the Bestiary). */
   kinds: Partial<Record<EnemyKind, number>>;
-  /** Turns taken to reach floor 5 (0 until then). */
+  /** Turns taken to reach floor 5 and floor 15 (0 until then). */
   turnsTo5: number;
+  turnsTo15: number;
   /** Relics fused at the Soul Forge this run. */
   fusions: number;
   /** For hero costumes: unseen Rogue steps, attacks dodged, thralls raised, kills at 3 HP or less. */
@@ -501,7 +502,7 @@ export class Game {
   private revivedOn = 0;
   stats: RunStats = {
     elites: 0, bosses: {}, spikeKills: 0, maxKillsInTurn: 0, maxHit: 0, cleanFloors: 0, maxAllies: 0, bossAtOneHp: false,
-    arrowKills: 0, revived: false, turnsTo5: 0, kinds: {}, fusions: 0, shadowSteps: 0, dodges: 0, raised: 0, lowHpKills: 0, vaults: 0,
+    arrowKills: 0, revived: false, turnsTo5: 0, turnsTo15: 0, kinds: {}, fusions: 0, shadowSteps: 0, dodges: 0, raised: 0, lowHpKills: 0, vaults: 0,
   };
   /**
    * Every input, in order: U/D/L/R moves, W waits, 0-3 relic picks, r rests,
@@ -740,6 +741,7 @@ export class Game {
       this.events.push({ t: 'wave', wave: 1, boss: false, of: story.holdout });
     }
     if (floor === 5 && !this.stats.turnsTo5) this.stats.turnsTo5 = this.turns;
+    if (floor === 15 && !this.stats.turnsTo15) this.stats.turnsTo15 = this.turns;
 
     if (this.r('vheart') && this.isBossFloor()) this.phylacteryUsed = false;
     if (this.hero === 'knight' && floor > 1) this.heal(this.secondWind());

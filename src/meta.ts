@@ -460,7 +460,7 @@ export function noteRelic(game: Game, id: RelicId): Unlocks {
 }
 
 /** Check mid-run achievements after each turn. */
-const DEPTH_FEATS = new Set(['floor5', 'floor10', 'floor15', 'floor20', 'floor30', 'floor50', 'swift', 'rogue8', 'knight10', 'necro10', 'mage10', 'bell10', 'barbarian-rage', 'hoarder']);
+const DEPTH_FEATS = new Set(['floor5', 'floor10', 'floor15', 'floor20', 'floor30', 'floor50', 'swift', 'rogue8', 'knight10', 'necro10', 'mage10', 'bell10', 'courier', 'ascetic', 'unscathed', 'barbarian-rage', 'hoarder']);
 
 export function checkRun(game: Game): AchievementDef[] {
   const s = game.stats;
@@ -500,6 +500,10 @@ export function checkRun(game: Game): AchievementDef[] {
     ['ranger-arrows', s.arrowKills >= 25],
     ['mage10', game.hero === 'mage' && game.floor >= 10],
     ['bell10', game.hero === 'bellringer' && game.floor >= 10],
+    ['unscathed', s.cleanFloors >= 5],
+    ['courier', s.turnsTo15 > 0 && s.turnsTo15 <= 200],
+    ['ascetic', game.floor >= 10 && game.relicLog.length <= 1],
+    ['giantkiller', s.maxHit >= 100],
     ['barbarian-rage', game.hero === 'barbarian' && game.floor >= 10],
     ['full-party', HEROES.every((h) => meta.heroes.includes(h.id))],
     ['forbidden', UNLOCKABLE_RELICS.every((id) => meta.relics.includes(id))],
