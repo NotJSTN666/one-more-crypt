@@ -10,7 +10,7 @@ import { ACT1_QUESTS } from './story';
 import { FUSIONS, RELICS, UNLOCKABLE_RELICS, type FusedId, type RelicId } from './relics';
 import {
   AURAS, AURA_BY_ID, DUNCE_AT, SHAME, BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, beastPlural, HEADS, HEAD_BY_ID, HERO_CLOAKS, HERO_COSTUMES, LOOKS, LOOK_BY_ID, SEASONS, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_BY_ID, TITLE_TIER, WELCOME, STORY_ALL, RAID_REWARDS,
-  betterRun, bestiaryTiers, marketPiece, marketPieces, rankIndex, seasonOf, seasonOpen, type AuraDef, type BestRuns, type SeasonId, type HeadDef, type LookDef, type Outfit, type RunGoal, type Unlock, type WelcomeReward,
+  betterRun, bestiaryTiers, marketPiece, marketPieces, masteryRank, MASTERY_SOULS, rankIndex, seasonOf, seasonOpen, type AuraDef, type BestRuns, type SeasonId, type HeadDef, type LookDef, type Outfit, type RunGoal, type Unlock, type WelcomeReward,
 } from './progression';
 import type { EnemyKind } from './game';
 
@@ -460,7 +460,7 @@ export function noteRelic(game: Game, id: RelicId): Unlocks {
 }
 
 /** Check mid-run achievements after each turn. */
-const DEPTH_FEATS = new Set(['floor5', 'floor10', 'floor15', 'floor20', 'floor30', 'floor50', 'swift', 'rogue8', 'knight10', 'necro10', 'mage10', 'barbarian-rage', 'hoarder']);
+const DEPTH_FEATS = new Set(['floor5', 'floor10', 'floor15', 'floor20', 'floor30', 'floor50', 'swift', 'rogue8', 'knight10', 'necro10', 'mage10', 'bell10', 'barbarian-rage', 'hoarder']);
 
 export function checkRun(game: Game): AchievementDef[] {
   const s = game.stats;
@@ -499,6 +499,7 @@ export function checkRun(game: Game): AchievementDef[] {
     ['paladin-lich', game.hero === 'paladin' && (s.bosses.lich ?? 0) > 0],
     ['ranger-arrows', s.arrowKills >= 25],
     ['mage10', game.hero === 'mage' && game.floor >= 10],
+    ['bell10', game.hero === 'bellringer' && game.floor >= 10],
     ['barbarian-rage', game.hero === 'barbarian' && game.floor >= 10],
     ['full-party', HEROES.every((h) => meta.heroes.includes(h.id))],
     ['forbidden', UNLOCKABLE_RELICS.every((id) => meta.relics.includes(id))],
@@ -953,6 +954,7 @@ export function titleUnlocked(id: string): boolean {
   if (kind === 'gift') return meta.gifts.includes(key);
   if (kind === 'beast') return (meta.bestiaryTier[key as EnemyKind] ?? 0) > TITLE_TIER;
   if (kind === 'rank') return meta.earned >= (SOUL_RANKS.find((r) => r.name === key)?.souls ?? Infinity);
+  if (kind === 'mastery') return masteryRank(meta.heroStats[key as HeroId]?.souls ?? 0) >= MASTERY_SOULS.length;
   return false;
 }
 

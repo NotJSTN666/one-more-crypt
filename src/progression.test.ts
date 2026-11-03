@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { Game, fullPool } from './game';
 import { finishRunMeta, meta } from './meta';
-import { SOUL_RANKS, TITLES, TITLE_BY_ID, betterRun, rankFor, rankProgress } from './progression';
+import { HERO_CLOAKS, MASTERY_SOULS, SOUL_RANKS, TITLES, TITLE_BY_ID, betterRun, masteryRank, rankFor, rankProgress } from './progression';
+import { HEROES } from './content';
 
 describe('Soul Ranks', () => {
   it('climb with lifetime Souls', () => {
@@ -152,5 +153,23 @@ describe('the Ossuary shop', () => {
     mergeMeta({ bought: ['throne'] });
     expect(meta.bought).toEqual(['cinder', 'throne']);
     expect(DECOR.every((d) => d.cost > 0)).toBe(true);
+  });
+});
+
+describe('hero mastery', () => {
+  it('climbs five ranks with the Souls earned as a hero', () => {
+    expect(masteryRank(0)).toBe(0);
+    expect(masteryRank(499)).toBe(0);
+    expect(masteryRank(500)).toBe(1);
+    expect(masteryRank(4000)).toBe(3);
+    expect(masteryRank(25000)).toBe(5);
+    expect(masteryRank(999999)).toBe(5);
+  });
+
+  it('gives every hero a mastery cloak at rank 3 and a Master title', () => {
+    for (const h of HEROES) {
+      expect(HERO_CLOAKS.some((c) => c.hero === h.id && 'souls' in c.need && c.need.souls === MASTERY_SOULS[2])).toBe(true);
+      expect(TITLE_BY_ID[`mastery:${h.id}`]).toBeTruthy();
+    }
   });
 });

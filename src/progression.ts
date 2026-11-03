@@ -1,7 +1,16 @@
 // Long-term progression shown off in the Crypt Hall: Soul Ranks from lifetime Souls,
 // titles to wear under your name, cosmetic looks for the hero, and the Bestiary.
 
-import { ACHIEVEMENTS, type HeroId } from './content';
+import { ACHIEVEMENTS, HEROES, type HeroId } from './content';
+
+// ---------- hero mastery ----------
+
+/** Souls earned with a hero for each mastery rank (rank 3 brings a cloak, rank 5 a title). */
+export const MASTERY_SOULS = [500, 1500, 4000, 10000, 25000];
+
+/** Mastery rank (0-5) for this many Souls earned with a hero. */
+export const masteryRank = (souls: number) => MASTERY_SOULS.filter((n) => souls >= n).length;
+
 import type { EnemyKind } from './game';
 
 /** In a `{ story }` unlock: every quest of the act, side quests included. */
@@ -142,6 +151,8 @@ export const TITLES: TitleDef[] = [
   // Deaths of Shame: silly ways to fall, each worn as a title.
   ...SHAME.map((d) => ({ id: `shame:${d.id}`, name: d.title, how: d.how })),
   // Story mode only.
+  // Hero mastery: the top rank with each hero.
+  ...HEROES.map((h) => ({ id: `mastery:${h.id}`, name: `Master ${h.name}`, how: `Reach mastery rank ${MASTERY_SOULS.length} with the ${h.name}: earn ${MASTERY_SOULS[MASTERY_SOULS.length - 1].toLocaleString()} Souls as them.` })),
   { id: 'story:1', name: "Gravedigger's Apprentice", how: 'Finish Fresh Dirt in the story.' },
   { id: 'story:2', name: 'Friend of Hounds', how: 'Finish The Kennel in the story.' },
   { id: 'story:3', name: "Aldric's Squire", how: 'Finish The Hollow Knight in the story.' },
@@ -728,6 +739,16 @@ export const HERO_CLOAKS: HeroCloak[] = [
   cloak('autumn', 'Autumn', 'ranger', { run: 'arrowKills', n: 50 }, '#a8622a', '#5c3414', '#ff8a2a'),
   cloak('arcane', 'Arcane Violet', 'mage', { floor: 15 }, '#6a3fd0', '#3a1f80', '#d3b0ff'),
   cloak('bloodrage', 'Blood Rage', 'barbarian', { run: 'lowHpKills', n: 25 }, '#701826', '#3a0a12', '#ff4d5a'),
+  cloak('tolling', 'Tolling Bronze', 'bellringer', { floor: 15 }, '#8a5a28', '#4a2e12', '#e8c27a'),
+  // Mastery rank 3 with each hero (see MASTERY_SOULS).
+  cloak('lionheart', 'Lionheart', 'knight', { souls: 4000 }, '#c99a2e', '#7a1f1f', '#ffd23f'),
+  cloak('whisperweave', 'Whisperweave', 'rogue', { souls: 4000 }, '#3a3a52', '#14141f', '#c9d1e0'),
+  cloak('lichcloth', 'Lichcloth', 'necro', { souls: 4000 }, '#2a4a3a', '#0a1a12', '#7cf5c4'),
+  cloak('dawnward', 'Dawnward', 'paladin', { souls: 4000 }, '#f2e6c0', '#5a7ab0', '#fff2c0'),
+  cloak('wildwood', 'Wildwood', 'ranger', { souls: 4000 }, '#4a6a2a', '#2a3a14', '#b5e07a'),
+  cloak('starweave', 'Starweave', 'mage', { souls: 4000 }, '#1f2a6a', '#0a0f2a', '#9fe8ff'),
+  cloak('warchief', "Warchief's Pelt", 'barbarian', { souls: 4000 }, '#6a4a2a', '#2a1a0a', '#ff8a2a'),
+  cloak('belfry', 'Belfry Robe', 'bellringer', { souls: 4000 }, '#5a5a6a', '#2a2a36', '#f2c14e'),
 ];
 
 for (const c of HERO_CLOAKS) LOOK_BY_ID[c.id] = c;

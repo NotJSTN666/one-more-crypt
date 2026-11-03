@@ -5,7 +5,7 @@ import { sfx } from './audio';
 import { ACHIEVEMENTS, COMBOS, HEROES, HERO_BY_ID, type AchievementDef, type ComboDef, type HeroId } from './content';
 import { heroPortrait } from './hero';
 import { RELIC_COSTS, type UnlockNote, buyHero, buyItem, lookUnlocked, openSeasons, outfitFor, buyRelic, heroUnlocked, meta, relicDiscovered, saveMeta } from './meta';
-import { AURAS, DECOR, DUNCE_AT, HEADS, LEGENDARY, LOOKS, SEASONS, SHAME, isMarket, marketPiece, seasonOf, shopPrice, type AuraDef } from './progression';
+import { AURAS, DECOR, DUNCE_AT, HEADS, LEGENDARY, LOOKS, MASTERY_SOULS, SEASONS, SHAME, isMarket, masteryRank, marketPiece, seasonOf, shopPrice, type AuraDef } from './progression';
 import { dailyNumber } from './daily';
 import { auraClass } from './aura';
 import { ASCEND_FLOOR, ENDLESS_RELICS, FUSIONS, RELICS, RELIC_BY_ID, UNLOCKABLE_RELICS, type RelicId } from './relics';
@@ -26,7 +26,17 @@ function heroRecord(hero: HeroId): string {
   const st = meta.heroStats[hero];
   const floor = Math.max(st?.floor ?? 0, meta.best[hero]?.floor ?? 0);
   if (!st?.runs && !floor) return '<span class="record">No descents yet</span>';
-  return `<span class="record"><b>⛧ Floor ${floor}</b> deepest${st?.runs ? ` · <b>💀 ${st.souls.toLocaleString()}</b> Souls · ${st.runs} run${st.runs === 1 ? '' : 's'}` : ''}</span>`;
+  return `<span class="record"><b>⛧ Floor ${floor}</b> deepest${st?.runs ? ` · <b>💀 ${st.souls.toLocaleString()}</b> Souls · ${st.runs} run${st.runs === 1 ? '' : 's'}` : ''}</span>${masteryLine(st?.souls ?? 0)}`;
+}
+
+/** Mastery: five ranks from the Souls earned with a hero. Rank 3 brings a cloak, rank 5 a title. */
+function masteryLine(souls: number): string {
+  const rank = masteryRank(souls);
+  const top = MASTERY_SOULS.length;
+  const stars = '★'.repeat(rank) + '☆'.repeat(top - rank);
+  const next = MASTERY_SOULS[rank];
+  const prize = rank < 3 ? ' (rank 3: a mastery cloak)' : rank < top ? ' (rank 5: a Master title)' : '';
+  return `<span class="mastery"><b>${stars}</b> Mastery ${rank}/${top}${next ? ` · ${(next - souls).toLocaleString()} more Souls to rank ${rank + 1}${prize}` : ' · mastered'}</span>`;
 }
 
 export function showHeroSelect(onPick: (hero: HeroId) => void, back: () => void, sub = "Endless Descent · relics you've unlocked join the pool") {

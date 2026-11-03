@@ -187,6 +187,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'paladin-lich', name: 'Holy Light', desc: 'Slay the Lich King as the Paladin.', souls: 100 },
   { id: 'ranger-arrows', name: 'Deadeye', desc: 'Slay 25 foes with arrows in one run.', souls: 60 },
   { id: 'mage10', name: 'Glass Cannon', desc: 'Reach floor 10 as the Mage.', souls: 80 },
+  { id: 'bell10', name: 'Ring True', desc: 'Reach floor 10 as the Bell-Ringer.', souls: 80 },
   { id: 'barbarian-rage', name: 'Unchained', desc: 'Reach floor 10 as the Barbarian.', souls: 60 },
   { id: 'full-party', name: 'Full Party', desc: 'Unlock every hero.', souls: 150 },
   { id: 'forbidden', name: 'Forbidden Knowledge', desc: 'Unlock every forbidden relic.', souls: 150 },
