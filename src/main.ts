@@ -10,7 +10,7 @@ import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
 import { hallFromLink, onVisitIsle, showHall, showPublicHall, soulRankHtml, titleName } from './hall';
-import { AURA_BY_ID, featCosmetics, GIFT_BY_ID, TITLE_BY_ID, HEAD_BY_ID, LOOK_BY_ID, PODIUM, RAID_DECOR_BY_ID, RAID_KIND_LABEL, RAID_REWARDS, STORY_ALL, STREAK_HELMS, WEEKLY, WELCOME, rankFor, titleFxClass, welcomeLabel, type WelcomeReward } from './progression';
+import { AURA_BY_ID, featCosmetics, marketPiece, GIFT_BY_ID, TITLE_BY_ID, HEAD_BY_ID, LOOK_BY_ID, PODIUM, RAID_DECOR_BY_ID, RAID_KIND_LABEL, RAID_REWARDS, STORY_ALL, STREAK_HELMS, WEEKLY, WELCOME, rankFor, titleFxClass, welcomeLabel, type WelcomeReward } from './progression';
 import { Renderer } from './render';
 import { resetCanvases, sprites } from './sprites';
 import { RAID_JOIN_MIN, RAID_SUBMIT_MIN, RAID_TURNS, currentRaid, nextRaid, raidBossName, raidConfig, raidJoinable, raidTimeLabel, type RaidSlot } from './raid';
@@ -1203,7 +1203,7 @@ function showTitle() {
     <div class="tiles">
       ${titleTile('hall', '🏰', 'Crypt Hall', `<span style="color:${rankFor(meta.earned).color}">${esc(rankFor(meta.earned).name)}</span>`)}
       ${titleTile('wardrobe', '🎨', 'Wardrobe', 'Dress your heroes')}
-      ${titleTile('ossuary', '🏛️', 'Ossuary', `💀 ${ns(meta.souls)} Souls`)}
+      ${titleTile('ossuary', '🏛️', 'Ossuary', `💀 ${ns(meta.souls)} Souls${meta.bought.includes(marketPiece(today).id) ? '' : ` · 🕯️ Today: ${esc(marketPiece(today).name)}`}`)}
       ${titleTile('grimoire', '📖', 'Grimoire', 'Relics & combos')}
       ${ONLINE ? titleTile('leaderboard', '🏆', 'Leaderboards', 'Daily & Endless') : ''}
       ${ONLINE ? titleTile('invite', '👥', 'Bring a friend', meta.invite.friends ? `${meta.invite.friends} brought` : 'You both get a cloak') : ''}

@@ -5,7 +5,8 @@ import { sfx } from './audio';
 import { ACHIEVEMENTS, COMBOS, HEROES, HERO_BY_ID, type AchievementDef, type ComboDef, type HeroId } from './content';
 import { heroPortrait } from './hero';
 import { RELIC_COSTS, type UnlockNote, buyHero, buyItem, lookUnlocked, openSeasons, outfitFor, buyRelic, heroUnlocked, meta, relicDiscovered, saveMeta } from './meta';
-import { AURAS, DECOR, DUNCE_AT, HEADS, LEGENDARY, LOOKS, SEASONS, SHAME, seasonOf, shopPrice, type AuraDef } from './progression';
+import { AURAS, DECOR, DUNCE_AT, HEADS, LEGENDARY, LOOKS, SEASONS, SHAME, isMarket, marketPiece, seasonOf, shopPrice, type AuraDef } from './progression';
+import { dailyNumber } from './daily';
 import { auraClass } from './aura';
 import { ASCEND_FLOOR, ENDLESS_RELICS, FUSIONS, RELICS, RELIC_BY_ID, UNLOCKABLE_RELICS, type RelicId } from './relics';
 import { $, esc, on, overlay, showOverlay } from './ui';
@@ -121,10 +122,10 @@ export function showOssuary(back: () => void, tab: OssuaryTab = 'unlocks') {
         ${owned ? '<span class="owned-tag">Owned</span>' : buy(`data-item="${a.id}" data-cost="${cost}"`, cost)}
       </div>`;
     };
-    const soldAuras = (season?: string) => AURAS.filter((a) => 'cost' in a.unlock && (a.unlock.season ?? undefined) === season);
+    const soldAuras = (season?: string) => AURAS.filter((a) => 'cost' in a.unlock && !isMarket(a.unlock) && (a.unlock.season ?? undefined) === season);
     const byPrice = <T extends { unlock?: Parameters<typeof shopPrice>[0] }>(a: T, b: T) => shopPrice(a.unlock) - shopPrice(b.unlock);
-    const cloaks = LOOKS.filter((l) => shopPrice(l.unlock) && !seasonOf(l.unlock)).sort(byPrice);
-    const heads = HEADS.filter((h) => shopPrice(h.unlock) && !seasonOf(h.unlock)).sort(byPrice);
+    const cloaks = LOOKS.filter((l) => shopPrice(l.unlock) && !seasonOf(l.unlock) && !isMarket(l.unlock)).sort(byPrice);
+    const heads = HEADS.filter((h) => shopPrice(h.unlock) && !seasonOf(h.unlock) && !isMarket(h.unlock)).sort(byPrice);
     // Seasonal pieces: on sale only while their season is open.
     const seasonal = openSeasons()
       .map((season) => {
@@ -188,6 +189,7 @@ export function showOssuary(back: () => void, tab: OssuaryTab = 'unlocks') {
     <h2>The Ossuary</h2>
     <p class="sub">Trade the Souls of the fallen for heroes, relics and finery.</p>
     ${soulsChip()}
+    ${marketHtml(buy)}
     <div class="tabs" role="tablist">${tabs.map(([t, label]) => `<button role="tab" data-tab="${t}" aria-selected="${t === tab}">${label}</button>`).join('')}</div>
     ${body}
     <button class="btn primary" id="back">Back</button>`);
@@ -210,6 +212,27 @@ export function showOssuary(back: () => void, tab: OssuaryTab = 'unlocks') {
   on('#wardrobe', () => showWardrobe(() => showOssuary(back, 'wardrobe'), meta.hero));
   on('#see-hall', () => hallHook?.(() => showOssuary(back, 'hall')));
   on('#back', back);
+}
+
+/**
+ * The Grave Market: one rare piece a day, the same for everyone, sold only on its day. Some
+ * other day it comes round again, so there's always a reason to look in.
+ */
+function marketHtml(buy: (attrs: string, cost: number) => string): string {
+  const p = marketPiece(dailyNumber());
+  const fit = outfitFor(meta.hero);
+  const owned = meta.bought.includes(p.id);
+  const glow = p.kind === 'aura' ? auraClass(p.id) : { cls: '', style: '' };
+  const img = heroPortrait(meta.hero, {}, [], 5, p.kind === 'look' ? p.id : fit.look, p.kind === 'head' ? p.id : fit.head);
+  const what = p.kind === 'look' ? 'Cloak' : p.kind === 'head' ? 'Headwear' : 'Aura';
+  return `<div class="market">
+    <h3 class="shop-head">🕯️ Today in the Ossuary</h3>
+    <div class="shop-item market-item ${owned ? 'owned' : ''}">
+      <img class="${glow.cls}" style="${glow.style}" src="${img}" alt="" width="50" height="50" />
+      <span class="shop-info"><span class="name">${esc(p.name)} <em class="legend-tag">${what}</em></span><span class="desc">${owned ? 'Yours. Wear it from the Wardrobe.' : "Sold only today. It comes round again some other day."}</span></span>
+      ${owned ? '<span class="owned-tag">Owned</span>' : buy(`data-item="${p.id}" data-cost="${p.cost}"`, p.cost)}
+    </div>
+  </div>`;
 }
 
 let hallHook: ((back: () => void) => void) | null = null;

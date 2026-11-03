@@ -5,12 +5,12 @@ import { ACHIEVEMENT_BY_ID, COMBOS, DAILY_TOTALS, HEROES, HERO_BY_ID, dailyHero,
 import { Game, REAPER_FLOOR, TITHE_SOULS, UNDEAD, basePool, fullPool, type Mode, type RunConfig } from './game';
 import { cleanGraveState, newGraveState, type GraveState } from './graveshift';
 import { ISLE_ITEM, LAND, cleanIsle, emptyIsle, fits, homeKey, homeOf, islePerks, itemAt, layout, owned, type IsleState } from './isle';
-import { centralDate } from './daily';
+import { centralDate, dailyNumber } from './daily';
 import { ACT1_QUESTS } from './story';
 import { FUSIONS, RELICS, UNLOCKABLE_RELICS, type FusedId, type RelicId } from './relics';
 import {
   AURAS, AURA_BY_ID, DUNCE_AT, SHAME, BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, beastPlural, HEADS, HEAD_BY_ID, HERO_CLOAKS, HERO_COSTUMES, LOOKS, LOOK_BY_ID, SEASONS, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_BY_ID, TITLE_TIER, WELCOME, STORY_ALL, RAID_REWARDS,
-  betterRun, bestiaryTiers, rankIndex, seasonOf, seasonOpen, type AuraDef, type BestRuns, type SeasonId, type HeadDef, type LookDef, type Outfit, type RunGoal, type Unlock, type WelcomeReward,
+  betterRun, bestiaryTiers, marketPiece, marketPieces, rankIndex, seasonOf, seasonOpen, type AuraDef, type BestRuns, type SeasonId, type HeadDef, type LookDef, type Outfit, type RunGoal, type Unlock, type WelcomeReward,
 } from './progression';
 import type { EnemyKind } from './game';
 
@@ -628,6 +628,8 @@ export function buyItem(id: string, cost: number): boolean {
   if (meta.bought.includes(id) || meta.souls < cost) return false;
   const season = itemSeason(id);
   if (season && !openSeasons().includes(season)) return false;
+  // A Grave Market piece sells only on its day.
+  if (marketPieces().some((p) => p.id === id) && marketPiece(dailyNumber()).id !== id) return false;
   meta.souls -= cost;
   meta.bought.push(id);
   // Bought on purpose, so there's no need to announce it after the next run.

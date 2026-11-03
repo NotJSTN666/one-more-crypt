@@ -218,7 +218,7 @@ export interface LookDef {
   /** Colour of the drifting aura motes, if any. */
   aura: string | null;
   /** What unlocks it: an achievement, a Soul Rank (index) or a Bestiary tier. */
-  unlock: { feat: string } | { rank: number } | { beast: EnemyKind; tier: number } | { costume: string } | { podium: number } | { cost: number; season?: SeasonId } | { streak: number } | { weekly: number } | { story: number } | { season: SeasonId } | { shame: number } | { welcome: number } | { raid: number } | { invite: number } | { gift: string };
+  unlock: { feat: string } | { rank: number } | { beast: EnemyKind; tier: number } | { costume: string } | { podium: number } | { cost: number; season?: SeasonId; market?: true } | { streak: number } | { weekly: number } | { story: number } | { season: SeasonId } | { shame: number } | { welcome: number } | { raid: number } | { invite: number } | { gift: string };
   how: string;
 }
 
@@ -392,6 +392,19 @@ LOOKS.push(
   { id: 'candycane', name: 'Candy Cane', cloak: { p: '#f2f2f2', P: '#d23a46' }, aura: null, ...wintry(500) },
   { id: 'nutcracker', name: 'Nutcracker', cloak: { p: '#c0392b', P: '#1a1520' }, aura: '#f2c14e', ...wintry(700) },
   { id: 'icequeen', name: "Ice Queen's Mantle", cloak: { p: '#c9f2ff', P: '#5a3a9a' }, aura: '#e8fbff', ...wintry(1500) },
+);
+
+// The Grave Market: pieces sold one a day, each only on its day (see marketPiece).
+const market = (cost: number) => ({ unlock: { cost, market: true as const }, how: `Sold in the Ossuary for ${cost.toLocaleString()} Souls, but only on the days it's today's piece.` });
+LOOKS.push(
+  { id: 'bloodmoon', name: 'Blood Moon Mantle', cloak: { p: '#6a0f1a', P: '#2a0508' }, aura: '#ff4d5a', ...market(1200) },
+  { id: 'starless', name: 'Starless Night', cloak: { p: '#0d0b1a', P: '#2a1f4a' }, aura: '#9fb4ff', ...market(1400) },
+  { id: 'verdigris', name: 'Verdigris', cloak: { p: '#3f8f7a', P: '#1f4a3f' }, aura: '#7cf5c4', ...market(1000) },
+  { id: 'ashenpilgrim', name: 'Ashen Pilgrim', cloak: { p: '#8f8a80', P: '#45423c' }, aura: null, ...market(900) },
+  { id: 'royalcrypt', name: 'Royal Crypt', cloak: { p: '#2a3a8a', P: '#c99a2e' }, aura: '#f2c14e', ...market(1600) },
+  { id: 'drownedcoral', name: 'Drowned Coral', cloak: { p: '#e06a5a', P: '#2a5a6a' }, aura: '#9fe8ff', ...market(1100) },
+  { id: 'hexweaver', name: 'Hexweaver', cloak: { p: '#5a1a6a', P: '#0f0a14' }, aura: '#d3b0ff', ...market(1300) },
+  { id: 'ivorysaint', name: 'Ivory Saint', cloak: { p: '#f4ecd8', P: '#c9a24a' }, aura: '#fff2c0', ...market(1500) },
 );
 
 export const LOOK_BY_ID = Object.fromEntries(LOOKS.map((l) => [l.id, l])) as Record<string, LookDef>;
@@ -681,6 +694,11 @@ export const HEADS: HeadDef[] = [
   { id: 'lanternhood', name: 'Lantern Hood', unlock: { invite: 5 }, how: 'Bring 5 friends to the crypt.', pixels: [...row(1, 3, 8, '#5a2a12'), ...row(2, 2, 9, '#7a3a18'), [5, 0, '#3a3346'], [6, 0, '#3a3346'], [8, 0, '#3a3346'], [9, 1, '#ffd23f'], [10, 1, '#ff8a2a'], [9, 2, '#3a3346'], [10, 2, '#3a3346'], [4, 2, '#ffb35a'], [7, 2, '#ffb35a']] },
   // Death's own hood, skull and all: for cheating him.
   { id: 'deathshood', name: "Death's Hood", unlock: { feat: 'cheated' }, how: 'Reach floor 200 with Death on your heels.', pixels: [...row(0, 4, 7, '#141119'), ...row(1, 3, 8, '#141119'), ...row(2, 2, 9, '#1d1428'), [2, 3, '#1d1428'], [3, 3, '#1d1428'], ...row(3, 4, 7, BONE), [8, 3, '#1d1428'], [9, 3, '#1d1428'], [3, 4, '#1d1428'], [4, 4, '#d3b0ff'], [5, 4, BONE], [6, 4, BONE], [7, 4, '#d3b0ff'], [8, 4, '#1d1428'], [3, 5, '#1d1428'], [5, 5, '#c9c3b2'], [6, 5, '#c9c3b2'], [8, 5, '#1d1428']] },
+  // The Grave Market's headwear.
+  { id: 'plaguebeak', name: "Plague Doctor's Beak", ...market(1200), pixels: [...row(0, 3, 8, DARK), ...row(1, 3, 8, DARK), ...row(2, 1, 10, '#2a2433'), [4, 4, '#5fe3ff'], [7, 4, '#5fe3ff'], [8, 5, BONE], [9, 5, BONE], [10, 6, '#c9c3b2']] },
+  { id: 'graveantlers', name: 'Grave Antlers', ...market(1000), pixels: [[1, 0, '#a8845a'], [2, 1, '#8a6a4a'], [1, 2, '#a8845a'], [3, 2, '#8a6a4a'], [4, 3, '#8a6a4a'], [10, 0, '#a8845a'], [9, 1, '#8a6a4a'], [10, 2, '#a8845a'], [8, 2, '#8a6a4a'], [7, 3, '#8a6a4a']] },
+  { id: 'crackedhalo', name: 'Cracked Halo', ...market(1400), pixels: [...row(0, 3, 8, '#fff2c0'), [6, 0, '#8f8672'], [2, 1, '#ffe08a'], [9, 1, '#ffe08a']] },
+  { id: 'hexhat', name: "Hexweaver's Hat", ...market(1100), pixels: [[8, 0, '#3b2060'], ...row(1, 6, 8, '#3b2060'), ...row(2, 4, 7, '#5a1a6a'), ...row(3, 2, 9, '#3b2060'), [5, 2, '#d3b0ff'], [6, 2, '#d3b0ff']] },
   // A year of Dailies: a crown of twelve points, one for each month.
   { id: 'yearcrown', name: 'Crown of the Year', unlock: { feat: 'dailies365' }, how: 'Play 365 Daily Descents.', pixels: [[2, 0, GOLD], [4, 0, '#9fe8ff'], [6, 0, GOLD], [8, 0, '#ff8a2a'], [10, 0, GOLD], ...row(1, 2, 10, GOLD), ...row(2, 2, 10, '#a8781f'), [4, 2, '#ff4d5a'], [6, 2, '#7cf5c4'], [8, 2, '#d3b0ff']] },
   // The Night Shift: a hood with a lantern hung off it, and a crown of bone.
@@ -750,7 +768,7 @@ export type AuraUnlock =
   | { invite: number }
   | { feat: string }
   | { gift: string }
-  | { cost: number; season?: SeasonId };
+  | { cost: number; season?: SeasonId; market?: true };
 
 export interface AuraDef {
   id: string;
@@ -823,6 +841,9 @@ export const AURAS: AuraDef[] = [
   // Midwinter.
   { id: 'fairylights', name: 'Fairy Lights', style: 'fairylights', color: '#ffd23f', unlock: { cost: 2500, season: 'midwinter' }, how: 'Sold in the Ossuary during Midwinter (the day after Thanksgiving to January 6) for 2,500 Souls.' },
   { id: 'northernlights', name: 'Northern Lights', style: 'aurora', color: '#5fd3a6', unlock: { cost: 4000, season: 'midwinter' }, how: 'Sold in the Ossuary during Midwinter (the day after Thanksgiving to January 6) for 4,000 Souls.' },
+  // The Grave Market's auras.
+  { id: 'cinderfall', name: 'Cinderfall', style: 'ember', color: '#ff6a3a', unlock: { cost: 2200, market: true }, how: "Sold in the Ossuary for 2,200 Souls, but only on the days it's today's piece." },
+  { id: 'restless', name: 'Restless Spirits', style: 'wisps', color: '#9fe8ff', unlock: { cost: 2500, market: true }, how: "Sold in the Ossuary for 2,500 Souls, but only on the days it's today's piece." },
   { id: 'hundreddawns', name: 'Hundred Dawns', style: 'sunburst', color: '#ffd9a0', unlock: { feat: 'dailies100' }, how: 'Play 100 Daily Descents.' },
   // The Night Shift.
   { id: 'moonlit', name: 'Moonlit', style: 'moon', color: '#cfe0ff', unlock: { feat: 'ns25' }, how: 'Survive 25 minutes in the Night Shift.' },
@@ -912,3 +933,29 @@ export const GIFTS: GiftDef[] = [
 ];
 
 export const GIFT_BY_ID = Object.fromEntries(GIFTS.map((g) => [g.id, g])) as Record<string, GiftDef>;
+
+// ---------- the Grave Market ----------
+
+export type MarketPiece = { kind: 'look' | 'head' | 'aura'; id: string; name: string; cost: number };
+
+/** Whether a piece is only ever sold as the Grave Market's piece of the day. */
+export const isMarket = (unlock: object | undefined) => Boolean(unlock && 'market' in unlock);
+
+/** Every Grave Market piece, in the order they come round. */
+export function marketPieces(): MarketPiece[] {
+  return [
+    ...LOOKS.filter((l) => isMarket(l.unlock)).map((l) => ({ kind: 'look' as const, id: l.id, name: l.name, cost: shopPrice(l.unlock) })),
+    ...HEADS.filter((h) => isMarket(h.unlock)).map((h) => ({ kind: 'head' as const, id: h.id, name: h.name, cost: shopPrice(h.unlock) })),
+    ...AURAS.filter((a) => isMarket(a.unlock)).map((a) => ({ kind: 'aura' as const, id: a.id, name: a.name, cost: 'cost' in a.unlock ? a.unlock.cost : 0 })),
+  ];
+}
+
+/** Today's piece in the Grave Market: the same for everyone, a different one each day. */
+export function marketPiece(dailyNo: number): MarketPiece {
+  const all = marketPieces();
+  // A step that shares no factor with the count visits every piece before any repeats.
+  const gcd = (a: number, b: number): number => (b ? gcd(b, a % b) : a);
+  let step = 5;
+  while (gcd(step, all.length) !== 1) step++;
+  return all[(((dailyNo * step) % all.length) + all.length) % all.length];
+}

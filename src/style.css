@@ -5310,3 +5310,15 @@ body.tutorial #relic-bar {
   opacity: 0.45;
   filter: grayscale(1);
 }
+
+/* The Grave Market: today's piece at the top of the Ossuary. */
+.market .market-item {
+  border-color: var(--gold);
+  background: linear-gradient(180deg, rgba(242, 193, 78, 0.12), rgba(0, 0, 0, 0.2)), var(--panel);
+  box-shadow: 0 0 14px rgba(242, 193, 78, 0.25);
+}
+
+.market .market-item img {
+  width: 50px;
+  height: 50px;
+}
