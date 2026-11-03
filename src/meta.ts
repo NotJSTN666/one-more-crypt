@@ -1058,6 +1058,12 @@ function progressUnlocks(game: Game): UnlockNote[] {
     }
     meta.bestiaryTier[kind] = paid;
   }
+  // Master foes: every milestone in the Bestiary.
+  const mastered = BESTIARY_KINDS.filter((k) => (meta.bestiaryTier[k] ?? 0) >= bestiaryTiers(k).length).length;
+  for (const id of [mastered >= 6 ? 'hunterhalf' : '', mastered >= BESTIARY_KINDS.length ? 'hunterall' : '']) {
+    const won = id && grant(id);
+    if (won) notes.push({ icon: '🏅', title: won.name, detail: `${won.desc} +${won.souls} Souls` });
+  }
   const rank = rankIndex(meta.earned);
   if (rank > meta.rankSeen) {
     meta.rankSeen = rank;

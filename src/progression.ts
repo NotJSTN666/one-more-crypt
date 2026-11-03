@@ -286,6 +286,8 @@ LOOKS.push({ id: 'siegelord', name: "Siege Lord's Mantle", cloak: { p: '#8a1f2c'
 LOOKS.push({ id: 'macabre', name: 'Danse Macabre', cloak: { p: '#141119', P: '#e8dcc4' }, aura: '#d3b0ff', unlock: { feat: 'hordedanced' }, how: 'Hold 10 Horde waves with Death in the arena.' });
 
 // Death's own: for outrunning him.
+// The Bestiary.
+LOOKS.push({ id: 'huntermantle', name: "Monster Hunter's Mantle", cloak: { p: '#5a4a2a', P: '#2a1f12' }, aura: '#c4a046', unlock: { feat: 'hunterhalf' }, how: 'Master 6 foes in the Bestiary.' });
 // Dailies played in all.
 LOOKS.push({ id: 'pilgrimmantle', name: "Pilgrim's Mantle", cloak: { p: '#8a6a3a', P: '#4a3418' }, aura: '#e8c27a', unlock: { feat: 'dailies30' }, how: 'Play 30 Daily Descents.' });
 // The Night Shift.
@@ -705,6 +707,12 @@ export const HEADS: HeadDef[] = [
   { id: 'lanternhood', name: 'Lantern Hood', unlock: { invite: 5 }, how: 'Bring 5 friends to the crypt.', pixels: [...row(1, 3, 8, '#5a2a12'), ...row(2, 2, 9, '#7a3a18'), [5, 0, '#3a3346'], [6, 0, '#3a3346'], [8, 0, '#3a3346'], [9, 1, '#ffd23f'], [10, 1, '#ff8a2a'], [9, 2, '#3a3346'], [10, 2, '#3a3346'], [4, 2, '#ffb35a'], [7, 2, '#ffb35a']] },
   // Death's own hood, skull and all: for cheating him.
   { id: 'deathshood', name: "Death's Hood", unlock: { feat: 'cheated' }, how: 'Reach floor 200 with Death on your heels.', pixels: [...row(0, 4, 7, '#141119'), ...row(1, 3, 8, '#141119'), ...row(2, 2, 9, '#1d1428'), [2, 3, '#1d1428'], [3, 3, '#1d1428'], ...row(3, 4, 7, BONE), [8, 3, '#1d1428'], [9, 3, '#1d1428'], [3, 4, '#1d1428'], [4, 4, '#d3b0ff'], [5, 4, BONE], [6, 4, BONE], [7, 4, '#d3b0ff'], [8, 4, '#1d1428'], [3, 5, '#1d1428'], [5, 5, '#c9c3b2'], [6, 5, '#c9c3b2'], [8, 5, '#1d1428']] },
+  // Bosses slain 25 times: their own headgear.
+  { id: 'wardenhelm', name: "Warden's Horned Helm", unlock: { beast: 'boss', tier: 2 }, how: 'Slay the Bone Warden 25 times.', pixels: [[1, 0, BONE], [2, 1, BONE], [10, 0, BONE], [9, 1, BONE], ...row(1, 3, 8, '#c9c3b2'), ...row(2, 3, 8, BONE), [3, 3, '#c9c3b2'], [8, 3, '#c9c3b2'], [5, 2, '#5d5568'], [6, 2, '#5d5568']] },
+  { id: 'abbotcowl', name: "Plague Abbot's Cowl", unlock: { beast: 'abbot', tier: 2 }, how: 'Slay the Plague Abbot 25 times.', pixels: [...row(0, 4, 7, '#3a4a2a'), ...row(1, 3, 8, '#4a5e34'), ...row(2, 2, 9, '#3a4a2a'), [2, 3, '#3a4a2a'], [9, 3, '#3a4a2a'], [2, 4, '#3a4a2a'], [9, 4, '#3a4a2a'], [5, 1, '#b5e07a'], [6, 1, '#b5e07a']] },
+  { id: 'lichcrown', name: "Lich King's Crown", unlock: { beast: 'lich', tier: 2 }, how: 'Slay the Lich King 25 times.', pixels: [[3, 0, '#d3b0ff'], [6, 0, '#d3b0ff'], [8, 0, '#d3b0ff'], [4, 0, '#5a2f8a'], ...row(1, 3, 8, '#5a2f8a'), ...row(2, 3, 8, '#311854'), [5, 1, '#9fe8ff'], [6, 1, '#9fe8ff'], [3, 2, '#d3b0ff'], [8, 2, '#d3b0ff']] },
+  // Master of Beasts: the hunter's hat.
+  { id: 'huntertricorn', name: "Hunter's Tricorn", unlock: { feat: 'hunterall' }, how: 'Master every foe in the Bestiary.', pixels: [...row(0, 4, 7, '#3a2a1a'), ...row(1, 2, 9, '#4a3420'), ...row(2, 1, 10, '#2a1a10'), [3, 1, GOLD], [8, 1, GOLD], [10, 0, '#c4a046'], [11, 0, '#e8dcc4']] },
   // The Grave Market's headwear.
   { id: 'plaguebeak', name: "Plague Doctor's Beak", ...market(1200), pixels: [...row(0, 3, 8, DARK), ...row(1, 3, 8, DARK), ...row(2, 1, 10, '#2a2433'), [4, 4, '#5fe3ff'], [7, 4, '#5fe3ff'], [8, 5, BONE], [9, 5, BONE], [10, 6, '#c9c3b2']] },
   { id: 'graveantlers', name: 'Grave Antlers', ...market(1000), pixels: [[1, 0, '#a8845a'], [2, 1, '#8a6a4a'], [1, 2, '#a8845a'], [3, 2, '#8a6a4a'], [4, 3, '#8a6a4a'], [10, 0, '#a8845a'], [9, 1, '#8a6a4a'], [10, 2, '#a8845a'], [8, 2, '#8a6a4a'], [7, 3, '#8a6a4a']] },
@@ -862,6 +870,7 @@ export const AURAS: AuraDef[] = [
   // Midwinter.
   { id: 'fairylights', name: 'Fairy Lights', style: 'fairylights', color: '#ffd23f', unlock: { cost: 2500, season: 'midwinter' }, how: 'Sold in the Ossuary during Midwinter (the day after Thanksgiving to January 6) for 2,500 Souls.' },
   { id: 'northernlights', name: 'Northern Lights', style: 'aurora', color: '#5fd3a6', unlock: { cost: 4000, season: 'midwinter' }, how: 'Sold in the Ossuary during Midwinter (the day after Thanksgiving to January 6) for 4,000 Souls.' },
+  { id: 'trophyhunter', name: 'Trophy Hunter', style: 'bone', color: '#c4a046', unlock: { feat: 'hunterall' }, how: 'Master every foe in the Bestiary.' },
   // The Grave Market's auras.
   { id: 'cinderfall', name: 'Cinderfall', style: 'ember', color: '#ff6a3a', unlock: { cost: 2200, market: true }, how: "Sold in the Ossuary for 2,200 Souls, but only on the days it's today's piece." },
   { id: 'restless', name: 'Restless Spirits', style: 'wisps', color: '#9fe8ff', unlock: { cost: 2500, market: true }, how: "Sold in the Ossuary for 2,500 Souls, but only on the days it's today's piece." },

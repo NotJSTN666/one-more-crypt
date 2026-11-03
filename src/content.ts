@@ -201,6 +201,9 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'duelist', name: 'Duelist', desc: 'Beat 5 challenges from other players.', souls: 150 },
   // The Hollow.
   { id: 'gravekeeper', name: 'Gravekeeper', desc: 'Read every epitaph in the Hollow.', souls: 50 },
+  // The Bestiary: every milestone for a foe is mastering it.
+  { id: 'hunterhalf', name: 'Monster Hunter', desc: 'Master 6 foes in the Bestiary (every milestone for each).', souls: 500 },
+  { id: 'hunterall', name: 'Master of Beasts', desc: 'Master every foe in the Bestiary.', souls: 2000 },
   // Dailies played in all, in a row or not.
   { id: 'dailies10', name: 'Regular', desc: 'Play 10 Daily Descents.', souls: 100 },
   { id: 'dailies30', name: 'Pilgrim', desc: 'Play 30 Daily Descents.', souls: 300 },
