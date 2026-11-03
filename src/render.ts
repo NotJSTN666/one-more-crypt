@@ -644,10 +644,11 @@ export class Renderer {
     this.drawDarts(dt);
     this.drawFlying(dt);
     this.drawParticles(dt);
-    this.drawMist(g);
     this.drawMotes(dt);
     this.drawFog();
     this.drawLighting(g);
+    // The plague mist goes over the dark, so you can see it anywhere on the board.
+    this.drawMist(g);
     this.drawWeather(g, dt);
     this.drawFloaters(dt);
     this.drawBanner(dt);
@@ -1440,12 +1441,21 @@ export class Renderer {
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
         if (!g.inMist(x, y)) continue;
+        // a steady green haze over the whole tile, so its edges are plain to see
+        ctx.fillStyle = `rgba(110, 200, 80, ${0.2 + 0.04 * Math.sin(this.time * 1.5 + x + y)})`;
+        ctx.fillRect(x * TILE, y * TILE, TILE, TILE);
+        ctx.fillStyle = 'rgba(170, 240, 120, 0.35)';
+        const m = (a: number, b: number) => g.inBounds(a, b) && g.inMist(a, b);
+        if (!m(x, y - 1)) ctx.fillRect(x * TILE, y * TILE, TILE, 1);
+        if (!m(x, y + 1)) ctx.fillRect(x * TILE, y * TILE + TILE - 1, TILE, 1);
+        if (!m(x - 1, y)) ctx.fillRect(x * TILE, y * TILE, 1, TILE);
+        if (!m(x + 1, y)) ctx.fillRect(x * TILE + TILE - 1, y * TILE, 1, TILE);
         for (let i = 0; i < 3; i++) {
           const t = this.time * (0.5 + i * 0.17) + x * 1.3 + y * 0.7 + i * 2.1;
           const cx = x * TILE + TILE / 2 + Math.sin(t) * TILE * 0.22;
           const cy = y * TILE + TILE / 2 + Math.cos(t * 0.8) * TILE * 0.18;
           const r = TILE * (0.75 + 0.1 * Math.sin(t * 1.3));
-          const a = 0.2 + 0.06 * Math.sin(t * 0.9);
+          const a = 0.26 + 0.06 * Math.sin(t * 0.9);
           const fog = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
           fog.addColorStop(0, `rgba(130, 200, 90, ${a})`);
           fog.addColorStop(0.6, `rgba(100, 170, 70, ${a * 0.5})`);
