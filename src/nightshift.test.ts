@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { cleanGraveState, newGraveState } from './graveshift';
-import { DASH_COOLDOWN, FIELD, FIRST_BOSS, NIGHT_RELICS, POTION_HEAL, dash, dashCooldown, isBlessing, lateNight, MAX_LEVEL, chooseRelic, isFusion, levelChoices, newNight, nightSouls, step, wardMul, xpToLevel } from './nightshift';
+import { DASH_COOLDOWN, FIELD, FIRST_BOSS, NIGHT_RELICS, POTION_HEAL, dash, dashCooldown, isBlessing, lateNight, MAX_LEVEL, chooseRelic, nightFeats, isFusion, levelChoices, newNight, nightSouls, step, wardMul, xpToLevel } from './nightshift';
 
 /** A small fixed random source, so every run of a test is the same night. */
 function seeded(seed: number) {
@@ -106,6 +106,37 @@ describe('the Night Shift', () => {
       expect(n.pendingLevels).toBe(0);
     }
     expect(Object.keys(n.blessings).length).toBeGreaterThan(0);
+  });
+
+  it('earns its achievements at the right moments', () => {
+    const n = newNight(seeded(40));
+    expect(nightFeats(n)).toEqual([]);
+    n.t = 181;
+    expect(nightFeats(n)).toContain('nsuntouched');
+    n.firstHitAt = 120;
+    expect(nightFeats(n)).not.toContain('nsuntouched');
+    n.t = 901;
+    n.kills = 1000;
+    expect(nightFeats(n)).toEqual(expect.arrayContaining(['nsfirst', 'ns15', 'ns1k']));
+    expect(nightFeats(n)).not.toContain('ns25');
+    n.fused = { cleaver: true, halo: true, eclipse: true };
+    n.felledKinds = ['boss', 'abbot', 'lich'];
+    n.blessings = { might: 20, vigor: 5 };
+    expect(nightFeats(n)).toEqual(expect.arrayContaining(['nsforge3', 'nsbosses', 'nsblessed']));
+  });
+
+  it('remembers each kind of boss felled, and the first hit taken', () => {
+    const n = play(41, FIRST_BOSS + 1);
+    expect(n.firstHitAt).not.toBe(0);
+    const boss = n.foes.find((f) => f.boss)!;
+    boss.hp = 0.0001;
+    n.x = boss.x - 0.5;
+    n.y = boss.y;
+    for (let i = 0; i < 120 && n.foes.some((f) => f.boss); i++) {
+      if (n.pendingLevels) chooseRelic(n, levelChoices(n)[0]);
+      step(n, 1 / 60, 0, 0);
+    }
+    expect(n.felledKinds).toEqual([boss.kind]);
   });
 
   it('an Iron Heart raises max health', () => {

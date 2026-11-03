@@ -411,6 +411,13 @@ function grant(id: string): AchievementDef | null {
   return a;
 }
 
+/** Grant any of these achievements not yet held, and save. Returns the new ones. */
+export function grantFeats(ids: string[]): AchievementDef[] {
+  const won = ids.map(grant).filter((a): a is AchievementDef => Boolean(a));
+  if (won.length) saveMeta();
+  return won;
+}
+
 export interface Unlocks {
   achievements: AchievementDef[];
   combos: ComboDef[];

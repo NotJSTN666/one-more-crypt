@@ -15,7 +15,7 @@ import { equipTitle, meta, setAllHallShown, setHallShown, titleUnlocked, type Me
 import { showWardrobe } from './wardrobe';
 import { ONLINE, loadHall } from './online';
 import {
-  AURA_BY_ID, RAID_DECOR, RAID_DECOR_BY_ID, BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, TITLE_FX, titleFxClass, HEAD_BY_ID, LOOK_BY_ID, TITLES, TITLE_BY_ID, TITLE_TIER, bestiaryTiers, rankFor, rankProgress,
+  AURA_BY_ID, FEAT_DECOR, FEAT_DECOR_BY_ID, RAID_DECOR, RAID_DECOR_BY_ID, BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, TITLE_FX, titleFxClass, HEAD_BY_ID, LOOK_BY_ID, TITLES, TITLE_BY_ID, TITLE_TIER, bestiaryTiers, rankFor, rankProgress,
   type BestRun, type BestRuns, type TitleFx,
 } from './progression';
 import { RELICS, RELIC_BY_ID, type RelicId } from './relics';
@@ -97,6 +97,8 @@ export function hallData(name: string, m: Partial<Meta> | Record<string, unknown
   const raidWon = obj(raw.raid).won;
   const raids = Array.isArray(raidWon) ? new Set(raidWon.map(String)).size : 0;
   for (const d of RAID_DECOR) if (raw.vault === true || raids >= d.raid) decor.push(d.id);
+  // Night Shift pieces, each for one of its feats.
+  for (const d of FEAT_DECOR) if (raw.vault === true || achievements[d.feat]) decor.push(d.id);
   const hidden = new Set(Array.isArray(raw.hallHidden) ? raw.hallHidden.map(String) : []);
   const shown = decor.filter((id) => !hidden.has(id));
   const weekPlaces = Object.values(obj(raw.weekly)).map((p) => num(p, 9));
@@ -1079,6 +1081,73 @@ function bellShardPile(ctx: CanvasRenderingContext2D, x: number, t: number) {
   ctx.fillRect(x - 46, 412, 92, 60);
 }
 
+/** An anvil from the Soul Forge on a stump, with a bed of coals that glows and spits sparks. */
+function forgeAnvil(ctx: CanvasRenderingContext2D, x: number, t: number) {
+  // the stump
+  ctx.fillStyle = '#4a3420';
+  ctx.fillRect(x - 14, 440, 28, 26);
+  ctx.fillStyle = '#5c4228';
+  ctx.fillRect(x - 14, 440, 28, 4);
+  // the anvil: a waist, a broad face and a horn to the left
+  ctx.fillStyle = '#3a3f4a';
+  ctx.fillRect(x - 8, 428, 16, 12);
+  ctx.fillStyle = '#5d667a';
+  ctx.fillRect(x - 18, 418, 36, 10);
+  ctx.fillRect(x - 28, 420, 10, 5);
+  ctx.fillStyle = '#9aa3b5';
+  ctx.fillRect(x - 18, 418, 36, 2);
+  // coals in a little brazier beside it
+  const glow = 0.7 + 0.3 * Math.sin(t * 5);
+  ctx.fillStyle = '#2a1a10';
+  ctx.fillRect(x + 20, 452, 20, 14);
+  ctx.fillStyle = `rgba(255, 120, 40, ${glow})`;
+  ctx.fillRect(x + 22, 448, 16, 6);
+  ctx.fillStyle = `rgba(255, 210, 90, ${glow})`;
+  ctx.fillRect(x + 26, 448, 6, 3);
+  const g = ctx.createRadialGradient(x + 30, 450, 2, x + 30, 450, 40);
+  g.addColorStop(0, `rgba(255, 140, 40, ${0.25 * glow})`);
+  g.addColorStop(1, 'rgba(255, 140, 40, 0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(x - 10, 410, 80, 60);
+  // a spark now and then
+  const p = (t * 1.3) % 1;
+  ctx.fillStyle = `rgba(255, 220, 120, ${1 - p})`;
+  ctx.fillRect(x + 28 + Math.sin(t * 7) * 6, 446 - p * 30, 2, 2);
+}
+
+/** The skulls of the Night Shift's three bosses on a stand: the Gravelord, the Abbot and the Lich. */
+function threeSkulls(ctx: CanvasRenderingContext2D, x: number, t: number) {
+  ctx.fillStyle = '#4a3420';
+  ctx.fillRect(x - 40, 452, 80, 6);
+  ctx.fillRect(x - 36, 458, 6, 8);
+  ctx.fillRect(x + 30, 458, 6, 8);
+  const skull = (cx: number, crown: string | null, eyes: string) => {
+    ctx.fillStyle = '#e8dcc4';
+    ctx.fillRect(cx - 9, 432, 18, 14);
+    ctx.fillRect(cx - 6, 446, 12, 6);
+    ctx.fillStyle = '#c9c3b2';
+    ctx.fillRect(cx - 9, 442, 18, 4);
+    ctx.fillStyle = eyes;
+    ctx.fillRect(cx - 6, 437, 4, 4);
+    ctx.fillRect(cx + 2, 437, 4, 4);
+    ctx.fillStyle = '#1a1520';
+    ctx.fillRect(cx - 4, 448, 2, 3);
+    ctx.fillRect(cx, 448, 2, 3);
+    ctx.fillRect(cx + 3, 448, 1, 3);
+    if (crown) {
+      ctx.fillStyle = crown;
+      ctx.fillRect(cx - 9, 428, 18, 4);
+      ctx.fillRect(cx - 9, 424, 3, 4);
+      ctx.fillRect(cx - 1, 422, 3, 6);
+      ctx.fillRect(cx + 6, 424, 3, 4);
+    }
+  };
+  const pulse = 0.6 + 0.4 * Math.sin(t * 2.5);
+  skull(x - 26, '#5d667a', `rgba(255, 90, 60, ${pulse})`); // the Gravelord's iron helm
+  skull(x, null, `rgba(120, 220, 255, ${pulse})`); // the Drowned Abbot
+  skull(x + 26, '#c99a2e', `rgba(190, 140, 255, ${pulse})`); // the Lich's crown
+}
+
 /** A great horned skull on a wooden plaque, its eyes still smouldering. */
 function bossSkull(ctx: CanvasRenderingContext2D, x: number, t: number) {
   const px = (dx: number, dy: number, w: number, h: number, c: string) => {
@@ -1221,6 +1290,8 @@ function drawDecor(ctx: CanvasRenderingContext2D, d: HallData, t: number, layer:
     chandelier(ctx, 604, t);
   }
   if (has('warhorn')) warHorn(ctx, 290, t);
+  if (has('forgeanvil')) forgeAnvil(ctx, 360, t);
+  if (has('threeskulls')) threeSkulls(ctx, 150, t);
   if (has('rollofhonor')) rollOfHonor(ctx, 656, d.raids);
 }
 
@@ -1428,7 +1499,7 @@ function titlesBody(): string {
 function decorateBody(d: HallData): string {
   if (!d.ownedDecor.length) return '<p class="fine">You have no decorations yet. Buy them in the Ossuary, and choose here which ones go up.</p>';
   const piece = (id: string) => {
-    const def = DECOR_BY_ID[id] ?? RAID_DECOR_BY_ID[id];
+    const def = DECOR_BY_ID[id] ?? RAID_DECOR_BY_ID[id] ?? FEAT_DECOR_BY_ID[id];
     const bell = id === 'greatbell';
     const name = def?.name ?? (bell ? 'The Great Bell' : id);
     const emoji = def?.emoji ?? (bell ? '🔔' : '✨');

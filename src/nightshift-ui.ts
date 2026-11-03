@@ -8,12 +8,14 @@ import { centralDate } from './daily';
 import { NIGHT_GIFT, NIGHT_GIFT_KILLS } from './graveshift';
 import { heroSprite } from './hero';
 import { grave, groundFor, hash, paintGround, seasonWeather, setDress, tree, type Dress, type Px } from './hollow-art';
-import { graveState, meta, outfitFor, receiveGift, saveMeta } from './meta';
+import { grantFeats, graveState, meta, outfitFor, receiveGift, saveMeta } from './meta';
+import { celebrate, celebrateNotes } from './progress-ui';
+import type { AchievementDef } from './content';
 import {
-  dashCooldown, FIELD, MAX_LEVEL, type Night, area, dash, spadeReach, NIGHT_RELIC, NIGHT_RELICS, chooseRelic, frostRadius, levelChoices, newNight, nextBossAt, nightSouls, skullCount, skullOrbit, step, xpToLevel, NIGHT_FUSION, fusionOf, isFusion, isBlessing, NIGHT_BLESSING, NIGHT_BLESSINGS, bl, type NightPick,
+  dashCooldown, FIELD, MAX_LEVEL, type Night, area, dash, spadeReach, NIGHT_RELIC, NIGHT_RELICS, chooseRelic, frostRadius, levelChoices, newNight, nextBossAt, nightSouls, skullCount, skullOrbit, step, xpToLevel, NIGHT_FUSION, fusionOf, isFusion, nightFeats, isBlessing, NIGHT_BLESSING, NIGHT_BLESSINGS, bl, type NightPick,
 } from './nightshift';
 import { ONLINE, nightBoard, submitNight } from './online';
-import { seasonDress } from './progression';
+import { featCosmetics, seasonDress } from './progression';
 import { claimInlineHtml, ensureGuest, playerName, showLeaderboard, signedIn, unclaimed, wireClaimInline } from './social';
 import { enemyFrames, type Sprite } from './sprites';
 import { esc, on, overlay, showOverlay, toast } from './ui';
@@ -424,6 +426,7 @@ export function showNightShift(back: () => void) {
     if (ended) return;
     ended = true;
     cleanup();
+    for (const a of grantFeats(nightFeats(n))) featsWon.push(a);
     const s = graveState();
     const souls = nightSouls(n);
     const best = n.kills > s.nightKills;
@@ -451,6 +454,7 @@ export function showNightShift(back: () => void) {
         <p class="ns-build">${build}</p>
         <div class="souls-chip">💀 <b>+${souls}</b> Souls</div>
         ${title ? '<p class="fine">🏅 New title: <b>The Unsleeping</b></p>' : ''}
+        ${featsWon.length ? `<p class="fine">🏅 Achievements: ${featsWon.map((a) => `<b>${esc(a.name)}</b>`).join(' · ')}</p>` : ''}
         <p class="fine">Best: ${s.nightKills} put down · longest night ${fmt(s.nightBest)} · ${s.nights} night${s.nights === 1 ? '' : 's'} stood</p>
         <button class="btn primary" id="ns-again">🌙 Stand another night</button>
         ${ONLINE ? `<h3 class="shop-head">This week's Night Shift</h3><p class="fine" id="ns-rank">Posting your night…</p><ol class="raid-top" id="ns-board"><li class="fine">Loading…</li></ol><button class="btn" id="ns-boards">🏆 All Night Shift boards</button>` : ''}
@@ -465,6 +469,10 @@ export function showNightShift(back: () => void) {
       }, () => showLeaderboard(back, 'night', 25, 'week'));
       if (ONLINE) void loadBoard(n.kills > 0);
       if (title) toast('🏅 Title unlocked: The Unsleeping');
+      if (featsWon.length) {
+        celebrate(featsWon);
+        celebrateNotes(featCosmetics(featsWon.map((a) => a.id)));
+      }
     }, 1200);
   }
 
@@ -544,6 +552,9 @@ export function showNightShift(back: () => void) {
   let bossesUp: { id: number; kind: string }[] = [];
   let felledAt = -10;
   let warnedGrasp = false;
+  // Achievements earned this night, and when they were last checked.
+  const featsWon: AchievementDef[] = [];
+  let featCheckAt = 0;
   const frame = (now: number) => {
     if (!canvas.isConnected) return cleanup();
     const dt = Math.min(0.1, (now - last) / 1000);
@@ -572,6 +583,14 @@ export function showNightShift(back: () => void) {
       sfx.toll();
       const boss = [...n.foes].reverse().find((f) => f.boss);
       if (boss) toast(`☠️ ${BOSS_NAME[boss.kind]} rises`);
+    }
+    // Night Shift achievements, granted the moment they're earned so quitting keeps them.
+    if (n.t - featCheckAt >= 1) {
+      featCheckAt = n.t;
+      for (const a of grantFeats(nightFeats(n))) {
+        featsWon.push(a);
+        toast(`🏅 ${a.name}`);
+      }
     }
     if (n.grasps && !warnedGrasp) {
       warnedGrasp = true;

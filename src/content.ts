@@ -200,6 +200,16 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'duelist', name: 'Duelist', desc: 'Beat 5 challenges from other players.', souls: 150 },
   // The Hollow.
   { id: 'gravekeeper', name: 'Gravekeeper', desc: 'Read every epitaph in the Hollow.', souls: 50 },
+  // The Night Shift.
+  { id: 'nsfirst', name: 'First Light', desc: 'Survive 5 minutes in the Night Shift.', souls: 50 },
+  { id: 'ns15', name: 'Graveyard Shift', desc: 'Survive 15 minutes in the Night Shift.', souls: 200 },
+  { id: 'ns25', name: 'Dawn Never Comes', desc: 'Survive 25 minutes in the Night Shift.', souls: 600 },
+  { id: 'ns1k', name: 'A Thousand Graves', desc: 'Put down 1,000 in one Night Shift.', souls: 150 },
+  { id: 'ns10k', name: 'Ten Thousand Graves', desc: 'Put down 10,000 in one Night Shift.', souls: 800 },
+  { id: 'nsforge3', name: 'Soul Forger', desc: 'Make 3 fusions at the Soul Forge in one Night Shift.', souls: 200 },
+  { id: 'nsuntouched', name: 'Ghost of the Graveyard', desc: 'Get through the first 3 minutes of a Night Shift without being hit.', souls: 150 },
+  { id: 'nsbosses', name: 'Bossbreaker', desc: 'Fell the Gravelord, the Drowned Abbot and the Lich in one Night Shift.', souls: 300 },
+  { id: 'nsblessed', name: 'Blessed', desc: 'Take 25 blessings in one Night Shift.', souls: 400 },
 ];
 
 export const ACHIEVEMENT_BY_ID = Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, a])) as Record<string, AchievementDef>;

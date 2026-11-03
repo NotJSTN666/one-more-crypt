@@ -206,6 +206,10 @@ export interface Night {
   potionAt: number;
   /** Potions drunk this night. */
   potions: number;
+  /** When you were first hit this night (-1 if not yet). */
+  firstHitAt: number;
+  /** The kinds of boss felled this night. */
+  felledKinds: string[];
   relics: Partial<Record<RelicKind, number>>;
   /** Blessings taken, each as many times as you like. */
   blessings: Partial<Record<BlessingId, number>>;
@@ -252,6 +256,8 @@ export function newNight(rand: () => number = Math.random): Night {
     forgeOffers: 0,
     potionAt: 0,
     potions: 0,
+    firstHitAt: -1,
+    felledKinds: [],
     relics: { spade: 1 },
     blessings: {},
     foes: [],
@@ -437,7 +443,10 @@ function hurtFoe(n: Night, f: Foe, amount: number) {
   if (f.hp <= 0) {
     n.kills++;
     n.pickups.push({ x: f.x, y: f.y, kind: f.xp >= 5 ? 'bigsoul' : 'soul', v: f.xp });
-    if (f.boss) n.bossKills++;
+    if (f.boss) {
+      n.bossKills++;
+      if (!n.felledKinds.includes(f.kind)) n.felledKinds.push(f.kind);
+    }
     if (f.boss) {
       // a boss leaves a healing potion and an ember from the Soul Forge
       n.pickups.push({ x: f.x + 0.6, y: f.y, kind: 'potion', v: 1 });
@@ -454,6 +463,7 @@ function hurtFoe(n: Night, f: Foe, amount: number) {
 /** You take a hit, unless you've just been hit. */
 function hurtYou(n: Night, dmg: number, from?: Foe) {
   if (n.t < n.hurtUntil || n.t < n.dashUntil) return;
+  if (n.firstHitAt < 0) n.firstHitAt = n.t;
   n.hp -= dmg * wardMul(n);
   n.hurtUntil = n.t + 0.75;
   if (from && lv(n, 'thorns')) hurtFoe(n, from, 5 * lv(n, 'thorns'));
@@ -942,4 +952,19 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
 /** What a night pays, in Souls: one for every six put down, up to 500. */
 export function nightSouls(n: Night): number {
   return Math.min(500, Math.floor(n.kills / 6));
+}
+
+/** Night Shift achievements this night has earned so far (ids from ACHIEVEMENTS). */
+export function nightFeats(n: Night): string[] {
+  const out: string[] = [];
+  if (n.t >= 300) out.push('nsfirst');
+  if (n.t >= 900) out.push('ns15');
+  if (n.t >= 1500) out.push('ns25');
+  if (n.kills >= 1000) out.push('ns1k');
+  if (n.kills >= 10000) out.push('ns10k');
+  if (Object.values(n.fused).filter(Boolean).length >= 3) out.push('nsforge3');
+  if (n.t >= 180 && (n.firstHitAt < 0 || n.firstHitAt >= 180)) out.push('nsuntouched');
+  if (n.felledKinds.length >= 3) out.push('nsbosses');
+  if (Object.values(n.blessings).reduce((a, b) => a + (b ?? 0), 0) >= 25) out.push('nsblessed');
+  return out;
 }
