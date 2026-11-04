@@ -201,6 +201,8 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'duelist', name: 'Duelist', desc: 'Beat 5 challenges from other players.', souls: 150 },
   // The Hollow.
   { id: 'gravekeeper', name: 'Gravekeeper', desc: 'Read every epitaph in the Hollow.', souls: 50 },
+  // Everyone together.
+  { id: 'together', name: 'Many Hands', desc: 'Play in a month when everyone together slays 1,000,000 foes.', souls: 300 },
   // The Weekly Trial.
   { id: 'trial1', name: 'Trialbearer', desc: 'Complete a Weekly Trial.', souls: 50 },
   { id: 'trial4', name: 'Tested', desc: 'Complete 4 Weekly Trials.', souls: 200 },

@@ -354,6 +354,14 @@ export async function loadHall(name: string): Promise<{ name: string; meta: Reco
   return data ? { name: data.name as string, meta: (data.meta as Record<string, unknown>) ?? {} } : null;
 }
 
+/** Foes slain by everyone together since a date (YYYY-MM-DD), across every mode. */
+export async function communityKills(since: string): Promise<number | null> {
+  const sb = await client();
+  const { data, error } = await sb.rpc('community_kills', { p_since: since });
+  if (error) return null;
+  return Number(data) || 0;
+}
+
 export async function saveRemoteMeta(userId: string, value: unknown): Promise<void> {
   const sb = await client();
   await sb.from('profiles').update({ meta: value }).eq('id', userId);

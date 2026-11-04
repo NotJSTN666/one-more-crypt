@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Game, fullPool } from './game';
 import { finishRunMeta, meta } from './meta';
-import { HERO_CLOAKS, MASTERY_SOULS, SOUL_RANKS, TITLES, TITLE_BY_ID, betterRun, masteryRank, rankFor, rankProgress } from './progression';
+import { HERO_CLOAKS, MASTERY_SOULS, SOUL_RANKS, soulSurge, TITLES, TITLE_BY_ID, betterRun, masteryRank, rankFor, rankProgress } from './progression';
 import { HEROES } from './content';
 
 describe('Soul Ranks', () => {
@@ -171,5 +171,17 @@ describe('hero mastery', () => {
       expect(HERO_CLOAKS.some((c) => c.hero === h.id && 'souls' in c.need && c.need.souls === MASTERY_SOULS[2])).toBe(true);
       expect(TITLE_BY_ID[`mastery:${h.id}`]).toBeTruthy();
     }
+  });
+});
+
+describe('Soul Surge weekends', () => {
+  it('fall on the second Saturday of the month and the Sunday after', () => {
+    expect(soulSurge('2026-11-14')).toBe(true); // Saturday the 14th
+    expect(soulSurge('2026-11-15')).toBe(true); // Sunday the 15th
+    expect(soulSurge('2026-11-07')).toBe(false); // first Saturday
+    expect(soulSurge('2026-11-13')).toBe(false); // Friday
+    expect(soulSurge('2026-11-21')).toBe(false); // third Saturday
+    expect(soulSurge('2026-08-08')).toBe(true); // a Saturday on the 8th
+    expect(soulSurge('2026-08-09')).toBe(true);
   });
 });

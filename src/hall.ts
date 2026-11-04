@@ -11,7 +11,7 @@ import { ENEMY_INFO, type EnemyKind } from './game';
 import { dailyNumber } from './daily';
 import { ACT1_QUESTS } from './story';
 import { heroSprite } from './hero';
-import { equipTitle, meta, setAllHallShown, setHallShown, titleUnlocked, type Meta } from './meta';
+import { equipTitle, meta, setAllHallShown, setHallShown, setRival, titleUnlocked, type Meta } from './meta';
 import { showWardrobe } from './wardrobe';
 import { ONLINE, loadHall } from './online';
 import {
@@ -1145,6 +1145,31 @@ function pedestal(ctx: CanvasRenderingContext2D, x: number, floor: number) {
   ctx.fillRect(x - 6, 410, 12, 2);
 }
 
+/** The Banner of the Many: a long white banner hung from the ceiling, stitched with a ring of hands. */
+function manyBanner(ctx: CanvasRenderingContext2D, t: number) {
+  const x = 480;
+  const sway = Math.sin(t * 1.2) * 1.5;
+  ctx.fillStyle = '#3a3346';
+  ctx.fillRect(x - 30, 142, 60, 4);
+  ctx.fillStyle = '#e8e4f0';
+  ctx.fillRect(x - 24 + sway, 146, 48, 60);
+  ctx.beginPath();
+  ctx.moveTo(x - 24 + sway, 206);
+  ctx.lineTo(x + sway, 220);
+  ctx.lineTo(x + 24 + sway, 206);
+  ctx.fill();
+  ctx.fillStyle = '#c99a2e';
+  ctx.fillRect(x - 24 + sway, 146, 48, 3);
+  // a ring of little hands around a star
+  ctx.fillStyle = '#5a7ab0';
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    ctx.fillRect(Math.round(x + sway + Math.cos(a) * 14) - 2, Math.round(176 + Math.sin(a) * 14) - 2, 4, 4);
+  }
+  ctx.fillStyle = '#f2c14e';
+  ctx.fillRect(x - 3 + sway, 173, 6, 6);
+}
+
 /** A worn cushion with a chewed bone, for the hound. */
 function houndBed(ctx: CanvasRenderingContext2D, x: number) {
   ctx.fillStyle = '#5a2e2e';
@@ -1332,6 +1357,7 @@ function drawDecor(ctx: CanvasRenderingContext2D, d: HallData, t: number, layer:
   if (has('bookshelf')) bookshelf(ctx, 840);
   if (has('pedestal')) pedestal(ctx, 560, Math.max(0, ...Object.values(d.best).map((r) => r?.floor ?? 0)));
   if (has('houndbed')) houndBed(ctx, 196);
+  if (has('manybanner')) manyBanner(ctx, t);
   // The Harvest Feast and Midwinter, behind the Hallowed pieces.
   if (has('leafgarland')) leafGarland(ctx, t);
   if (has('stringlights')) stringLights(ctx, t);
@@ -1769,6 +1795,7 @@ export function showPublicHall(name: string, back: () => void, tab: 'trophies' |
     <div class="tabs" role="tablist">${tabs.map(([t, label]) => `<button role="tab" data-tab="${t}" aria-selected="${t === tab}">${label}</button>`).join('')}</div>
     ${tab === 'bestiary' ? bestiaryBody(d) : trophiesBody(d)}
     ${isleVisitor && (d.isle.placed.length || d.isle.land) ? `<button class="btn" id="hall-isle">🏝️ Visit ${esc(d.name)}'s Isle</button>` : ''}
+    <button class="btn" id="hall-rival">${meta.rival === d.name ? `🎯 ${esc(d.name)} is your rival<small>Tap to stop comparing</small>` : `🎯 Make ${esc(d.name)} your rival<small>See how you compare on the title screen</small>`}</button>
     <button class="btn" id="hall-image">🖼️ Save image</button>
     <button class="btn primary" id="back">Back</button>`);
   startCanvas(d);
@@ -1776,6 +1803,11 @@ export function showPublicHall(name: string, back: () => void, tab: 'trophies' |
   overlay.querySelectorAll<HTMLButtonElement>('.tabs button').forEach((b) =>
     b.addEventListener('click', () => showPublicHall(d.name, back, b.dataset.tab as typeof tab, d)),
   );
+  on('#hall-rival', () => {
+    setRival(meta.rival === d.name ? '' : d.name);
+    toast(meta.rival ? `🎯 ${d.name} is your rival` : 'Rival dropped');
+    showPublicHall(d.name, back, tab, d);
+  });
   on('#hall-image', () => void saveImage(d));
   on('#back', back);
 }

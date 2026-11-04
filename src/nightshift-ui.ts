@@ -8,14 +8,14 @@ import { centralDate } from './daily';
 import { NIGHT_GIFT, NIGHT_GIFT_KILLS } from './graveshift';
 import { heroSprite } from './hero';
 import { grave, groundFor, hash, paintGround, seasonWeather, setDress, tree, type Dress, type Px } from './hollow-art';
-import { grantFeats, graveState, meta, noteTrial, outfitFor, receiveGift, saveMeta } from './meta';
+import { grantFeats, graveState, meta, noteMonth, noteTrial, outfitFor, receiveGift, saveMeta } from './meta';
 import { celebrate, celebrateNotes } from './progress-ui';
 import type { AchievementDef } from './content';
 import {
   dashCooldown, FIELD, MAX_LEVEL, type Night, area, dash, spadeReach, NIGHT_RELIC, NIGHT_RELICS, chooseRelic, frostRadius, levelChoices, newNight, nextBossAt, nightSouls, skullCount, skullOrbit, step, xpToLevel, NIGHT_FUSION, fusionOf, isFusion, nightFeats, isBlessing, NIGHT_BLESSING, NIGHT_BLESSINGS, bl, type NightPick,
 } from './nightshift';
 import { ONLINE, nightBoard, submitNight } from './online';
-import { featCosmetics, seasonDress } from './progression';
+import { featCosmetics, seasonDress, soulSurge } from './progression';
 import { claimInlineHtml, ensureGuest, playerName, showLeaderboard, signedIn, unclaimed, wireClaimInline } from './social';
 import { enemyFrames, type Sprite } from './sprites';
 import { esc, on, overlay, showOverlay, toast } from './ui';
@@ -430,7 +430,8 @@ export function showNightShift(back: () => void) {
     const trial = noteTrial({ kind: 'night', seconds: n.t }, true);
     featsWon.push(...trial.feats);
     const s = graveState();
-    const souls = nightSouls(n);
+    noteMonth();
+    const souls = nightSouls(n) * (soulSurge(centralDate()) ? 2 : 1);
     const best = n.kills > s.nightKills;
     meta.souls += souls;
     meta.earned += souls;

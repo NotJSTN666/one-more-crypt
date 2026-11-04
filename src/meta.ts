@@ -11,7 +11,7 @@ import { ACT1_QUESTS } from './story';
 import { FUSIONS, RELICS, UNLOCKABLE_RELICS, type FusedId, type RelicId } from './relics';
 import {
   AURAS, AURA_BY_ID, DUNCE_AT, SHAME, BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, beastPlural, HEADS, HEAD_BY_ID, HERO_CLOAKS, HERO_COSTUMES, LOOKS, LOOK_BY_ID, SEASONS, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_BY_ID, TITLE_TIER, WELCOME, STORY_ALL, RAID_REWARDS,
-  betterRun, bestiaryTiers, marketPiece, marketPieces, masteryRank, MASTERY_SOULS, rankIndex, seasonOf, seasonOpen, type AuraDef, type BestRuns, type SeasonId, type HeadDef, type LookDef, type Outfit, type RunGoal, type Unlock, type WelcomeReward,
+  betterRun, bestiaryTiers, marketPiece, marketPieces, masteryRank, MASTERY_SOULS, soulSurge, rankIndex, seasonOf, seasonOpen, type AuraDef, type BestRuns, type SeasonId, type HeadDef, type LookDef, type Outfit, type RunGoal, type Unlock, type WelcomeReward,
 } from './progression';
 import type { EnemyKind } from './game';
 
@@ -112,6 +112,10 @@ export interface Meta {
   /** This week's trial, and how many weekly trials have been completed in all. */
   trial?: TrialState;
   trialsDone: number;
+  /** The player you've picked as your rival ('' for none). */
+  rival: string;
+  /** Months (YYYY-MM, Central Time) you finished a run in, for the community goal. */
+  playedMonths: string[];
 }
 
 export interface RaidProgress {
@@ -168,7 +172,7 @@ function empty(): Meta {
     podiums: {}, podiumChecked: 0, bought: [], streak: { best: 0, count: 0, last: 0 },
     bounties: { day: 0, ids: [], progress: [], done: [] },
     weekly: {}, weeklyChecked: '',
-    story: emptyStory(), pet: '', summonsSeen: '', summonsTotal: 0, patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null, raid: { joined: [], won: [], lost: [] }, invite: { from: '', claimed: false, friends: 0 }, horde: { day: 0, best: 0, wave: 0 }, gifts: [], hallHidden: [], dailyTotal: 0, runsToday: { day: 0, n: 0 }, trialsDone: 0,
+    story: emptyStory(), pet: '', summonsSeen: '', summonsTotal: 0, patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null, raid: { joined: [], won: [], lost: [] }, invite: { from: '', claimed: false, friends: 0 }, horde: { day: 0, best: 0, wave: 0 }, gifts: [], hallHidden: [], dailyTotal: 0, runsToday: { day: 0, n: 0 }, trialsDone: 0, rival: '', playedMonths: [],
   };
 }
 
@@ -266,6 +270,8 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   if (!meta.hallHidden.length) meta.hallHidden = ids(other.hallHidden);
   meta.dailyTotal = Math.max(meta.dailyTotal ?? 0, Math.floor(Number(other.dailyTotal) || 0));
   meta.trialsDone = Math.max(meta.trialsDone ?? 0, Math.floor(Number(other.trialsDone) || 0));
+  meta.rival ||= typeof other.rival === 'string' ? other.rival.slice(0, 24) : '';
+  meta.playedMonths = [...new Set([...(meta.playedMonths ?? []), ...ids(other.playedMonths)])].sort().slice(-24);
   // Grave Shift is one plot: whichever device changed it last wins.
   if (other.grave && typeof other.grave === 'object' && (Number(other.grave.at) || 0) > (meta.grave?.at ?? -1)) meta.grave = cleanGraveState(other.grave, Date.now());
   meta.duels = [...new Set([...meta.duels, ...(Array.isArray(other.duels) ? other.duels.map(String) : [])])];
@@ -448,6 +454,19 @@ export function noteTrial(e: TrialEvent, pay = false): { completed: boolean; fea
   return { completed, feats };
 }
 
+/** Remember that you played this month (Central Time), for the community goal. */
+export function noteMonth() {
+  const month = centralDate().slice(0, 7);
+  meta.playedMonths ??= [];
+  if (!meta.playedMonths.includes(month)) meta.playedMonths = [...meta.playedMonths, month].slice(-24);
+}
+
+/** Pick a rival by name ('' to drop them). */
+export function setRival(name: string) {
+  meta.rival = name.slice(0, 24);
+  saveMeta();
+}
+
 /** Grant any of these achievements not yet held, and save. Returns the new ones. */
 export function grantFeats(ids: string[]): AchievementDef[] {
   const won = ids.map(grant).filter((a): a is AchievementDef => Boolean(a));
@@ -612,6 +631,7 @@ export function finishRunMeta(game: Game, streak: number): RunReward {
   const bonus = game.mode === 'daily' ? 0 : islePerks(meta.isle).souls;
   if (bonus) lines.push(['Soul Well', Math.round(lines.reduce((sum, [, n]) => sum + n, 0) * bonus)]);
   if (tithe) lines.push([`Soul Tithe ×${game.boons.tithe}`, tithe]);
+  noteMonth();
   // One more run: the 2nd and 3rd run of the day pay a little extra.
   const today = dailyNumber();
   const n = meta.runsToday?.day === today ? meta.runsToday.n + 1 : 1;
@@ -622,6 +642,8 @@ export function finishRunMeta(game: Game, streak: number): RunReward {
   const s = game.stats;
   const trial = noteTrial({ kind: 'run', kills: game.kills, bosses: Object.values(s.bosses).reduce((a, b) => a + (b ?? 0), 0), hero: game.hero, floor: game.floor, vaults: s.vaults, fusions: s.fusions, daily: game.mode === 'daily' });
   if (trial.completed) lines.push(['Weekly Trial complete', TRIAL_SOULS]);
+  // Soul Surge weekend: everything above, twice.
+  if (soulSurge(centralDate())) lines.push(['Soul Surge weekend ×2', lines.reduce((sum, [, n]) => sum + n, 0)]);
   const souls = lines.reduce((sum, [, n]) => sum + n, 0);
   const st = meta.heroStats[game.hero] ?? { floor: 0, souls: 0, runs: 0 };
   meta.heroStats[game.hero] = { floor: Math.max(st.floor, game.floor), souls: st.souls + souls, runs: st.runs + 1 };
@@ -1360,7 +1382,8 @@ export function receiveGift(item: string) {
 }
 
 export function finishHordeMeta(dailyNo: number, score: number, wave: number, kills: number, earned: string[] = []): { souls: number; best: boolean; feats: AchievementDef[] } {
-  const souls = Math.min(500, wave * 10 + Math.floor(kills / 2));
+  noteMonth();
+  const souls = Math.min(500, wave * 10 + Math.floor(kills / 2)) * (soulSurge(centralDate()) ? 2 : 1);
   meta.souls += souls;
   meta.earned += souls;
   const feats: AchievementDef[] = [];

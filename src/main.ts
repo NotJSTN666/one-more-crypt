@@ -11,12 +11,12 @@ import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
 import { hallFromLink, onVisitIsle, showHall, showPublicHall, soulRankHtml, titleName } from './hall';
-import { AURA_BY_ID, BESTIARY_KINDS, MASTERY_SOULS, beastPlural, bestiaryTiers, featCosmetics, marketPiece, masteryRank, GIFT_BY_ID, TITLE_BY_ID, HEAD_BY_ID, LOOK_BY_ID, PODIUM, RAID_DECOR_BY_ID, RAID_KIND_LABEL, RAID_REWARDS, STORY_ALL, STREAK_HELMS, WEEKLY, WELCOME, rankFor, titleFxClass, welcomeLabel, type WelcomeReward } from './progression';
+import { AURA_BY_ID, BESTIARY_KINDS, COMMUNITY_GOAL, MASTERY_SOULS, soulSurge, beastPlural, bestiaryTiers, featCosmetics, marketPiece, masteryRank, GIFT_BY_ID, TITLE_BY_ID, HEAD_BY_ID, LOOK_BY_ID, PODIUM, RAID_DECOR_BY_ID, RAID_KIND_LABEL, RAID_REWARDS, STORY_ALL, STREAK_HELMS, WEEKLY, WELCOME, rankFor, titleFxClass, welcomeLabel, type WelcomeReward } from './progression';
 import { Renderer } from './render';
 import { resetCanvases, sprites } from './sprites';
 import { RAID_JOIN_MIN, RAID_SUBMIT_MIN, RAID_TURNS, currentRaid, nextRaid, raidBossName, raidConfig, raidJoinable, raidTimeLabel, type RaidSlot } from './raid';
 import { hashSeed } from './rng';
-import { ONLINE, submitHorde, hordeBoard, claimInvite, myInvites, raidHit, raidPlayer, raidState, type RaidState, challengeBoard, emailReminderOff, sendFeedback, setEmailReminder, type FeedbackKind, challengeNews, createChallenge, dailyBoard, endlessBoard, getChallenge, mySummons, noteRun, noteSummon, pingActivity, setPresenceSource, startActivityPings, waitingGifts, claimGift, submitChallengeRun, type Challenge, type ChallengeRow } from './online';
+import { ONLINE, communityKills, loadHall, submitHorde, hordeBoard, claimInvite, myInvites, raidHit, raidPlayer, raidState, type RaidState, challengeBoard, emailReminderOff, sendFeedback, setEmailReminder, type FeedbackKind, challengeNews, createChallenge, dailyBoard, endlessBoard, getChallenge, mySummons, noteRun, noteSummon, pingActivity, setPresenceSource, startActivityPings, waitingGifts, claimGift, submitChallengeRun, type Challenge, type ChallengeRow } from './online';
 import {
   ACT2_MAIN, ACT2_QUESTS, ACT2_TITLE, act2Open, ACT_TITLE, ACT1_QUESTS, LORE, LORE_COUNT, MAIN_QUESTS, QUESTS, QUEST_BY_N, SPEAKERS, conversation, facePortrait, houndStats, npcMarker, npcPresent, petName, questStatus,
   type Line, type NpcId, type Quest, type StoryState,
@@ -1205,7 +1205,9 @@ function showTitle() {
     ${streak > 1 ? `<div class="streak">🕯️ ${streak}-day streak</div>` : ''}
     ${raid.phase === 'soon' ? raidCardHtml(raid) : ''}
     ${welcomeTitleHtml()}
+    ${surgeHtml()}
     ${trialHtml()}
+    ${ONLINE ? '<div class="together" id="together" hidden></div><div class="rival-line" id="rival-line" hidden></div>' : ''}
     ${bountiesHtml(today)}
     </div><div class="title-more">
     <h2 class="title-section">Adventure</h2>
@@ -1235,6 +1237,10 @@ function showTitle() {
   on('#endless', () => withTutorialOffer(() => showHeroSelect(() => startRun('endless'), showTitle)));
   if (endlessNext) showEndlessRecord();
   on('#ossuary', () => showOssuary(showTitle));
+  if (ONLINE) {
+    void fillTogether();
+    void fillRival(today);
+  }
   on('#grimoire', () => showGrimoire(showTitle));
   on('#hall', () => openHall(showTitle));
   on('#hollow', () => enterHollow());
@@ -2384,6 +2390,51 @@ function welcomeTrackHtml(): string {
 }
 
 /** Seven Nights on the title screen: a gift waiting today, or tomorrow's. */
+/** Soul Surge weekend: double Souls, on the title screen while it's on. */
+function surgeHtml(): string {
+  return soulSurge(centralDate()) ? '<div class="surge">⚡ <b>Soul Surge weekend:</b> double Souls from every run, in every mode, until Sunday midnight.</div>' : '';
+}
+
+/** Everyone together this month, toward the Banner of the Many. */
+async function fillTogether() {
+  const month = centralDate().slice(0, 7);
+  const kills = await communityKills(`${month}-01`).catch(() => null);
+  const el = document.getElementById('together');
+  if (kills === null || !el) return;
+  const pct = Math.min(100, (kills / COMMUNITY_GOAL) * 100);
+  const reached = kills >= COMMUNITY_GOAL;
+  // Reached, and you played this month: the banner is yours.
+  if (reached && meta.playedMonths?.includes(month)) {
+    const won = grantFeats(['together']);
+    if (won.length) {
+      celebrate(won);
+      celebrateNotes(featCosmetics(won.map((a) => a.id)));
+    }
+  }
+  el.innerHTML = `🌍 <b>Everyone together this month:</b> ${kills.toLocaleString()} / ${COMMUNITY_GOAL.toLocaleString()} foes slain${reached ? ' · reached! Everyone who played this month gets the Banner of the Many.' : ' · reach it and everyone who played this month gets the Banner of the Many for their Hall.'}<span class="together-bar"><span style="width:${pct}%"></span></span>`;
+  el.hidden = false;
+}
+
+/** Your rival: today's Daily and deepest descent, theirs against yours. */
+async function fillRival(today: number) {
+  const name = meta.rival;
+  const el = document.getElementById('rival-line');
+  if (!name || !el) return;
+  try {
+    const [board, hall] = await Promise.all([dailyBoard(today, null, 500).catch(() => null), loadHall(name).catch(() => null)]);
+    const theirs = board?.rows.find((r) => r.name === name)?.floor;
+    const mine = save.daily[today]?.floor;
+    const deepest = (m: Record<string, unknown> | undefined) => Math.max(0, ...Object.values((m?.best as Record<string, { floor?: number }>) ?? {}).map((b) => Number(b?.floor) || 0));
+    const theirDeep = deepest(hall?.meta);
+    const myDeep = Math.max(meta.deepest ?? 0, ...Object.values(meta.best).map((b) => b?.floor ?? 0));
+    const daily = theirs ? `today's Daily floor ${theirs} (you: ${mine ?? 'not yet'})` : `hasn't played today's Daily${mine ? ` (you: floor ${mine})` : ''}`;
+    el.innerHTML = `🎯 <b>Rival ${esc(name)}:</b> ${daily} · deepest ${theirDeep} (you: ${myDeep})`;
+    el.hidden = false;
+  } catch {
+    // Best effort.
+  }
+}
+
 /** The Weekly Trial, on the title screen and after a run. */
 function trialHtml(): string {
   const t = weekTrial();

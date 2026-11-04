@@ -507,6 +507,7 @@ export interface FeatDecorDef { id: string; name: string; emoji: string; desc: s
 export const FEAT_DECOR: FeatDecorDef[] = [
   { id: 'forgeanvil', name: 'Forge Anvil', emoji: '⚒️', desc: 'An anvil from the Soul Forge, its coals still glowing.', feat: 'nsforge3' },
   { id: 'threeskulls', name: 'Three Skulls', emoji: '💀', desc: 'The skulls of the Gravelord, the Drowned Abbot and the Lich, on a stand.', feat: 'nsbosses' },
+  { id: 'manybanner', name: 'Banner of the Many', emoji: '🏳️', desc: 'Raised for playing in a month when everyone together reached the community goal.', feat: 'together' },
 ];
 export const FEAT_DECOR_BY_ID = Object.fromEntries(FEAT_DECOR.map((d) => [d.id, d])) as Record<string, FeatDecorDef>;
 
@@ -1005,4 +1006,20 @@ export function marketPiece(dailyNo: number): MarketPiece {
   let step = 5;
   while (gcd(step, all.length) !== 1) step++;
   return all[(((dailyNo * step) % all.length) + all.length) % all.length];
+}
+
+// ---------- together, and Soul Surge weekends ----------
+
+/** Foes everyone together sets out to slay each month, for the Banner of the Many. */
+export const COMMUNITY_GOAL = 1_000_000;
+
+/**
+ * Soul Surge: double Souls from every run on the second weekend of each month (the Saturday
+ * and Sunday that fall on the 8th to 14th, Central Time).
+ */
+export function soulSurge(date: string): boolean {
+  const [y, m, d] = date.split('-').map(Number);
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  // the second Saturday of the month, and the Sunday after it
+  return (dow === 6 && d >= 8 && d <= 14) || (dow === 0 && d >= 9 && d <= 15);
 }
