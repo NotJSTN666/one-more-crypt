@@ -226,7 +226,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'ns10k', name: 'Ten Thousand Graves', desc: 'Put down 10,000 in one Night Shift.', souls: 800 },
   { id: 'nsforge3', name: 'Soul Forger', desc: 'Make 3 fusions at the Soul Forge in one Night Shift.', souls: 200 },
   { id: 'nsuntouched', name: 'Ghost of the Graveyard', desc: 'Get through the first 3 minutes of a Night Shift without being hit.', souls: 150 },
-  { id: 'nsbosses', name: 'Bossbreaker', desc: 'Fell the Gravelord, the Drowned Abbot and the Lich in one Night Shift.', souls: 300 },
+  { id: 'nsbosses', name: 'Bossbreaker', desc: 'Take down the Gravelord, the Drowned Abbot and the Lich in one Night Shift.', souls: 300 },
   { id: 'nsblessed', name: 'Blessed', desc: 'Take 25 blessings in one Night Shift.', souls: 400 },
 ];
 

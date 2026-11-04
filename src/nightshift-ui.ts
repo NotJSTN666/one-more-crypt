@@ -449,7 +449,7 @@ export function showNightShift(back: () => void) {
         <div class="ns-results">
           <div><b>${fmt(n.t)}</b><span>survived</span></div>
           <div><b>${n.level}</b><span>level</span></div>
-          <div><b>${n.bossKills}</b><span>bosses felled</span></div>
+          <div><b>${n.bossKills}</b><span>bosses taken down</span></div>
         </div>
         <p class="ns-build">${build}</p>
         <div class="souls-chip">💀 <b>+${souls}</b> Souls</div>
