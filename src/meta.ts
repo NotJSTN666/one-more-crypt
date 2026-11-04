@@ -106,6 +106,8 @@ export interface Meta {
   hallHidden: string[];
   /** Dailies played in all, in a row or not (the most any device has counted). */
   dailyTotal: number;
+  /** Runs finished today (by Daily number), for the one-more-run bonus. */
+  runsToday: { day: number; n: number };
 }
 
 export interface RaidProgress {
@@ -162,7 +164,7 @@ function empty(): Meta {
     podiums: {}, podiumChecked: 0, bought: [], streak: { best: 0, count: 0, last: 0 },
     bounties: { day: 0, ids: [], progress: [], done: [] },
     weekly: {}, weeklyChecked: '',
-    story: emptyStory(), pet: '', summonsSeen: '', summonsTotal: 0, patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null, raid: { joined: [], won: [], lost: [] }, invite: { from: '', claimed: false, friends: 0 }, horde: { day: 0, best: 0, wave: 0 }, gifts: [], hallHidden: [], dailyTotal: 0,
+    story: emptyStory(), pet: '', summonsSeen: '', summonsTotal: 0, patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null, raid: { joined: [], won: [], lost: [] }, invite: { from: '', claimed: false, friends: 0 }, horde: { day: 0, best: 0, wave: 0 }, gifts: [], hallHidden: [], dailyTotal: 0, runsToday: { day: 0, n: 0 },
   };
 }
 
@@ -581,6 +583,12 @@ export function finishRunMeta(game: Game, streak: number): RunReward {
   const bonus = game.mode === 'daily' ? 0 : islePerks(meta.isle).souls;
   if (bonus) lines.push(['Soul Well', Math.round(lines.reduce((sum, [, n]) => sum + n, 0) * bonus)]);
   if (tithe) lines.push([`Soul Tithe ×${game.boons.tithe}`, tithe]);
+  // One more run: the 2nd and 3rd run of the day pay a little extra.
+  const today = dailyNumber();
+  const n = meta.runsToday?.day === today ? meta.runsToday.n + 1 : 1;
+  meta.runsToday = { day: today, n };
+  const extra = n === 2 ? 15 : n === 3 ? 30 : 0;
+  if (extra) lines.push([`${n === 2 ? '2nd' : '3rd'} run today`, extra]);
   const souls = lines.reduce((sum, [, n]) => sum + n, 0);
   const st = meta.heroStats[game.hero] ?? { floor: 0, souls: 0, runs: 0 };
   meta.heroStats[game.hero] = { floor: Math.max(st.floor, game.floor), souls: st.souls + souls, runs: st.runs + 1 };

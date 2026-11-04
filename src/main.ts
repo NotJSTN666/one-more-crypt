@@ -2,7 +2,7 @@ import './style.css';
 import { audioRunning, fusionSound, isMusicEnabled, isMuted, onAudioState, setMusicDepth, setMusicEnabled, setMusicMood, setMuted, sfx, unlockAudio } from './audio';
 import { centralDate, dailyNumber, formatCountdown, msUntilNextDaily } from './daily';
 import { liveNews, unreadNews, type NewsGo } from './news';
-import { ELITES, FEATURES, HERO_BY_ID, dailyHero, hordeHero, type ComboDef, type HeroId } from './content';
+import { ACHIEVEMENT_BY_ID, DAILY_TOTALS, ELITES, FEATURES, HERO_BY_ID, dailyHero, hordeHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait, heroSprite } from './hero';
 import { BOON_BY_ID, ENEMY_INFO, MIST_BITE, REAPER_FLOOR, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode } from './game';
 import { acceptQuest, checkRun, grantFeats, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, finishHordeMeta, receiveGift, equipTitle, FAIR_DAILY, LEAN_DAILY, type RunReward } from './meta';
@@ -10,7 +10,7 @@ import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
 import { hallFromLink, onVisitIsle, showHall, showPublicHall, soulRankHtml, titleName } from './hall';
-import { AURA_BY_ID, featCosmetics, marketPiece, GIFT_BY_ID, TITLE_BY_ID, HEAD_BY_ID, LOOK_BY_ID, PODIUM, RAID_DECOR_BY_ID, RAID_KIND_LABEL, RAID_REWARDS, STORY_ALL, STREAK_HELMS, WEEKLY, WELCOME, rankFor, titleFxClass, welcomeLabel, type WelcomeReward } from './progression';
+import { AURA_BY_ID, BESTIARY_KINDS, MASTERY_SOULS, beastPlural, bestiaryTiers, featCosmetics, marketPiece, masteryRank, GIFT_BY_ID, TITLE_BY_ID, HEAD_BY_ID, LOOK_BY_ID, PODIUM, RAID_DECOR_BY_ID, RAID_KIND_LABEL, RAID_REWARDS, STORY_ALL, STREAK_HELMS, WEEKLY, WELCOME, rankFor, titleFxClass, welcomeLabel, type WelcomeReward } from './progression';
 import { Renderer } from './render';
 import { resetCanvases, sprites } from './sprites';
 import { RAID_JOIN_MIN, RAID_SUBMIT_MIN, RAID_TURNS, currentRaid, nextRaid, raidBossName, raidConfig, raidJoinable, raidTimeLabel, type RaidSlot } from './raid';
@@ -133,6 +133,8 @@ function startRun(mode: Mode) {
 function startTutorial(then: () => void, label = 'Enter the crypt') {
   unlockAudio();
   noteRun('title', 'tutorial');
+  // The tutorial's own funnel: started, the furthest step reached, and finished.
+  noteRun('tutorial', 'start');
   tutorial = { step: 0, busy: false, then, label };
   game = new Game('endless', 7, 0, { hero: 'knight', pool: fullPool() });
   runCombos = [];
@@ -183,6 +185,7 @@ function tutorialEvents(events: GameEvent[]) {
   }
   tutorial.busy = true;
   tutorial.step++;
+  noteRun('tutorial', 'quit', tutorial.step);
   renderer.banner('NICELY DONE!', '#7ee081');
   window.setTimeout(() => sfx.relic(), 150);
   window.setTimeout(stageTutorial, 1100);
@@ -200,7 +203,16 @@ function endTutorial() {
 function finishTutorial() {
   if (!tutorial) return;
   const { then, label } = tutorial;
+  noteRun('tutorial', 'end', TUTORIAL.length + 1);
   endTutorial();
+  // Straight on into the real crypt, with no stop in between (a replay from the title
+  // still ends on its own screen).
+  if (label !== 'Back to the title') {
+    renderer.banner('NOW THE REAL CRYPT', '#f2c14e');
+    toast('🕯️ Today\'s crypt: the same for everyone. How deep can you go?');
+    window.setTimeout(then, 900);
+    return;
+  }
   showOverlay('tutorial-done', `
     <img class="hero-portrait ${auraClass(outfitFor(game.hero).aura).cls}" style="${auraClass(outfitFor(game.hero).aura).style}" src="${heroPortrait(game.hero, game.relics, game.relicLog, 8, outfitFor(game.hero).look, outfitFor(game.hero).head)}" alt="" width="96" height="96" />
     <h2>You're ready</h2>
@@ -214,6 +226,7 @@ function finishTutorial() {
 function skipTutorial() {
   if (!tutorial) return;
   const { then } = tutorial;
+  noteRun('tutorial', 'quit', tutorial.step);
   endTutorial();
   then();
 }
@@ -1928,6 +1941,8 @@ function showPause() {
 
 function showDeath(r: RunResult, best: boolean) {
   const daily = game.mode === 'daily';
+  // A first run: tomorrow's gift and the reminder go to the top, where they're seen.
+  const first = runsPlayed() <= 1;
   const ch = daily ? null : lastChallenge;
   setMusicDepth(0);
   setMusicMood('fallen');
@@ -1942,6 +1957,7 @@ function showDeath(r: RunResult, best: boolean) {
       <div><b>${r.turns}</b>TURNS</div>
       ${r.seconds ? `<div><b>${playTime(r.seconds)}</b>TIME</div>` : ''}
     </div>
+    ${first ? `${welcomeTrackHtml()}${reminderPromptHtml()}` : ''}
     ${ONLINE && !ch ? `<p class="rank-line ${daily ? 'daily-rank' : ''}" id="rank">${signedIn() ? 'Carving your name into the crypt…' : daily ? 'Counting the fallen…' : ''}</p>` : ''}
     ${ONLINE && (!signedIn() || unclaimed()) ? claimInlineHtml(ch ? 'Pick a name to post your run to the challenge board. No email needed.' : `You're on ${daily ? "today's" : 'the'} board as ${unclaimed() ? esc(playerName()) : 'a guest'}. Type a name and your runs show under it. No email needed.`) : ''}
     ${r.relics ? `<div class="strip" style="font-size:18px">${r.relics}</div>` : ''}
@@ -1953,12 +1969,13 @@ function showDeath(r: RunResult, best: boolean) {
         ? `<div class="souls-earned"><b>+${lastReward.souls} Souls</b><span>${lastReward.lines.map(([k, v]) => `${esc(k)} +${v}`).join(' · ')}</span><span>💀 ${meta.souls} to spend in the Ossuary</span></div>`
         : ''
     }
-    ${welcomeTrackHtml()}
+    ${first ? '' : welcomeTrackHtml()}
+    ${nextGoalHtml()}
     ${ch ? challengeResultHtml(r, ch) : ''}
     ${soulRankHtml()}
     ${
       daily
-        ? `${streakTeaseHtml()}${tomorrowHtml()}${reminderPromptHtml()}${installNudgeHtml()}${ONLINE ? '<p class="podium-tease">🥇 Finish in the top 3 when the day ends to win exclusive headwear and Souls.</p>' : ''}
+        ? `${streakTeaseHtml()}${tomorrowHtml()}${first ? '' : reminderPromptHtml()}${installNudgeHtml()}${ONLINE ? '<p class="podium-tease">🥇 Finish in the top 3 when the day ends to win exclusive headwear and Souls.</p>' : ''}
     <p class="endless-tease">${
             save.bestEndless
               ? `Daily done. Beat your Endless best of <b>floor ${save.bestEndless}</b>, or hold the crypt in today's Horde.`
@@ -1979,7 +1996,7 @@ function showDeath(r: RunResult, best: boolean) {
       <button class="btn" id="copy">Copy result</button>
       <button class="btn" id="again">Endless<small class="keys-hint">Enter or R</small></button>
     </div>`
-          : `${reminderPromptHtml()}${installNudgeHtml()}
+          : `${first ? '' : reminderPromptHtml()}${installNudgeHtml()}
     ${ONLINE ? `<button class="btn challenge-btn" id="challenge">⚔️ Challenge a friend<small>Same crypt, same hero. Can they beat floor ${r.floor}?</small></button>` : ''}
     ${discordBtn}
     <div class="row">
@@ -2289,6 +2306,43 @@ function checkChallengeNews() {
 }
 
 /** After the daily: a look at tomorrow's crypt, to come back for. */
+/**
+ * The goal you're closest to, for one more run: the next depth feat, the hero's next mastery
+ * rank, the nearest Bestiary milestone or the next Daily total, whichever is proportionally
+ * nearest, with what it brings.
+ */
+function nextGoalHtml(): string {
+  type Goal = { left: number; of: number; text: string; prize: string };
+  const goals: Goal[] = [];
+  const prizeFor = (feat: string) => {
+    const c = featCosmetics([feat])[0];
+    return c ? `${c.icon} ${c.title}` : `🏅 ${ACHIEVEMENT_BY_ID[feat]?.name ?? ''}`;
+  };
+  // depth
+  const deepest = Math.max(meta.deepest ?? 0, ...Object.values(meta.best).map((b) => b?.floor ?? 0));
+  const depth = ([[5, 'floor5'], [10, 'floor10'], [15, 'floor15'], [20, 'floor20'], [30, 'floor30'], [50, 'floor50']] as const).find(([n, id]) => !meta.achievements[id] && deepest < n);
+  if (depth) goals.push({ left: depth[0] - deepest, of: depth[0], text: `Reach floor ${depth[0]}`, prize: prizeFor(depth[1]) });
+  // mastery with this hero
+  const souls = meta.heroStats[game.hero]?.souls ?? 0;
+  const rank = masteryRank(souls);
+  if (rank < MASTERY_SOULS.length) {
+    const need = MASTERY_SOULS[rank];
+    goals.push({ left: need - souls, of: need - (MASTERY_SOULS[rank - 1] ?? 0), text: `${(need - souls).toLocaleString()} more Souls as the ${HERO_BY_ID[game.hero].name}`, prize: rank + 1 === 3 ? '🧥 their mastery cloak' : rank + 1 === MASTERY_SOULS.length ? `👑 the title Master ${HERO_BY_ID[game.hero].name}` : `⭐ mastery rank ${rank + 1}` });
+  }
+  // the nearest Bestiary milestone among foes you've met
+  for (const k of BESTIARY_KINDS) {
+    const kills = meta.bestiary[k] ?? 0;
+    const tier = bestiaryTiers(k).find((n) => n > kills);
+    if (!kills || !tier) continue;
+    goals.push({ left: tier - kills, of: tier, text: `Slay ${tier - kills} more ${beastPlural(k)}`, prize: '📜 a Bestiary milestone and Souls' });
+  }
+  // Dailies played in all
+  const total = DAILY_TOTALS.find(([n, id]) => !meta.achievements[id] && (meta.dailyTotal ?? 0) < n);
+  if (total) goals.push({ left: total[0] - (meta.dailyTotal ?? 0), of: total[0], text: `Play ${total[0] - (meta.dailyTotal ?? 0)} more Dailies`, prize: prizeFor(total[1]) });
+  const best = goals.sort((a, b) => a.left / a.of - b.left / b.of)[0];
+  return best ? `<p class="next-goal">🎯 <b>Next:</b> ${esc(best.text)} for ${esc(best.prize)}</p>` : '';
+}
+
 function tomorrowHtml(): string {
   const next = dailyNumber() + 1;
   const hero = dailyHero(next);

@@ -440,7 +440,7 @@ export type FunnelEvent = 'start' | 'end' | 'quit' | 'tap' | 'tutorial';
  * ended), per device and day, with no personal data. Sent with keepalive so a step taken
  * as the page closes still arrives. Best effort: failures are ignored.
  */
-export function noteRun(mode: 'daily' | 'endless' | 'title', event: FunnelEvent, floor?: number, signed?: boolean) {
+export function noteRun(mode: 'daily' | 'endless' | 'title' | 'tutorial', event: FunnelEvent, floor?: number, signed?: boolean) {
   if (!ONLINE) return;
   try {
     void fetch(`${URL}/rest/v1/rpc/note_run`, {

@@ -5336,3 +5336,16 @@ body.tutorial #relic-bar {
   font-weight: normal;
   letter-spacing: 1px;
 }
+
+/* The goal you're closest to, on the results screen. */
+.next-goal {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border: 1px dashed var(--gold);
+  font-size: 13px;
+}
+
+.next-goal b {
+  color: var(--gold);
+  font-weight: normal;
+}
