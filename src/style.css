@@ -5422,6 +5422,32 @@ body.tutorial #relic-bar {
   background: linear-gradient(90deg, #5a7ab0, #9fe8ff);
 }
 
+/* After the Daily: Endless, Horde and the Night Shift side by side, right under the stats. */
+.keep-going {
+  margin-top: 10px;
+}
+
+.keep-going .endless-tease {
+  margin: 0 0 8px;
+}
+
+.keep-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.keep-row .keep-btn {
+  margin: 0;
+  min-width: 0;
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+.keep-row .keep-btn small {
+  overflow-wrap: anywhere;
+}
+
 /* Retry: right under the run's stats, so you can hop straight back in. */
 .retry-btn {
   margin-top: 10px;

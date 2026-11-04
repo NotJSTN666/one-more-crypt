@@ -1978,7 +1978,7 @@ function showDeath(r: RunResult, best: boolean) {
       <div><b>${r.turns}</b>TURNS</div>
       ${r.seconds ? `<div><b>${playTime(r.seconds)}</b>TIME</div>` : ''}
     </div>
-    ${daily ? '' : ch ? '<button class="btn primary retry-btn" id="retry-challenge">↻ Retry<small>Same crypt, same hero</small></button>' : `<button class="btn primary retry-btn" id="again">↻ Retry<small>Straight back in as the ${esc(HERO_BY_ID[game.hero].name)}<span class="keys-hint"> · Enter or R</span></small></button>`}
+    ${daily ? keepGoingHtml() : ch ? '<button class="btn primary retry-btn" id="retry-challenge">↻ Retry<small>Same crypt, same hero</small></button>' : `<button class="btn primary retry-btn" id="again">↻ Retry<small>Straight back in as the ${esc(HERO_BY_ID[game.hero].name)}<span class="keys-hint"> · Enter or R</span></small></button>`}
     ${first ? `${welcomeTrackHtml()}${reminderPromptHtml()}` : ''}
     ${ONLINE && !ch ? `<p class="rank-line ${daily ? 'daily-rank' : ''}" id="rank">${signedIn() ? 'Carving your name into the crypt…' : daily ? 'Counting the fallen…' : ''}</p>` : ''}
     ${ONLINE && (!signedIn() || unclaimed()) ? claimInlineHtml(ch ? 'Pick a name to post your run to the challenge board. No email needed.' : `You're on ${daily ? "today's" : 'the'} board as ${unclaimed() ? esc(playerName()) : 'a guest'}. Type a name and your runs show under it. No email needed.`) : ''}
@@ -1999,13 +1999,6 @@ function showDeath(r: RunResult, best: boolean) {
     ${
       daily
         ? `${streakTeaseHtml()}${tomorrowHtml()}${first ? '' : reminderPromptHtml()}${installNudgeHtml()}${ONLINE ? '<p class="podium-tease">🥇 Finish in the top 3 when the day ends to win exclusive headwear and Souls.</p>' : ''}
-    <p class="endless-tease">${
-            save.bestEndless
-              ? `Daily done. Beat your Endless best of <b>floor ${save.bestEndless}</b>, or hold the crypt in today's Horde.`
-              : "Daily done. Endless has no limit, and today's Horde has unlimited tries."
-          }<span class="endless-record"></span></p>
-    <button class="btn primary" id="again">Endless Descent<small>The crypt never ends. Keep descending.<span class="keys-hint"> · Enter or R</span></small></button>
-    ${hordeButtonHtml()}
     ${ONLINE ? `<button class="btn challenge-btn" id="challenge">⚔️ Challenge a friend<small>Today's crypt, your hero. Can they beat floor ${r.floor}?</small></button>` : ''}
     ${discordBtn}
     <div class="row">
@@ -2061,6 +2054,7 @@ function showDeath(r: RunResult, best: boolean) {
   // After the Daily, Endless is a new choice (pick a hero); after Endless, Retry is straight back in.
   on('#again', () => (daily ? showHeroSelect(() => startRun('endless'), backHere) : quickRestart()));
   if (daily) wireHordeButton();
+  on('#keep-night', () => (nightIntroSeen() ? showNightShift(showTitle) : showNightIntro()));
   if (daily) showEndlessRecord();
   on('#ossuary', () => showOssuary(backHere));
   on('#hall', () => openHall(backHere));
@@ -3045,6 +3039,24 @@ function relicText(text: string): string {
 
 /** The Horde button wears a NEW badge until this date. */
 const HORDE_NEW_UNTIL = Date.UTC(2026, 10, 17);
+
+/** After the Daily: the three ways to keep playing, right under the run's stats. */
+function keepGoingHtml(): string {
+  const n = dailyNumber();
+  const saved = savedHorde();
+  const h = meta.horde.day === n ? meta.horde : null;
+  const horde = saved
+    ? `Continue: wave ${saved.game.horde.wave}`
+    : h ? `Best today: wave ${h.wave}` : `As the ${HERO_BY_ID[hordeHero(n)].name}`;
+  return `<div class="keep-going">
+      <p class="endless-tease">Daily done. Keep going?${save.bestEndless ? ` Your Endless best: <b>floor ${save.bestEndless}</b>` : ''}<span class="endless-record"></span></p>
+      <div class="keep-row">
+        <button class="btn primary keep-btn" id="again">♾️ Endless<small>No limit<span class="keys-hint"> · Enter</span></small></button>
+        <button class="btn keep-btn horde-btn" id="horde">🛡️ Horde #${n}<small>${horde}</small></button>
+        <button class="btn keep-btn night-btn" id="keep-night">🌙 Night Shift<small>Survive the night</small></button>
+      </div>
+    </div>`;
+}
 
 function hordeButtonHtml(): string {
   const n = dailyNumber();
