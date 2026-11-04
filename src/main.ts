@@ -38,7 +38,7 @@ import { enableReminders, loadReminders, reminderPrefs, remindersAvailable, remi
 import { claimPodiums, claimWeekly, clearBeat, lastBeat, type PodiumFinish, type WeeklyFinish } from './social';
 import { claimInlineHtml, wireClaimInline, endlessRecord, ensureGuest, initSocial, needsName, unclaimed, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
 import { currentStreak, loadSave, recordDaily, streakStats, WARD_EVERY, writeSave, type RunResult } from './storage';
-import { $, calmChosen, esc, formStatus, hideOverlay, on, onSubmit, overlay, overlayShownAt, screen, setCalm, showOverlay, toast } from './ui';
+import { $, calmChosen, calmMotion, esc, formStatus, hideOverlay, on, onSubmit, overlay, overlayShownAt, screen, setCalm, showOverlay, toast } from './ui';
 
 const canvas = $<HTMLCanvasElement>('board');
 const renderer = new Renderer(canvas);
@@ -1365,7 +1365,7 @@ function accountChip(): string {
   const mute = muteChipHtml()
     + `<button class="account-chip mute-chip news-chip" id="title-news" aria-label="What's new${newsUnread() ? `, ${newsUnread()} unread` : ''}">📰${newsUnread() ? '<i class="news-dot"></i>' : ''}</button>`
     + `<button class="account-chip mute-chip" id="title-settings" aria-label="Settings">⚙️</button>`
-    + `<button class="account-chip mute-chip kofi-chip" id="title-kofi" aria-label="Support One More Crypt"><span class="kofi-heart" aria-hidden="true">❤️</span></button>`
+    + `<button class="account-chip mute-chip kofi-chip ${calmMotion() ? 'still' : ''}" id="title-kofi" aria-label="Support One More Crypt"><span class="kofi-heart" aria-hidden="true">❤️</span><span class="kofi-floats" aria-hidden="true"><i>❤</i><i>❤</i><i>❤</i></span></button>`
     // Install, up top beside the sound, wherever the browser can add the game to the home screen.
     + (installMode() ? `<button class="account-chip install-chip" id="install" aria-label="Install the app">📲 Install</button>` : '');
   if (ONLINE && !session.ready) return `<div class="account-row">${mute}</div>`;
