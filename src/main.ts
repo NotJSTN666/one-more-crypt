@@ -36,7 +36,7 @@ import { installMode, onInstallChange, promptInstall, setupInstall } from './ins
 import { bountiesHtml, progressBounties } from './bounties';
 import { enableReminders, loadReminders, reminderPrefs, remindersAvailable, remindersNeedInstall, timeZone } from './push';
 import { claimPodiums, claimWeekly, clearBeat, lastBeat, type PodiumFinish, type WeeklyFinish } from './social';
-import { claimInlineHtml, wireClaimInline, endlessRecord, ensureGuest, initSocial, needsName, unclaimed, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
+import { claimInlineHtml, wireClaimInline, keepNameHtml, wireKeepName, endlessRecord, ensureGuest, initSocial, needsName, unclaimed, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
 import { currentStreak, loadSave, recordDaily, streakStats, WARD_EVERY, writeSave, type RunResult } from './storage';
 import { $, calmChosen, calmMotion, esc, formStatus, hideOverlay, on, onSubmit, overlay, overlayShownAt, screen, setCalm, showOverlay, toast } from './ui';
 
@@ -1287,6 +1287,7 @@ function showTitle() {
     ${streak > 1 ? `<div class="streak">🕯️ ${streak}-day streak</div>` : ''}
     ${raid.phase === 'soon' ? raidCardHtml(raid) : ''}
     ${welcomeTitleHtml()}
+    ${keepNameHtml(false)}
     ${surgeHtml()}
     ${trialHtml()}
     ${ONLINE ? '<div class="together" id="together" hidden></div><div class="rival-line" id="rival-line" hidden></div>' : ''}
@@ -1323,6 +1324,7 @@ function showTitle() {
     void fillTogether();
     void fillRival(today);
   }
+  wireKeepName(false);
   on('#grimoire', () => showGrimoire(showTitle));
   on('#hall', () => openHall(showTitle));
   on('#hollow', () => enterHollow());
@@ -2051,6 +2053,7 @@ function showDeath(r: RunResult, best: boolean) {
     ${first ? `${welcomeTrackHtml()}${reminderPromptHtml()}` : ''}
     ${ONLINE && !ch ? `<p class="rank-line ${daily ? 'daily-rank' : ''}" id="rank">${signedIn() ? 'Carving your name into the crypt…' : daily ? 'Counting the fallen…' : ''}</p>` : ''}
     ${ONLINE && (!signedIn() || unclaimed()) ? claimInlineHtml(ch ? 'Pick a name to post your run to the challenge board. No email needed.' : `You're on ${daily ? "today's" : 'the'} board as ${unclaimed() ? esc(playerName()) : 'a guest'}. Type a name and your runs show under it. No email needed.`) : ''}
+    ${keepNameHtml()}
     ${r.relics ? `<div class="strip" style="font-size:18px">${r.relics}</div>` : ''}
     ${r.combos ? `<p class="combo-line">${esc(r.combos)}</p>` : ''}
     ${boonLine()}
@@ -2114,6 +2117,7 @@ function showDeath(r: RunResult, best: boolean) {
     }
   };
   wireClaimInline(afterJoin, () => showLogin(afterJoin, 'email'));
+  wireKeepName();
   const beat = () => (daily ? lastBeat : null);
   on('#challenge', () => makeChallenge(r, backHere));
   on('#retry-challenge', () => ch && startChallenge(ch));
@@ -3217,14 +3221,20 @@ function finishHorde() {
       ${ONLINE ? `<h3 class="shop-head">Today's Horde board</h3><p class="fine" id="horde-rank">Posting your run…</p><ol class="raid-top" id="horde-board"><li class="fine">Loading…</li></ol>` : ''}
       <button class="btn" id="horde-copy">Copy result</button>
       ${ONLINE && (!signedIn() || unclaimed()) ? claimInlineHtml(`You're on today's Horde board as ${unclaimed() ? esc(playerName()) : 'a guest'}. Type a name and your runs show under it.`) : ''}
+      ${keepNameHtml()}
       <button class="btn" id="title">Title</button>`);
     on('#horde-again', () => startHorde());
     on('#horde-copy', async () => toast((await copyText(share)) ? 'Copied!' : 'Copy failed'));
     // Once named, the board reloads with the new name on it, and the box goes.
     wireClaimInline(() => {
-      document.getElementById('claim-form')?.remove();
+      // Named now: the box gives way to the prompt to keep that name.
+      const claim = document.getElementById('claim-form');
+      claim?.insertAdjacentHTML('afterend', keepNameHtml());
+      claim?.remove();
+      wireKeepName();
       if (ONLINE) void loadHordeBoard(g, false);
     }, () => showLogin(() => showTitle(), 'email'));
+    wireKeepName();
     on('#title', () => {
       newGame('endless');
       showTitle();

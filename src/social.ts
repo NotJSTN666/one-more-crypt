@@ -599,6 +599,83 @@ export function wireClaimInline(after: () => void, signIn: () => void) {
   on('#claim-more', signIn);
 }
 
+// ---------- keep your name ----------
+// A guest who picked a name has it only in this browser: clear its data, switch browsers or use a
+// private window, and the name is lost for good (still taken, with no way back in). Adding an email
+// turns that same account into a permanent one, runs and all.
+
+const KEEP_SENT_KEY = 'omc:keep-sent';
+const KEEP_LATER_KEY = 'omc:keep-later';
+/** "Not now" quiets the prompt for this long. */
+const KEEP_LATER_MS = 3 * 24 * 3600 * 1000;
+
+function keepStore(key: string, value?: string | null): string {
+  try {
+    if (value === null) localStorage.removeItem(key);
+    else if (value !== undefined) localStorage.setItem(key, value);
+    return localStorage.getItem(key) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+/** A guest with a chosen name, who would lose it with this browser's data. */
+export function needsKeep(): boolean {
+  const a = session.account;
+  return ONLINE && Boolean(a && a.kind === 'guest' && a.name && !GUEST_NAME.test(a.name));
+}
+
+/** The prompt to add an email and keep the name. `nag` false respects "Not now" (the title screen). */
+export function keepNameHtml(nag = true): string {
+  if (!needsKeep()) return '';
+  const name = esc(session.account!.name!);
+  const sent = keepStore(KEEP_SENT_KEY);
+  if (sent) {
+    return `<div class="keep-name sent" id="keep-name">📬 Check <b>${esc(sent)}</b> and tap the link to keep <b>${name}</b> for good. <button type="button" class="link-btn" id="keep-again">Use another email</button></div>`;
+  }
+  if (!nag && Date.now() - Number(keepStore(KEEP_LATER_KEY) || 0) < KEEP_LATER_MS) return '';
+  return `
+    <form class="form keep-name" id="keep-form">
+      <label for="keep-email">🔒 Keep the name ${name}</label>
+      <small class="claim-sub">It's only saved in this browser. Add an email and you can sign in anywhere, and never lose it. No password.</small>
+      <div class="name-row">
+        <input id="keep-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" enterkeyhint="send" required />
+        <button class="btn" type="submit">Keep it</button>
+      </div>
+      <p class="form-status" role="status"></p>
+      ${nag ? '' : '<button type="button" class="link-btn" id="keep-later">Not now</button>'}
+    </form>`;
+}
+
+/** Wire the prompt. It redraws itself in place (to say "check your inbox", say). */
+export function wireKeepName(nag = true) {
+  const redraw = () => {
+    const el = document.getElementById('keep-form') ?? document.getElementById('keep-name');
+    if (!el) return;
+    el.outerHTML = keepNameHtml(nag);
+    wireKeepName(nag);
+  };
+  onSubmit('#keep-form', async (form) => {
+    const email = field(form, 'email');
+    formStatus(form, 'Sending…', true);
+    try {
+      await linkEmail(email);
+      keepStore(KEEP_SENT_KEY, email);
+      redraw();
+    } catch (e) {
+      formStatus(form, (e as Error).message);
+    }
+  });
+  on('#keep-again', () => {
+    keepStore(KEEP_SENT_KEY, null);
+    redraw();
+  });
+  on('#keep-later', () => {
+    keepStore(KEEP_LATER_KEY, String(Date.now()));
+    document.getElementById('keep-form')?.remove();
+  });
+}
+
 /** Called when a redirect sign-in lands without a profile, so we can ask for a name. */
 export function needsName(): boolean {
   return Boolean(session.account && !session.account.name);

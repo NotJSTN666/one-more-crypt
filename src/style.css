@@ -5501,3 +5501,30 @@ body.tutorial #relic-bar {
 #overlay.enter.again .offer button::after {
   animation: none;
 }
+
+/* Keep your name: a named guest's prompt to add an email. */
+.keep-name {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid #6b5a8a;
+  background: rgba(106, 63, 208, 0.12);
+  text-align: left;
+}
+
+.keep-name label {
+  display: block;
+  font-family: var(--pixel);
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--gold);
+}
+
+.keep-name .name-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.keep-name.sent {
+  font-size: 13px;
+  color: var(--text);
+}

@@ -16,7 +16,7 @@ import {
 } from './nightshift';
 import { ONLINE, nightBoard, submitNight } from './online';
 import { featCosmetics, seasonDress, soulSurge } from './progression';
-import { claimInlineHtml, ensureGuest, playerName, showLeaderboard, signedIn, unclaimed, wireClaimInline } from './social';
+import { claimInlineHtml, keepNameHtml, wireKeepName, ensureGuest, playerName, showLeaderboard, signedIn, unclaimed, wireClaimInline } from './social';
 import { enemyFrames, type Sprite } from './sprites';
 import { esc, on, overlay, showOverlay, toast } from './ui';
 
@@ -462,14 +462,19 @@ export function showNightShift(back: () => void) {
         <p class="fine">Best: ${s.nightKills} put down · longest night ${fmt(s.nightBest)} · ${s.nights} night${s.nights === 1 ? '' : 's'} stood</p>
         ${ONLINE ? `<h3 class="shop-head">This week's Night Shift</h3><p class="fine" id="ns-rank">Posting your night…</p><ol class="raid-top" id="ns-board"><li class="fine">Loading…</li></ol><button class="btn" id="ns-boards">🏆 All Night Shift boards</button>` : ''}
         ${ONLINE && (!signedIn() || unclaimed()) ? claimInlineHtml(`You're on the Night Shift board as ${unclaimed() ? esc(playerName()) : 'a guest'}. Type a name and your nights show under it.`) : ''}
+        ${keepNameHtml()}
         <button class="btn" id="back">← Back</button>`);
       on('#ns-again', () => showNightShift(back));
       on('#back', back);
       on('#ns-boards', () => showLeaderboard(back, 'night', 25, 'week'));
       wireClaimInline(() => {
-        document.getElementById('claim-form')?.remove();
+        const claim = document.getElementById('claim-form');
+        claim?.insertAdjacentHTML('afterend', keepNameHtml());
+        claim?.remove();
+        wireKeepName();
         if (ONLINE) void loadBoard(false);
       }, () => showLeaderboard(back, 'night', 25, 'week'));
+      wireKeepName();
       if (ONLINE) void loadBoard(n.kills > 0);
       if (title) toast('🏅 Title unlocked: The Unsleeping');
       if (trial.completed) toast('⚔️ Weekly Trial complete! +300 Souls');
