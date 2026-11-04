@@ -976,6 +976,12 @@ let knownRelics = 0;
 /** The relics the bar was last drawn with, so a fusion (same count, new set) redraws it. */
 let knownSet = '';
 let selectedRelic: RelicId | null = null;
+/** The hero's perk chip is open in the tip line. */
+let perkOpen = false;
+/** The Rogue's unseen step was ready last turn (to say HIDING once when it comes ready). */
+let wasHiding = false;
+/** Heroes whose perk runs on a count, and the chip that shows it. */
+const PERK_CHIP: Partial<Record<HeroId, string>> = { rogue: '👤', bellringer: '🔔', mage: '✨' };
 
 /** The Ranger's bow button: shown only when the bow can be lowered, and saying which way it is. */
 function updateBow() {
@@ -1061,15 +1067,31 @@ function updateHud(reset = false) {
     build.setAttribute('aria-label', 'Your build and the last few turns');
     build.addEventListener('click', () => showBuild('build'));
     bar.appendChild(build);
+    // Next: the hero's own timed perk, when it has one.
+    if (PERK_CHIP[game.hero] && game.perkTimer()) {
+      const perk = document.createElement('button');
+      perk.className = 'relic-chip perk-chip';
+      perk.dataset.perk = '1';
+      perk.textContent = PERK_CHIP[game.hero]!;
+      perk.setAttribute('aria-label', HERO_BY_ID[game.hero].perk);
+      perk.addEventListener('click', () => {
+        perkOpen = !perkOpen;
+        selectedRelic = null;
+        updateTip();
+      });
+      bar.appendChild(perk);
+    }
     unique.forEach((id, i) => {
       const def = RELIC_BY_ID[id];
       const chip = document.createElement('button');
       chip.className = 'relic-chip';
+      chip.dataset.relic = id;
       if (!reset && i >= knownRelics) chip.classList.add('new');
       chip.textContent = def.emoji;
       chip.setAttribute('aria-label', def.name);
       chip.addEventListener('click', () => {
         selectedRelic = selectedRelic === id ? null : id;
+        perkOpen = false;
         updateTip();
       });
       const n = game.r(id);
@@ -1088,8 +1110,8 @@ function updateHud(reset = false) {
     bar.classList.toggle('overflowing', bar.scrollWidth > bar.clientWidth + 1);
   } else {
     // counts may change without new relic types
-    unique.forEach((id, i) => {
-      const chip = $('relic-bar').children[i + 1];
+    unique.forEach((id) => {
+      const chip = $('relic-bar').querySelector(`[data-relic="${id}"]`);
       const n = game.own(id);
       let c = chip?.querySelector('.count');
       if (n > 1 && chip) {
@@ -1102,8 +1124,49 @@ function updateHud(reset = false) {
       }
     });
   }
-  if (reset) selectedRelic = null;
+  if (reset) {
+    selectedRelic = null;
+    perkOpen = false;
+  }
+  updateTimers(reset);
   updateTip();
+}
+
+/** Countdowns on the relic row: turns (or kills, or hits) until each timed relic and perk fires. */
+function updateTimers(reset: boolean) {
+  const bar = $('relic-bar');
+  const badge = (chip: Element | null, left: number | null) => {
+    if (!chip) return;
+    let b = chip.querySelector<HTMLElement>('.timer');
+    if (left == null) return b?.remove();
+    if (!b) {
+      b = document.createElement('span');
+      b.className = 'timer';
+      chip.appendChild(b);
+    }
+    b.textContent = left === 0 ? '✓' : String(left);
+    b.classList.toggle('soon', left <= 1);
+    b.classList.toggle('still', calmMotion());
+  };
+  for (const chip of bar.querySelectorAll<HTMLElement>('[data-relic]')) badge(chip, game.relicTimer(chip.dataset.relic as RelicId)?.left ?? null);
+  const perk = game.perkTimer();
+  badge(bar.querySelector('[data-perk]'), perk ? perk.left : null);
+  // The Rogue: say so over the hero the moment the next step will go unseen.
+  const hiding = game.shadowReady && game.phase === 'play';
+  if (hiding && !wasHiding && !reset) renderer.heroNote('HIDING', '#9aa3b5');
+  wasHiding = hiding;
+}
+
+/** The tip line for the hero's perk chip. */
+function perkTip(): string {
+  const t = game.perkTimer();
+  const def = HERO_BY_ID[game.hero];
+  if (!t) return `<b>${def.perk}</b>: ${def.perkDesc}`;
+  const when =
+    game.hero === 'rogue' ? (t.left === 1 ? 'Your <b>next step</b> goes unseen.' : `Unseen step in <b>${t.left}</b> steps.`)
+    : game.hero === 'bellringer' ? (t.left === 1 ? 'The bell tolls <b>next turn</b>.' : `The bell tolls in <b>${t.left}</b> turns.`)
+    : t.left === 0 ? (game.missileReady ? '<b>Ready:</b> wait to cast.' : 'Ready, once a foe is in sight.') : `Ready in <b>${t.left}</b> turn${t.left === 1 ? '' : 's'}.`;
+  return `<b>${game.hero === 'mage' ? 'Magic Missile' : def.perk}</b>: ${when} ${def.perkDesc}`;
 }
 
 function updateTip() {
@@ -1111,7 +1174,13 @@ function updateTip() {
   if (selectedRelic) {
     const def = RELIC_BY_ID[selectedRelic];
     const n = game.r(selectedRelic);
-    tip.innerHTML = `<b>${def.name}${n > 1 ? ` ×${n}` : ''}</b>: ${relicText(def.desc(n))}`;
+    const t = game.relicTimer(selectedRelic);
+    const next = t ? ` <b>Next in ${t.left} ${t.unit}${t.left === 1 ? '' : 's'}.</b>` : '';
+    tip.innerHTML = `<b>${def.name}${n > 1 ? ` ×${n}` : ''}</b>: ${relicText(def.desc(n))}${next}`;
+    return;
+  }
+  if (perkOpen) {
+    tip.innerHTML = perkTip();
     return;
   }
   const elite = game.alive.find((e) => e.elite);

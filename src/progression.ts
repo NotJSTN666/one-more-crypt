@@ -541,7 +541,7 @@ export type HeroNeed =
   | { run: RunGoal; n: number };
 
 export type RunGoal =
-  | 'bosses' | 'shadowSteps' | 'dodges' | 'raised' | 'allies' | 'undead' | 'arrowKills' | 'maxHit' | 'lowHpKills' | 'cleanFloors';
+  | 'bosses' | 'shadowSteps' | 'dodges' | 'raised' | 'allies' | 'undead' | 'arrowKills' | 'missileKills' | 'maxHit' | 'lowHpKills' | 'cleanFloors';
 
 export interface HeadDef {
   id: string;
@@ -574,6 +574,7 @@ export function needText(hero: HeroId, need: HeroNeed): string {
     allies: `Command ${n} thralls at once`,
     undead: `Slay ${n} undead in one run`,
     arrowKills: `Slay ${n} foes with arrows in one run`,
+    missileKills: `Slay ${n} foes with Magic Missiles in one run`,
     maxHit: `Deal ${n} damage in one hit`,
     lowHpKills: `Slay ${n} foes at 3 HP or less in one run`,
     cleanFloors: `Clear ${n} floors without being hit in one run`,
@@ -689,6 +690,7 @@ export const HEADS: HeadDef[] = [
   // Mage: a glass cannon that hits like a storm.
   hero('witch', 'Witch Hat', 'mage', { floor: 10 }, [...row(2, 2, 9, '#2c2148'), ...row(1, 4, 7, '#2c2148'), [5, 1, GOLD], [6, 1, GOLD], [6, 0, '#2c2148'], [7, 0, '#2c2148'], [8, 0, '#4b3a78']]),
   hero('flame', 'Burning Crown', 'mage', { run: 'maxHit', n: 30 }, [...row(1, 3, 8, '#ff8a2a'), [3, 0, '#ff8a2a'], [5, 0, GOLD], [6, 0, '#ff8a2a'], [8, 0, GOLD], [2, 1, RED], [9, 1, RED]]),
+  hero('arcanecirclet', 'Arcane Circlet', 'mage', { run: 'missileKills', n: 25 }, [...row(2, 3, 8, '#6a3fd0'), [5, 1, '#d3b0ff'], [6, 1, '#d3b0ff'], [5, 0, '#ffffff'], [6, 0, '#b07cff'], [3, 1, '#3a1f80'], [8, 1, '#3a1f80']]),
   hero('icecrown', 'Ice Crown', 'mage', { run: 'cleanFloors', n: 3 }, [...row(1, 3, 8, '#9fe8ff'), [3, 0, '#ffffff'], [5, 0, '#9fe8ff'], [6, 0, '#9fe8ff'], [8, 0, '#ffffff']]),
 
   // Barbarian: strongest with their back to the wall.

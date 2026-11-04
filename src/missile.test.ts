@@ -80,3 +80,32 @@ describe("the Mage's Magic Missile (log version 20)", () => {
     expect(r.turns).toBe(g.turns);
   });
 });
+
+describe('countdowns on the relic row', () => {
+  it('count turns down to each timed relic, and fire when they say', () => {
+    const g = board('knight', { x: 3, y: 0 });
+    (g as unknown as { relics: Record<string, number> }).relics.doom = 1;
+    const seen: number[] = [];
+    for (let i = 0; i < 10; i++) {
+      seen.push(g.relicTimer('doom')!.left);
+      g.events.length = 0;
+      g.act(0, 0);
+      const tolled = g.events.some((e) => e.t === 'toll');
+      expect(tolled).toBe(seen[i] === 1);
+    }
+    expect(seen[0]).toBe(10 - (g.turns - 10) % 10 || 10);
+  });
+
+  it("count the Rogue's steps to the unseen one, and the Mage's turns to the next cast", () => {
+    const r = board('rogue', { x: 0, y: 0 });
+    const before = r.perkTimer()!.left;
+    expect(r.shadowReady).toBe(before === 1);
+    const m = board('mage', { x: 3, y: 0 });
+    expect(m.perkTimer()!.left).toBe(0);
+    m.act(0, 0);
+    expect(m.perkTimer()!.left).toBe(1);
+    m.act(0, 0);
+    expect(m.perkTimer()!.left).toBe(0);
+    expect(board('knight', { x: 3, y: 0 }).perkTimer()).toBeNull();
+  });
+});

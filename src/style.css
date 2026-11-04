@@ -251,6 +251,46 @@ button {
   animation: pop 0.5s ease-out;
 }
 
+/* Timed relics and perks: turns (or kills, or hits) until they fire, in the top corner. */
+.relic-chip .timer {
+  position: absolute;
+  left: 1px;
+  top: 1px;
+  min-width: 14px;
+  padding: 0 2px;
+  font-family: var(--read, inherit);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 14px;
+  color: #fff;
+  background: rgba(11, 7, 16, 0.85);
+  border: 1px solid var(--line);
+  text-align: center;
+}
+
+.relic-chip .timer.soon {
+  color: #1a1006;
+  background: var(--gold);
+  border-color: var(--gold);
+  animation: timer-soon 1s ease-in-out infinite;
+}
+
+@keyframes timer-soon {
+  50% { opacity: 0.6; }
+}
+
+.relic-chip.perk-chip {
+  border-color: #6b5a8a;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .relic-chip .timer.soon { animation: none; }
+}
+
+.relic-chip .timer.soon.still {
+  animation: none;
+}
+
 @keyframes pop {
   0% {
     transform: scale(1.8);

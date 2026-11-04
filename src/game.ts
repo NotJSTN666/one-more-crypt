@@ -1292,6 +1292,38 @@ export class Game {
     if (e.dead) this.stats.spikeKills++;
   }
 
+  /**
+   * For the relic row: how many of your turns (or kills, or hits) until a relic that fires on a
+   * count goes off. 1 means on the next one.
+   */
+  relicTimer(id: RelicId): { left: number; unit: 'turn' | 'kill' | 'hit' } | null {
+    if (!this.r(id)) return null;
+    const turnsTo = (n: number) => n - (this.turns % n);
+    switch (id) {
+      case 'doom': return { left: turnsTo(10), unit: 'turn' };
+      case 'thunder':
+      case 'leech': return { left: turnsTo(5), unit: 'turn' };
+      case 'hourglass': return { left: turnsTo(8), unit: 'turn' };
+      case 'lantern': return { left: 6 - (this.kills % 6), unit: 'kill' };
+      case 'echo': {
+        const n = this.r('echo') >= 2 ? 3 : 4;
+        return { left: n - (this.attacks % n), unit: 'hit' };
+      }
+      default: return null;
+    }
+  }
+
+  /**
+   * The hero's own timed perk, for the relic row: steps to the Rogue's unseen step, turns to the
+   * Bell-Ringer's toll, or turns until the Mage can cast again (0 when a missile is ready).
+   */
+  perkTimer(): { left: number; unit: 'step' | 'turn' } | null {
+    if (this.hero === 'rogue') return { left: 3 - (this.steps % 3), unit: 'step' };
+    if (this.hero === 'bellringer') return { left: 6 - (this.turns % 6), unit: 'turn' };
+    if (this.hero === 'mage' && this.config.missile) return { left: Math.max(0, MISSILE_GAP - (this.turns - this.lastMissile)), unit: 'turn' };
+    return null;
+  }
+
   /** Mage: a Magic Missile would fly if they waited now. */
   get missileReady(): boolean {
     return this.hero === 'mage' && Boolean(this.config.missile) && this.turns - this.lastMissile >= MISSILE_GAP && Boolean(this.missileTarget());
