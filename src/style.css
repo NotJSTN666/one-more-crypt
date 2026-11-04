@@ -694,15 +694,12 @@ h2.dead {
   font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
 }
 
-/*
- * The title's support heart, made to be noticed: it beats, a soft red glow pulses round the
- * button, little hearts float up from it, and every few seconds it gives a wiggle.
- */
+/* The title's support heart: a gentle beat and a soft glow, so it's noticed without nagging. */
 .account-chip.kofi-chip {
   position: relative;
   overflow: visible;
   border-color: #8a2f3c;
-  animation: kofi-glow 2.4s ease-in-out infinite;
+  animation: kofi-glow 3s ease-in-out infinite;
 }
 
 .account-chip.kofi-chip:hover,
@@ -712,77 +709,35 @@ h2.dead {
 
 @keyframes kofi-glow {
   0%, 100% { box-shadow: 0 0 0 0 rgba(255, 77, 90, 0); }
-  50% { box-shadow: 0 0 12px 2px rgba(255, 77, 90, 0.55); }
+  50% { box-shadow: 0 0 8px 1px rgba(255, 77, 90, 0.35); }
 }
 
 .kofi-heart {
   display: inline-block;
-  animation: kofi-beat 1.4s ease-in-out infinite, kofi-wiggle 6s ease-in-out infinite;
+  animation: kofi-beat 2s ease-in-out infinite;
 }
 
-/* Two quick beats, then a rest. */
+/* Two soft beats, then a rest. */
 @keyframes kofi-beat {
   0%, 40%, 100% { scale: 1; }
-  10% { scale: 1.3; }
+  10% { scale: 1.12; }
   20% { scale: 1; }
-  30% { scale: 1.22; }
+  30% { scale: 1.08; }
 }
 
-/* A wiggle every six seconds, like it's waving at you. */
-@keyframes kofi-wiggle {
-  0%, 84%, 100% { rotate: 0deg; }
-  87% { rotate: -16deg; }
-  90% { rotate: 14deg; }
-  93% { rotate: -10deg; }
-  96% { rotate: 6deg; }
-}
-
-/* Little hearts that drift up from the button and fade. */
-.kofi-floats {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-.kofi-floats i {
-  position: absolute;
-  left: 50%;
-  top: 20%;
-  font-style: normal;
-  font-size: 10px;
-  color: #ff5a6e;
-  opacity: 0;
-  animation: kofi-float 3.6s ease-out infinite;
-}
-
-.kofi-floats i:nth-child(2) { animation-delay: 1.2s; font-size: 8px; }
-.kofi-floats i:nth-child(3) { animation-delay: 2.4s; font-size: 12px; }
-
-@keyframes kofi-float {
-  0% { opacity: 0; transform: translate(-50%, 0) scale(0.6); }
-  15% { opacity: 0.9; }
-  60% { transform: translate(calc(-50% + 6px), -22px) scale(1); }
-  100% { opacity: 0; transform: translate(calc(-50% - 4px), -36px) scale(0.8); }
-}
-
-/* Calm motion (the game's setting, or the device's): just a steady glow. */
+/* Calm motion (the game's setting, or the device's): a steady glow, no movement. */
 .account-chip.kofi-chip.still,
 .account-chip.kofi-chip.still .kofi-heart {
   animation: none;
 }
 
 .account-chip.kofi-chip.still {
-  box-shadow: 0 0 8px 1px rgba(255, 77, 90, 0.4);
-}
-
-.account-chip.kofi-chip.still .kofi-floats {
-  display: none;
+  box-shadow: 0 0 6px 1px rgba(255, 77, 90, 0.3);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .account-chip.kofi-chip,
   .kofi-heart { animation: none; }
-  .kofi-floats { display: none; }
 }
 
 .account-chip {
@@ -5458,4 +5413,9 @@ body.tutorial #relic-bar {
   display: block;
   height: 100%;
   background: linear-gradient(90deg, #5a7ab0, #9fe8ff);
+}
+
+/* Retry: right under the run's stats, so you can hop straight back in. */
+.retry-btn {
+  margin-top: 10px;
 }

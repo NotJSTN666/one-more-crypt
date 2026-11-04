@@ -1365,7 +1365,7 @@ function accountChip(): string {
   const mute = muteChipHtml()
     + `<button class="account-chip mute-chip news-chip" id="title-news" aria-label="What's new${newsUnread() ? `, ${newsUnread()} unread` : ''}">📰${newsUnread() ? '<i class="news-dot"></i>' : ''}</button>`
     + `<button class="account-chip mute-chip" id="title-settings" aria-label="Settings">⚙️</button>`
-    + `<button class="account-chip mute-chip kofi-chip ${calmMotion() ? 'still' : ''}" id="title-kofi" aria-label="Support One More Crypt"><span class="kofi-heart" aria-hidden="true">❤️</span><span class="kofi-floats" aria-hidden="true"><i>❤</i><i>❤</i><i>❤</i></span></button>`
+    + `<button class="account-chip mute-chip kofi-chip ${calmMotion() ? 'still' : ''}" id="title-kofi" aria-label="Support One More Crypt"><span class="kofi-heart" aria-hidden="true">❤️</span></button>`
     // Install, up top beside the sound, wherever the browser can add the game to the home screen.
     + (installMode() ? `<button class="account-chip install-chip" id="install" aria-label="Install the app">📲 Install</button>` : '');
   if (ONLINE && !session.ready) return `<div class="account-row">${mute}</div>`;
@@ -1965,6 +1965,7 @@ function showDeath(r: RunResult, best: boolean) {
       <div><b>${r.turns}</b>TURNS</div>
       ${r.seconds ? `<div><b>${playTime(r.seconds)}</b>TIME</div>` : ''}
     </div>
+    ${daily ? '' : ch ? '<button class="btn primary retry-btn" id="retry-challenge">↻ Retry<small>Same crypt, same hero</small></button>' : `<button class="btn primary retry-btn" id="again">↻ Retry<small>Straight back in as the ${esc(HERO_BY_ID[game.hero].name)}<span class="keys-hint"> · Enter or R</span></small></button>`}
     ${first ? `${welcomeTrackHtml()}${reminderPromptHtml()}` : ''}
     ${ONLINE && !ch ? `<p class="rank-line ${daily ? 'daily-rank' : ''}" id="rank">${signedIn() ? 'Carving your name into the crypt…' : daily ? 'Counting the fallen…' : ''}</p>` : ''}
     ${ONLINE && (!signedIn() || unclaimed()) ? claimInlineHtml(ch ? 'Pick a name to post your run to the challenge board. No email needed.' : `You're on ${daily ? "today's" : 'the'} board as ${unclaimed() ? esc(playerName()) : 'a guest'}. Type a name and your runs show under it. No email needed.`) : ''}
@@ -1998,19 +1999,16 @@ function showDeath(r: RunResult, best: boolean) {
       <button class="btn" id="copy">Copy result</button>
     </div>`
         : ch
-          ? `<button class="btn primary" id="retry-challenge">⚔️ Try again<small>Same crypt, same hero</small></button>
-    <button class="btn" id="pass-challenge">📨 Pass the challenge on<small>Send ${esc(ch.name)}'s crypt to a friend</small></button>
+          ? `<button class="btn" id="pass-challenge">📨 Pass the challenge on<small>Send ${esc(ch.name)}'s crypt to a friend</small></button>
     ${discordBtn}
     <div class="row">
       <button class="btn" id="copy">Copy result</button>
-      <button class="btn" id="again">Endless<small class="keys-hint">Enter or R</small></button>
     </div>`
           : `${first ? '' : reminderPromptHtml()}${installNudgeHtml()}
     ${ONLINE ? `<button class="btn challenge-btn" id="challenge">⚔️ Challenge a friend<small>Same crypt, same hero. Can they beat floor ${r.floor}?</small></button>` : ''}
     ${discordBtn}
     <div class="row">
       <button class="btn" id="copy">Copy result</button>
-      <button class="btn" id="again">Descend again<small class="keys-hint">Enter or R</small></button>
     </div>`
     }
     <div class="row grid2">
@@ -2047,7 +2045,8 @@ function showDeath(r: RunResult, best: boolean) {
   on('#pass-challenge', () => ch && showChallengeShare(ch.code, `${ch.name} reached floor ${ch.floor}`, backHere, true));
   if (ch) void fillChallengeBoard(ch);
   on('#copy', async () => toast((await copyText(shareText(r, lastLabel, beat()) + '\n' + siteUrl())) ? 'Copied!' : 'Copy failed'));
-  on('#again', () => showHeroSelect(() => startRun('endless'), backHere));
+  // After the Daily, Endless is a new choice (pick a hero); after Endless, Retry is straight back in.
+  on('#again', () => (daily ? showHeroSelect(() => startRun('endless'), backHere) : quickRestart()));
   if (daily) wireHordeButton();
   if (daily) showEndlessRecord();
   on('#ossuary', () => showOssuary(backHere));
@@ -2749,10 +2748,10 @@ function finishRaid(fell: boolean) {
       <div class="podium-medal">${fell ? '💀' : '🔔'}</div>
       <h2 class="podium-title">${fell ? 'You fell' : 'The bell rings you out'}</h2>
       <p class="sub">You dealt <b>${dmg}</b> damage to ${esc(name)}.</p>
+      ${again ? '<button class="btn primary retry-btn" id="raid-again">↻ Retry<small>Same boss. Every hit counts.</small></button>' : ''}
       <div class="souls-earned"><b>+${reward.souls} Souls</b><span>💀 ${meta.souls} to spend in the Ossuary</span></div>
       ${err ? `<p class="form-status">${esc(err)}</p>` : st ? raidBarHtml(st) : '<p class="fine">Landing your blows…</p>'}
       ${st?.felled ? `<p class="act2-ready">☠️ ${esc(name)} has fallen! Everyone who fought earns a reward.</p>` : st ? `<p class="fine raid-meta"><span data-raid-players>${raidPlayersText(st)}</span> · keep it up, the bar is shared</p>` : ''}
-      ${again ? '<button class="btn primary" id="raid-again">⚔️ Fight again<small>Same boss, same crypt. Every hit counts.</small></button>' : ''}
       <button class="btn" id="raid-watch">🔔 Watch the bar</button>
       <button class="btn" id="back">Back to the title</button>`);
     on('#raid-again', () => showHeroSelect(() => startRaid(run.slot), () => showRaid(showTitle), `The Bell Tolls · ${name}`));
@@ -3118,9 +3117,9 @@ function finishHorde() {
         <div><b>${g.kills}</b><span>Kills</span></div>
         <div><b>×${h.bestMult}</b><span>Best combo</span></div>
       </div>
+      <button class="btn primary retry-btn" id="horde-again">↻ Retry<small>Same arena, same hero</small></button>
       <p class="fine">Today's best: wave ${meta.horde.wave} · ${meta.horde.best.toLocaleString()} pts</p>
       <div class="souls-earned"><b>+${reward.souls} Souls</b><span>💀 ${meta.souls} to spend in the Ossuary</span></div>
-      <button class="btn primary" id="horde-again">🛡️ Go again<small>Same arena, same hero</small></button>
       ${ONLINE ? `<h3 class="shop-head">Today's Horde board</h3><p class="fine" id="horde-rank">Posting your run…</p><ol class="raid-top" id="horde-board"><li class="fine">Loading…</li></ol>` : ''}
       <button class="btn" id="horde-copy">Copy result</button>
       ${ONLINE && (!signedIn() || unclaimed()) ? claimInlineHtml(`You're on today's Horde board as ${unclaimed() ? esc(playerName()) : 'a guest'}. Type a name and your runs show under it.`) : ''}
@@ -3902,9 +3901,9 @@ function finishStory(won: boolean) {
         <img class="hero-portrait ${auraClass(outfitFor(game.hero).aura).cls}" style="${auraClass(outfitFor(game.hero).aura).style}" src="${heroPortrait(game.hero, game.relics, game.relicLog, 8, outfitFor(game.hero).look, outfitFor(game.hero).head)}" alt="" width="96" height="96" />
         <h2 class="dead">The crypt claims you</h2>
         <p class="sub">${esc(q.dungeon.name)} · floor ${game.floor} · slain by ${esc(game.killedBy)}</p>
+        <button class="btn primary retry-btn" id="retry">↻ Retry<small>Same dungeon, same crypt</small></button>
         <div class="souls-earned"><b>+${reward.souls} Souls</b><span>💀 ${meta.souls} to spend in the Ossuary</span></div>
         <p class="talk-quip">${storyText(DEATH_QUIPS[(game.turns + q.n) % DEATH_QUIPS.length])}</p>
-        <button class="btn primary" id="retry">Try again<small>Same dungeon, same crypt</small></button>
         <button class="btn" id="world">Back to Gravesend</button>`);
       on('#retry', () => beginDungeon(q));
       on('#world', () => enterHollow());

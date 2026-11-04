@@ -454,12 +454,12 @@ export function showNightShift(back: () => void) {
           <div><b>${n.level}</b><span>level</span></div>
           <div><b>${n.bossKills}</b><span>bosses taken down</span></div>
         </div>
+        <button class="btn primary retry-btn" id="ns-again">↻ Retry<small>Another night, straight away</small></button>
         <p class="ns-build">${build}</p>
         <div class="souls-chip">💀 <b>+${souls}</b> Souls</div>
         ${title ? '<p class="fine">🏅 New title: <b>The Unsleeping</b></p>' : ''}
         ${featsWon.length ? `<p class="fine">🏅 Achievements: ${featsWon.map((a) => `<b>${esc(a.name)}</b>`).join(' · ')}</p>` : ''}
         <p class="fine">Best: ${s.nightKills} put down · longest night ${fmt(s.nightBest)} · ${s.nights} night${s.nights === 1 ? '' : 's'} stood</p>
-        <button class="btn primary" id="ns-again">🌙 Stand another night</button>
         ${ONLINE ? `<h3 class="shop-head">This week's Night Shift</h3><p class="fine" id="ns-rank">Posting your night…</p><ol class="raid-top" id="ns-board"><li class="fine">Loading…</li></ol><button class="btn" id="ns-boards">🏆 All Night Shift boards</button>` : ''}
         ${ONLINE && (!signedIn() || unclaimed()) ? claimInlineHtml(`You're on the Night Shift board as ${unclaimed() ? esc(playerName()) : 'a guest'}. Type a name and your nights show under it.`) : ''}
         <button class="btn" id="back">← Back</button>`);
