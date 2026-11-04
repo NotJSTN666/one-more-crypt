@@ -8,7 +8,7 @@ import { centralDate } from './daily';
 import { NIGHT_GIFT, NIGHT_GIFT_KILLS } from './graveshift';
 import { heroSprite } from './hero';
 import { grave, groundFor, hash, paintGround, seasonWeather, setDress, tree, type Dress, type Px } from './hollow-art';
-import { grantFeats, graveState, meta, outfitFor, receiveGift, saveMeta } from './meta';
+import { grantFeats, graveState, meta, noteTrial, outfitFor, receiveGift, saveMeta } from './meta';
 import { celebrate, celebrateNotes } from './progress-ui';
 import type { AchievementDef } from './content';
 import {
@@ -427,6 +427,8 @@ export function showNightShift(back: () => void) {
     ended = true;
     cleanup();
     for (const a of grantFeats(nightFeats(n))) featsWon.push(a);
+    const trial = noteTrial({ kind: 'night', seconds: n.t }, true);
+    featsWon.push(...trial.feats);
     const s = graveState();
     const souls = nightSouls(n);
     const best = n.kills > s.nightKills;
@@ -469,6 +471,7 @@ export function showNightShift(back: () => void) {
       }, () => showLeaderboard(back, 'night', 25, 'week'));
       if (ONLINE) void loadBoard(n.kills > 0);
       if (title) toast('🏅 Title unlocked: The Unsleeping');
+      if (trial.completed) toast('⚔️ Weekly Trial complete! +300 Souls');
       if (featsWon.length) {
         celebrate(featsWon);
         celebrateNotes(featCosmetics(featsWon.map((a) => a.id)));

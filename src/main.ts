@@ -1,7 +1,8 @@
 import './style.css';
 import { audioRunning, fusionSound, isMusicEnabled, isMuted, onAudioState, setMusicDepth, setMusicEnabled, setMusicMood, setMuted, sfx, unlockAudio } from './audio';
-import { centralDate, dailyNumber, formatCountdown, msUntilNextDaily } from './daily';
+import { centralDate, dailyNumber, formatCountdown, msUntilNextDaily, weekStart } from './daily';
 import { liveNews, unreadNews, type NewsGo } from './news';
+import { TRIAL_SOULS, trialProgressText, weekTrial } from './trials';
 import { ACHIEVEMENT_BY_ID, DAILY_TOTALS, ELITES, FEATURES, HERO_BY_ID, dailyHero, hordeHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait, heroSprite } from './hero';
 import { BOON_BY_ID, ENEMY_INFO, MIST_BITE, REAPER_FLOOR, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode } from './game';
@@ -1204,6 +1205,7 @@ function showTitle() {
     ${streak > 1 ? `<div class="streak">🕯️ ${streak}-day streak</div>` : ''}
     ${raid.phase === 'soon' ? raidCardHtml(raid) : ''}
     ${welcomeTitleHtml()}
+    ${trialHtml()}
     ${bountiesHtml(today)}
     </div><div class="title-more">
     <h2 class="title-section">Adventure</h2>
@@ -1971,6 +1973,7 @@ function showDeath(r: RunResult, best: boolean) {
     }
     ${first ? '' : welcomeTrackHtml()}
     ${nextGoalHtml()}
+    ${trialHtml()}
     ${ch ? challengeResultHtml(r, ch) : ''}
     ${soulRankHtml()}
     ${
@@ -2381,6 +2384,14 @@ function welcomeTrackHtml(): string {
 }
 
 /** Seven Nights on the title screen: a gift waiting today, or tomorrow's. */
+/** The Weekly Trial, on the title screen and after a run. */
+function trialHtml(): string {
+  const t = weekTrial();
+  const s = meta.trial;
+  const done = Boolean(s && s.week === weekStart() && s.done);
+  return `<div class="trial ${done ? 'done' : ''}">⚔️ <b>Weekly Trial:</b> ${esc(t.text)}. ${done ? '✅ Done! New trial on Monday.' : `${trialProgressText(t, s)} · ${TRIAL_SOULS} Souls`}</div>`;
+}
+
 function welcomeTitleHtml(): string {
   const waiting = welcomeWaiting(dailyNumber());
   if (waiting) return `<div class="welcome-title">🎁 <b>Day ${waiting.day} gift waiting:</b> ${esc(welcomeLabel(waiting.reward).name)}. Finish any run to claim it.</div>`;

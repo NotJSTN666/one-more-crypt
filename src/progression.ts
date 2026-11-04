@@ -286,6 +286,8 @@ LOOKS.push({ id: 'siegelord', name: "Siege Lord's Mantle", cloak: { p: '#8a1f2c'
 LOOKS.push({ id: 'macabre', name: 'Danse Macabre', cloak: { p: '#141119', P: '#e8dcc4' }, aura: '#d3b0ff', unlock: { feat: 'hordedanced' }, how: 'Hold 10 Horde waves with Death in the arena.' });
 
 // Death's own: for outrunning him.
+// The Weekly Trial.
+LOOKS.push({ id: 'trialcloak', name: "Trialbearer's Cloak", cloak: { p: '#4a5a8a', P: '#c99a2e' }, aura: '#f2c14e', unlock: { feat: 'trial4' }, how: 'Complete 4 Weekly Trials.' });
 // Friends: answering summons as a ghost.
 LOOKS.push({ id: 'shepherd', name: "Shepherd's Shroud", cloak: { p: '#9fb4cc', P: '#4a5a72' }, aura: '#c9f2ff', unlock: { feat: 'shepherd10' }, how: 'Have your ghost answer 10 summons from other players.' });
 // Feats of skill.
@@ -882,6 +884,7 @@ export const AURAS: AuraDef[] = [
   // Midwinter.
   { id: 'fairylights', name: 'Fairy Lights', style: 'fairylights', color: '#ffd23f', unlock: { cost: 2500, season: 'midwinter' }, how: 'Sold in the Ossuary during Midwinter (the day after Thanksgiving to January 6) for 2,500 Souls.' },
   { id: 'northernlights', name: 'Northern Lights', style: 'aurora', color: '#5fd3a6', unlock: { cost: 4000, season: 'midwinter' }, how: 'Sold in the Ossuary during Midwinter (the day after Thanksgiving to January 6) for 4,000 Souls.' },
+  { id: 'proven', name: 'Proven', style: 'banner', color: '#f2c14e', unlock: { feat: 'trial12' }, how: 'Complete 12 Weekly Trials.' },
   { id: 'guidinglight', name: 'Guiding Light', style: 'wisps', color: '#c9f2ff', unlock: { feat: 'shepherd50' }, how: 'Have your ghost answer 50 summons from other players.' },
   { id: 'unscathed', name: 'Unscathed', style: 'shards', color: '#e8fbff', unlock: { feat: 'unscathed' }, how: 'Clear 5 floors in one run without taking damage (from floor 3).' },
   { id: 'trophyhunter', name: 'Trophy Hunter', style: 'bone', color: '#c4a046', unlock: { feat: 'hunterall' }, how: 'Master every foe in the Bestiary.' },

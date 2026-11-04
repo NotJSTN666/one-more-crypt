@@ -6,6 +6,7 @@ import { Game, REAPER_FLOOR, TITHE_SOULS, UNDEAD, basePool, fullPool, type Mode,
 import { cleanGraveState, newGraveState, type GraveState } from './graveshift';
 import { ISLE_ITEM, LAND, cleanIsle, emptyIsle, fits, homeKey, homeOf, islePerks, itemAt, layout, owned, type IsleState } from './isle';
 import { centralDate, dailyNumber } from './daily';
+import { TRIAL_FEATS, TRIAL_SOULS, advanceTrial, type TrialEvent, type TrialState } from './trials';
 import { ACT1_QUESTS } from './story';
 import { FUSIONS, RELICS, UNLOCKABLE_RELICS, type FusedId, type RelicId } from './relics';
 import {
@@ -108,6 +109,9 @@ export interface Meta {
   dailyTotal: number;
   /** Runs finished today (by Daily number), for the one-more-run bonus. */
   runsToday: { day: number; n: number };
+  /** This week's trial, and how many weekly trials have been completed in all. */
+  trial?: TrialState;
+  trialsDone: number;
 }
 
 export interface RaidProgress {
@@ -164,7 +168,7 @@ function empty(): Meta {
     podiums: {}, podiumChecked: 0, bought: [], streak: { best: 0, count: 0, last: 0 },
     bounties: { day: 0, ids: [], progress: [], done: [] },
     weekly: {}, weeklyChecked: '',
-    story: emptyStory(), pet: '', summonsSeen: '', summonsTotal: 0, patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null, raid: { joined: [], won: [], lost: [] }, invite: { from: '', claimed: false, friends: 0 }, horde: { day: 0, best: 0, wave: 0 }, gifts: [], hallHidden: [], dailyTotal: 0, runsToday: { day: 0, n: 0 },
+    story: emptyStory(), pet: '', summonsSeen: '', summonsTotal: 0, patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null, raid: { joined: [], won: [], lost: [] }, invite: { from: '', claimed: false, friends: 0 }, horde: { day: 0, best: 0, wave: 0 }, gifts: [], hallHidden: [], dailyTotal: 0, runsToday: { day: 0, n: 0 }, trialsDone: 0,
   };
 }
 
@@ -261,6 +265,7 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   // How the Hall is decorated is a choice: keep this device's, unless it hasn't made one.
   if (!meta.hallHidden.length) meta.hallHidden = ids(other.hallHidden);
   meta.dailyTotal = Math.max(meta.dailyTotal ?? 0, Math.floor(Number(other.dailyTotal) || 0));
+  meta.trialsDone = Math.max(meta.trialsDone ?? 0, Math.floor(Number(other.trialsDone) || 0));
   // Grave Shift is one plot: whichever device changed it last wins.
   if (other.grave && typeof other.grave === 'object' && (Number(other.grave.at) || 0) > (meta.grave?.at ?? -1)) meta.grave = cleanGraveState(other.grave, Date.now());
   meta.duels = [...new Set([...meta.duels, ...(Array.isArray(other.duels) ? other.duels.map(String) : [])])];
@@ -417,6 +422,30 @@ function grant(id: string): AchievementDef | null {
   meta.souls += a.souls;
   meta.earned += a.souls;
   return a;
+}
+
+/**
+ * Count something toward this week's trial. On completing it, the trial's Souls are paid
+ * here only when `pay` is set (a run adds them to its own Souls line instead), and the
+ * trials-completed achievements are granted.
+ */
+export function noteTrial(e: TrialEvent, pay = false): { completed: boolean; feats: AchievementDef[] } {
+  const { state, completed } = advanceTrial(meta.trial, e);
+  meta.trial = state;
+  const feats: AchievementDef[] = [];
+  if (completed) {
+    meta.trialsDone = (meta.trialsDone ?? 0) + 1;
+    if (pay) {
+      meta.souls += TRIAL_SOULS;
+      meta.earned += TRIAL_SOULS;
+    }
+    for (const [n, id] of TRIAL_FEATS) {
+      const won = meta.trialsDone >= n ? grant(id) : null;
+      if (won) feats.push(won);
+    }
+  }
+  saveMeta();
+  return { completed, feats };
 }
 
 /** Grant any of these achievements not yet held, and save. Returns the new ones. */
@@ -589,13 +618,17 @@ export function finishRunMeta(game: Game, streak: number): RunReward {
   meta.runsToday = { day: today, n };
   const extra = n === 2 ? 15 : n === 3 ? 30 : 0;
   if (extra) lines.push([`${n === 2 ? '2nd' : '3rd'} run today`, extra]);
+  // The Weekly Trial.
+  const s = game.stats;
+  const trial = noteTrial({ kind: 'run', kills: game.kills, bosses: Object.values(s.bosses).reduce((a, b) => a + (b ?? 0), 0), hero: game.hero, floor: game.floor, vaults: s.vaults, fusions: s.fusions, daily: game.mode === 'daily' });
+  if (trial.completed) lines.push(['Weekly Trial complete', TRIAL_SOULS]);
   const souls = lines.reduce((sum, [, n]) => sum + n, 0);
   const st = meta.heroStats[game.hero] ?? { floor: 0, souls: 0, runs: 0 };
   meta.heroStats[game.hero] = { floor: Math.max(st.floor, game.floor), souls: st.souls + souls, runs: st.runs + 1 };
   meta.souls += souls;
   meta.earned += souls;
   meta.elitesSlain += game.stats.elites;
-  const achievements = checkRun(game);
+  const achievements = [...checkRun(game), ...trial.feats];
   const total = meta.dailyTotal ?? 0;
   for (const id of [streak >= 3 ? 'streak3' : '', streak >= 7 ? 'streak7' : '', ...DAILY_TOTALS.filter(([n]) => total >= n).map(([, id]) => id)]) {
     const got = id && grant(id);
@@ -1341,6 +1374,8 @@ export function finishHordeMeta(dailyNo: number, score: number, wave: number, ki
       feats.push(def);
     }
   }
+  const trial = noteTrial({ kind: 'horde', wave }, true);
+  feats.push(...trial.feats);
   const h = meta.horde.day === dailyNo ? meta.horde : { day: dailyNo, best: 0, wave: 0 };
   const best = score > h.best;
   meta.horde = best ? { day: dailyNo, best: score, wave } : h;

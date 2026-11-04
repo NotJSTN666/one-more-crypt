@@ -5349,3 +5349,21 @@ body.tutorial #relic-bar {
   color: var(--gold);
   font-weight: normal;
 }
+
+/* The Weekly Trial. */
+.trial {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border: 1px solid #4a5a8a;
+  background: rgba(90, 120, 200, 0.08);
+  font-size: 13px;
+}
+
+.trial b {
+  color: #9fb4ff;
+  font-weight: normal;
+}
+
+.trial.done {
+  border-color: var(--heal);
+}
