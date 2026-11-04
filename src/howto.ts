@@ -235,7 +235,7 @@ export function howToHtml(links: { discord: string; kofi: string }): string {
       ${card(icon('🏛️'), 'Crypt Hall', 'Your trophies, statues and titles.')}
       ${card(icon('👘'), 'Wardrobe', 'Dress your heroes. Outfits show in runs and on the leaderboards.')}
     </div>
-    <p class="howto-foot">Share runs, report bugs and suggest ideas in the <a href="${links.discord}" target="_blank" rel="noopener">Discord</a> 💬 · Free, with no ads: <a href="${links.kofi}" target="_blank" rel="noopener">tip on Ko-fi</a> ☕</p>
+    <p class="howto-foot">Share runs, report bugs and suggest ideas in the <a href="${links.discord}" target="_blank" rel="noopener">Discord</a> 💬 · Free, with no ads: <a href="${links.kofi}" target="_blank" rel="noopener">tip on Ko-fi</a> ❤️</p>
   `;
 }
 

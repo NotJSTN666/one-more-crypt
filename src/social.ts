@@ -178,7 +178,7 @@ async function syncMeta() {
     const remote = await loadRemoteMeta(acc.id);
     if (remote) mergeMeta(remote as Partial<Meta>);
     if (!meta.patron && (await isPatron(acc.id)) && grantPatron()) {
-      toast('☕ Thank you for keeping the crypt open! The Patron of the Crypt title is yours in the Hall.');
+      toast('❤️ Thank you for keeping the crypt open! The Patron of the Crypt title is yours in the Hall.');
     }
     if (KEEPERS.includes(acc.id) && grantVault()) toast('🗝️ The vault is open: every cloak, headpiece, aura, title and Hall decoration is yours.');
     await saveRemoteMeta(acc.id, meta);

@@ -55,7 +55,7 @@ export const DISCORD_URL = 'https://discord.gg/V454sdbTQH';
 export const discordHtml = `<a class="follow-x discord" href="${DISCORD_URL}" target="_blank" rel="noopener">💬 Join the Discord</a>`;
 
 /** The tip jar: free, no ads, tips keep the domain and servers running. */
-export const kofiHtml = `<a class="follow-x kofi" href="${KOFI_URL}" target="_blank" rel="noopener">☕ Keep the crypt open</a>`;
+export const kofiHtml = `<a class="follow-x kofi" href="${KOFI_URL}" target="_blank" rel="noopener">❤️ Keep the crypt open</a>`;
 
 export async function copyText(text: string): Promise<boolean> {
   try {

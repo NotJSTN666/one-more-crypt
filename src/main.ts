@@ -942,18 +942,18 @@ function showSettings(back: () => void) {
   on('#back', back);
 }
 
-// The title screen's ☕ button: a word about donations, then on to Ko-fi if they like.
+// The title screen's ❤️ button: a word about donations, then on to Ko-fi if they like.
 document.addEventListener('click', (e) => {
   if ((e.target as HTMLElement).closest?.('#title-kofi')) showSupport(showTitle);
 });
 
 function showSupport(back: () => void) {
   showOverlay('support', `
-    <h2>☕ Keep the crypt open</h2>
+    <h2>❤️ Keep the crypt open</h2>
     <p class="sub">One More Crypt is free to play, with no ads.</p>
     <p class="fine">Donations are welcome and help keep the crypt open: the servers, the leaderboards and a new crypt every day. Supporters get the Patron of the Crypt title and the rainbow Patron's Prism aura as thanks.</p>
     ${meta.patron ? '<p class="fine">You already support the crypt. Thank you!</p>' : ''}
-    <button class="btn primary" id="kofi-go">☕ Donate on Ko-fi</button>
+    <button class="btn primary" id="kofi-go">❤️ Donate on Ko-fi</button>
     <button class="btn" id="back">Back</button>`);
   on('#kofi-go', () => window.open(KOFI_URL, '_blank', 'noopener'));
   on('#back', back);
@@ -1365,7 +1365,7 @@ function accountChip(): string {
   const mute = muteChipHtml()
     + `<button class="account-chip mute-chip news-chip" id="title-news" aria-label="What's new${newsUnread() ? `, ${newsUnread()} unread` : ''}">📰${newsUnread() ? '<i class="news-dot"></i>' : ''}</button>`
     + `<button class="account-chip mute-chip" id="title-settings" aria-label="Settings">⚙️</button>`
-    + `<button class="account-chip mute-chip kofi-chip" id="title-kofi" aria-label="Support One More Crypt"><span class="kofi-cup" aria-hidden="true">☕️<i></i><i></i><i></i></span></button>`
+    + `<button class="account-chip mute-chip kofi-chip" id="title-kofi" aria-label="Support One More Crypt"><span class="kofi-heart" aria-hidden="true">❤️</span></button>`
     // Install, up top beside the sound, wherever the browser can add the game to the home screen.
     + (installMode() ? `<button class="account-chip install-chip" id="install" aria-label="Install the app">📲 Install</button>` : '');
   if (ONLINE && !session.ready) return `<div class="account-row">${mute}</div>`;
@@ -2112,7 +2112,7 @@ function showDeath(r: RunResult, best: boolean) {
 function tipNoteHtml(): string {
   const runs = runsPlayed();
   if (meta.patron || runs < 5 || runs % 10 !== 5) return '';
-  return `<p class="fine tip-note">Thanks for playing. One More Crypt is free with no ads; if you're enjoying it, a <a href="${KOFI_URL}" target="_blank" rel="noopener">☕ tip on Ko-fi</a> keeps the crypt open.</p>`;
+  return `<p class="fine tip-note">Thanks for playing. One More Crypt is free with no ads; if you're enjoying it, a <a href="${KOFI_URL}" target="_blank" rel="noopener">❤️ tip on Ko-fi</a> keeps the crypt open.</p>`;
 }
 
 // ---------- challenge links ----------
