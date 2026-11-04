@@ -105,8 +105,13 @@ export function showOverlay(name: string, html: string) {
   const menu = !RUN_SCREENS.includes(name);
   document.body.classList.toggle('menu', menu);
   overlay.classList.toggle('menu', menu);
-  // The same screen drawn again (a tab, a purchase): no entrance, so it doesn't blink.
-  if (!fresh) overlay.classList.remove('enter');
+  // The same screen drawn again (a tab, a purchase): no entrance, so it doesn't blink. Menus
+  // drop the entrance; run screens keep their dimmed, blurred backdrop (taking it away makes
+  // phones repaint the screen in a flash) and only stop the panel animating in again.
+  if (!fresh) {
+    if (menu) overlay.classList.remove('enter');
+    else overlay.classList.add('again');
+  } else overlay.classList.remove('again');
   const keepScroll = fresh ? 0 : overlay.scrollTop;
   overlay.innerHTML = `<div class="panel">${html}</div>`;
   const exit = menu && !OWN_EXIT.includes(name) && !overlay.querySelector('.back-top') ? exitButton() : null;
@@ -122,15 +127,12 @@ export function showOverlay(name: string, html: string) {
   overlay.hidden = false;
   overlay.scrollTop = keepScroll;
   if (fresh) {
-    // Restart the entrance: a reveal for run screens, a gentle rise for menus. It's taken
-    // off again once played, so redrawing this screen later doesn't replay it.
+    // Restart the entrance: a reveal for run screens, a gentle rise for menus. (A redraw of
+    // the same screen drops it, above, so it never replays; it stays put otherwise, since run
+    // screens keep their backdrop and glows from it.)
     overlay.classList.remove('enter');
     void overlay.offsetWidth;
     overlay.classList.add('enter');
-    const shown = overlayShownAt;
-    window.setTimeout(() => {
-      if (overlayShownAt === shown || screen === name) overlay.classList.remove('enter');
-    }, 1400);
   }
 }
 

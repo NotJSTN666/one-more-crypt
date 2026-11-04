@@ -5419,3 +5419,12 @@ body.tutorial #relic-bar {
 .retry-btn {
   margin-top: 10px;
 }
+
+/* A run screen redrawn in place (its relic list opened, say): the backdrop stays, nothing re-enters. */
+#overlay.enter.again::before,
+#overlay.enter.again > .panel,
+#overlay.enter.again > .panel > h2,
+#overlay.enter.again .offer button,
+#overlay.enter.again .offer button::after {
+  animation: none;
+}
