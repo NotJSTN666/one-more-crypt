@@ -23,6 +23,31 @@ export interface NewsDay {
 
 export const NEWS: NewsDay[] = [
   {
+    date: '2026-11-03',
+    title: 'Weekly Trials, hero mastery and a pile of new goals',
+    notes: [
+      '🎯 The Weekly Trial: one goal a week, the same for everyone, met over your ordinary runs in any mode. Complete it for 300 Souls, and trials completed add up to a cloak and an aura.',
+      '⭐ Hero mastery: every hero has five ranks, earned with the Souls you win as them. Rank 3 brings their mastery cloak, rank 5 the title Master.',
+      '🛒 The Grave Market: one rare cloak, hat or aura on sale each day at the top of the Ossuary, the same for everyone. Each is sold only on its day.',
+      '🛡️ Grave Wards: every 7 Dailies in a row earn a ward that keeps your streak through one missed day. Daily totals (10, 30, 100 and 365, in a row or not) bring Souls, titles and rewards.',
+      '🌙 Night Shift achievements: survive 5, 15 and 25 minutes, put down thousands, take down all three bosses and more, with cloaks, hats, auras and Hall pieces.',
+      '🏆 New achievements: Unscathed, Courier, Ascetic and Giant Killer for skilled runs; boss hats for slaying each boss 25 times; the Monster Hunter set from the Bestiary; and rewards for answering friends\' summons and winning challenges.',
+      '🏰 Four new Hall decorations in the Ossuary: a Crypt Library, a Hound\'s Bed, a Trophy Pedestal and a Grave Hearth with a live fire.',
+      '⚔️ Rivals: make anyone your rival from their Hall, and the title screen compares your Daily and your deepest descents.',
+      '🤝 Everyone together: a monthly count of foes slain by all players. Reach 1,000,000 and everyone who played that month earns a Hall banner.',
+      '💰 Soul Surge: double Souls from every run on the second Saturday of each month and the Sunday after.',
+      '📈 The results screen names your next goal, and your 2nd and 3rd runs of the day pay extra Souls.',
+      '🔁 A Retry button on every results screen but the Daily\'s, to jump straight back in.',
+      '❤️ The support button is now a heart.',
+      '🌫️ Act II\'s plague mist is now easy to see, even away from your light.',
+    ],
+    fixes: [
+      '🔢 Small numbers are easier to read: a 2 no longer looks like an 8.',
+      '✨ Menus no longer blink when you switch tabs or buy something, and the relic screen no longer flashes after it opens.',
+    ],
+    go: ['wardrobe', 'endless'],
+  },
+  {
     date: '2026-11-01',
     title: 'The Harvest Feast, and longer nights',
     notes: [
