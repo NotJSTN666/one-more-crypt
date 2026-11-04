@@ -112,6 +112,7 @@ export type GameEvent =
   | { t: 'dart'; from: Pos; to: Pos; hit: boolean }
   | { t: 'burst'; x: number; y: number }
   | { t: 'shot'; from: Pos; to: Pos; hit: boolean }
+  | { t: 'missile'; from: Pos; to: Pos }
   | { t: 'summon'; x: number; y: number }
   | { t: 'raise'; x: number; y: number }
   | { t: 'teleport'; id: number; from: Pos; to: Pos }
@@ -247,6 +248,8 @@ export interface RunConfig {
   fair?: boolean;
   /** Once the relics run out, a blood shrine or a hidden vault gives one Abyss boon instead of two (log version 19 and later). */
   lean?: boolean;
+  /** The Mage's Magic Missile: waiting a turn casts one at the nearest foe in sight (log version 20 and later). */
+  missile?: boolean;
 }
 
 /** Something the Grave Magnet pulled, and where from. */
@@ -320,6 +323,8 @@ export interface RunStats {
   maxAllies: number;
   bossAtOneHp: boolean;
   arrowKills: number;
+  /** Foes the Mage's Magic Missile slew. */
+  missileKills: number;
   revived: boolean;
   /** Foes slain this run, by kind (for the Bestiary). */
   kinds: Partial<Record<EnemyKind, number>>;
@@ -389,6 +394,11 @@ const VOLLEY_LOG_VERSION = 17;
 const FAIR_LOG_VERSION = 18;
 /** Adds the leaner deep gifts: see RunConfig.lean. */
 const LEAN_LOG_VERSION = 19;
+/** Adds the Mage's Magic Missile: see RunConfig.missile. */
+const MISSILE_LOG_VERSION = 20;
+/** The Magic Missile: how far it reaches, and how many turns between casts. */
+export const MISSILE_RANGE = 4;
+export const MISSILE_GAP = 2;
 export const REAPER_FLOOR = 150;
 
 // ---------- Horde ----------
@@ -502,7 +512,7 @@ export class Game {
   private revivedOn = 0;
   stats: RunStats = {
     elites: 0, bosses: {}, spikeKills: 0, maxKillsInTurn: 0, maxHit: 0, cleanFloors: 0, maxAllies: 0, bossAtOneHp: false,
-    arrowKills: 0, revived: false, turnsTo5: 0, turnsTo15: 0, kinds: {}, fusions: 0, shadowSteps: 0, dodges: 0, raised: 0, lowHpKills: 0, vaults: 0,
+    arrowKills: 0, missileKills: 0, revived: false, turnsTo5: 0, turnsTo15: 0, kinds: {}, fusions: 0, shadowSteps: 0, dodges: 0, raised: 0, lowHpKills: 0, vaults: 0,
   };
   /**
    * Every input, in order: U/D/L/R moves, W waits, 0-3 relic picks, r rests,
@@ -518,6 +528,8 @@ export class Game {
   private phylacteryUsed = false;
   private nextId = 1;
   private steps = 0;
+  /** The turn the Mage last cast a Magic Missile. */
+  private lastMissile = -99;
   private attacks = 0;
   private killsThisTurn = 0;
   private hurtThisFloor = false;
@@ -657,6 +669,7 @@ export class Game {
   header(): string {
     const unlocked = UNLOCKABLE_RELICS.filter((id) => this.config.pool.includes(id));
     // Pools without any post-launch relic are logged as version 2 so they replay with the launch set.
+    if (this.config.missile) return `#${MISSILE_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.lean) return `#${LEAN_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.fair) return `#${FAIR_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.volley) return `#${VOLLEY_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
@@ -1168,6 +1181,8 @@ export class Game {
     if (this.phase !== 'play') return false;
     this.killsThisTurn = 0;
     if (dx === 0 && dy === 0) {
+      this.castMissile();
+      if (this.isOver()) return true;
       this.endTurn();
       return true;
     }
@@ -1277,6 +1292,51 @@ export class Game {
     if (e.dead) this.stats.spikeKills++;
   }
 
+  /** Mage: a Magic Missile would fly if they waited now. */
+  get missileReady(): boolean {
+    return this.hero === 'mage' && Boolean(this.config.missile) && this.turns - this.lastMissile >= MISSILE_GAP && Boolean(this.missileTarget());
+  }
+
+  /** Mage: the nearest foe in sight, within reach, not asleep and not hidden in the mist. */
+  missileTarget(): Enemy | undefined {
+    const p = this.player;
+    let best: Enemy | undefined;
+    let bestD = Infinity;
+    for (const e of this.enemies) {
+      if (e.ally || e.dead || e.asleep || this.inMist(e.x, e.y)) continue;
+      const d = Math.max(Math.abs(e.x - p.x), Math.abs(e.y - p.y));
+      if (d > MISSILE_RANGE) continue;
+      const near = d * 100 + Math.abs(e.x - p.x) + Math.abs(e.y - p.y);
+      if (near < bestD && this.clearSight(p, e)) {
+        best = e;
+        bestD = near;
+      }
+    }
+    return best;
+  }
+
+  /** No wall between two tiles (the ends don't count); thralls and foes don't block. */
+  private clearSight(a: Pos, b: Pos): boolean {
+    const n = Math.max(Math.abs(b.x - a.x), Math.abs(b.y - a.y));
+    for (let k = 1; k < n; k++) {
+      const x = Math.round(a.x + ((b.x - a.x) * k) / n);
+      const y = Math.round(a.y + ((b.y - a.y) * k) / n);
+      if (this.isWall(x, y)) return false;
+    }
+    return true;
+  }
+
+  /** Mage: standing still casts a Magic Missile, once every other turn. */
+  private castMissile() {
+    if (this.hero !== 'mage' || !this.config.missile || this.turns - this.lastMissile < MISSILE_GAP) return;
+    const e = this.missileTarget();
+    if (!e) return;
+    this.lastMissile = this.turns;
+    this.events.push({ t: 'missile', from: { x: this.player.x, y: this.player.y }, to: { x: e.x, y: e.y } });
+    this.playerAttack(e, { x: Math.sign(e.x - this.player.x), y: Math.sign(e.y - this.player.y) }, 'missile');
+    if (e.dead) this.stats.missileKills++;
+  }
+
   /** Ranger: the first foe 2-3 tiles away in a clear straight line. */
   bowTarget(dx: number, dy: number): Enemy | undefined {
     for (let k = 1; k <= BOW_RANGE; k++) {
@@ -1304,8 +1364,9 @@ export class Game {
     e.frozen = Math.max(e.frozen, turns);
   }
 
-  private playerAttack(e: Enemy, dir: Pos, ranged = false) {
-    if (ranged) this.events.push({ t: 'shot', from: { x: this.player.x, y: this.player.y }, to: { x: e.x, y: e.y }, hit: false });
+  private playerAttack(e: Enemy, dir: Pos, how: boolean | 'missile' = false) {
+    const ranged = Boolean(how);
+    if (how === true) this.events.push({ t: 'shot', from: { x: this.player.x, y: this.player.y }, to: { x: e.x, y: e.y }, hit: false });
     else this.events.push({ t: 'pattack', dir });
     this.attacks++;
     let dmg = this.atk;
@@ -1325,7 +1386,7 @@ export class Game {
     }
     this.stats.maxHit = Math.max(this.stats.maxHit, dmg);
     this.damageEnemy(e, dmg, ranged ? 'pierce' : 'melee', crit);
-    if (ranged && e.dead) this.stats.arrowKills++;
+    if (how === true && e.dead) this.stats.arrowKills++;
     const echoEvery = this.r('echo') >= 2 ? 3 : 4;
     if (this.r('echo') && this.attacks % echoEvery === 0 && !e.dead) this.damageEnemy(e, dmg, 'melee');
 
@@ -2653,7 +2714,8 @@ export class Game {
     const volley = Number(m[1]) >= VOLLEY_LOG_VERSION;
     const fair = Number(m[1]) >= FAIR_LOG_VERSION;
     const lean = Number(m[1]) >= LEAN_LOG_VERSION;
-    const config: RunConfig = { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy, ...(depths ? { depths } : {}), ...(boons ? { boons } : {}), ...(reaper ? { reaper } : {}), ...(deep ? { deep } : {}), ...(lurk ? { lurk } : {}), ...(surge ? { surge } : {}), ...(waves ? { waves } : {}), ...(magnet ? { magnet } : {}), ...(armory ? { armory } : {}), ...(arsenal ? { arsenal } : {}), ...(volley ? { volley } : {}), ...(fair ? { fair } : {}), ...(lean ? { lean } : {}) };
+    const missile = Number(m[1]) >= MISSILE_LOG_VERSION;
+    const config: RunConfig = { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy, ...(depths ? { depths } : {}), ...(boons ? { boons } : {}), ...(reaper ? { reaper } : {}), ...(deep ? { deep } : {}), ...(lurk ? { lurk } : {}), ...(surge ? { surge } : {}), ...(waves ? { waves } : {}), ...(magnet ? { magnet } : {}), ...(armory ? { armory } : {}), ...(arsenal ? { arsenal } : {}), ...(volley ? { volley } : {}), ...(fair ? { fair } : {}), ...(lean ? { lean } : {}), ...(missile ? { missile } : {}) };
     let rest = full.slice(m[0].length);
     // Version 7 adds one field: the isle's extra max HP.
     const isle = Number(m[1]) >= ISLE_LOG_VERSION ? /^(\d+)\|/.exec(rest) : null;

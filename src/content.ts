@@ -25,7 +25,7 @@ export const HEROES: HeroDef[] = [
   // Added after launch: new heroes go at the end so the daily rotation stays put.
   { id: 'paladin', name: 'Paladin', hp: 9, cost: 250, perk: 'Smite', perkDesc: '+1 damage against the undead. Slaying a boss heals you fully.' },
   { id: 'ranger', name: 'Ranger', hp: 7, cost: 350, perk: 'Longbow', perkDesc: 'Move toward a foe 2-3 tiles away in a clear line to shoot it instead.' },
-  { id: 'mage', name: 'Mage', hp: 5, cost: 400, perk: 'Glass Cannon', perkDesc: '+2 attack, and 1 more for every 4 attack. Only 5 HP: every hit counts.' },
+  { id: 'mage', name: 'Mage', hp: 5, cost: 400, perk: 'Glass Cannon', perkDesc: '+2 attack, and 1 more for every 4. Wait a turn to cast a Magic Missile at the nearest foe in sight, every other turn. Only 5 HP.' },
   { id: 'barbarian', name: 'Barbarian', hp: 11, cost: 450, perk: 'Rage', perkDesc: '+1 attack for every 3 HP you are missing.' },
   { id: 'bellringer', name: 'Bell-Ringer', hp: 8, cost: 0, perk: 'The Toll', perkDesc: 'Every 6th turn your bell rings: foes next to you take 1 damage and lose their next turn.', story: true },
 ];

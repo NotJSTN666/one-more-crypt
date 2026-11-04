@@ -6,7 +6,7 @@ import { TRIAL_SOULS, trialProgressText, weekTrial } from './trials';
 import { ACHIEVEMENT_BY_ID, DAILY_TOTALS, ELITES, FEATURES, HERO_BY_ID, dailyHero, hordeHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait, heroSprite } from './hero';
 import { BOON_BY_ID, ENEMY_INFO, MIST_BITE, REAPER_FLOOR, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode } from './game';
-import { acceptQuest, checkRun, grantFeats, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, finishHordeMeta, receiveGift, equipTitle, FAIR_DAILY, LEAN_DAILY, type RunReward } from './meta';
+import { acceptQuest, checkRun, grantFeats, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, finishHordeMeta, receiveGift, equipTitle, FAIR_DAILY, LEAN_DAILY, MISSILE_DAILY, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
@@ -617,6 +617,7 @@ function playSounds(events: GameEvent[]) {
   if (has('toll') || has('ring')) sfx.toll();
   if (has('timestop')) sfx.timestop();
   if (has('shot')) sfx.shot();
+  if (has('missile')) sfx.zap();
   if (has('dart')) sfx.shot();
   if (has('hurt')) sfx.hurt();
   if (has('block') || has('dodge')) sfx.block();
@@ -987,6 +988,16 @@ function updateBow() {
   }
   $('bow-btn').innerHTML = `🏹 Bow: ${down ? 'lowered' : 'ready'} <kbd>B</kbd>`;
   $('bow-pad').innerHTML = `🏹<small>${down ? 'LOWERED' : 'READY'}</small>`;
+  // The Mage: waiting casts a Magic Missile when one is ready.
+  const missile = Boolean(game?.missileReady);
+  const wait = $('wait-btn');
+  wait.classList.toggle('missile', missile);
+  wait.innerHTML = missile ? '✨ Wait: cast Magic Missile <kbd>Space</kbd>' : '⏳ Wait a turn <kbd>Space</kbd>';
+  const pad = document.querySelector<HTMLElement>('#dpad button.wait, button[data-dir="0,0"].wait');
+  if (pad) {
+    pad.classList.toggle('missile', missile);
+    pad.textContent = missile ? '✨CAST' : 'WAIT';
+  }
 }
 
 /** Lower or raise the Ranger's bow (no turn passes). */
@@ -1133,6 +1144,8 @@ function updateTip() {
   else if (game.secret) tip.innerHTML = 'That <b>cracked wall</b> sounds hollow. Bump it twice to break through.';
   else if ((game.config.depths || game.config.story?.look) && zoneTip(game)) tip.innerHTML = zoneTip(game);
   else if (game.spikes.some(Boolean) && game.turns < 4) tip.innerHTML = '<b>Spikes</b> hurt anything that walks on them. Lure foes across.';
+  else if (game.hero === 'mage' && game.config.missile && game.floor <= 2 && game.turns < 12)
+    tip.innerHTML = `<b>Magic Missile:</b> ${matchMedia('(pointer: coarse)').matches ? 'tap WAIT (or your hero)' : 'press Space'} to stand still and cast at the nearest foe in sight, every other turn.`;
   else if (game.hero === 'ranger' && game.floor <= 2 && game.turns < 8)
     tip.innerHTML = `<b>Longbow:</b> move toward a foe 2-3 tiles away in a straight line to shoot it.${game.canLowerBow ? ' Lower the bow (🏹) to step instead.' : ''}`;
   else if (game.floor === 1 && game.turns < 6)
@@ -3069,7 +3082,7 @@ function startHorde() {
   challenge = null;
   storyRun = null;
   raidRun = null;
-  showGame(new Game('horde', hashSeed('horde', n), n, { hero: hordeHero(n), pool: fullPool(), mercy: true, boons: true, surge: true, waves: true, magnet: true, armory: true, arsenal: true, volley: true, ...(n >= FAIR_DAILY ? { fair: true } : {}), ...(n >= LEAN_DAILY ? { lean: true } : {}) }));
+  showGame(new Game('horde', hashSeed('horde', n), n, { hero: hordeHero(n), pool: fullPool(), mercy: true, boons: true, surge: true, waves: true, magnet: true, armory: true, arsenal: true, volley: true, ...(n >= FAIR_DAILY ? { fair: true } : {}), ...(n >= LEAN_DAILY ? { lean: true } : {}), ...(n >= MISSILE_DAILY ? { missile: true } : {}) }));
   startClock();
   setMusicDepth(1);
   setMusicMood('crypt');
@@ -3841,6 +3854,7 @@ function startStory(q: Quest, ghost: GhostInfo | null) {
     volley: true,
     fair: true,
     lean: true,
+    missile: true,
     story: {
       start: d.floors[0],
       end: d.floors[1],

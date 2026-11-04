@@ -334,6 +334,13 @@ button {
   border-color: var(--gold);
 }
 
+button.wait.missile,
+.wait-btn.missile {
+  color: #e3d0ff;
+  border-color: #8a5cd6;
+  box-shadow: 0 0 10px rgba(176, 124, 255, 0.35);
+}
+
 .wait-btn kbd {
   margin-left: 6px;
   padding: 1px 5px;

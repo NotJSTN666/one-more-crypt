@@ -333,6 +333,12 @@ export class Renderer {
         case 'shot':
           this.lines.push({ from: ev.from, to: ev.to, t: 0, life: 0.18, color: '#e8dcc4' });
           break;
+        case 'missile':
+          // The Mage's Magic Missile: a violet streak and a burst where it lands.
+          this.lines.push({ from: ev.from, to: ev.to, t: 0, life: 0.3, color: '#c9a6ff' });
+          this.burstParticles(ev.to.x, ev.to.y, '#b07cff', 12, 1.3);
+          this.burstParticles(ev.from.x, ev.from.y, '#e3d0ff', 6, 0.8);
+          break;
         case 'burst':
           this.burstParticles(ev.x, ev.y, '#d23a46', 16, 1.8);
           break;
@@ -629,6 +635,7 @@ export class Renderer {
       this.drawSprite(PLAYER_ID, heroSprite(g.hero, g.relics, g.relicLog, this.outfit.look, this.outfit.head, g.bowDown), pd, dt, g.shadowReady ? 0.55 : 1);
       drawAuraFx(this.ctx, this.outfit.aura, ax, ay, SPRITE_SIZE, this.time, 'front');
       this.drawAura(g, pd);
+      if (g.phase === 'play' && g.missileReady) this.drawMissileReady(g, pd);
     }
     if (g.reaper) {
       seen.add(REAPER_ID);
@@ -1231,6 +1238,26 @@ export class Renderer {
         ctx.stroke();
       }
     }
+    ctx.globalAlpha = 1;
+  }
+
+  /** Mage: two motes circle the hero while a Magic Missile is ready, and its target is marked. */
+  private drawMissileReady(g: Game, pd: { x: number; y: number }) {
+    const ctx = this.ctx;
+    const cx = pd.x * TILE + TILE / 2;
+    const cy = pd.y * TILE + TILE / 2;
+    for (let i = 0; i < 2; i++) {
+      const a = this.time * 3 + i * Math.PI;
+      ctx.fillStyle = i ? '#e3d0ff' : '#b07cff';
+      ctx.fillRect(Math.round(cx + Math.cos(a) * 6) - 1, Math.round(cy + Math.sin(a) * 3 - 2) - 1, 2, 2);
+    }
+    const t = g.missileTarget();
+    if (!t) return;
+    const d = this.disp.get(t.id) ?? t;
+    const x = Math.round(d.x * TILE), y = Math.round(d.y * TILE);
+    ctx.globalAlpha = 0.55 + 0.35 * Math.sin(this.time * 6);
+    ctx.fillStyle = '#c9a6ff';
+    for (const [ox, oy, w, h] of [[0, 0, 3, 1], [0, 0, 1, 3], [TILE - 3, 0, 3, 1], [TILE - 1, 0, 1, 3], [0, TILE - 1, 3, 1], [0, TILE - 3, 1, 3], [TILE - 3, TILE - 1, 3, 1], [TILE - 1, TILE - 3, 1, 3]]) ctx.fillRect(x + ox, y + oy, w, h);
     ctx.globalAlpha = 1;
   }
 
