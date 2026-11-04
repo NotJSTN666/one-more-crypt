@@ -105,6 +105,9 @@ export function showOverlay(name: string, html: string) {
   const menu = !RUN_SCREENS.includes(name);
   document.body.classList.toggle('menu', menu);
   overlay.classList.toggle('menu', menu);
+  // The same screen drawn again (a tab, a purchase): no entrance, so it doesn't blink.
+  if (!fresh) overlay.classList.remove('enter');
+  const keepScroll = fresh ? 0 : overlay.scrollTop;
   overlay.innerHTML = `<div class="panel">${html}</div>`;
   const exit = menu && !OWN_EXIT.includes(name) && !overlay.querySelector('.back-top') ? exitButton() : null;
   if (exit) {
@@ -117,12 +120,17 @@ export function showOverlay(name: string, html: string) {
     overlay.querySelector('.panel')!.prepend(top);
   }
   overlay.hidden = false;
-  overlay.scrollTop = 0;
+  overlay.scrollTop = keepScroll;
   if (fresh) {
-    // Restart the entrance: a reveal for run screens, a gentle rise for menus.
+    // Restart the entrance: a reveal for run screens, a gentle rise for menus. It's taken
+    // off again once played, so redrawing this screen later doesn't replay it.
     overlay.classList.remove('enter');
     void overlay.offsetWidth;
     overlay.classList.add('enter');
+    const shown = overlayShownAt;
+    window.setTimeout(() => {
+      if (overlayShownAt === shown || screen === name) overlay.classList.remove('enter');
+    }, 1400);
   }
 }
 
