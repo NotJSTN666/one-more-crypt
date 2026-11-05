@@ -23,6 +23,19 @@ export interface NewsDay {
 
 export const NEWS: NewsDay[] = [
   {
+    date: '2026-11-04',
+    title: 'The Mage casts Magic Missile',
+    notes: [
+      '✨ The Mage: wait a turn to cast a Magic Missile at the nearest foe in sight, every other turn. It hits like his attack, relics and all. In Endless and the story now; in the Daily and Horde from Daily #23.',
+      '🎩 The Arcane Circlet: slay 25 foes with Magic Missiles in one run as the Mage.',
+      '⏳ Relics that go off every few turns, kills or hits show a countdown on their icon, and the Rogue, Bell-Ringer and Mage get one for their own perk.',
+      '👤 The Rogue: HIDING shows over your hero when your next step will go unseen.',
+      '🚪 After the Daily, jump straight into Endless, the Horde or the Night Shift from right under your results.',
+      '🔒 Picked a name as a guest? Add an email to keep it, so clearing your browser never loses it.',
+    ],
+    go: ['endless', 'wardrobe'],
+  },
+  {
     date: '2026-11-03',
     title: 'Weekly Trials, hero mastery and a pile of new goals',
     notes: [
