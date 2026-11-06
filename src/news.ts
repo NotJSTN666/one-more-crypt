@@ -23,8 +23,8 @@ export interface NewsDay {
 
 export const NEWS: NewsDay[] = [
   {
-    date: '2026-11-09',
-    title: 'The Night Shift: dawn, new dead and the Night Shrine',
+    date: '2026-11-05',
+    title: 'The Night Shift\'s biggest night, and light in the dark',
     notes: [
       '🌅 Dawn: survive 30 minutes and the night is won. Greet the sun for half again the Souls, or walk on into the Nightmare.',
       '💀 New dead join as the night goes on: Bone Archers, walls of Shieldbearers, Drowned Chargers and Plague Monks who raise the fallen.',
@@ -37,12 +37,6 @@ export const NEWS: NewsDay[] = [
       '🕯️ Night Pacts: when a boss falls, take a curse on the night for a boon, or refuse. Every pact raises what the night can pay in Souls.',
       '✦ Ascension: from level 40, bosses leave a shard that ascends a fused relic into something far stronger, struck in gold.',
       '🏅 New achievements: Dawnbringer, Mother of Night, Into the Nightmare, Ascendant, Pactbound and Gold Digger.',
-    ],
-  },
-  {
-    date: '2026-11-05',
-    title: 'Light in the dark',
-    notes: [
       '🕯️ The crypt is lit by its lights now: candles, lava, the open stairs, potions, burning and frozen foes and bosses each throw their own light, and your relics tint your lantern.',
       '🌙 The Night Shift: the night deepens and turns as the hours pass, every flame and strike lights the graveyard, and a moon by the clock shows the hour.',
       '☠️ Bosses in the Night Shift make an entrance, and the dead fall each their own way, leaving bones and ichor behind.',

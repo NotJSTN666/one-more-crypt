@@ -106,10 +106,10 @@ export function setDmgNumbers(on: boolean) {
 }
 
 /**
- * The late-night rules (events, elites, pacts and ascension) start with the week of Monday 9
- * November, so the week's board under way keeps one set of rules. ?preview=night2 tries them early.
+ * The late-night rules (events, elites, pacts, ascension, dawn, the new dead and bosses, the
+ * Night Shrine and hero perks), live from 5 November. ?preview=night2 still forces them on.
  */
-export const NIGHT_V2_FROM = '2026-11-09';
+export const NIGHT_V2_FROM = '2026-11-05';
 export function nightV2Live(): boolean {
   return centralDate() >= NIGHT_V2_FROM || /[?&]preview=night2\b/.test(location.search);
 }
