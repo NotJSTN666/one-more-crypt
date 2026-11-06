@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { cleanGraveState, newGraveState } from './graveshift';
-import { ASCEND_LEVEL, ELITE_LEVEL, FIRST_EVENT, NO_PACT, dashDamage, isAscend, isPact, DASH_COOLDOWN, FIELD, FIRST_BOSS, NIGHT_RELICS, POTION_HEAL, dash, dashCooldown, isBlessing, lateNight, MAX_LEVEL, chooseRelic, nightFeats, isFusion, levelChoices, newNight, nightSouls, step, wardMul, xpToLevel } from './nightshift';
+import { DAWN, MOTHER_AT, banish, chooseDawn, reroll, skipLevel, ASCEND_LEVEL, ELITE_LEVEL, FIRST_EVENT, NO_PACT, dashDamage, isAscend, isPact, DASH_COOLDOWN, FIELD, FIRST_BOSS, NIGHT_RELICS, POTION_HEAL, dash, dashCooldown, isBlessing, lateNight, MAX_LEVEL, chooseRelic, nightFeats, isFusion, levelChoices, newNight, nightSouls, step, wardMul, xpToLevel } from './nightshift';
 
 /** A small fixed random source, so every run of a test is the same night. */
 function seeded(seed: number) {
@@ -383,5 +383,75 @@ describe('the late night: events, elites, pacts and ascension', () => {
     expect(nightSouls(n)).toBe(500);
     n.pacts = { hunger: true, haste: true };
     expect(nightSouls(n)).toBe(800);
+  });
+});
+
+describe('the longer night: dawn, new dead, bosses, shrine and perks', () => {
+  it('stops at dawn for a choice: greet it and the night ends in triumph, paying half again', () => {
+    const n = newNight(seeded(40));
+    n.t = DAWN - 0.01;
+    n.kills = 1200;
+    step(n, 1 / 60, 0, 0);
+    expect(n.dawnOffer).toBe(true);
+    const t = n.t;
+    step(n, 1 / 60, 0, 0);
+    expect(n.t).toBe(t);
+    chooseDawn(n, false);
+    expect(n.over).toBe(true);
+    expect(n.dawn).toBe(true);
+    expect(nightSouls(n)).toBe(300);
+    expect(nightFeats(n)).toContain('nsdawn');
+  });
+
+  it('walks on into the Nightmare, where the dead are tougher', () => {
+    const n = newNight(seeded(41));
+    n.t = DAWN - 0.01;
+    step(n, 1 / 60, 0, 0);
+    chooseDawn(n, true);
+    expect(n.over).toBe(false);
+    expect(n.nightmare).toBe(true);
+    for (let k = 0; k < 120; k++) step(n, 1 / 60, 1, 0);
+    expect(n.t).toBeGreaterThan(DAWN);
+  });
+
+  it('brings the new dead late in the night, and the Night Mother at 25 minutes', () => {
+    const n = newNight(seeded(42));
+    n.t = MOTHER_AT - 0.01;
+    n.bossesRisen = 12;
+    step(n, 1 / 60, 0, 0);
+    expect(n.foes.some((f) => f.kind === 'mother')).toBe(true);
+    const m = newNight(seeded(43));
+    m.t = 1250;
+    m.maxHp = m.hp = 9999;
+    for (let k = 0; k < 60 * 30; k++) step(m, 1 / 60, Math.cos(k / 40), Math.sin(k / 40));
+    const kinds = new Set(m.foes.map((f) => f.kind));
+    expect(kinds.has('archer') || kinds.has('drowned') || kinds.has('monk') || kinds.has('boneknight')).toBe(true);
+  });
+
+  it('gives the Shrine and the hero their gifts', () => {
+    const n = newNight(seeded(44), true, { hero: 'mage', shrine: { vigor: 2, reroll: 1, banish: 1, start: 'scythe' } });
+    expect(n.maxHp).toBe(28);
+    expect(n.relics.storm).toBe(1);
+    expect(n.relics.scythe).toBe(1);
+    expect(n.rerolls).toBe(1);
+    const off = newNight(seeded(44), false, { hero: 'mage', shrine: { vigor: 2 } });
+    expect(off.maxHp).toBe(20);
+    expect(off.relics.storm).toBeUndefined();
+  });
+
+  it('rerolls, banishes and skips a level', () => {
+    const n = newNight(seeded(45), true, { shrine: { reroll: 1, banish: 1 } });
+    n.pendingLevels = 2;
+    expect(reroll(n)).not.toBeNull();
+    expect(n.rerolls).toBe(0);
+    expect(reroll(n)).toBeNull();
+    const c = levelChoices(n).find((id) => !(id in n.relics) && id !== 'spade');
+    expect(banish(n, c!)).not.toBeNull();
+    expect(n.banished).toContain(c);
+    for (let k = 0; k < 30; k++) expect(levelChoices(n)).not.toContain(c);
+    n.hp = 5;
+    skipLevel(n);
+    expect(n.pendingLevels).toBe(1);
+    expect(n.hp).toBe(8);
   });
 });

@@ -6,8 +6,31 @@
 // This is the simulation alone (no drawing): advance it with step(), feeding it the direction
 // you're holding. Positions are in tiles. It takes its own random source, so tests can pin it.
 
-export type FoeKind = 'ghoul' | 'bat' | 'wraith' | 'brute' | 'imp' | 'boss' | 'abbot' | 'lich';
-export type BossKind = 'boss' | 'abbot' | 'lich';
+export type FoeKind = 'ghoul' | 'bat' | 'wraith' | 'brute' | 'imp' | 'archer' | 'boneknight' | 'drowned' | 'monk' | 'boss' | 'abbot' | 'lich' | 'voideye' | 'mother';
+export type BossKind = 'boss' | 'abbot' | 'lich' | 'voideye' | 'mother';
+/** The late night's new dead: when each first comes, and what it does. */
+export const NEW_FOES: { kind: FoeKind; at: number; name: string; text: string }[] = [
+  { kind: 'archer', at: 480, name: 'Bone Archers', text: 'keep their distance and shoot' },
+  { kind: 'boneknight', at: 720, name: 'Shieldbearers', text: 'march in a wall' },
+  { kind: 'drowned', at: 960, name: 'Drowned Chargers', text: 'mark a line, then rush down it' },
+  { kind: 'monk', at: 1200, name: 'Plague Monks', text: 'raise the dead around them. Hunt them down' },
+];
+/** The Night Mother rises at this time; dawn breaks at DAWN. */
+export const MOTHER_AT = 1500;
+export const DAWN = 1800;
+/** Heroes in the Night Shift: each has a perk (with the late-night rules). */
+export const NIGHT_PERKS: Record<string, string> = {
+  knight: '+6 max health, and potions heal more.',
+  rogue: 'The dash comes back 25% sooner.',
+  necro: 'A fallen foe may rise as a wisp that fights for you.',
+  paladin: 'Hits bosses 40% harder.',
+  ranger: 'Starts with the Bone Quiver.',
+  mage: 'Starts with the Storm Rune.',
+  barbarian: 'Hits up to 40% harder as your health falls.',
+  bellringer: 'Starts with the Grave Bell.',
+};
+/** What the Night Shrine has given (bought with Souls, kept between nights). */
+export interface NightShrine { vigor?: number; reroll?: number; banish?: number; start?: RelicKind }
 
 export interface Foe {
   id: number;
@@ -115,7 +138,7 @@ export interface Shot { x: number; y: number; vx: number; vy: number; r: number;
  * A boss's lane: marked on the ground first, then it strikes everything along it. A Gravelord's
  * lane is the path of his charge.
  */
-export interface Lane { x: number; y: number; ang: number; len: number; w: number; at: number; dmg: number; charge?: number; grasp?: boolean; blast?: boolean }
+export interface Lane { x: number; y: number; ang: number; len: number; w: number; at: number; dmg: number; charge?: number; grasp?: boolean; blast?: boolean; quiet?: boolean }
 /** Things to draw for a moment: a spade swing, a lightning strike, a bell's ring, spikes, a lance, a lane bursting. */
 export interface Flash { kind: 'swing' | 'bolt' | 'ring' | 'spike' | 'beam' | 'lane' | 'grasp' | 'blast' | 'blink'; x: number; y: number; at: number; ang?: number; r?: number; asc?: boolean }
 
@@ -213,7 +236,8 @@ export const NIGHT_RELIC = Object.fromEntries(NIGHT_RELICS.map((r) => [r.id, r])
 export const FIRST_BOSS = 90;
 export const BOSS_EVERY = 120;
 const BOSS_ORDER: BossKind[] = ['boss', 'abbot', 'lich'];
-export const isBoss = (k: FoeKind): k is BossKind => k === 'boss' || k === 'abbot' || k === 'lich';
+const BOSS_ORDER_V2: BossKind[] = ['boss', 'abbot', 'lich', 'voideye'];
+export const isBoss = (k: FoeKind): k is BossKind => k === 'boss' || k === 'abbot' || k === 'lich' || k === 'voideye' || k === 'mother';
 /** The field: a square of this many tiles a side. */
 export const FIELD = 48;
 const MAX_FOES = 260;
@@ -227,6 +251,12 @@ const STATS: Record<FoeKind, { hp: number; speed: number; dmg: number; r: number
   boss: { hp: 450, speed: 1.3, dmg: 5, r: 1.0, xp: 50 },
   abbot: { hp: 1000, speed: 1.3, dmg: 6, r: 1.0, xp: 70 },
   lich: { hp: 1500, speed: 1.4, dmg: 7, r: 1.0, xp: 100 },
+  archer: { hp: 6, speed: 1.4, dmg: 2, r: 0.35, xp: 3 },
+  boneknight: { hp: 30, speed: 0.9, dmg: 3, r: 0.45, xp: 6 },
+  drowned: { hp: 14, speed: 1.2, dmg: 3, r: 0.45, xp: 4 },
+  monk: { hp: 20, speed: 1.0, dmg: 2, r: 0.4, xp: 8 },
+  voideye: { hp: 2000, speed: 1.2, dmg: 7, r: 1.0, xp: 120 },
+  mother: { hp: 2600, speed: 1.15, dmg: 8, r: 1.3, xp: 300 },
 };
 
 export interface Night {
@@ -301,9 +331,41 @@ export interface Night {
   /** Elites put down, and treasure chests opened. */
   eliteKills: number;
   chests: number;
+  /** The hero, for their perk. */
+  hero: string;
+  /** Rerolls and banishes left this night, relics banished, and levels skipped. */
+  rerolls: number;
+  banishes: number;
+  banished: RelicKind[];
+  /** Dawn: offered (the night waits on the choice), greeted, and the Nightmare after. */
+  dawnOffer: boolean;
+  dawn: boolean;
+  nightmare: boolean;
+  motherRisen: boolean;
+  motherFelled: boolean;
+  /** Recent kills and hits, for the drawing (kept short). */
+  deaths: { x: number; y: number; kind: FoeKind; at: number }[];
+  hits: { x: number; y: number; amt: number; at: number }[];
 }
 
-export function newNight(rand: () => number = Math.random, v2 = true): Night {
+export function newNight(rand: () => number = Math.random, v2 = true, opts: { hero?: string; shrine?: NightShrine } = {}): Night {
+  const n = baseNight(rand, v2);
+  if (!v2) return n;
+  const hero = opts.hero ?? '';
+  const sh = opts.shrine ?? {};
+  n.hero = hero;
+  n.maxHp += 4 * Math.min(5, sh.vigor ?? 0) + (hero === 'knight' ? 6 : 0);
+  n.hp = n.maxHp;
+  n.rerolls = Math.min(3, sh.reroll ?? 0);
+  n.banishes = Math.min(3, sh.banish ?? 0);
+  const start: Partial<Record<string, RelicKind>> = { ranger: 'quiver', mage: 'storm', bellringer: 'bell' };
+  const s = start[hero];
+  if (s) n.relics[s] = 1;
+  if (sh.start && sh.start !== 'spade' && NIGHT_RELIC[sh.start]?.weapon) n.relics[sh.start] = Math.max(1, n.relics[sh.start] ?? 0);
+  return n;
+}
+
+function baseNight(rand: () => number, v2: boolean): Night {
   return {
     t: 0,
     x: FIELD / 2,
@@ -358,6 +420,17 @@ export function newNight(rand: () => number = Math.random, v2 = true): Night {
     ascendOffers: 0,
     eliteKills: 0,
     chests: 0,
+    hero: 'knight',
+    rerolls: 0,
+    banishes: 0,
+    banished: [],
+    dawnOffer: false,
+    dawn: false,
+    nightmare: false,
+    motherRisen: false,
+    motherFelled: false,
+    deaths: [],
+    hits: [],
   };
 }
 
@@ -366,7 +439,7 @@ const lv = (n: Night, r: RelicKind) => n.relics[r] ?? 0;
 export const xpToLevel = (level: number) => 2 + level * 2 + Math.floor((level * level) / 10);
 /** How many times a blessing has been taken. */
 export const bl = (n: Night, b: BlessingId) => n.blessings?.[b] ?? 0;
-const dmgMul = (n: Night) => (1 + 0.12 * lv(n, 'whetstone')) * (1 + 0.06 * bl(n, 'might')) * (n.pacts?.blood ? 1.2 : 1);
+const dmgMul = (n: Night) => (1 + 0.12 * lv(n, 'whetstone')) * (1 + 0.06 * bl(n, 'might')) * (n.pacts?.blood ? 1.2 : 1) * (n.hero === 'barbarian' ? 1 + 0.4 * (1 - Math.max(0, n.hp) / n.maxHp) : 1);
 // Quickening and warding shrink by a share each time, so they never reach nothing.
 const cdMul = (n: Night) => (1 - 0.08 * lv(n, 'hourglass')) * 0.96 ** bl(n, 'quickening') * (n.pacts?.haste ? 0.9 : 1);
 /** A weapon whose fusion has ascended: how much harder it hits, and how much sooner it comes round. */
@@ -447,7 +520,7 @@ function forgeChoices(n: Night): NightPick[] {
 
 function relicChoices(n: Night): NightPick[] {
   const weapons = NIGHT_RELICS.filter((r) => r.weapon && lv(n, r.id) > 0).length;
-  const open = NIGHT_RELICS.filter((r) => lv(n, r.id) < MAX_LEVEL && (lv(n, r.id) > 0 || !r.weapon || weapons < MAX_WEAPONS));
+  const open = NIGHT_RELICS.filter((r) => !n.banished?.includes(r.id) && lv(n, r.id) < MAX_LEVEL && (lv(n, r.id) > 0 || !r.weapon || weapons < MAX_WEAPONS));
   const out: NightPick[] = [];
   const pool = [...open];
   // With only the spade in hand, one choice is always a new weapon.
@@ -464,6 +537,40 @@ function relicChoices(n: Night): NightPick[] {
   const blessings = [...NIGHT_BLESSINGS];
   while (out.length < 3) out.push(blessings.splice(Math.floor(n.rand() * blessings.length), 1)[0].id);
   return out;
+}
+
+/** Whether the choice on offer is an ordinary level (where reroll, banish and skip work). */
+export const plainLevel = (n: Night) => n.pendingLevels > 0 && !n.pactOffers && !n.ascendOffers && !n.forgeOffers;
+
+/** Spend a reroll: fresh choices for this level. */
+export function reroll(n: Night): NightPick[] | null {
+  if (!plainLevel(n) || n.rerolls <= 0) return null;
+  n.rerolls--;
+  return levelChoices(n);
+}
+
+/** Banish a relic for the rest of the night: it never comes up again. */
+export function banish(n: Night, id: NightPick): NightPick[] | null {
+  if (!plainLevel(n) || n.banishes <= 0 || !(id in NIGHT_RELIC) || lv(n, id as RelicKind) > 0) return null;
+  n.banishes--;
+  n.banished.push(id as RelicKind);
+  return levelChoices(n);
+}
+
+/** Skip a level: a little health instead. */
+export function skipLevel(n: Night) {
+  if (!plainLevel(n)) return;
+  n.pendingLevels--;
+  n.hp = Math.min(n.maxHp, n.hp + 3);
+}
+
+/** Dawn's choice: end the night in triumph, or walk on into the Nightmare. */
+export function chooseDawn(n: Night, nightmare: boolean) {
+  if (!n.dawnOffer) return;
+  n.dawnOffer = false;
+  n.dawn = true;
+  if (nightmare) n.nightmare = true;
+  else n.over = true;
 }
 
 /** Take a relic (or its next level) for a waiting level. */
@@ -533,8 +640,9 @@ function spawn(n: Night, kind: FoeKind, at?: { x: number; y: number }, elite?: E
   const tier = n.bossesRisen;
   // Past ten minutes the dead harden every minute, so even a finished build can't stand forever.
   const late = lateNight(n);
-  const hp = Math.round(s.hp * (boss ? (tier === 0 ? 0.65 : 1 + 0.7 * tier) : 1 + n.t / 120 + (n.t / 300) ** 2) * LATE_HP ** late);
-  const dmg = s.dmg + Math.floor(n.t / (boss ? 240 : 180)) - (boss && tier === 0 ? 2 : 0) + Math.floor(late / 1.5);
+  const nm = n.nightmare ? 1.5 : 1;
+  const hp = Math.round(s.hp * (boss ? (tier === 0 ? 0.65 : 1 + 0.7 * tier) : 1 + n.t / 120 + (n.t / 300) ** 2) * LATE_HP ** late * nm);
+  const dmg = s.dmg + Math.floor(n.t / (boss ? 240 : 180)) - (boss && tier === 0 ? 2 : 0) + Math.floor(late / 1.5) + (n.nightmare ? 2 : 0);
   // Pacts: hungrier, faster, harder-biting dead.
   const hunger = !boss && n.pacts?.hunger ? 1.3 : 1;
   const haste = !boss && n.pacts?.haste ? 1.15 : 1;
@@ -543,6 +651,8 @@ function spawn(n: Night, kind: FoeKind, at?: { x: number; y: number }, elite?: E
     id: n.nextId++, kind, x, y, hp: hp * hunger, maxHp: hp * hunger, speed: s.speed * (boss ? 1 + 0.05 * n.bossesRisen : 1 + Math.min(0.6, 0.06 * late)) * haste, dmg: dmg + fangs, r: s.r, xp: s.xp,
     slowUntil: 0, skullAt: 0, kx: 0, ky: 0, hitAt: -1, boss, atkAt: n.t + (tier === 0 ? 4 : 2.5), atkN: 0, tier,
   };
+  // the new dead act on a timer of their own
+  if (kind === 'archer' || kind === 'drowned' || kind === 'monk') f.atkAt = n.t + 2 + n.rand() * 2;
   if (elite === 'treasure') {
     // Golden, quick and tough, and it runs.
     f.treasure = true;
@@ -582,6 +692,9 @@ function pickKind(n: Night): FoeKind {
     ['wraith', t > 75 ? 4 : 0],
     ['brute', t > 150 ? 2 + t / 200 : 0],
     ['imp', t > 240 ? 4 : 0],
+    ['archer', n.v2 && t > 480 ? 3 : 0],
+    ['drowned', n.v2 && t > 960 ? 2 : 0],
+    ['monk', n.v2 && t > 1200 ? 0.6 : 0],
   ];
   const total = table.reduce((a, [, w]) => a + w, 0);
   let r = n.rand() * total;
@@ -596,10 +709,23 @@ function hurtFoe(n: Night, f: Foe, amount: number, dashHit = false) {
     if (dashHit) f.cracked = true;
     else amount *= 0.25;
   }
-  f.hp -= amount * dmgMul(n);
+  const dealt = amount * dmgMul(n) * (f.boss && n.hero === 'paladin' && n.v2 ? 1.4 : 1);
+  f.hp -= dealt;
   f.hitAt = n.t;
+  if (dealt >= 1) {
+    n.hits.push({ x: f.x, y: f.y, amt: Math.round(dealt), at: n.t });
+    if (n.hits.length > 40) n.hits.splice(0, n.hits.length - 40);
+  }
   if (f.hp <= 0) {
     n.kills++;
+    n.deaths.push({ x: f.x, y: f.y, kind: f.kind, at: n.t });
+    if (n.deaths.length > 60) n.deaths.splice(0, n.deaths.length - 60);
+    if (f.kind === 'mother') n.motherFelled = true;
+    // the Necromancer's dead may rise again on your side, as a wisp
+    if (n.hero === 'necro' && n.v2 && !f.boss && n.rand() < 0.05) {
+      const a = n.rand() * Math.PI * 2;
+      n.darts.push({ x: f.x, y: f.y, vx: Math.cos(a) * 4, vy: Math.sin(a) * 4, dmg: 6 + n.t / 60, pierce: 1, life: 3, hit: [], kind: 'wisp' });
+    }
     n.pickups.push({ x: f.x, y: f.y, kind: f.xp >= 5 ? 'bigsoul' : 'soul', v: f.xp });
     const healing = !n.pacts?.blood;
     if (f.boss) {
@@ -723,6 +849,33 @@ function bossAttack(n: Night, f: Foe) {
     if (f.atkN % 3 === 2) volley(n, f, bolt, 11 + k, 3.1, null);
     else volley(n, f, bolt, 5, 3.8, aim, 1.4);
     f.atkAt = n.t + Math.max(1.5, 2.6 - 0.1 * k);
+  } else if (f.kind === 'voideye') {
+    // The Void Eye: a turning cross of lanes, then a ring that closes the gaps.
+    if (f.atkN % 2 === 0) {
+      const off = f.atkN * 0.4;
+      for (let q = 0; q < 4; q++) n.lanes.push({ x: f.x, y: f.y, ang: off + (q * Math.PI) / 2, len: 13, w: 0.55, at: n.t + 0.9, dmg: f.dmg });
+    } else volley(n, f, bolt, 14 + k, 3.0, null);
+    f.atkAt = n.t + Math.max(1.8, 2.6 - 0.08 * k);
+  } else if (f.kind === 'mother') {
+    // The Night Mother: three moods as she weakens. Fans and lanes; then the dead and spirals;
+    // then all of it, faster.
+    const phase = f.hp > f.maxHp * 0.66 ? 0 : f.hp > f.maxHp * 0.33 ? 1 : 2;
+    const m = f.atkN % 3;
+    if (phase === 0 || (phase === 2 && m === 0)) {
+      volley(n, f, bolt, 7, 3.6, aim, 1.6);
+      for (const o of [-0.6, 0.6]) n.lanes.push({ x: f.x, y: f.y, ang: aim + o, len: 14, w: 0.55, at: n.t + 0.9, dmg: f.dmg });
+    } else if (phase === 1 || m === 1) {
+      for (let q = 0; q < 6 && n.foes.length < MAX_FOES; q++) {
+        const a = (q / 6) * Math.PI * 2;
+        spawn(n, q % 2 ? 'wraith' : 'ghoul', { x: Math.max(1, Math.min(FIELD - 1, f.x + Math.cos(a) * 2)), y: Math.max(1, Math.min(FIELD - 1, f.y + Math.sin(a) * 2)) });
+      }
+      for (let q = 0; q < 18; q++) {
+        const a = aim + q * 0.6;
+        const back = q * 0.08;
+        n.shots.push({ x: f.x - Math.cos(a) * back * 3.2, y: f.y - Math.sin(a) * back * 3.2, vx: Math.cos(a) * 3.2, vy: Math.sin(a) * 3.2, r: 0.28, dmg: bolt, life: 6 + back });
+      }
+    } else volley(n, f, bolt, 16, 3.3, null);
+    f.atkAt = n.t + (phase === 2 ? 1.6 : 2.4);
   } else {
     if (f.atkN % 4 === 3) {
       // a spiral, poured out over two seconds
@@ -740,6 +893,29 @@ function bossAttack(n: Night, f: Foe) {
   f.atkN++;
 }
 
+/** The late night's new dead: archers shoot, chargers mark a line and rush, monks raise the dead. */
+function foeAct(n: Night, f: Foe, d: number) {
+  if (n.t < f.atkAt) return;
+  const aim = Math.atan2(n.y - f.y, n.x - f.x);
+  if (f.kind === 'archer') {
+    if (d < 8) n.shots.push({ x: f.x, y: f.y, vx: Math.cos(aim) * 4.2, vy: Math.sin(aim) * 4.2, r: 0.22, dmg: f.dmg, life: 3 });
+    f.atkAt = n.t + 2.6 + n.rand();
+  } else if (f.kind === 'drowned') {
+    if (d < 6) {
+      n.lanes.push({ x: f.x, y: f.y, ang: aim, len: Math.min(7, d + 2), w: f.r, at: n.t + 0.8, dmg: f.dmg + 1, charge: f.id });
+      f.atkAt = n.t + 5 + n.rand() * 2;
+    } else f.atkAt = n.t + 0.5;
+  } else if (f.kind === 'monk') {
+    for (let k = 0; k < 3 && n.foes.length < MAX_FOES; k++) {
+      const a = n.rand() * Math.PI * 2;
+      spawn(n, 'ghoul', { x: Math.max(1, Math.min(FIELD - 1, f.x + Math.cos(a) * 1.2)), y: Math.max(1, Math.min(FIELD - 1, f.y + Math.sin(a) * 1.2)) });
+    }
+    n.flashes.push({ kind: 'grasp', x: f.x, y: f.y, at: n.t, r: 1.4 });
+    f.atkAt = n.t + 6;
+  }
+  f.atkN++;
+}
+
 /** Stay within this many tiles for GRASP_AFTER seconds and the dead claw up at you. */
 const GRASP_ROAM = 2;
 export const GRASP_AFTER = 4;
@@ -749,7 +925,7 @@ export const DASH_TIME = 0.2;
 const DASH_BURST = 4.5;
 export const DASH_COOLDOWN = 2.5;
 /** The dash's wait, shortened by the Shade Cloak. */
-export const dashCooldown = (n: Night) => DASH_COOLDOWN * (1 - 0.1 * lv(n, 'cloak')) * (n.pacts?.fangs ? 0.75 : 1);
+export const dashCooldown = (n: Night) => DASH_COOLDOWN * (1 - 0.1 * lv(n, 'cloak')) * (n.pacts?.fangs ? 0.75 : 1) * (n.hero === 'rogue' && n.v2 ? 0.75 : 1);
 /** A healing potion mends this share of your max health. */
 export const POTION_HEAL = 0.3;
 /** At most one potion from the ordinary dead in this many seconds. */
@@ -774,8 +950,13 @@ export function dash(n: Night, dx = 0, dy = 0): boolean {
 
 /** Advance the night by dt seconds, with (dx, dy) the direction held (any length; 0 to stand). */
 export function step(n: Night, dt: number, dx: number, dy: number) {
-  if (n.over || n.pendingLevels > 0) return;
+  if (n.over || n.pendingLevels > 0 || n.dawnOffer) return;
   n.t += dt;
+  // Dawn: the night waits while you choose.
+  if (n.v2 && !n.dawn && n.t >= DAWN) {
+    n.dawnOffer = true;
+    return;
+  }
 
   // ---- you ----
   const len = Math.hypot(dx, dy);
@@ -819,7 +1000,7 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
 
   // ---- the dead arrive ----
   const ev = n.event && n.t < n.event.until ? n.event.kind : null;
-  const rate = (1.6 + (n.t / 60) * 1.0) * (n.pacts?.throng ? 1.3 : 1) * (ev === 'bloodmoon' ? 1.5 : 1);
+  const rate = (1.6 + (n.t / 60) * 1.0) * (n.pacts?.throng ? 1.3 : 1) * (ev === 'bloodmoon' ? 1.5 : 1) * (n.nightmare ? 1.3 : 1);
   n.spawnDebt += rate * dt;
   while (n.spawnDebt >= 1) {
     n.spawnDebt--;
@@ -853,8 +1034,24 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
     }
   }
   if (n.t >= nextBossAt(n)) {
-    spawn(n, BOSS_ORDER[n.bossesRisen % BOSS_ORDER.length]);
+    // While the Night Mother walks, the other bosses wait.
+    if (!n.foes.some((f) => f.kind === 'mother')) {
+      const order = n.v2 ? BOSS_ORDER_V2 : BOSS_ORDER;
+      spawn(n, order[n.bossesRisen % order.length]);
+    }
     n.bossesRisen++;
+  }
+  if (n.v2 && !n.motherRisen && n.t >= MOTHER_AT) {
+    n.motherRisen = true;
+    const a = n.rand() * Math.PI * 2;
+    spawn(n, 'mother', { x: Math.max(2, Math.min(FIELD - 2, n.x + Math.cos(a) * 7)), y: Math.max(2, Math.min(FIELD - 2, n.y + Math.sin(a) * 7)) });
+  }
+  // From the twelfth minute, now and then a wall of Shieldbearers marches in.
+  if (n.v2 && n.t > 720 && Math.floor(n.t / 40) > Math.floor((n.t - dt) / 40)) {
+    const a = n.rand() * Math.PI * 2;
+    const cx = n.x + Math.cos(a) * 9;
+    const cy = n.y + Math.sin(a) * 9;
+    for (let k = -2; k <= 2; k++) spawn(n, 'boneknight', { x: Math.max(1, Math.min(FIELD - 1, cx - Math.sin(a) * k * 0.95)), y: Math.max(1, Math.min(FIELD - 1, cy + Math.cos(a) * k * 0.95)) });
   }
   // Every so often, a ring of bats closes in from all round.
   if (Math.floor(n.t / 150) > Math.floor((n.t - dt) / 150)) {
@@ -1087,14 +1284,19 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
       d = near(n, f) || 1;
     }
     if (f.boss) bossAttack(n, f);
+    else if (f.kind === 'archer' || f.kind === 'drowned' || f.kind === 'monk') foeAct(n, f, d);
+    // Archers and monks keep their distance.
+    const keepOff = f.kind === 'archer' ? 5 : f.kind === 'monk' ? 6 : 0;
     const slow = (f.slowUntil > n.t ? 1 - frostSlow(n, f) : 1) * (ev === 'bloodmoon' && !f.boss ? 1.25 : 1);
     // Bats weave as they come.
     const wob = f.kind === 'bat' ? Math.sin(n.t * 6 + f.id) * 0.6 : 0;
     const ux = (n.x - f.x) / d;
     const uy = (n.y - f.y) / d;
-    if (!charging) {
-      f.x += (ux - uy * wob) * f.speed * slow * dt;
-      f.y += (uy + ux * wob) * f.speed * slow * dt;
+    const drownedCharge = f.kind === 'drowned' && Math.abs(f.kx) + Math.abs(f.ky) > 0.05;
+    if (!charging && !drownedCharge) {
+      const back = keepOff && d < keepOff ? -0.7 : keepOff && d < keepOff + 1 ? 0 : 1;
+      f.x += (ux * back - uy * wob) * f.speed * slow * dt;
+      f.y += (uy * back + ux * wob) * f.speed * slow * dt;
     }
     if (d < f.r + PLAYER_R) hurtYou(n, f.dmg, f);
   }
@@ -1117,7 +1319,13 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
     n.flashes.push({ kind: l.blast ? 'blast' : l.grasp ? 'grasp' : 'lane', x: l.x, y: l.y, at: n.t, ang: l.ang, r: l.grasp || l.blast ? l.w : l.len });
     if (laneDist(l, n.x, n.y) < l.w + PLAYER_R) hurtYou(n, l.dmg);
     const charger = l.charge ? n.foes.find((f) => f.id === l.charge) : undefined;
-    if (charger) {
+    if (charger && !charger.boss) {
+      // a Drowned Charger rushes down its lane
+      const ux = Math.cos(l.ang);
+      const uy = Math.sin(l.ang);
+      charger.kx = (Math.max(1, Math.min(FIELD - 1, l.x + ux * l.len)) - charger.x) / 0.83;
+      charger.ky = (Math.max(1, Math.min(FIELD - 1, l.y + uy * l.len)) - charger.y) / 0.83;
+    } else if (charger) {
       // down the lane at a run, then bolts all round where he stops
       const ux = Math.cos(l.ang);
       const uy = Math.sin(l.ang);
@@ -1150,7 +1358,7 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
     if (near(n, p) < 0.45) {
       if (p.kind === 'glowcap') n.hp = Math.min(n.maxHp, n.hp + p.v);
       else if (p.kind === 'potion') {
-        n.hp = Math.min(n.maxHp, n.hp + Math.ceil(n.maxHp * POTION_HEAL));
+        n.hp = Math.min(n.maxHp, n.hp + Math.ceil(n.maxHp * (POTION_HEAL + (n.hero === 'knight' && n.v2 ? 0.15 : 0))));
         n.potions++;
       }
       else if (p.kind === 'forge') {
@@ -1189,7 +1397,9 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
 /** What a night pays, in Souls: one for every six put down, up to 500, and up to 150 more for every pact taken. */
 export function nightSouls(n: Night): number {
   const pacts = Object.values(n.pacts ?? {}).filter(Boolean).length;
-  return Math.min(500 + 150 * pacts, Math.floor((n.kills / 6) * (n.pacts?.throng ? 1.3 : 1)));
+  const base = Math.min(500 + 150 * pacts + (n.dawn ? 300 : 0), Math.floor((n.kills / 6) * (n.pacts?.throng ? 1.3 : 1)));
+  // Greeting the dawn pays half again.
+  return n.dawn ? Math.floor(base * 1.5) : base;
 }
 
 /** Night Shift achievements this night has earned so far (ids from ACHIEVEMENTS). */
@@ -1207,5 +1417,8 @@ export function nightFeats(n: Night): string[] {
   if (Object.values(n.ascended ?? {}).some(Boolean)) out.push('nsascend');
   if (Object.values(n.pacts ?? {}).filter(Boolean).length >= 3) out.push('nspacts');
   if ((n.chests ?? 0) >= 1) out.push('nstreasure');
+  if (n.dawn) out.push('nsdawn');
+  if (n.motherFelled) out.push('nsmother');
+  if (n.nightmare && n.t >= DAWN + 300) out.push('nsnightmare');
   return out;
 }

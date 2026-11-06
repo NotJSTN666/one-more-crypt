@@ -105,6 +105,8 @@ export interface Meta {
   gifts: string[];
   /** Hall decorations you own but took down. Still yours; put them back up any time. */
   hallHidden: string[];
+  /** The Night Shrine: permanent Night Shift upgrades bought with Souls. */
+  nightShrine: { vigor: number; reroll: number; banish: number; arsenal: boolean; start: string };
   /** Dailies played in all, in a row or not (the most any device has counted). */
   dailyTotal: number;
   /** Runs finished today (by Daily number), for the one-more-run bonus. */
@@ -172,7 +174,7 @@ function empty(): Meta {
     podiums: {}, podiumChecked: 0, bought: [], streak: { best: 0, count: 0, last: 0 },
     bounties: { day: 0, ids: [], progress: [], done: [] },
     weekly: {}, weeklyChecked: '',
-    story: emptyStory(), pet: '', summonsSeen: '', summonsTotal: 0, patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null, raid: { joined: [], won: [], lost: [] }, invite: { from: '', claimed: false, friends: 0 }, horde: { day: 0, best: 0, wave: 0 }, gifts: [], hallHidden: [], dailyTotal: 0, runsToday: { day: 0, n: 0 }, trialsDone: 0, rival: '', playedMonths: [],
+    story: emptyStory(), pet: '', summonsSeen: '', summonsTotal: 0, patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null, raid: { joined: [], won: [], lost: [] }, invite: { from: '', claimed: false, friends: 0 }, horde: { day: 0, best: 0, wave: 0 }, gifts: [], hallHidden: [], nightShrine: { vigor: 0, reroll: 0, banish: 0, arsenal: false, start: '' }, dailyTotal: 0, runsToday: { day: 0, n: 0 }, trialsDone: 0, rival: '', playedMonths: [],
   };
 }
 
@@ -204,6 +206,7 @@ function load(): Meta {
     m.invite = cleanInvite(m.invite);
     m.gifts = ids(m.gifts);
     m.hallHidden = ids(m.hallHidden);
+    m.nightShrine = cleanShrine(m.nightShrine);
     m.grave = m.grave ? cleanGraveState(m.grave, Date.now()) : null;
     m.story = m.story?.v === STORY_V ? { ...emptyStory(), ...m.story } : { ...emptyStory(), choices: m.story?.choices ?? {}, bond: m.story?.bond ?? 0 };
     return m;
@@ -268,6 +271,8 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   meta.gifts = [...new Set([...meta.gifts, ...ids(other.gifts)])];
   // How the Hall is decorated is a choice: keep this device's, unless it hasn't made one.
   if (!meta.hallHidden.length) meta.hallHidden = ids(other.hallHidden);
+  const shr = cleanShrine(other.nightShrine);
+  meta.nightShrine = { vigor: Math.max(meta.nightShrine.vigor, shr.vigor), reroll: Math.max(meta.nightShrine.reroll, shr.reroll), banish: Math.max(meta.nightShrine.banish, shr.banish), arsenal: meta.nightShrine.arsenal || shr.arsenal, start: meta.nightShrine.start || shr.start };
   meta.dailyTotal = Math.max(meta.dailyTotal ?? 0, Math.floor(Number(other.dailyTotal) || 0));
   meta.trialsDone = Math.max(meta.trialsDone ?? 0, Math.floor(Number(other.trialsDone) || 0));
   meta.rival ||= typeof other.rival === 'string' ? other.rival.slice(0, 24) : '';
@@ -1410,6 +1415,46 @@ export function finishHordeMeta(dailyNo: number, score: number, wave: number, ki
 }
 
 /** Take a Hall decoration down, or put it back up. */
+// ---------- the Night Shrine ----------
+
+/** What each Night Shrine gift costs at each level, and how many levels it has. */
+export const SHRINE: Record<'vigor' | 'reroll' | 'banish' | 'arsenal', { name: string; emoji: string; text: string; costs: number[] }> = {
+  vigor: { name: 'Vigor', emoji: '❤️', text: '+4 max health in every night.', costs: [300, 600, 900, 1200, 1500] },
+  reroll: { name: 'Second Thoughts', emoji: '🎲', text: 'Reroll a level-up\'s choices once more each night.', costs: [500, 1000, 1500] },
+  banish: { name: 'Banishment', emoji: '🚫', text: 'Banish a relic you never want, once more each night.', costs: [400, 800, 1200] },
+  arsenal: { name: 'Arsenal', emoji: '⚔️', text: 'Choose a weapon to start every night with.', costs: [1500] },
+};
+export type ShrineGift = keyof typeof SHRINE;
+
+function cleanShrine(v: unknown): Meta['nightShrine'] {
+  const o = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
+  const lvl = (k: string, max: number) => Math.max(0, Math.min(max, Math.floor(Number(o[k]) || 0)));
+  return { vigor: lvl('vigor', 5), reroll: lvl('reroll', 3), banish: lvl('banish', 3), arsenal: o.arsenal === true, start: typeof o.start === 'string' ? o.start.slice(0, 16) : '' };
+}
+
+/** The level a Night Shrine gift is at (Arsenal is 0 or 1). */
+export function shrineLevel(g: ShrineGift): number {
+  const s = meta.nightShrine;
+  return g === 'arsenal' ? (s.arsenal ? 1 : 0) : s[g];
+}
+
+/** Buy the next level of a Night Shrine gift. */
+export function buyShrine(g: ShrineGift): boolean {
+  const at = shrineLevel(g);
+  const cost = SHRINE[g].costs[at];
+  if (cost === undefined || meta.souls < cost) return false;
+  meta.souls -= cost;
+  if (g === 'arsenal') meta.nightShrine.arsenal = true;
+  else meta.nightShrine[g] = at + 1;
+  saveMeta();
+  return true;
+}
+
+export function setShrineStart(id: string) {
+  meta.nightShrine.start = id;
+  saveMeta();
+}
+
 export function setHallShown(id: string, shown: boolean) {
   meta.hallHidden = shown ? meta.hallHidden.filter((x) => x !== id) : [...new Set([...meta.hallHidden, id])];
   saveMeta();

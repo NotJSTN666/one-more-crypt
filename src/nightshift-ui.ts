@@ -8,11 +8,13 @@ import { centralDate } from './daily';
 import { NIGHT_GIFT, NIGHT_GIFT_KILLS } from './graveshift';
 import { heroSprite } from './hero';
 import { grave, groundFor, hash, paintGround, seasonWeather, setDress, tree, type Dress, type Px } from './hollow-art';
-import { grantFeats, graveState, meta, noteMonth, noteTrial, outfitFor, receiveGift, saveMeta } from './meta';
+import { SHRINE, buyShrine, grantFeats, graveState, meta, noteMonth, noteTrial, outfitFor, receiveGift, saveMeta, setShrineStart, shrineLevel, type ShrineGift } from './meta';
+import { HERO_BY_ID } from './content';
+import type { EnemyKind } from './game';
 import { celebrate, celebrateNotes } from './progress-ui';
 import type { AchievementDef } from './content';
 import {
-  dashCooldown, FIELD, MAX_LEVEL, type Night, area, dash, spadeReach, NIGHT_RELIC, NIGHT_RELICS, chooseRelic, frostRadius, levelChoices, newNight, nextBossAt, nightSouls, skullCount, skullOrbit, step, xpToLevel, NIGHT_FUSION, fusionOf, isFusion, nightFeats, isBlessing, NIGHT_BLESSING, NIGHT_BLESSINGS, bl, type NightPick, ASCENDED, ASCEND_TEXT, ELITES, NIGHT_EVENTS, NIGHT_PACTS, NO_PACT, ascendedWeapon, isAscend, isPact, type FusionId, type PactId } from './nightshift';
+  dashCooldown, FIELD, MAX_LEVEL, type Night, area, dash, spadeReach, NIGHT_RELIC, NIGHT_RELICS, chooseRelic, frostRadius, levelChoices, newNight, nextBossAt, nightSouls, skullCount, skullOrbit, step, xpToLevel, NIGHT_FUSION, fusionOf, isFusion, nightFeats, isBlessing, NIGHT_BLESSING, NIGHT_BLESSINGS, bl, type NightPick, ASCENDED, ASCEND_TEXT, ELITES, NEW_FOES, NIGHT_PERKS, chooseDawn, reroll, banish, skipLevel, plainLevel, type RelicKind, NIGHT_EVENTS, NIGHT_PACTS, NO_PACT, ascendedWeapon, isAscend, isPact, type FusionId, type PactId } from './nightshift';
 import { ONLINE, nightBoard, submitNight } from './online';
 import { featCosmetics, seasonDress, soulSurge } from './progression';
 import { claimInlineHtml, keepNameHtml, wireKeepName, ensureGuest, playerName, showLeaderboard, signedIn, unclaimed, wireClaimInline } from './social';
@@ -22,7 +24,7 @@ import { esc, on, overlay, showOverlay, toast } from './ui';
 const TILE = 16;
 const STEP = 1 / 60;
 
-const BOSS_NAME: Record<string, string> = { boss: 'The Gravelord', abbot: 'The Drowned Abbot', lich: 'The Lich' };
+const BOSS_NAME: Record<string, string> = { boss: 'The Gravelord', abbot: 'The Drowned Abbot', lich: 'The Lich', voideye: 'The Void Eye', mother: 'The Night Mother' };
 
 type StickSide = 'left' | 'middle' | 'right';
 const STICK_KEY = 'omc:ns-stick';
@@ -131,7 +133,9 @@ export function showNightShift(back: () => void) {
   const ctx = canvas.getContext('2d')!;
   const $id = (id: string) => overlay.querySelector<HTMLElement>(`#${id}`)!;
 
-  const n = newNight(Math.random, nightV2Live());
+  const v2 = nightV2Live();
+  const sh = meta.nightShrine;
+  const n = newNight(Math.random, v2, { hero: meta.hero, shrine: { vigor: sh.vigor, reroll: sh.reroll, banish: sh.banish, start: sh.arsenal && sh.start ? (sh.start as RelicKind) : undefined } });
   current = n;
   // Local development only: the night, for poking at from the console.
   if (import.meta.env.DEV) (window as unknown as { night?: unknown }).night = n;
@@ -358,8 +362,9 @@ export function showNightShift(back: () => void) {
   }
   $id('ns-pause').addEventListener('click', () => (paused ? resume() : pause()));
 
-  function offerLevel() {
-    const opts = levelChoices(n);
+  let banishing = false;
+  function offerLevel(given?: NightPick[]) {
+    const opts = given ?? levelChoices(n);
     if (!opts.length) {
       // Everything is as sharp as it gets: the level heals instead.
       n.pendingLevels = 0;
@@ -430,12 +435,47 @@ export function showNightShift(back: () => void) {
           <span class="ns-choice-info"><b>${esc(r.name)}</b> <small>${at ? `Lv ${at + 1}${at + 1 === MAX_LEVEL ? ' · max' : ''}` : r.weapon ? 'New weapon' : 'New charm'}</small><span>${esc(r.text(at + 1))}</span></span>
           ${touch ? '' : `<kbd>${i + 1}</kbd>`}
         </button>`;
-      }).join('')}</div>`;
+      }).join('')}</div>
+      ${plainLevel(n) && n.v2 ? `<div class="ns-level-tools">
+        ${n.rerolls > 0 ? `<button type="button" class="btn" id="ns-reroll">🎲 Reroll <small>${n.rerolls} left</small></button>` : ''}
+        ${n.banishes > 0 ? `<button type="button" class="btn ${banishing ? 'on' : ''}" id="ns-banish">🚫 ${banishing ? 'Tap a relic to banish it' : 'Banish'} <small>${n.banishes} left</small></button>` : ''}
+        <button type="button" class="btn" id="ns-skip">⏭️ Skip <small>heal 3</small></button>
+      </div>` : ''}`;
+    modal.querySelector('#ns-reroll')?.addEventListener('click', () => {
+      const next = reroll(n);
+      if (next) {
+        banishing = false;
+        sfx.step();
+        offerLevel(next);
+      }
+    });
+    modal.querySelector('#ns-banish')?.addEventListener('click', () => {
+      banishing = !banishing;
+      offerLevel(opts);
+    });
+    modal.querySelector('#ns-skip')?.addEventListener('click', () => {
+      banishing = false;
+      skipLevel(n);
+      choosing = null;
+      modal.hidden = true;
+      sfx.heal();
+      last = performance.now();
+    });
     // A finger or key still down from walking mustn't pick straight away.
     const shown = performance.now();
     modal.querySelectorAll<HTMLElement>('[data-pick]').forEach((b) =>
       b.addEventListener('click', () => {
-        if (performance.now() - shown > 300) pick(b.dataset.pick as NightPick);
+        if (performance.now() - shown <= 300) return;
+        if (banishing) {
+          const next = banish(n, b.dataset.pick as NightPick);
+          if (next) {
+            banishing = false;
+            toast(`🚫 Banished for the night: ${NIGHT_RELIC[b.dataset.pick as RelicKind].name}`);
+            offerLevel(next);
+          } else toast('Only a relic you don\'t carry can be banished.');
+          return;
+        }
+        pick(b.dataset.pick as NightPick);
       }),
     );
     if (!touch) highlight(0);
@@ -448,6 +488,18 @@ export function showNightShift(back: () => void) {
   }
   function pick(id: NightPick) {
     if (!choosing) return;
+    if ((id as string).startsWith('dawn:')) {
+      const nightmare = id === ('dawn:on' as NightPick);
+      choosing = null;
+      chooseDawn(n, nightmare);
+      modal.hidden = true;
+      last = performance.now();
+      if (nightmare) {
+        sfx.toll();
+        toast('🌑 The Nightmare begins');
+      } else finish();
+      return;
+    }
     chooseRelic(n, id);
     choosing = null;
     modal.hidden = true;
@@ -494,7 +546,7 @@ export function showNightShift(back: () => void) {
     window.setTimeout(() => {
       if (!overlay.querySelector('#ns-canvas')) return;
       showOverlay('nightshift-end', `
-        <h2>The night takes you</h2>
+        <h2>${n.dawn && !n.nightmare ? '🌅 You saw the dawn' : n.nightmare ? 'The Nightmare takes you' : 'The night takes you'}</h2>
         <div class="ns-score"><b>${n.kills}</b><span>put down${best ? ' · new best' : ''}</span></div>
         <div class="ns-results">
           <div><b>${fmt(n.t)}</b><span>survived</span></div>
@@ -510,8 +562,10 @@ export function showNightShift(back: () => void) {
         ${ONLINE ? `<h3 class="shop-head">This week's Night Shift</h3><p class="fine" id="ns-rank">Posting your night…</p><ol class="raid-top" id="ns-board"><li class="fine">Loading…</li></ol><button class="btn" id="ns-boards">🏆 All Night Shift boards</button>` : ''}
         ${ONLINE && (!signedIn() || unclaimed()) ? claimInlineHtml(`You're on the Night Shift board as ${unclaimed() ? esc(playerName()) : 'a guest'}. Type a name and your nights show under it.`) : ''}
         ${keepNameHtml()}
+        ${n.v2 ? '<button class="btn" id="ns-shrine">🕯️ Night Shrine<small>Spend Souls on gifts for every night</small></button>' : ''}
         <button class="btn" id="back">← Back</button>`);
       on('#ns-again', () => showNightShift(back));
+      on('#ns-shrine', () => showNightShrine(back));
       on('#back', back);
       on('#ns-boards', () => showLeaderboard(back, 'night', 25, 'week'));
       wireClaimInline(() => {
@@ -543,7 +597,7 @@ export function showNightShift(back: () => void) {
     const list = document.getElementById('ns-board');
     if (!list) return;
     list.innerHTML = rows?.length
-      ? rows.slice(0, 10).map((r, i) => `<li><span>${['🥇', '🥈', '🥉'][i] ?? `${i + 1}.`} ${esc(r.name)} <small>${fmt(r.seconds)} · lv ${r.level}</small></span><b>💀 ${r.kills.toLocaleString()}</b></li>`).join('')
+      ? rows.slice(0, 10).map((r, i) => `<li><span>${['🥇', '🥈', '🥉'][i] ?? `${i + 1}.`} ${esc(r.name)} <small>${r.seconds >= 1800 ? '🌅 ' : ''}${fmt(r.seconds)} · lv ${r.level}</small></span><b>💀 ${r.kills.toLocaleString()}</b></li>`).join('')
       : '<li class="fine">No one on the board yet this week. Be the first.</li>';
   }
 
@@ -609,6 +663,33 @@ export function showNightShift(back: () => void) {
   let seen = { kills: 0, hp: n.hp, bosses: 0, felled: 0, potions: 0, events: 0, chests: 0 };
   let ascendedAt = -10;
   let eliteWarned = false;
+  const foesMet = new Set<string>();
+  let motherSeen = false;
+  let dawnShown = false;
+  // Dawn: end the night in triumph, or walk on into the Nightmare.
+  function offerDawn() {
+    dawnShown = true;
+    held.clear();
+    letGo();
+    sfx.relic();
+    modal.hidden = false;
+    modal.innerHTML = `<h3>🌅 Dawn breaks</h3>
+      <p class="fine">You held the graveyard through the night. The sun is coming up.</p>
+      <div class="ns-choices">
+        <button type="button" class="ns-choice dawn" data-pick="dawn:end"><span class="ns-choice-emoji">🌅</span><span class="ns-choice-info"><b>Greet the dawn</b> <small>End the night in triumph</small><span>Your Souls are paid half again, and the night counts as survived.</span></span></button>
+        <button type="button" class="ns-choice pact" data-pick="dawn:on"><span class="ns-choice-emoji">🌑</span><span class="ns-choice-info"><b>Walk into the Nightmare</b> <small>No sunrise for you</small><span class="curse">☠️ The dead come faster, tougher and harder-biting.</span><span>✨ Dawn's Souls are kept, and every kill still counts.</span></span></button>
+      </div>`;
+    choosing = ['dawn:end', 'dawn:on'] as unknown as NightPick[];
+    choiceShown = performance.now();
+    const shown = performance.now();
+    modal.querySelectorAll<HTMLElement>('[data-pick]').forEach((b) =>
+      b.addEventListener('click', () => {
+        if (performance.now() - shown >= 400) pick(b.dataset.pick as NightPick);
+      }),
+    );
+    if (!touch) highlight(0);
+  }
+  if (n.v2 && NIGHT_PERKS[n.hero]) window.setTimeout(() => toast(`${HERO_BY_ID[n.hero as keyof typeof HERO_BY_ID]?.name ?? 'Hero'}: ${NIGHT_PERKS[n.hero]}`), 1500);
   // The bosses up last frame, so one that falls can be named; and when the last fell, for the flash.
   let bossesUp: { id: number; kind: string }[] = [];
   let felledAt = -10;
@@ -620,16 +701,20 @@ export function showNightShift(back: () => void) {
     if (!canvas.isConnected) return cleanup();
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
-    if (!paused && !choosing && !ended) {
+    if (!paused && !choosing && !ended && !(n.dawnOffer && dawnShown)) {
       acc += dt;
       const [dx, dy] = dir();
-      while (acc >= STEP && !n.over && !n.pendingLevels) {
+      while (acc >= STEP && !n.over && !n.pendingLevels && !n.dawnOffer) {
         step(n, STEP, dx, dy);
         acc -= STEP;
       }
       if (n.pendingLevels && !n.over) {
         acc = 0;
         offerLevel();
+      }
+      if (n.dawnOffer && !dawnShown) {
+        acc = 0;
+        offerDawn();
       }
       if (n.over) finish();
     }
@@ -683,6 +768,16 @@ export function showNightShift(back: () => void) {
     if (n.chests > seen.chests) {
       sfx.relic();
       toast('💰 Treasure! Two levels at once');
+    }
+    for (const nf of NEW_FOES) {
+      if (foesMet.has(nf.kind) || !n.foes.some((f) => f.kind === nf.kind)) continue;
+      foesMet.add(nf.kind);
+      toast(`⚠️ ${nf.name} ${nf.text}`);
+    }
+    if (n.motherRisen && !motherSeen) {
+      motherSeen = true;
+      sfx.toll();
+      toast('🌑 The Night Mother rises. Survive her, and dawn will come.');
     }
     if (!eliteWarned && n.foes.some((f) => f.elite)) {
       eliteWarned = true;
@@ -955,11 +1050,11 @@ export function showNightShift(back: () => void) {
     // the dead
     const ordered = [...n.foes].sort((a, b) => a.y - b.y);
     for (const f of ordered) {
-      const size = f.boss ? 28 : f.kind === 'brute' ? 16 : 12;
+      const size = f.kind === 'mother' ? 40 : f.boss ? 28 : f.kind === 'brute' || f.kind === 'boneknight' ? 16 : 12;
       const x = sx(f.x) - size / 2;
       const y = sy(f.y) - size * 0.75;
       if (x < -size || y < -size || x > W + size || y > H + size) continue;
-      const frames = enemyFrames(f.kind);
+      const frames = enemyFrames((f.kind === 'mother' ? 'lich' : f.kind) as EnemyKind);
       const sp: Sprite = Math.hypot(f.x - n.x, f.y - n.y) < f.r + 0.8 || (f.boss && f.atkAt - n.t < 0.4) ? frames.attack : frames.idle[Math.floor(t * 3 + f.id) % 2];
       const img = n.t - f.hitAt < 0.08 ? sp.white : sp.normal;
       px(Math.round(x + size * 0.2), Math.round(y + size * 0.92), Math.round(size * 0.6), 2, 'rgba(0,0,0,0.4)');
@@ -994,6 +1089,8 @@ export function showNightShift(back: () => void) {
       ctx.save();
       // the Treasure Ghoul shines gold
       if (f.treasure) ctx.filter = 'sepia(1) saturate(4) brightness(1.25) hue-rotate(-10deg)';
+      // the Night Mother: the Lich's shape, in the colours of the deep night
+      if (f.kind === 'mother') ctx.filter = 'hue-rotate(210deg) saturate(1.8) brightness(0.9)';
       if (f.x > n.x) {
         ctx.translate(Math.round(x) + size, Math.round(y));
         ctx.scale(-1, 1);
@@ -1404,6 +1501,48 @@ export function showNightShift(back: () => void) {
 }
 
 /** The dash goes on the other side from the joystick (on the right when the stick's in the middle). */
+/** The Night Shrine: Souls spent on gifts that last for every night. */
+export function showNightShrine(back: () => void) {
+  const gifts = Object.keys(SHRINE) as ShrineGift[];
+  const weapons = NIGHT_RELICS.filter((r) => r.weapon && r.id !== 'spade');
+  showOverlay('night-shrine', `
+    <h2>🕯️ The Night Shrine</h2>
+    <p class="fine">Gifts for every night to come, paid in Souls. 💀 <b>${meta.souls.toLocaleString()}</b> to spend.</p>
+    <div class="shrine-list">${gifts.map((g) => {
+      const d = SHRINE[g];
+      const at = shrineLevel(g);
+      const cost = d.costs[at];
+      const pips = d.costs.map((_, i) => `<i class="${i < at ? 'on' : ''}"></i>`).join('');
+      return `<div class="shrine-gift">
+        <span class="shrine-emoji">${d.emoji}</span>
+        <span class="shrine-info"><b>${esc(d.name)}</b><small>${esc(d.text)}</small><span class="pips">${pips}</span></span>
+        ${cost === undefined ? '<span class="shrine-done">✔ Complete</span>' : `<button class="btn ${meta.souls >= cost ? 'primary' : ''}" data-buy="${g}" ${meta.souls >= cost ? '' : 'disabled'}>💀 ${cost.toLocaleString()}</button>`}
+      </div>`;
+    }).join('')}</div>
+    ${meta.nightShrine.arsenal ? `<h3 class="shop-head">⚔️ Start each night with</h3><div class="shrine-weapons">
+      <button class="btn ${meta.nightShrine.start ? '' : 'primary'}" data-start="">⛏️ Just the spade</button>
+      ${weapons.map((w) => `<button class="btn ${meta.nightShrine.start === w.id ? 'primary' : ''}" data-start="${w.id}">${w.emoji} ${esc(w.name)}</button>`).join('')}
+    </div>` : ''}
+    <p class="fine">Heroes bring a perk to the night too: ${esc(HERO_BY_ID[meta.hero as keyof typeof HERO_BY_ID]?.name ?? '')}, ${esc(NIGHT_PERKS[meta.hero] ?? '')}</p>
+    <button class="btn" id="back">← Back</button>`);
+  overlay.querySelectorAll<HTMLElement>('[data-buy]').forEach((b) =>
+    b.addEventListener('click', () => {
+      if (buyShrine(b.dataset.buy as ShrineGift)) {
+        sfx.relic();
+        toast(`🕯️ The Shrine grants ${SHRINE[b.dataset.buy as ShrineGift].name}`);
+      }
+      showNightShrine(back);
+    }),
+  );
+  overlay.querySelectorAll<HTMLElement>('[data-start]').forEach((b) =>
+    b.addEventListener('click', () => {
+      setShrineStart(b.dataset.start ?? '');
+      showNightShrine(back);
+    }),
+  );
+  on('#back', back);
+}
+
 const dashSide = (stick: StickSide): 'left' | 'right' => (stick === 'right' ? 'left' : 'right');
 
 function dashButton(side: 'left' | 'right' | 'desk'): string {

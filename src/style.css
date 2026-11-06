@@ -5589,3 +5589,53 @@ body.tutorial #relic-bar {
   box-shadow: 0 0 0 2px var(--gold), 0 0 22px rgba(242, 193, 78, 0.45);
   transform: translateX(3px);
 }
+
+/* Night Shift: reroll, banish and skip under a level-up's choices. */
+.ns-level-tools {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.ns-level-tools .btn {
+  margin: 0;
+  padding: 6px 10px;
+  font-size: 11px;
+  width: auto;
+}
+
+.ns-level-tools .btn small { display: inline; margin-left: 4px; opacity: 0.75; }
+.ns-level-tools .btn.on { border-color: #d23a46; box-shadow: 0 0 10px rgba(210, 58, 70, 0.5); }
+
+.ns-choice.dawn {
+  border-color: #f2c14e;
+  background: linear-gradient(180deg, rgba(255, 200, 110, 0.25), rgba(0, 0, 0, 0.25)), var(--panel);
+  box-shadow: 0 0 18px rgba(255, 200, 110, 0.45);
+}
+
+.ns-choice.dawn b { color: #ffe39a; }
+
+/* The Night Shrine. */
+.shrine-list { display: grid; gap: 8px; margin: 10px 0; }
+.shrine-gift {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  text-align: left;
+}
+.shrine-emoji { font-size: 24px; text-align: center; }
+.shrine-info b { display: block; color: var(--gold); }
+.shrine-info small { display: block; color: var(--muted); }
+.shrine-info .pips { display: flex; gap: 3px; margin-top: 4px; }
+.shrine-info .pips i { width: 10px; height: 4px; background: var(--line); }
+.shrine-info .pips i.on { background: var(--gold); }
+.shrine-gift .btn { margin: 0; width: auto; padding: 6px 10px; white-space: nowrap; }
+.shrine-done { color: #7ee081; font-size: 11px; }
+.shrine-weapons { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 10px; }
+.shrine-weapons .btn { margin: 0; width: auto; padding: 6px 10px; font-size: 11px; }

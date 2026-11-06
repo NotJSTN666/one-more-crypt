@@ -237,6 +237,9 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'nsascend', name: 'Ascendant', desc: 'Ascend a fused relic in the Night Shift.', souls: 300 },
   { id: 'nspacts', name: 'Pactbound', desc: 'Seal three Night Pacts in one Night Shift.', souls: 300 },
   { id: 'nstreasure', name: 'Gold Digger', desc: 'Catch the Treasure Ghoul in the Night Shift.', souls: 150 },
+  { id: 'nsdawn', name: 'Dawnbringer', desc: 'Survive the Night Shift until dawn.', souls: 1000 },
+  { id: 'nsmother', name: 'Mother of Night', desc: 'Take down the Night Mother.', souls: 600 },
+  { id: 'nsnightmare', name: 'Into the Nightmare', desc: 'Last 5 minutes in the Nightmare after dawn.', souls: 800 },
 ];
 
 /** Dailies played in all, and the achievement each count earns. */
