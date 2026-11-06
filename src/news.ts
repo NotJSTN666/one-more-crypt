@@ -23,6 +23,17 @@ export interface NewsDay {
 
 export const NEWS: NewsDay[] = [
   {
+    date: '2026-11-09',
+    title: 'The Night Shift grows teeth',
+    notes: [
+      '🌙 Night events: every two minutes, a minute after each boss, the night turns. A Blood Moon, a Swarm closing in from every side, a Grave Fog, or a Treasure Ghoul fleeing with a chest worth two levels.',
+      '✴️ Elites from level 55: glowing dead with gifts of their own. Armored ones shrug off harm until a dash cracks them; others split, explode or blink to your side.',
+      '🕯️ Night Pacts: when a boss falls, take a curse on the night for a boon, or refuse. Every pact raises what the night can pay in Souls.',
+      '✦ Ascension: from level 40, bosses leave a shard that ascends a fused relic into something far stronger, struck in gold.',
+      '🏅 New achievements: Ascendant, Pactbound and Gold Digger.',
+    ],
+  },
+  {
     date: '2026-11-04',
     title: 'The Mage casts Magic Missile',
     notes: [
