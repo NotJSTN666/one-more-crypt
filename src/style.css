@@ -5580,3 +5580,12 @@ body.tutorial #relic-bar {
   border-color: #8a2a3a;
   background: rgba(160, 30, 50, 0.18);
 }
+
+/* The lit choice (keyboard, hover or focus) shows on every kind of card, pacts and forge included. */
+.ns-choices .ns-choice.on,
+.ns-choices .ns-choice:hover,
+.ns-choices .ns-choice:focus-visible {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 2px var(--gold), 0 0 22px rgba(242, 193, 78, 0.45);
+  transform: translateX(3px);
+}
