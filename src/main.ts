@@ -1798,14 +1798,29 @@ function showChoice() {
     ${tutorial ? `<div class="coach-inline"><span>5 / 5 · Relics</span>${RELIC_COACH}</div>` : ''}
     <div class="offer">${cards}</div>
     ${canForge ? '<button class="btn forge-pick" id="to-forge">🔥 Soul Forge instead<small>Fuse two relics you hold into something greater</small></button>' : ''}
-    <button class="btn ${low ? 'rest-urge' : ''}" id="rest">🔥 Rest instead<small>Heal ${offer.restHeal} HP (${game.player.hp}/${game.player.maxHp})</small></button>
+    <button class="btn ${low ? 'rest-urge' : ''}" id="rest">🔥 Rest instead<small>${restLabel(offer.restHeal)}</small></button>
     ${yourRelicsBtn()}
   `);
   on('#see-build', () => showBuild('build', showChoice));
   overlay.querySelectorAll<HTMLButtonElement>('.offer button').forEach((b) => {
-    b.addEventListener('click', () => pickRelic(Number(b.dataset.i)));
+    b.addEventListener('click', (e) => !strayTap(e) && pickRelic(Number(b.dataset.i)));
   });
-  on('#rest', () => pickRelic(-1));
+  // Resting skips the relic, so a tap on it asks twice, unless health is low enough
+  // that the screen is already suggesting it.
+  let restArmed = 0;
+  overlay.querySelector<HTMLButtonElement>('#rest')?.addEventListener('click', (e) => {
+    if (strayTap(e)) return;
+    if (low || !e.detail || performance.now() - restArmed < 3000) return pickRelic(-1);
+    restArmed = performance.now();
+    const btn = e.currentTarget as HTMLButtonElement;
+    btn.classList.add('confirm');
+    btn.innerHTML = `🔥 Tap again to rest<small>You'll skip the relic${game.player.hp >= game.player.maxHp ? '. You are already at full health' : ''}</small>`;
+    window.setTimeout(() => {
+      if (!btn.isConnected || performance.now() - restArmed < 2900) return;
+      btn.classList.remove('confirm');
+      btn.innerHTML = `🔥 Rest instead<small>${restLabel(offer.restHeal)}</small>`;
+    }, 3000);
+  });
   on('#to-forge', () => {
     game.hordeForge();
     hideOverlay();
@@ -1816,6 +1831,16 @@ function showChoice() {
   (document.activeElement as HTMLElement | null)?.blur();
   choiceShownAt = performance.now();
   selectChoice(0);
+}
+
+function restLabel(heal: number) {
+  const { hp, maxHp } = game.player;
+  return hp >= maxHp ? `Already at full health (${hp}/${maxHp})` : `Heal ${Math.min(heal, maxHp - hp)} HP (${hp}/${maxHp})`;
+}
+
+/** A tap that lands in the first moments of a relic screen was meant for the board. */
+function strayTap(e: MouseEvent) {
+  return e.detail > 0 && performance.now() - choiceShownAt < 450;
 }
 
 // Keyboard selection on the relic screen: arrows/WASD move, Enter/Space confirm.

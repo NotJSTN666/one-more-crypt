@@ -5696,3 +5696,6 @@ body.tutorial #relic-bar {
   opacity: 0.75;
 }
 .coach-legal a { color: inherit; text-decoration: underline; }
+/* Rest sits apart from the relic cards, so a slip below the last card doesn't rest. */
+#rest { margin-top: 20px; }
+#rest.confirm { border-color: var(--gold); color: var(--gold); }

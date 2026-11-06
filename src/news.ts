@@ -23,6 +23,15 @@ export interface NewsDay {
 
 export const NEWS: NewsDay[] = [
   {
+    date: '2026-11-06',
+    title: 'No more resting by accident',
+    notes: [
+      '🔥 On the relic screen, Rest now sits apart from the relics and asks for a second tap, so a slip no longer costs you a relic. When your health is low it still takes one tap.',
+      '❤ Rest now says when you are already at full health.',
+      '🔒 A privacy policy is now linked from Settings and the title screen.',
+    ],
+  },
+  {
     date: '2026-11-05',
     title: 'The Night Shift\'s biggest night, and light in the dark',
     notes: [
