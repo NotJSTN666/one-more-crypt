@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "build:itch": "tsc --noEmit && vite build --mode itch --outDir dist-itch",
+    "build:crazygames": "tsc --noEmit && vite build --mode crazygames --outDir dist-crazygames && rm -rf dist-crazygames/press dist-crazygames/sw.js dist-crazygames/manifest.webmanifest",
     "build:cards": "vite build --config vite.cards.config.ts"
   },
   "devDependencies": {

@@ -1,4 +1,5 @@
 import './style.css';
+import { PORTAL, initPortal, portalHappy, portalLoaded, portalPlaying } from './portal';
 import { audioRunning, fusionSound, isMusicEnabled, isMuted, onAudioState, setMusicDepth, setMusicEnabled, setMusicMood, setMuted, sfx, unlockAudio } from './audio';
 import { centralDate, dailyNumber, formatCountdown, msUntilNextDaily, weekStart } from './daily';
 import { liveNews, unreadNews, type NewsGo } from './news';
@@ -49,7 +50,8 @@ noteDeepest(save.bestEndless);
 setMuted(save.muted);
 
 /** Under the share button after a run, and on the title once the daily is done: the community server. */
-const discordBtn = `<a class="btn discord" href="${DISCORD_URL}" target="_blank" rel="noopener">💬 Join the Discord<small>Post your result, compare builds, report bugs</small></a>`;
+// Community links sit on the title only in the portal build.
+const discordBtn = PORTAL ? '' : `<a class="btn discord" href="${DISCORD_URL}" target="_blank" rel="noopener">💬 Join the Discord<small>Post your result, compare builds, report bugs</small></a>`;
 
 setMusicEnabled(!save.musicOff);
 
@@ -106,6 +108,7 @@ function newGame(mode: Mode) {
 
 function showGame(g: Game) {
   game = g;
+  portalPlaying(true);
   runCombos = [];
   turnLog = [];
   renderer.outfit = outfitFor(game.hero);
@@ -1302,6 +1305,7 @@ function zoneTip(g: Game): string {
 // ---------- overlays ----------
 
 function showTitle() {
+  portalPlaying(false);
   // A newer version came out while the app sat open: load it now, between runs.
   if (updateReady && reloadForUpdate()) return;
   checkChallengeNews();
@@ -1513,7 +1517,7 @@ function accountChip(): string {
   const mute = muteChipHtml()
     + `<button class="account-chip mute-chip news-chip" id="title-news" aria-label="What's new${newsUnread() ? `, ${newsUnread()} unread` : ''}">📰${newsUnread() ? '<i class="news-dot"></i>' : ''}</button>`
     + `<button class="account-chip mute-chip" id="title-settings" aria-label="Settings">⚙️</button>`
-    + `<button class="account-chip mute-chip kofi-chip ${calmMotion() ? 'still' : ''}" id="title-kofi" aria-label="Support One More Crypt"><span class="kofi-heart" aria-hidden="true">❤️</span></button>`
+    + (PORTAL ? '' : `<button class="account-chip mute-chip kofi-chip ${calmMotion() ? 'still' : ''}" id="title-kofi" aria-label="Support One More Crypt"><span class="kofi-heart" aria-hidden="true">❤️</span></button>`)
     // Install, up top beside the sound, wherever the browser can add the game to the home screen.
     + (installMode() ? `<button class="account-chip install-chip" id="install" aria-label="Install the app">📲 Install</button>` : '');
   if (ONLINE && !session.ready) return `<div class="account-row">${mute}</div>`;
@@ -2041,7 +2045,11 @@ function showPause() {
     </div>
     <button class="btn" id="abandon">${hordeFight ? 'End the run<small>Your score so far still counts</small>' : raidFight ? 'End the fight<small>Your damage so far still counts</small>' : `Abandon run<small>${daily ? "Counts as today's attempt" : story ? 'Back to Gravesend' : 'Back to the title'}</small>`}</button>
   `);
-  on('#resume', hideOverlay);
+  portalPlaying(false);
+  on('#resume', () => {
+    portalPlaying(true);
+    hideOverlay();
+  });
   on('#music', () => {
     setMusicEnabled(!isMusicEnabled());
     save.musicOff = !isMusicEnabled();
@@ -2096,6 +2104,8 @@ function showPause() {
 }
 
 function showDeath(r: RunResult, best: boolean) {
+  portalPlaying(false);
+  if (best) portalHappy();
   const daily = game.mode === 'daily';
   // A first run: tomorrow's gift and the reminder go to the top, where they're seen.
   const first = runsPlayed() <= 1;
@@ -2135,19 +2145,19 @@ function showDeath(r: RunResult, best: boolean) {
     ${
       daily
         ? `${streakTeaseHtml()}${tomorrowHtml()}${first ? '' : reminderPromptHtml()}${installNudgeHtml()}${ONLINE ? '<p class="podium-tease">🥇 Finish in the top 3 when the day ends to win exclusive headwear and Souls.</p>' : ''}
-    ${ONLINE ? `<button class="btn challenge-btn" id="challenge">⚔️ Challenge a friend<small>Today's crypt, your hero. Can they beat floor ${r.floor}?</small></button>` : ''}
+    ${ONLINE && !PORTAL ? `<button class="btn challenge-btn" id="challenge">⚔️ Challenge a friend<small>Today's crypt, your hero. Can they beat floor ${r.floor}?</small></button>` : ''}
     ${discordBtn}
     <div class="row">
       <button class="btn" id="copy">Copy result</button>
     </div>`
         : ch
-          ? `<button class="btn" id="pass-challenge">📨 Pass the challenge on<small>Send ${esc(ch.name)}'s crypt to a friend</small></button>
+          ? `${PORTAL ? '' : `<button class="btn" id="pass-challenge">📨 Pass the challenge on<small>Send ${esc(ch.name)}'s crypt to a friend</small></button>`}
     ${discordBtn}
     <div class="row">
       <button class="btn" id="copy">Copy result</button>
     </div>`
           : `${first ? '' : reminderPromptHtml()}${installNudgeHtml()}
-    ${ONLINE ? `<button class="btn challenge-btn" id="challenge">⚔️ Challenge a friend<small>Same crypt, same hero. Can they beat floor ${r.floor}?</small></button>` : ''}
+    ${ONLINE && !PORTAL ? `<button class="btn challenge-btn" id="challenge">⚔️ Challenge a friend<small>Same crypt, same hero. Can they beat floor ${r.floor}?</small></button>` : ''}
     ${discordBtn}
     <div class="row">
       <button class="btn" id="copy">Copy result</button>
@@ -2187,7 +2197,7 @@ function showDeath(r: RunResult, best: boolean) {
   on('#retry-challenge', () => ch && startChallenge(ch));
   on('#pass-challenge', () => ch && showChallengeShare(ch.code, `${ch.name} reached floor ${ch.floor}`, backHere, true));
   if (ch) void fillChallengeBoard(ch);
-  on('#copy', async () => toast((await copyText(shareText(r, lastLabel, beat()) + '\n' + siteUrl())) ? 'Copied!' : 'Copy failed'));
+  on('#copy', async () => toast((await copyText(shareText(r, lastLabel, beat()) + (PORTAL ? '' : '\n' + siteUrl()))) ? 'Copied!' : 'Copy failed'));
   // After the Daily, Endless is a new choice (pick a hero); after Endless, Retry is straight back in.
   on('#again', () => (daily ? showHeroSelect(() => startRun('endless'), backHere) : quickRestart()));
   if (daily) wireHordeButton();
@@ -2608,7 +2618,7 @@ function streakTeaseHtml(): string {
 
 /** After a run: offer a reminder for tomorrow's crypt (anyone; reminders need an account, made on the way). */
 function reminderPromptHtml(): string {
-  if (!ONLINE || reminderPrefs()) return '';
+  if (PORTAL || !ONLINE || reminderPrefs()) return '';
   if (remindersAvailable()) return '<button class="btn remind-cta" id="remind">🔔 Remind me when tomorrow\'s crypt opens<small>8 AM your time. Skipped on days you\'ve played.</small></button>';
   // No notifications here (iPhone Safari, in-app browsers): email, for accounts that have one.
   if (session.account?.email && !emailReminderOn()) return '<button class="btn remind-cta" id="remind-email">📧 Email me when tomorrow\'s crypt opens<small>8 AM your time. Skipped on days you\'ve played.</small></button>';
@@ -2618,6 +2628,7 @@ function reminderPromptHtml(): string {
 
 /** App players come back far more often: after a run, suggest installing it. */
 function installNudgeHtml(): string {
+  if (PORTAL) return '';
   const mode = installMode();
   if (!mode) return '';
   return '<button class="btn" id="install-nudge">📲 Install One More Crypt<small>Play from your home screen, full screen, one tap a day</small></button>';
@@ -3267,8 +3278,10 @@ function finishHorde() {
   celebrateNotes(featCosmetics(reward.feats.map((f) => f.id)));
   setMusicMood('fallen');
   window.clearTimeout(overlayTimer);
-  const share = `🛡️ One More Crypt · Horde #${g.dailyNo}\nWave ${h.wave} · ${h.score.toLocaleString()} pts · ×${h.bestMult} combo\nCan you hold the crypt longer?\n${siteUrl()}?ref=horde`;
+  const share = `🛡️ One More Crypt · Horde #${g.dailyNo}\nWave ${h.wave} · ${h.score.toLocaleString()} pts · ×${h.bestMult} combo\nCan you hold the crypt longer?${PORTAL ? '' : `\n${siteUrl()}?ref=horde`}`;
   overlayTimer = window.setTimeout(() => {
+    portalPlaying(false);
+    if (reward.best) portalHappy();
     showOverlay('horde-results', `
       <div class="podium-medal">🛡️</div>
       <h2 class="podium-title">${reward.best ? 'New best!' : 'The crypt is overrun'}</h2>
@@ -3342,6 +3355,7 @@ const INVITE_LADDER: { n: number; what: string }[] = [
 const inviteUrl = (name: string) => `${siteUrl()}?invite=${encodeURIComponent(name)}&ref=invite`;
 
 function inviteButtonHtml(): string {
+  if (PORTAL) return '';
   const n = meta.invite.friends;
   return `<button class="btn invite-btn" id="invite">👥 Bring a friend<small>${n ? `${n} friend${n === 1 ? '' : 's'} brought · ` : ''}You both get the Kindred Cloak</small></button>`;
 }
@@ -4262,6 +4276,8 @@ void initSocial(save, () => {
   else showTitle();
 });
 showTitle();
+// On CrazyGames: their SDK, told the game has loaded, and their mute setting obeyed.
+void initPortal((on) => setMuted(on)).then(portalLoaded);
 const visiting = hallFromLink();
 if (visiting && ONLINE) showPublicHall(visiting, showTitle);
 const challengeCode = challengeFromLink();

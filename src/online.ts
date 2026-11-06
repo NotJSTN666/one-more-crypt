@@ -576,7 +576,7 @@ async function noteSource(): Promise<void> {
   try {
     if (sessionStorage.getItem('omc:source')) return;
     sessionStorage.setItem('omc:source', '1');
-    const { source, host } = trafficSource(location.href, document.referrer, { itch: import.meta.env.MODE === 'itch', app: runningAsApp() });
+    const { source, host } = trafficSource(location.href, document.referrer, { itch: import.meta.env.MODE === 'itch', crazygames: import.meta.env.MODE === 'crazygames', app: runningAsApp() });
     // Tidy the tag out of the address bar, so shared links don't carry it on.
     const u = new globalThis.URL(location.href);
     if (u.searchParams.has('ref') || [...u.searchParams.keys()].some((k) => k.startsWith('utm_'))) {

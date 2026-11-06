@@ -1,3 +1,4 @@
+import { portalHappy, portalPlaying } from './portal';
 // The Night Shift on screen: the graveyard at night seen from above, the dead closing in, your
 // relics fighting on their own, a level-up choice whenever you fill the soul bar, the bosses'
 // bolts and lanes to dodge, and how many you put down. On phones a joystick sits at the bottom.
@@ -151,6 +152,7 @@ export function showNightShift(back: () => void) {
   const ctx = canvas.getContext('2d')!;
   const $id = (id: string) => overlay.querySelector<HTMLElement>(`#${id}`)!;
 
+  portalPlaying(true);
   const v2 = nightV2Live();
   const sh = meta.nightShrine;
   const n = newNight(Math.random, v2, { hero: meta.hero, shrine: { vigor: sh.vigor, reroll: sh.reroll, banish: sh.banish, start: sh.arsenal && sh.start ? (sh.start as RelicKind) : undefined } });
@@ -339,6 +341,7 @@ export function showNightShift(back: () => void) {
   function pause() {
     if (ended || choosing || paused) return;
     paused = true;
+    portalPlaying(false);
     held.clear();
     letGo();
     modal.hidden = false;
@@ -375,6 +378,7 @@ export function showNightShift(back: () => void) {
   function resume() {
     if (!paused) return;
     paused = false;
+    portalPlaying(true);
     modal.hidden = true;
     last = performance.now();
   }
@@ -542,6 +546,8 @@ export function showNightShift(back: () => void) {
   function finish() {
     if (ended) return;
     ended = true;
+    portalPlaying(false);
+    if (n.dawn || n.motherFelled) portalHappy();
     cleanup();
     for (const a of grantFeats(nightFeats(n))) featsWon.push(a);
     const trial = noteTrial({ kind: 'night', seconds: n.t }, true);

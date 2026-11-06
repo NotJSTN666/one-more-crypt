@@ -1,3 +1,4 @@
+import { PORTAL } from './portal';
 // Builds the post people share to X after a run. Every share is an ad for the game,
 // so it should read well in a feed and fit easily under the character limit.
 
@@ -46,7 +47,7 @@ export function shareText(r: RunResult, label: string, beat: number | null = nul
 export const X_HANDLE = 'OneMoreCrypt';
 
 /** "Follow us on X" link for the title and results screens. */
-export const followXHtml = `<a class="follow-x" href="https://x.com/${X_HANDLE}" target="_blank" rel="noopener">𝕏 Follow @${X_HANDLE}</a>`;
+export const followXHtml = PORTAL ? '' : `<a class="follow-x" href="https://x.com/${X_HANDLE}" target="_blank" rel="noopener">𝕏 Follow @${X_HANDLE}</a>`;
 
 export const KOFI_URL = 'https://ko-fi.com/onemorecrypt';
 export const DISCORD_URL = 'https://discord.gg/V454sdbTQH';
@@ -55,7 +56,7 @@ export const DISCORD_URL = 'https://discord.gg/V454sdbTQH';
 export const discordHtml = `<a class="follow-x discord" href="${DISCORD_URL}" target="_blank" rel="noopener">💬 Join the Discord</a>`;
 
 /** The tip jar: free, no ads, tips keep the domain and servers running. */
-export const kofiHtml = `<a class="follow-x kofi" href="${KOFI_URL}" target="_blank" rel="noopener">❤️ Keep the crypt open</a>`;
+export const kofiHtml = PORTAL ? '' : `<a class="follow-x kofi" href="${KOFI_URL}" target="_blank" rel="noopener">❤️ Keep the crypt open</a>`;
 
 export async function copyText(text: string): Promise<boolean> {
   try {

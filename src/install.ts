@@ -1,3 +1,4 @@
+import { PORTAL } from './portal';
 // Installing the game as an app: the browser's own install prompt where there is one
 // (Chrome, Edge, Android), instructions for iPhone and iPad (Safari has no prompt), and
 // nothing when the game is already installed or runs inside another page (itch.io).
@@ -63,7 +64,7 @@ export function setupInstall() {
     deferred = null;
     listeners.forEach((cb) => cb());
   });
-  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  if (!PORTAL && 'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
     navigator.serviceWorker.register('./sw.js').catch(() => undefined);
   }
 }

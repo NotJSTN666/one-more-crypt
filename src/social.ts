@@ -1,3 +1,4 @@
+import { PORTAL } from './portal';
 // Sign-in, profile and leaderboard screens, plus keeping local progress in sync
 // with the server.
 
@@ -452,10 +453,10 @@ export function showLogin(back: () => void, step: Step = 'start', email = '') {
       <h2>${claim && !unclaimed() ? 'Put your name on the board' : 'Claim your name'}</h2>
       <p class="sub">${unclaimed() ? `Your runs are on the boards as ${esc(playerName())}. Pick a name and they'll show under it, past days included.` : claim ? "Your run goes up on today's board, and your streak and gifts are kept safe." : 'Your name goes on the leaderboards. Progress is saved to your account.'}</p>
       ${nameForm(save.name || randomName(), claim ? 'Save my place' : 'Enter the crypt')}
-      <p class="fine">Starts a guest account on this device. Add an email later to play on other devices too.</p>
+      ${PORTAL ? '<p class="fine">Your runs go on the leaderboards under this name.</p>' : `<p class="fine">Starts a guest account on this device. Add an email later to play on other devices too.</p>
       <div class="divider"><span>or sign in</span></div>
       ${X_LOGIN ? '<button class="btn x" id="x-login">Continue with 𝕏</button>' : ''}
-      <button class="btn" id="email-login">Continue with email</button>
+      <button class="btn" id="email-login">Continue with email</button>`}
       <button class="link-btn" id="skip">${claim ? 'Not now' : 'Skip, play without a leaderboard'}</button>`);
     wireDice();
     onSubmit('#name-form', async (form) => {
@@ -579,7 +580,7 @@ export function claimInlineHtml(sub: string): string {
       </div>
       <button class="btn primary" type="submit">Save my name</button>
       <p class="form-status" role="status"></p>
-      <button type="button" class="link-btn" id="claim-more">Have an account? Sign in</button>
+      ${PORTAL ? '' : '<button type="button" class="link-btn" id="claim-more">Have an account? Sign in</button>'}
     </form>`;
 }
 
@@ -629,7 +630,7 @@ function keepStore(key: string, value?: string | null): string {
 /** A guest with a chosen name, who would lose it with this browser's data. */
 export function needsKeep(): boolean {
   const a = session.account;
-  return ONLINE && Boolean(a && a.kind === 'guest' && a.name && !GUEST_NAME.test(a.name));
+  return !PORTAL && ONLINE && Boolean(a && a.kind === 'guest' && a.name && !GUEST_NAME.test(a.name));
 }
 
 /** The prompt to add an email and keep the name. `nag` false respects "Not now" (the title screen). */
@@ -787,7 +788,7 @@ export function showProfile(back: () => void) {
       ${nameForm(playerName() || randomName(), 'Save name')}
     </details>
     ${
-      acc?.kind === 'guest'
+      acc?.kind === 'guest' && !PORTAL
         ? `<div class="card">
             <div>Keep your progress</div>
             <p class="fine">Add an email so you can sign in on any device. Guest progress is lost if this browser's data is cleared.</p>

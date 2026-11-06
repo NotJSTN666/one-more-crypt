@@ -15,13 +15,21 @@ function siteUrl(): string {
 }
 
 // Relative base so the build works at any path (/<repo>/ on GitHub Pages, or a domain root).
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   base: './',
   build: { target: 'es2020' },
   plugins: [
     {
       name: 'site-url',
-      transformIndexHtml: (html) => html.replaceAll('__SITE_URL__', siteUrl()),
+      transformIndexHtml: (html: string) => {
+        let out = html.replaceAll('__SITE_URL__', siteUrl());
+        // The CrazyGames build: their SDK first, and no app manifest (it isn't installable there).
+        if (mode === 'crazygames') {
+          out = out.replace(/<link rel="manifest"[^>]*>\s*/g, '');
+          out = out.replace('</head>', '    <script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>\n  </head>');
+        }
+        return out;
+      },
     },
   ],
-});
+}));

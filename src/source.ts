@@ -31,7 +31,7 @@ export interface VisitSource {
   host: string;
 }
 
-export function trafficSource(url: string, referrer: string, opts: { itch?: boolean; app?: boolean } = {}): VisitSource {
+export function trafficSource(url: string, referrer: string, opts: { itch?: boolean; app?: boolean; crazygames?: boolean } = {}): VisitSource {
   let here = '';
   try {
     const u = new URL(url);
@@ -42,6 +42,7 @@ export function trafficSource(url: string, referrer: string, opts: { itch?: bool
     // Not a URL we can read: fall through to the referrer.
   }
   if (opts.itch) return { source: 'itch', host: '' };
+  if (opts.crazygames) return { source: 'crazygames', host: '' };
   let host = '';
   try {
     host = referrer ? new URL(referrer).hostname.replace(/^www\./, '').toLowerCase() : '';

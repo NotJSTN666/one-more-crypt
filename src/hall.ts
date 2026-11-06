@@ -1,3 +1,4 @@
+import { PORTAL } from './portal';
 // The Crypt Hall: a trophy room for everything a player has done. Boss trophies on
 // the wall, a statue of each hero's deepest run, banners for achievements and combos, and
 // tabs to wear titles and looks and to read the Bestiary. Anyone can visit another
@@ -1681,7 +1682,7 @@ async function saveImage(d: HallData) {
   const file = new File([blob], 'one-more-crypt-hall.png', { type: 'image/png' });
   if (navigator.canShare?.({ files: [file] })) {
     try {
-      await navigator.share({ files: [file], text: `My Crypt Hall in One More Crypt ${hallLink(d.name)}` });
+      await navigator.share({ files: [file], text: PORTAL ? 'My Crypt Hall in One More Crypt' : `My Crypt Hall in One More Crypt ${hallLink(d.name)}` });
       return;
     } catch {
       // cancelled, or sharing failed: fall back to a download
@@ -1713,7 +1714,7 @@ export function showHall(name: string, back: () => void, tab: HallTab = 'trophie
     ${body}
     <div class="row">
       <button class="btn" id="hall-image">🖼️ Save image</button>
-      ${ONLINE && name ? '<button class="btn" id="hall-link">🔗 Copy Hall link</button>' : ''}
+      ${ONLINE && name && !PORTAL ? '<button class="btn" id="hall-link">🔗 Copy Hall link</button>' : ''}
     </div>
     <button class="btn primary" id="back">Back</button>`);
   startCanvas(d);
