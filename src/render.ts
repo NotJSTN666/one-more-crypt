@@ -1537,18 +1537,9 @@ export class Renderer {
     const dark = zone.id === 'abyss';
     const inner = dark ? 8 + light * 6 + flicker : 18 + light * 4 + flicker;
     const outer = dark ? 40 + light * 12 + flicker * 2 : 95 + light * 14 + flicker * 2;
-    const grad = ctx.createRadialGradient(cx, cy, inner, cx, cy, outer);
-    grad.addColorStop(0, zone.light[0]);
-    grad.addColorStop(dark ? 0.2 : 0.35, 'rgba(10, 4, 16, 0)');
-    grad.addColorStop(1, dark ? 'rgba(3, 1, 8, 0.9)' : zone.light[1]);
     // The Abyss's darkness is part of its challenge, so it stays even in high contrast;
-    // elsewhere the dark at the board's edges is softer, and gone in high contrast.
-    if (dark || !this.contrast) {
-      ctx.globalAlpha = dark ? 1 : 0.65;
-      ctx.fillStyle = grad;
-      ctx.fillRect(-10, -10, BOARD_W + 20, BOARD_H + 20);
-      ctx.globalAlpha = 1;
-    }
+    // elsewhere the dark is softer, and gone in high contrast.
+    if (dark || !this.contrast) this.drawLightMap(g, cx, cy, inner, outer, dark, zone.light);
     if (this.contrast) return;
     // A soft vignette, so the board sinks into the dark at its edges.
     const edge = 10;
@@ -1568,6 +1559,98 @@ export class Renderer {
       ctx.fillStyle = `rgba(126, 224, 129, ${this.healFlash * 0.15})`;
       ctx.fillRect(-10, -10, BOARD_W + 20, BOARD_H + 20);
     }
+  }
+
+  /**
+   * The dark, with every light cutting its own pool out of it: the hero's lantern, wall candles,
+   * lava, the open stairs, potions, burning and frozen foes, bosses, and bolts in flight. Each
+   * then adds a touch of its own colour.
+   */
+  private lightCanvas: HTMLCanvasElement | null = null;
+  private drawLightMap(g: Game, cx: number, cy: number, inner: number, outer: number, dark: boolean, tones: [string, string]) {
+    const LS = 4;
+    const cw = (BOARD_W + 20) * LS;
+    const ch = (BOARD_H + 20) * LS;
+    if (!this.lightCanvas || this.lightCanvas.width !== cw) {
+      this.lightCanvas = document.createElement('canvas');
+      this.lightCanvas.width = cw;
+      this.lightCanvas.height = ch;
+    }
+    const lc = this.lightCanvas.getContext('2d')!;
+    lc.setTransform(LS, 0, 0, LS, 10 * LS, 10 * LS);
+    lc.globalCompositeOperation = 'source-over';
+    lc.clearRect(-10, -10, BOARD_W + 20, BOARD_H + 20);
+    lc.fillStyle = dark ? 'rgba(3, 1, 8, 0.92)' : tones[1];
+    lc.fillRect(-10, -10, BOARD_W + 20, BOARD_H + 20);
+    // Lights: [x, y, radius, how much dark it lifts, colour to tint with (r,g,b), tint strength]
+    type Light = [number, number, number, number, string, number];
+    const lights: Light[] = [];
+    const t = this.time;
+    const fl = (k: number) => Math.sin(t * 9 + k) * 0.6 + Math.sin(t * 21 + k * 1.7) * 0.4;
+    // The hero's own light, tinted by what they carry.
+    const heroTint = g.r('ember') || g.r('wildfire') ? '255,140,60' : g.r('frost') ? '140,200,255' : g.r('storm') ? '180,210,255' : '255,180,110';
+    lights.push([cx, cy, outer, 1, heroTint, 0.1]);
+    const k = dark ? 0.6 : 1;
+    for (const c of this.candles) lights.push([c.x + 1, c.y + 2, (30 + fl(c.phase) * 3) * k, 0.85, '255,150,60', 0.12]);
+    if (g.zone !== undefined) {
+      let lava = 0;
+      for (let y = 0; y < H && lava < 18; y++) {
+        for (let x = 0; x < W && lava < 18; x++) {
+          if (!g.isLava(x, y)) continue;
+          lava++;
+          lights.push([x * TILE + TILE / 2, y * TILE + TILE / 2, (20 + fl(x * 3 + y) * 2) * k, 0.7, '255,110,30', 0.14]);
+        }
+      }
+    }
+    if (g.stairsOpen) lights.push([g.stairs.x * TILE + TILE / 2, g.stairs.y * TILE + TILE / 2, 30 * k, 0.75, '242,193,78', 0.14]);
+    if (g.potion) lights.push([g.potion.x * TILE + TILE / 2, g.potion.y * TILE + TILE / 2, 18 * k, 0.6, '235,60,80', 0.12]);
+    if (g.vault) lights.push([g.vault.x * TILE + TILE / 2, g.vault.y * TILE + TILE / 2, 24 * k, 0.7, '242,193,78', 0.14]);
+    for (const e of g.enemies) {
+      if (e.dead || e.ally) continue;
+      const d = this.disp.get(e.id) ?? e;
+      const ex = d.x * TILE + TILE / 2;
+      const ey = d.y * TILE + TILE / 2;
+      if (isBoss(e)) lights.push([ex, ey, 34 * k, 0.55, '210,40,60', 0.16]);
+      else if (e.burn > 0) lights.push([ex, ey, 18 * k, 0.6, '255,130,40', 0.16]);
+      else if (e.frozen > 0) lights.push([ex, ey, 14 * k, 0.45, '150,210,255', 0.12]);
+    }
+    // Bolts, arrows and missiles light the way as they fly.
+    for (const ln of this.lines) {
+      const p = 1 - ln.t / ln.life;
+      if (p <= 0) continue;
+      const rgb = ln.color === '#c9a6ff' ? '190,140,255' : ln.color === '#9fe8ff' ? '160,230,255' : '255,240,210';
+      lights.push([ln.to.x * TILE + TILE / 2, ln.to.y * TILE + TILE / 2, 30 * p, 0.8 * p, rgb, 0.2 * p]);
+    }
+    // Cut each pool of light out of the dark.
+    lc.globalCompositeOperation = 'destination-out';
+    for (const [x, y, r, lift] of lights) {
+      if (r <= 1) continue;
+      const g2 = lc.createRadialGradient(x, y, 0, x, y, r);
+      const isHero = x === cx && y === cy && r === outer;
+      g2.addColorStop(0, `rgba(0,0,0,${lift})`);
+      g2.addColorStop(isHero ? Math.min(0.9, inner / outer) : 0.35, `rgba(0,0,0,${lift * 0.85})`);
+      g2.addColorStop(1, 'rgba(0,0,0,0)');
+      lc.fillStyle = g2;
+      lc.fillRect(x - r, y - r, r * 2, r * 2);
+    }
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.globalAlpha = dark ? 1 : 0.8;
+    ctx.drawImage(this.lightCanvas, -10, -10, BOARD_W + 20, BOARD_H + 20);
+    ctx.restore();
+    // Each light's own colour, added on top.
+    if (this.quiet) return;
+    ctx.globalCompositeOperation = 'lighter';
+    for (const [x, y, r, , rgb, tint] of lights) {
+      if (tint <= 0.01 || r <= 1) continue;
+      const g3 = ctx.createRadialGradient(x, y, 0, x, y, r * 0.7);
+      g3.addColorStop(0, `rgba(${rgb},${tint})`);
+      g3.addColorStop(1, `rgba(${rgb},0)`);
+      ctx.fillStyle = g3;
+      ctx.fillRect(x - r, y - r, r * 2, r * 2);
+    }
+    ctx.globalCompositeOperation = 'source-over';
   }
 
   // ---------- background ----------
