@@ -26,7 +26,7 @@ import { auraClass, drawAura } from './aura';
 import { islePerks, type IsleState } from './isle';
 import { FARM_SPAWN } from './graveshift';
 import { showGraveRequests, showGraveShop } from './graveshift-ui';
-import { nightPresence, showNightShift } from './nightshift-ui';
+import { dmgNumbers, nightPresence, setDmgNumbers, showNightShift } from './nightshift-ui';
 import { showWardrobe } from './wardrobe';
 import { IMPACT, animateReveal, playFusion } from './fusefx';
 import { howToHtml, startHowTo } from './howto';
@@ -968,6 +968,7 @@ function showSettings(back: () => void) {
     ${row('set-shake', '📳', 'Screen shake', !save.shakeOff, 'A short shake on big hits')}
     ${row('set-contrast', '🔲', 'High contrast', save.highContrast, 'Light walls with bright edges, a plain floor, outlined foes, no fog')}
     ${row('set-calm', '🌀', 'Calm motion', calmChosen(), 'Skip the Soul Forge\'s fusion and soften movement')}
+    ${row('set-dmg', '🔢', 'Damage numbers', dmgNumbers(), 'Show the damage over each hit in the Night Shift')}
     <button class="btn" id="set-help">❔ How to play</button>
     <button class="btn primary" id="back">Back</button>`);
   const again = () => showSettings(back);
@@ -996,6 +997,10 @@ function showSettings(back: () => void) {
   });
   on('#set-calm', () => {
     setCalm(!calmChosen());
+    again();
+  });
+  on('#set-dmg', () => {
+    setDmgNumbers(!dmgNumbers());
     again();
   });
   on('#set-help', () => showHelp(again));

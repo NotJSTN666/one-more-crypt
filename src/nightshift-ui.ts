@@ -14,12 +14,12 @@ import type { EnemyKind } from './game';
 import { celebrate, celebrateNotes } from './progress-ui';
 import type { AchievementDef } from './content';
 import {
-  dashCooldown, FIELD, MAX_LEVEL, type Night, area, dash, spadeReach, NIGHT_RELIC, NIGHT_RELICS, chooseRelic, frostRadius, levelChoices, newNight, nextBossAt, nightSouls, skullCount, skullOrbit, step, xpToLevel, NIGHT_FUSION, fusionOf, isFusion, nightFeats, isBlessing, NIGHT_BLESSING, NIGHT_BLESSINGS, bl, type NightPick, ASCENDED, ASCEND_TEXT, ELITES, NEW_FOES, NIGHT_PERKS, chooseDawn, reroll, banish, skipLevel, plainLevel, type RelicKind, NIGHT_EVENTS, NIGHT_PACTS, NO_PACT, ascendedWeapon, isAscend, isPact, type FusionId, type PactId } from './nightshift';
+  dashCooldown, FIELD, MAX_LEVEL, type Night, area, dash, spadeReach, NIGHT_RELIC, NIGHT_RELICS, chooseRelic, frostRadius, levelChoices, newNight, nextBossAt, nightSouls, skullCount, skullOrbit, step, xpToLevel, NIGHT_FUSION, fusionOf, isFusion, nightFeats, isBlessing, NIGHT_BLESSING, NIGHT_BLESSINGS, bl, type NightPick, ASCENDED, ASCEND_TEXT, DAWN, ELITES, NEW_FOES, isBoss as isBossKind, NIGHT_PERKS, chooseDawn, reroll, banish, skipLevel, plainLevel, type RelicKind, NIGHT_EVENTS, NIGHT_PACTS, NO_PACT, ascendedWeapon, isAscend, isPact, type FusionId, type PactId } from './nightshift';
 import { ONLINE, nightBoard, submitNight } from './online';
 import { featCosmetics, seasonDress, soulSurge } from './progression';
 import { claimInlineHtml, keepNameHtml, wireKeepName, ensureGuest, playerName, showLeaderboard, signedIn, unclaimed, wireClaimInline } from './social';
 import { enemyFrames, type Sprite } from './sprites';
-import { esc, on, overlay, showOverlay, toast } from './ui';
+import { calmMotion, esc, on, overlay, showOverlay, toast } from './ui';
 
 const TILE = 16;
 const STEP = 1 / 60;
@@ -88,6 +88,23 @@ export function nightPresence(): string | null {
 }
 
 /** Stand a night in the graveyard. `back` leaves. */
+/** Damage numbers over the dead in the Night Shift (off unless chosen in Settings). */
+const DMG_KEY = 'omc:ns-dmg';
+export function dmgNumbers(): boolean {
+  try {
+    return localStorage.getItem(DMG_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+export function setDmgNumbers(on: boolean) {
+  try {
+    localStorage.setItem(DMG_KEY, on ? '1' : '0');
+  } catch {
+    // this visit only
+  }
+}
+
 /**
  * The late-night rules (events, elites, pacts and ascension) start with the week of Monday 9
  * November, so the week's board under way keeps one set of rules. ?preview=night2 tries them early.
@@ -111,13 +128,14 @@ export function showNightShift(back: () => void) {
         <div class="ns-xp"><i id="ns-xp-bar"></i><span id="ns-level">Lv 1</span></div>
         <div class="ns-row ns-sub">
           <span class="ns-relics" id="ns-relics"></span>
-          <span class="ns-time"><span id="ns-clock">0:00</span> · ☠️ <span id="ns-next">1:30</span></span>
+          <span class="ns-time"><span id="ns-moon">🌆</span> <span id="ns-clock">0:00</span> · ☠️ <span id="ns-next">1:30</span></span>
         </div>
       </div>
       <div class="ns-stage" id="ns-stage">
         <canvas id="ns-canvas" aria-label="The graveyard at night, with the dead closing in"></canvas>
         <div class="ns-boss" id="ns-boss" hidden><span id="ns-boss-name"></span><i><b id="ns-boss-bar"></b></i></div>
         <div class="ns-event" id="ns-event" hidden></div>
+        <div class="ns-bosscard" id="ns-bosscard" hidden></div>
         <div class="ns-hint" id="ns-hint">${touch ? 'Use the stick to move, and 💨 to dash.' : 'WASD or arrows to move, Space to dash.'} Your relics fight on their own. Put down as many as you can.</div>
         ${touch ? '' : dashButton('desk')}
         <div class="ns-modal" id="ns-modal" hidden></div>
@@ -634,6 +652,8 @@ export function showNightShift(back: () => void) {
     $id('ns-hp').textContent = `${Math.max(0, Math.ceil(n.hp))}`;
     $id('ns-hp-bar').style.width = `${Math.max(0, (n.hp / n.maxHp) * 100)}%`;
     $id('ns-clock').textContent = fmt(n.t);
+    // the night passes: dusk, night, the deep of it, the hour before dawn
+    $id('ns-moon').textContent = n.nightmare ? '🌑' : n.dawn ? '🌅' : n.t < 300 ? '🌆' : n.t < 900 ? '🌙' : n.t < 1500 ? '🌘' : '🌄';
     $id('ns-next').textContent = fmt(nextBossAt(n) - n.t);
     $id('ns-kills').textContent = String(n.kills);
     $id('ns-level').textContent = `Lv ${n.level}`;
@@ -661,6 +681,19 @@ export function showNightShift(back: () => void) {
   let last = performance.now();
   let acc = 0;
   let seen = { kills: 0, hp: n.hp, bosses: 0, felled: 0, potions: 0, events: 0, chests: 0 };
+  // A boss's entrance: its name slams in, the ground shakes and a shockwave rolls out.
+  const BOSS_SUB: Record<string, string> = { boss: 'He charges down the lines he marks', abbot: 'Bolts in fans and rings', lich: 'Lanes that burst, and spirals', voideye: 'A turning cross of light', mother: 'Survive her, and dawn will come' };
+  let quake = { at: -10, x: 0, y: 0 };
+  function bossEntrance(kind: string, x: number, y: number) {
+    const card = $id('ns-bosscard');
+    card.innerHTML = `<b>${esc(BOSS_NAME[kind] ?? 'A boss')}</b><small>${esc(BOSS_SUB[kind] ?? 'rises')}</small>`;
+    card.hidden = false;
+    card.classList.remove('go');
+    void card.offsetWidth;
+    card.classList.add('go');
+    window.setTimeout(() => (card.hidden = true), 2600);
+    quake = { at: n.t, x, y };
+  }
   let ascendedAt = -10;
   let eliteWarned = false;
   const foesMet = new Set<string>();
@@ -727,8 +760,8 @@ export function showNightShift(back: () => void) {
     }
     if (n.bossesRisen > seen.bosses) {
       sfx.toll();
-      const boss = [...n.foes].reverse().find((f) => f.boss);
-      if (boss) toast(`☠️ ${BOSS_NAME[boss.kind]} rises`);
+      const boss = [...n.foes].reverse().find((f) => f.boss && f.kind !== 'mother');
+      if (boss) bossEntrance(boss.kind, boss.x, boss.y);
     }
     // Night Shift achievements, granted the moment they're earned so quitting keeps them.
     if (n.t - featCheckAt >= 1) {
@@ -777,7 +810,8 @@ export function showNightShift(back: () => void) {
     if (n.motherRisen && !motherSeen) {
       motherSeen = true;
       sfx.toll();
-      toast('🌑 The Night Mother rises. Survive her, and dawn will come.');
+      const m = n.foes.find((f) => f.kind === 'mother');
+      bossEntrance('mother', m?.x ?? n.x, m?.y ?? n.y);
     }
     if (!eliteWarned && n.foes.some((f) => f.elite)) {
       eliteWarned = true;
@@ -848,7 +882,77 @@ export function showNightShift(back: () => void) {
     ctx.stroke();
   }
   let sparks: { x: number; y: number; vx: number; vy: number; life: number; max: number; color: string; size: number }[] = [];
+  // What the dead leave on the ground for a while: bones, ichor, feathers, scorch.
+  let decals: { x: number; y: number; kind: string; at: number; seed: number }[] = [];
+  let deathsSeen = 0;
+  let lastHx = n.x;
+  let lastHy = n.y;
+  let walk = 0;
+  const showDmg = dmgNumbers();
+  const lightCanvas = document.createElement('canvas');
   let lastDraw = performance.now() / 1000;
+
+  /** The night's colour at this hour: blue dusk, deep night, a red small hours, gold before dawn. */
+  function nightTone(): [number, number, number, number] {
+    if (n.nightmare) return [16, 0, 12, 0.68];
+    const t = n.t;
+    const mix = (a: number[], b: number[], k: number) => a.map((v, i) => v + (b[i] - v) * Math.max(0, Math.min(1, k)));
+    const dusk = [14, 18, 44, 0.38];
+    const deep = [6, 4, 14, 0.55];
+    const red = [22, 4, 10, 0.6];
+    const gold = [40, 22, 12, 0.32];
+    const c = t < 300 ? mix(dusk, deep, t / 300) : t < 900 ? deep : t < 1500 ? mix(deep, red, (t - 900) / 300) : mix(red, gold, (t - 1500) / 300);
+    return c as [number, number, number, number];
+  }
+  function nightLight(sx: (x: number) => number, sy: (y: number) => number) {
+    const LS = 2;
+    if (lightCanvas.width !== Math.round(W * LS) || lightCanvas.height !== Math.round(H * LS)) {
+      lightCanvas.width = Math.round(W * LS);
+      lightCanvas.height = Math.round(H * LS);
+    }
+    const lc = lightCanvas.getContext('2d')!;
+    lc.setTransform(LS, 0, 0, LS, 0, 0);
+    lc.globalCompositeOperation = 'source-over';
+    lc.clearRect(0, 0, W, H);
+    const [r, g, b, a] = nightTone();
+    lc.fillStyle = `rgba(${r | 0}, ${g | 0}, ${b | 0}, ${a})`;
+    lc.fillRect(0, 0, W, H);
+    lc.globalCompositeOperation = 'destination-out';
+    const cut = (x: number, y: number, rad: number, lift: number) => {
+      if (rad < 2 || x < -rad || y < -rad || x > W + rad || y > H + rad) return;
+      const gr = lc.createRadialGradient(x, y, 0, x, y, rad);
+      gr.addColorStop(0, `rgba(0,0,0,${lift})`);
+      gr.addColorStop(0.45, `rgba(0,0,0,${lift * 0.8})`);
+      gr.addColorStop(1, 'rgba(0,0,0,0)');
+      lc.fillStyle = gr;
+      lc.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+    };
+    // your lantern, wider with the Seer's Lens
+    cut(sx(n.x), sy(n.y), 78 * Math.min(1.5, area(n)), 1);
+    for (const fl of n.flames) cut(sx(fl.x), sy(fl.y), fl.r * TILE * 2.2, 0.7);
+    for (const f of n.flashes) {
+      const k = Math.max(0, 1 - (n.t - f.at) / 0.4);
+      if (k <= 0) continue;
+      const rad = f.kind === 'beam' ? 40 : f.kind === 'ring' ? (f.r ?? 2) * TILE * 1.2 : f.kind === 'blast' ? 50 : 30;
+      cut(sx(f.x), sy(f.y), rad, 0.8 * k);
+    }
+    for (const p of n.pickups) if (p.kind !== 'soul' && p.kind !== 'bigsoul') cut(sx(p.x), sy(p.y), 22, 0.7);
+    for (const f of n.foes) {
+      if (f.boss) cut(sx(f.x), sy(f.y), 48, 0.6);
+      else if (f.elite || f.treasure) cut(sx(f.x), sy(f.y), 20, 0.5);
+    }
+    for (const d of n.darts) if (d.kind !== 'dart') cut(sx(d.x), sy(d.y), 14, 0.5);
+    ctx.drawImage(lightCanvas, 0, 0, W, H);
+    // the last half hour: a glow rising from the east before the sun comes up
+    if (!n.nightmare && n.t > 1650 && n.t < DAWN + 5) {
+      const k = Math.min(1, (n.t - 1650) / 150);
+      const east = ctx.createLinearGradient(W, 0, W * 0.4, H);
+      east.addColorStop(0, `rgba(255, 170, 110, ${0.22 * k})`);
+      east.addColorStop(1, 'rgba(255, 170, 110, 0)');
+      ctx.fillStyle = east;
+      ctx.fillRect(0, 0, W, H);
+    }
+  }
 
   function draw(t: number) {
     if (!W) fitCanvas();
@@ -862,9 +966,62 @@ export function showNightShift(back: () => void) {
     const camY = H >= FIELD * TILE ? (FIELD * TILE - H) / 2 : Math.max(0, Math.min(FIELD * TILE - H, n.y * TILE - H / 2));
     const sx = (x: number) => x * TILE - camX;
     const sy = (y: number) => y * TILE - camY;
+    // the ground shakes as a boss climbs out (not with calm motion)
+    const qk = n.t - quake.at;
+    if (qk < 0.5 && !calmMotion()) {
+      const amp = 3 * (1 - qk / 0.5);
+      ctx.setTransform(S, 0, 0, S, Math.round((Math.random() - 0.5) * amp * 2) * S, Math.round((Math.random() - 0.5) * amp * 2) * S);
+    }
     ctx.fillStyle = '#0b0910';
     ctx.fillRect(0, 0, W, H);
     ctx.drawImage(ground, -Math.round(camX), -Math.round(camY));
+
+    // the fallen, each in its own way: bones clatter, wraiths fade, bats burst, imps flare
+    const fresh = n.deaths.filter((d) => d.at > deathsSeen);
+    for (const d of fresh.slice(-30)) {
+      const kind = d.kind;
+      const burst = (count: number, colors: string[], speed: number, life: number, grav = 0) => {
+        for (let k = 0; k < count; k++) {
+          const a = Math.random() * Math.PI * 2;
+          const v = speed * (0.4 + Math.random() * 0.8);
+          sparks.push({ x: d.x, y: d.y - 0.2, vx: Math.cos(a) * v, vy: Math.sin(a) * v - grav, life, max: life, color: colors[k % colors.length], size: Math.random() < 0.3 ? 2 : 1 });
+        }
+      };
+      if (kind === 'bat') burst(6, ['#5a3a7a', '#2a1a3a', '#b07cff'], 2.2, 0.5);
+      else if (kind === 'wraith') burst(8, ['#9fe8ff', '#5a8ab0', '#dff4ff'], 0.9, 0.9, 0.6);
+      else if (kind === 'imp') burst(8, ['#ff8a2a', '#ffcf5a', '#701826'], 2.4, 0.5);
+      else if (kind === 'monk' || kind === 'drowned') burst(7, ['#7f9a52', '#3d4a2a', '#b9c99a'], 1.6, 0.6);
+      else if (isBossKind(kind)) burst(40, ['#f2c14e', '#d23a46', '#ffffff'], 4, 0.9);
+      else burst(5, ['#e8dcc4', '#9a8f7a', '#6b6450'], 1.6, 0.6);
+      decals.push({ x: d.x, y: d.y, kind, at: n.t, seed: Math.random() * 1000 });
+    }
+    if (n.deaths.length) deathsSeen = n.deaths[n.deaths.length - 1].at;
+    if (decals.length > 220) decals = decals.slice(-220);
+    decals = decals.filter((d) => n.t - d.at < 25);
+    for (const d of decals) {
+      const x = Math.round(sx(d.x));
+      const y = Math.round(sy(d.y));
+      if (x < -8 || y < -8 || x > W + 8 || y > H + 8) continue;
+      ctx.globalAlpha = Math.min(0.75, 1 - (n.t - d.at) / 25);
+      const r1 = (d.seed % 7) - 3;
+      const r2 = ((d.seed / 7) % 5) - 2;
+      if (d.kind === 'wraith') {
+        px(x - 3, y, 6, 2, 'rgba(120, 190, 230, 0.35)');
+      } else if (d.kind === 'bat') {
+        px(x + r1, y + r2, 2, 1, '#2a1a3a');
+        px(x - r2, y + 1, 1, 1, '#5a3a7a');
+      } else if (d.kind === 'imp') {
+        px(x - 3, y - 1, 6, 3, 'rgba(30, 10, 5, 0.6)');
+      } else if (d.kind === 'monk' || d.kind === 'drowned') {
+        px(x - 3, y, 6, 2, 'rgba(70, 90, 40, 0.5)');
+      } else {
+        // a little heap of bones
+        px(x - 2 + r2, y, 3, 1, '#c9bfa6');
+        px(x + r1, y + 1, 2, 1, '#9a8f7a');
+        px(x - 1, y - 1, 1, 1, '#e8dcc4');
+      }
+    }
+    ctx.globalAlpha = 1;
 
     // burning ground: a scorched glow, tongues of flame that lick upward, and rising sparks
     const hot = n.fused.hellwalk;
@@ -1175,8 +1332,14 @@ export function showNightShift(back: () => void) {
     }
 
     // you: a warm pool of lantern light and a gold ring at your feet, so you're easy to find
+    // a step's bob while you walk
+    const moved = Math.hypot(n.x - lastHx, n.y - lastHy);
+    lastHx = n.x;
+    lastHy = n.y;
+    if (moved > 0.001) walk += moved * 4;
+    const bobY = moved > 0.001 && !calmMotion() ? Math.round(Math.abs(Math.sin(walk)) * -1.5) : 0;
     const hx = Math.round(sx(n.x) - 6);
-    const hy = Math.round(sy(n.y) - 9);
+    const hy = Math.round(sy(n.y) - 9) + bobY;
     const glow = ctx.createRadialGradient(sx(n.x), sy(n.y), 2, sx(n.x), sy(n.y), 26);
     glow.addColorStop(0, 'rgba(255, 200, 120, 0.32)');
     glow.addColorStop(1, 'rgba(255, 200, 120, 0)');
@@ -1420,6 +1583,23 @@ export function showNightShift(back: () => void) {
     }
     ctx.globalAlpha = 1;
     if (sparks.length) sparks = sparks.filter((p) => p.life > 0).slice(-300);
+    // damage numbers, if chosen in Settings: small, rising and fading
+    if (showDmg) {
+      ctx.font = '6px Silkscreen, monospace';
+      ctx.textAlign = 'center';
+      for (const h of n.hits) {
+        const age = n.t - h.at;
+        if (age > 0.7) continue;
+        ctx.globalAlpha = 1 - age / 0.7;
+        const x = Math.round(sx(h.x));
+        const y = Math.round(sy(h.y) - 10 - age * 14);
+        ctx.fillStyle = '#000';
+        ctx.fillText(String(h.amt), x + 1, y + 1);
+        ctx.fillStyle = h.amt >= 100 ? '#f2c14e' : '#fff';
+        ctx.fillText(String(h.amt), x, y);
+      }
+      ctx.globalAlpha = 1;
+    }
 
     // the season's leaves or snow, falling over the whole field
     seasonWeather(ctx, px, W, H, t);
@@ -1435,12 +1615,17 @@ export function showNightShift(back: () => void) {
       px(mx, my + 2, 1, 1, '#f2c14e');
     }
 
-    // the night closes in round your lantern
-    const g = ctx.createRadialGradient(sx(n.x), sy(n.y), 30, sx(n.x), sy(n.y), Math.max(W, H) * 0.75);
-    g.addColorStop(0, 'rgba(7, 4, 11, 0)');
-    g.addColorStop(1, 'rgba(7, 4, 11, 0.6)');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, H);
+    // the night: dark that deepens and turns as the hours pass, with every light cutting its own pool
+    nightLight(sx, sy);
+    // the boss's shockwave rolling out as it rises
+    if (qk < 0.8) {
+      const r = 8 + qk * 120;
+      ctx.strokeStyle = `rgba(255, 210, 160, ${0.7 * (1 - qk / 0.8)})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(sx(quake.x), sy(quake.y), r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     // white-gold light when a relic ascends
     if (n.t - ascendedAt < 0.8) {
       ctx.fillStyle = `rgba(255, 245, 210, ${0.45 * (1 - (n.t - ascendedAt) / 0.8)})`;

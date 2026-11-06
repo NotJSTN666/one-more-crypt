@@ -5639,3 +5639,46 @@ body.tutorial #relic-bar {
 .shrine-done { color: #7ee081; font-size: 11px; }
 .shrine-weapons { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 10px; }
 .shrine-weapons .btn { margin: 0; width: auto; padding: 6px 10px; font-size: 11px; }
+
+/* A boss's entrance: its name slams in over the field. */
+.ns-bosscard {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 32%;
+  text-align: center;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0), rgba(20, 4, 10, 0.85) 20%, rgba(20, 4, 10, 0.85) 80%, rgba(0, 0, 0, 0));
+  padding: 10px 0 12px;
+}
+
+.ns-bosscard b {
+  display: block;
+  font-family: var(--display, 'Pirata One', serif);
+  font-size: 40px;
+  font-weight: 400;
+  color: #ff5a6a;
+  text-shadow: 0 0 18px rgba(210, 58, 70, 0.8), 2px 2px 0 #000;
+}
+
+.ns-bosscard small {
+  display: block;
+  font-family: var(--pixel);
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: #e8dcc4;
+  text-transform: uppercase;
+}
+
+.ns-bosscard.go { animation: ns-boss-in 2.6s ease-out both; }
+
+@keyframes ns-boss-in {
+  0% { opacity: 0; transform: scale(1.6); }
+  10% { opacity: 1; transform: scale(1); }
+  80% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.02); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ns-bosscard.go { animation: none; }
+}
