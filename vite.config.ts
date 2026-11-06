@@ -17,7 +17,8 @@ function siteUrl(): string {
 // Relative base so the build works at any path (/<repo>/ on GitHub Pages, or a domain root).
 export default defineConfig(({ mode }) => ({
   base: './',
-  build: { target: 'es2020' },
+  // The CrazyGames build is flat (no folders), since their portal takes loose files only.
+  build: { target: 'es2020', ...(mode === 'crazygames' ? { assetsDir: '' } : {}) },
   plugins: [
     {
       name: 'site-url',
@@ -26,6 +27,8 @@ export default defineConfig(({ mode }) => ({
         // The CrazyGames build: their SDK first, and no app manifest (it isn't installable there).
         if (mode === 'crazygames') {
           out = out.replace(/<link rel="manifest"[^>]*>\s*/g, '');
+          out = out.replace(/<link rel="apple-touch-icon"[^>]*>\s*/g, '');
+          out = out.replace(/<meta (property|name)="(og|twitter):[^>]*>\s*/g, '');
           out = out.replace('</head>', '    <script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>\n  </head>');
         }
         return out;
