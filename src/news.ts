@@ -40,7 +40,7 @@ export const NEWS: NewsDay[] = [
     ],
   },
   {
-    date: '2026-11-06',
+    date: '2026-11-05',
     title: 'Light in the dark',
     notes: [
       '🕯️ The crypt is lit by its lights now: candles, lava, the open stairs, potions, burning and frozen foes and bosses each throw their own light, and your relics tint your lantern.',
