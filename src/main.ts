@@ -50,6 +50,8 @@ noteDeepest(save.bestEndless);
 setMuted(save.muted);
 
 /** Under the share button after a run, and on the title once the daily is done: the community server. */
+/** The privacy policy, on the game's own site (the one outside link every build keeps). */
+const PRIVACY_URL = 'https://onemorecrypt.com/privacy.html';
 // Community links sit on the title only in the portal build.
 const discordBtn = PORTAL ? '' : `<a class="btn discord" href="${DISCORD_URL}" target="_blank" rel="noopener">💬 Join the Discord<small>Post your result, compare builds, report bugs</small></a>`;
 
@@ -158,7 +160,10 @@ function stageTutorial() {
   game.stage(step.scene);
   renderer.setGame(game);
   updateHud(true);
-  coach(`${tutorial.step + 1} / ${TUTORIAL.length + 1} · ${step.title}`, step.coach);
+  const legal = tutorial.step === 0
+    ? `<span class="coach-legal">By playing you agree to our <a href="${PRIVACY_URL}" target="_blank" rel="noopener">Privacy Policy</a>.</span>`
+    : '';
+  coach(`${tutorial.step + 1} / ${TUTORIAL.length + 1} · ${step.title}`, step.coach + legal);
   tutorial.busy = false;
 }
 
@@ -249,7 +254,8 @@ function withTutorialOffer(go: () => void, back?: () => void) {
     <p class="sub">Learn the basics in a minute: move, strike, dodge, descend.</p>
     <button class="btn primary" id="learn">Play the tutorial<small>About a minute</small></button>
     <button class="btn" id="skip">Skip, I know how to play</button>
-    ${back ? '<button class="btn" id="back">Back</button>' : ''}`);
+    ${back ? '<button class="btn" id="back">Back</button>' : ''}
+    <p class="fine legal">By playing you agree to our <a href="${PRIVACY_URL}" target="_blank" rel="noopener">Privacy Policy</a>.</p>`);
   if (back) on('#back', back);
   on('#learn', () => startTutorial(go));
   on('#skip', () => {
@@ -973,6 +979,7 @@ function showSettings(back: () => void) {
     ${row('set-calm', '🌀', 'Calm motion', calmChosen(), 'Skip the Soul Forge\'s fusion and soften movement')}
     ${row('set-dmg', '🔢', 'Damage numbers', dmgNumbers(), 'Show the damage over each hit in the Night Shift')}
     <button class="btn" id="set-help">❔ How to play</button>
+    <a class="btn" href="${PRIVACY_URL}" target="_blank" rel="noopener">🔒 Privacy Policy</a>
     <button class="btn primary" id="back">Back</button>`);
   const again = () => showSettings(back);
   on('#set-sound', () => {
@@ -1378,7 +1385,7 @@ function showTitle() {
       ${titleTile('feedback', '💬', 'Feedback', 'Bugs & ideas')}
       ${titleTile('help', '❔', 'How to play', 'The basics')}
     </div>
-    <div class="foot-links">${followXHtml}${discordHtml}${kofiHtml}</div>
+    <div class="foot-links">${followXHtml}${discordHtml}${kofiHtml}<a class="follow-x privacy" href="${PRIVACY_URL}" target="_blank" rel="noopener">🔒 Privacy</a></div>
     </div></div>
   `);
   on('#account', () => (unclaimed() ? showLogin(showTitle, 'claim') : showProfile(showTitle)));

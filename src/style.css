@@ -5682,3 +5682,17 @@ body.tutorial #relic-bar {
 @media (prefers-reduced-motion: reduce) {
   .ns-bosscard.go { animation: none; }
 }
+
+/* The privacy notice under the first screen's choices. */
+.fine.legal {
+  margin-top: 14px;
+  font-size: 12px;
+  opacity: 0.85;
+}
+.coach-legal {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  opacity: 0.75;
+}
+.coach-legal a { color: inherit; text-decoration: underline; }
