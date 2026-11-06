@@ -12,8 +12,7 @@ import { grantFeats, graveState, meta, noteMonth, noteTrial, outfitFor, receiveG
 import { celebrate, celebrateNotes } from './progress-ui';
 import type { AchievementDef } from './content';
 import {
-  dashCooldown, FIELD, MAX_LEVEL, type Night, area, dash, spadeReach, NIGHT_RELIC, NIGHT_RELICS, chooseRelic, frostRadius, levelChoices, newNight, nextBossAt, nightSouls, skullCount, skullOrbit, step, xpToLevel, NIGHT_FUSION, fusionOf, isFusion, nightFeats, isBlessing, NIGHT_BLESSING, NIGHT_BLESSINGS, bl, type NightPick,
-} from './nightshift';
+  dashCooldown, FIELD, MAX_LEVEL, type Night, area, dash, spadeReach, NIGHT_RELIC, NIGHT_RELICS, chooseRelic, frostRadius, levelChoices, newNight, nextBossAt, nightSouls, skullCount, skullOrbit, step, xpToLevel, NIGHT_FUSION, fusionOf, isFusion, nightFeats, isBlessing, NIGHT_BLESSING, NIGHT_BLESSINGS, bl, type NightPick, ASCENDED, ASCEND_TEXT, ELITES, NIGHT_EVENTS, NIGHT_PACTS, NO_PACT, ascendedWeapon, isAscend, isPact, type FusionId, type PactId } from './nightshift';
 import { ONLINE, nightBoard, submitNight } from './online';
 import { featCosmetics, seasonDress, soulSurge } from './progression';
 import { claimInlineHtml, keepNameHtml, wireKeepName, ensureGuest, playerName, showLeaderboard, signedIn, unclaimed, wireClaimInline } from './social';
@@ -87,6 +86,15 @@ export function nightPresence(): string | null {
 }
 
 /** Stand a night in the graveyard. `back` leaves. */
+/**
+ * The late-night rules (events, elites, pacts and ascension) start with the week of Monday 9
+ * November, so the week's board under way keeps one set of rules. ?preview=night2 tries them early.
+ */
+export const NIGHT_V2_FROM = '2026-11-09';
+export function nightV2Live(): boolean {
+  return centralDate() >= NIGHT_V2_FROM || /[?&]preview=night2\b/.test(location.search);
+}
+
 export function showNightShift(back: () => void) {
   const touch = matchMedia('(pointer: coarse)').matches;
   const side = stickSide();
@@ -107,6 +115,7 @@ export function showNightShift(back: () => void) {
       <div class="ns-stage" id="ns-stage">
         <canvas id="ns-canvas" aria-label="The graveyard at night, with the dead closing in"></canvas>
         <div class="ns-boss" id="ns-boss" hidden><span id="ns-boss-name"></span><i><b id="ns-boss-bar"></b></i></div>
+        <div class="ns-event" id="ns-event" hidden></div>
         <div class="ns-hint" id="ns-hint">${touch ? 'Use the stick to move, and 💨 to dash.' : 'WASD or arrows to move, Space to dash.'} Your relics fight on their own. Put down as many as you can.</div>
         ${touch ? '' : dashButton('desk')}
         <div class="ns-modal" id="ns-modal" hidden></div>
@@ -122,7 +131,7 @@ export function showNightShift(back: () => void) {
   const ctx = canvas.getContext('2d')!;
   const $id = (id: string) => overlay.querySelector<HTMLElement>(`#${id}`)!;
 
-  const n = newNight();
+  const n = newNight(Math.random, nightV2Live());
   current = n;
   // Local development only: the night, for poking at from the console.
   if (import.meta.env.DEV) (window as unknown as { night?: unknown }).night = n;
@@ -363,10 +372,38 @@ export function showNightShift(back: () => void) {
     letGo();
     sfx.relic();
     modal.hidden = false;
-    const forge = n.forgeOffers > 0;
-    modal.innerHTML = `${forge ? '<h3>🔥 The Soul Forge</h3>' : `<h3>Level ${n.level - n.pendingLevels + 1}</h3>`}
-      <p class="fine">${forge ? 'A boss left an ember: forge two relics into one, or sharpen a weapon for free' : 'Choose a relic'}${touch ? '' : ' · ↑ ↓ and Enter, or 1, 2, 3'}</p>
+    const pact = n.pactOffers > 0;
+    const asc = !pact && n.ascendOffers > 0;
+    const forge = !pact && !asc && n.forgeOffers > 0;
+    const head = pact ? '<h3>🕯️ A Night Pact</h3>' : asc ? '<h3>✦ Ascension</h3>' : forge ? '<h3>🔥 The Soul Forge</h3>' : `<h3>Level ${n.level - n.pendingLevels + 1}</h3>`;
+    const sub = pact ? 'The boss falls, and something in the dark offers a bargain: a curse on the night, for a boon' : asc ? 'The boss left a shard: choose a fused relic to ascend' : forge ? 'A boss left an ember: forge two relics into one, or sharpen a weapon for free' : 'Choose a relic';
+    modal.innerHTML = `${head}
+      <p class="fine">${sub}${touch ? '' : ' · ↑ ↓ and Enter, or 1, 2, 3'}</p>
       <div class="ns-choices">${opts.map((id, i) => {
+        if (isPact(id)) {
+          if (id === NO_PACT) {
+            return `<button type="button" class="ns-choice nopact" data-pick="${id}">
+              <span class="ns-choice-emoji">🚫</span>
+              <span class="ns-choice-info"><b>Refuse</b> <small>No bargain this time</small><span>The night goes on as it is.</span></span>
+              ${touch ? '' : `<kbd>${i + 1}</kbd>`}
+            </button>`;
+          }
+          const pc = NIGHT_PACTS[id];
+          return `<button type="button" class="ns-choice pact" data-pick="${id}">
+            <span class="ns-choice-emoji">${pc.emoji}</span>
+            <span class="ns-choice-info"><b>${esc(pc.name)}</b> <small>🕯️ Pact · Souls cap +150</small><span class="curse">☠️ ${esc(pc.curse)}</span><span>✨ ${esc(pc.boon)}</span></span>
+            ${touch ? '' : `<kbd>${i + 1}</kbd>`}
+          </button>`;
+        }
+        if (isAscend(id)) {
+          const fid = id.slice(4) as FusionId;
+          const f = NIGHT_FUSION[fid];
+          return `<button type="button" class="ns-choice ascend" data-pick="${id}">
+            <span class="ns-choice-emoji">${f.emoji}</span>
+            <span class="ns-choice-info"><b>${esc(ASCENDED[fid])}</b> <small>✦ Ascend ${esc(f.name)}</small><span>${esc(ASCEND_TEXT)}</span></span>
+            ${touch ? '' : `<kbd>${i + 1}</kbd>`}
+          </button>`;
+        }
         if (isFusion(id)) {
           // a fusion at the Soul Forge: the weapon and its charm become one
           const f = NIGHT_FUSION[id];
@@ -417,6 +454,16 @@ export function showNightShift(back: () => void) {
     if (isFusion(id)) {
       sfx.relic();
       toast(`🔥 Forged: ${NIGHT_FUSION[id].name}`);
+    } else if (isAscend(id)) {
+      sfx.fuse();
+      ascendedAt = n.t;
+      toast(`✦ Ascended: ${ASCENDED[id.slice(4) as FusionId]}`);
+    } else if (isPact(id)) {
+      if (id === NO_PACT) sfx.step();
+      else {
+        sfx.toll();
+        toast(`🕯️ ${NIGHT_PACTS[id as PactId].name} sealed`);
+      }
     } else sfx.heal();
     relicRow();
     last = performance.now();
@@ -506,12 +553,15 @@ export function showNightShift(back: () => void) {
     $id('ns-relics').innerHTML = NIGHT_RELICS.filter((r) => n.relics[r.id])
       .map((r) => {
         const f = fusionOf(n, r.id);
+        if (f && n.ascended[f.id]) return `<span class="ns-relic fused ascended" title="${esc(ASCENDED[f.id])}">${f.emoji}<small>✦</small></span>`;
         return f
           ? `<span class="ns-relic fused" title="${esc(f.name)}">${f.emoji}<small>★</small></span>`
           : `<span class="ns-relic ${r.weapon ? '' : 'charm'}" title="${esc(r.name)}">${r.emoji}<small>${n.relics[r.id]}</small></span>`;
       })
       .join('') + NIGHT_BLESSINGS.filter((b) => bl(n, b.id))
       .map((b) => `<span class="ns-relic blessing" title="${esc(b.name)} ×${bl(n, b.id)}">${b.emoji}<small>×${bl(n, b.id)}</small></span>`)
+      .join('') + (Object.keys(NIGHT_PACTS) as PactId[]).filter((id) => n.pacts[id])
+      .map((id) => `<span class="ns-relic pact" title="${esc(NIGHT_PACTS[id].name)}: ${esc(NIGHT_PACTS[id].curse)} ${esc(NIGHT_PACTS[id].boon)}">${NIGHT_PACTS[id].emoji}<small>🕯️</small></span>`)
       .join('');
   }
   relicRow();
@@ -556,7 +606,9 @@ export function showNightShift(back: () => void) {
   };
   let last = performance.now();
   let acc = 0;
-  let seen = { kills: 0, hp: n.hp, bosses: 0, felled: 0, potions: 0 };
+  let seen = { kills: 0, hp: n.hp, bosses: 0, felled: 0, potions: 0, events: 0, chests: 0 };
+  let ascendedAt = -10;
+  let eliteWarned = false;
   // The bosses up last frame, so one that falls can be named; and when the last fell, for the flash.
   let bossesUp: { id: number; kind: string }[] = [];
   let felledAt = -10;
@@ -615,7 +667,28 @@ export function showNightShift(back: () => void) {
     if (n.flashes.some((f) => f.kind === 'bolt' && n.t - f.at < dt)) play('zap', 200);
     if (n.flashes.some((f) => f.kind === 'ring' && n.t - f.at < dt)) play('block', 300);
     if (n.flashes.some((f) => f.kind === 'lane' && n.t - f.at < dt)) play('crit', 250);
-    seen = { kills: n.kills, hp: n.hp, bosses: n.bossesRisen, felled: n.bossKills, potions: n.potions };
+    // Night events: a banner while one is under way.
+    if (n.events > seen.events && n.event) {
+      sfx.toll();
+      const e = NIGHT_EVENTS[n.event.kind];
+      toast(`${e.emoji} ${e.name}: ${e.text}`);
+    }
+    const evEl = $id('ns-event');
+    if (n.event && n.t < n.event.until) {
+      const e = NIGHT_EVENTS[n.event.kind];
+      evEl.hidden = false;
+      evEl.className = `ns-event ${n.event.kind}`;
+      evEl.textContent = `${e.emoji} ${e.name} · ${Math.ceil(n.event.until - n.t)}`;
+    } else evEl.hidden = true;
+    if (n.chests > seen.chests) {
+      sfx.relic();
+      toast('💰 Treasure! Two levels at once');
+    }
+    if (!eliteWarned && n.foes.some((f) => f.elite)) {
+      eliteWarned = true;
+      toast('✴️ Elites walk the night: glowing dead with gifts of their own');
+    }
+    seen = { kills: n.kills, hp: n.hp, bosses: n.bossesRisen, felled: n.bossKills, potions: n.potions, events: n.events, chests: n.chests };
     if (!ended) music();
     if (n.t > 6) $id('ns-hint').classList.add('gone');
     draw(now / 1000);
@@ -780,6 +853,21 @@ export function showNightShift(back: () => void) {
     for (const l of n.lanes) {
       const left = Math.max(0, l.at - n.t);
       const blink = left < 0.3 ? (Math.floor(t * 20) % 2 ? 0.55 : 0.3) : 0.22;
+      if (l.blast) {
+        // a volatile elite about to burst: an orange ring that fills as it nears
+        const r = l.w * TILE;
+        const fill = 1 - left / 0.9;
+        ctx.fillStyle = `rgba(255, 110, 30, ${blink * 0.8})`;
+        ctx.beginPath();
+        ctx.arc(sx(l.x), sy(l.y), r * Math.max(0.15, fill), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255, 170, 80, 0.9)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(sx(l.x), sy(l.y), r, 0, Math.PI * 2);
+        ctx.stroke();
+        continue;
+      }
       if (l.grasp) {
         // the earth splitting where you stand, with fingers working up through it
         const r = l.w * TILE;
@@ -833,6 +921,22 @@ export function showNightShift(back: () => void) {
         px(x - 2, y - 2, 4, 4, '#e0283c');
         px(x - 2, y - 2, 4, 1, '#ff6070');
         px(x - 2, y - 2, 1, 1, '#ffffff');
+      } else if (p.kind === 'chest') {
+        // the Treasure Ghoul's chest: gold-banded, glowing
+        glowAt(x, y, '255,210,90', 16, 0.55 + 0.2 * Math.sin(t * 6));
+        px(x - 5, y - 4, 10, 8, '#5a3a14');
+        px(x - 5, y - 4, 10, 3, '#8a5a1e');
+        px(x - 5, y - 2, 10, 1, '#f2c14e');
+        px(x - 1, y - 3, 2, 3, '#ffe9a0');
+        px(x - 5, y - 4, 1, 8, '#f2c14e');
+        px(x + 4, y - 4, 1, 8, '#f2c14e');
+      } else if (p.kind === 'shard') {
+        // an ascension shard: a white-gold crystal that turns
+        glowAt(x, y, '255,240,190', 15, 0.6 + 0.25 * Math.sin(t * 7));
+        const tw = Math.round(Math.sin(t * 3) * 1.5);
+        px(x - 1 + tw, y - 6, 2, 12, '#fff7d6');
+        px(x - 3, y - 2, 6, 4, '#f2d27a');
+        px(x - 1, y - 4, 2, 8, '#ffffff');
       } else if (p.kind === 'forge') {
         // an ember from the Soul Forge: a coal that burns and throws sparks
         glowAt(x, y, '255,140,40', 13, 0.5 + 0.2 * Math.sin(t * 6));
@@ -866,14 +970,41 @@ export function showNightShift(back: () => void) {
         ctx.arc(sx(f.x), sy(f.y), f.r * TILE * 1.3, 0, Math.PI * 2);
         ctx.fill();
       }
+      if (f.elite || f.treasure) {
+        // elites burn with their gift's colour; the Treasure Ghoul glows gold
+        const col = f.treasure ? '#f2c14e' : ELITES[f.elite!].color;
+        const rgb = col.replace('#', '').match(/../g)!.map((h) => parseInt(h, 16)).join(',');
+        glowAt(sx(f.x), sy(f.y) - 3, rgb, f.r * TILE * 2.2, 0.45 + 0.15 * Math.sin(t * 6 + f.id));
+        ctx.strokeStyle = col;
+        ctx.lineWidth = 1;
+        ctx.globalAlpha = 0.85;
+        ctx.beginPath();
+        ctx.ellipse(sx(f.x), sy(f.y) + 1, f.r * TILE * 1.1, f.r * TILE * 0.55, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        if (f.elite === 'armored' && !f.cracked) {
+          // a steel shell round it
+          ctx.strokeStyle = 'rgba(210, 220, 235, 0.8)';
+          ctx.beginPath();
+          ctx.arc(sx(f.x), sy(f.y) - 3, f.r * TILE * 1.2, Math.PI * 1.1, Math.PI * 1.9);
+          ctx.stroke();
+        }
+      }
       if (f.slowUntil > n.t) ctx.globalAlpha = 0.75;
       ctx.save();
+      // the Treasure Ghoul shines gold
+      if (f.treasure) ctx.filter = 'sepia(1) saturate(4) brightness(1.25) hue-rotate(-10deg)';
       if (f.x > n.x) {
         ctx.translate(Math.round(x) + size, Math.round(y));
         ctx.scale(-1, 1);
         ctx.drawImage(img, 0, 0, size, size);
       } else ctx.drawImage(img, Math.round(x), Math.round(y), size, size);
       ctx.restore();
+      if (f.treasure) {
+        // a sack of gold on its back
+        px(Math.round(sx(f.x)) - 2, Math.round(y) - 3, 5, 4, '#a8742a');
+        px(Math.round(sx(f.x)) - 1, Math.round(y) - 4, 3, 1, '#f2c14e');
+      }
       if (f.slowUntil > n.t) {
         ctx.globalAlpha = 0.35;
         px(Math.round(x + 2), Math.round(y + 2), size - 4, size - 4, '#9fd8ff');
@@ -882,10 +1013,12 @@ export function showNightShift(back: () => void) {
     }
 
     // darts, scythes and wisps
+    const ascDart = { dart: ascendedWeapon(n, 'quiver'), scythe: ascendedWeapon(n, 'scythe'), wisp: ascendedWeapon(n, 'wisps') };
     for (const d of n.darts) {
       const x = sx(d.x);
       const y = sy(d.y);
       if (x < -20 || y < -20 || x > W + 20 || y > H + 20) continue;
+      if (ascDart[d.kind]) glowAt(x, y, '255,215,120', 9, 0.5);
       const sp = Math.hypot(d.vx, d.vy) || 1;
       const ux = d.vx / sp;
       const uy = d.vy / sp;
@@ -1008,6 +1141,22 @@ export function showNightShift(back: () => void) {
       const fade = Math.max(0, 1 - age);
       const x0 = sx(fl.x);
       const y0 = sy(fl.y);
+      // an ascended relic strikes in gold
+      if (fl.asc) glowAt(x0, y0, '255,215,120', Math.min(44, (fl.r ?? 1) * TILE * 0.7 + 8), fade * 0.5);
+      if (fl.kind === 'blast') {
+        ctx.globalAlpha = fade;
+        glowAt(x0, y0, '255,140,40', (fl.r ?? 1.7) * TILE * 1.4, 0.8);
+        ctx.fillStyle = 'rgba(255, 200, 120, 0.5)';
+        ctx.beginPath();
+        ctx.arc(x0, y0, (fl.r ?? 1.7) * TILE * (0.6 + 0.6 * age), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        continue;
+      }
+      if (fl.kind === 'blink') {
+        glowAt(x0, y0, '176,124,255', 14, fade * 0.8);
+        continue;
+      }
       if (fl.kind === 'swing') {
         // a crescent that sweeps out and thins, with a glint at its leading edge
         const r = (fl.r ?? 1.5) * TILE * (0.75 + 0.25 * age);
@@ -1195,6 +1344,26 @@ export function showNightShift(back: () => void) {
     g.addColorStop(1, 'rgba(7, 4, 11, 0.6)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
+    // white-gold light when a relic ascends
+    if (n.t - ascendedAt < 0.8) {
+      ctx.fillStyle = `rgba(255, 245, 210, ${0.45 * (1 - (n.t - ascendedAt) / 0.8)})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+    // Grave Fog: only a small circle round you can be seen
+    if (n.event?.kind === 'fog' && n.t < n.event.until) {
+      const k = Math.min(1, (n.t - n.event.at) / 1.5, (n.event.until - n.t) / 1.5);
+      const fg = ctx.createRadialGradient(sx(n.x), sy(n.y), 26, sx(n.x), sy(n.y), 26 + 70 * (1 - k) + 40);
+      fg.addColorStop(0, 'rgba(150, 160, 175, 0)');
+      fg.addColorStop(1, `rgba(120, 128, 140, ${0.97 * k})`);
+      ctx.fillStyle = fg;
+      ctx.fillRect(0, 0, W, H);
+    }
+    // Blood Moon: everything tinged red
+    if (n.event?.kind === 'bloodmoon' && n.t < n.event.until) {
+      const k = Math.min(1, (n.t - n.event.at) / 1.5, (n.event.until - n.t) / 1.5);
+      ctx.fillStyle = `rgba(150, 10, 30, ${0.2 * k})`;
+      ctx.fillRect(0, 0, W, H);
+    }
     // a flash of gold when a boss falls
     if (n.t - felledAt < 0.5) {
       ctx.fillStyle = `rgba(255, 220, 140, ${0.35 * (1 - (n.t - felledAt) / 0.5)})`;

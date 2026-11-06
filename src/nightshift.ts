@@ -36,9 +36,65 @@ export interface Foe {
   atkN: number;
   /** Which boss of the night this is (0 for the first), for how hard it hits. */
   tier: number;
+  /** An elite's gift: armored, splitting, volatile or blinking. */
+  elite?: EliteKind;
+  /** An armored elite whose shell a dash has broken. */
+  cracked?: boolean;
+  /** A blinking elite's next jump. */
+  blinkAt?: number;
+  /** The Treasure Ghoul: flees, and leaves a chest if caught. */
+  treasure?: boolean;
 }
 
-export type Pickup = { x: number; y: number; kind: 'soul' | 'bigsoul' | 'glowcap' | 'potion' | 'forge'; v: number };
+/** Elite foes, from level ELITE_LEVEL: tougher, glowing, and each with a gift. */
+export type EliteKind = 'armored' | 'splitting' | 'volatile' | 'blinking';
+export const ELITES: Record<EliteKind, { name: string; text: string; color: string }> = {
+  armored: { name: 'Armored', text: 'Shrugs off most harm until a dash cracks its shell.', color: '#9aa3b5' },
+  splitting: { name: 'Splitting', text: 'Bursts into three when it falls.', color: '#7ee081' },
+  volatile: { name: 'Volatile', text: 'Blows up a moment after it falls. Step away.', color: '#ff8a2a' },
+  blinking: { name: 'Blinking', text: 'Vanishes and reappears right beside you.', color: '#b07cff' },
+};
+export const ELITE_LEVEL = 55;
+
+/** Night events: one every two minutes, a minute after each boss, from the fourth minute or so. */
+export type NightEventKind = 'bloodmoon' | 'swarm' | 'fog' | 'treasure';
+export const NIGHT_EVENTS: Record<NightEventKind, { name: string; emoji: string; text: string; secs: number }> = {
+  bloodmoon: { name: 'Blood Moon', emoji: '🩸', text: 'The dead run faster and come thicker. Souls count double.', secs: 25 },
+  swarm: { name: 'The Swarm', emoji: '🌀', text: 'They close in from every side. Break out!', secs: 15 },
+  fog: { name: 'Grave Fog', emoji: '🌫️', text: 'You can barely see. Souls count half again.', secs: 20 },
+  treasure: { name: 'Treasure Ghoul', emoji: '💰', text: 'A golden ghoul flees with a chest. Catch it!', secs: 20 },
+};
+/** The first event, and the gap between them. */
+export const FIRST_EVENT = 270;
+export const EVENT_EVERY = 120;
+
+/**
+ * Night Pacts, offered when a boss falls: take a curse on the night for a boon. Each can be
+ * taken once; every pact also raises what the night can pay in Souls.
+ */
+export type PactId = 'hunger' | 'haste' | 'throng' | 'blood' | 'fangs';
+export const NIGHT_PACTS: Record<PactId, { name: string; emoji: string; curse: string; boon: string }> = {
+  hunger: { name: 'Pact of Hunger', emoji: '🍖', curse: 'The dead have 30% more health.', boon: 'Souls you gather count 30% more.' },
+  haste: { name: 'Pact of Haste', emoji: '🐎', curse: 'The dead move 15% faster.', boon: 'Weapons come round 10% sooner.' },
+  throng: { name: 'Pact of the Throng', emoji: '👥', curse: '30% more of the dead come.', boon: 'Dawn pays 30% more Souls.' },
+  blood: { name: 'Pact of Blood', emoji: '🩸', curse: 'No more potions or glowcaps.', boon: 'Everything hits 20% harder.' },
+  fangs: { name: 'Pact of Fangs', emoji: '🐺', curse: 'Their bites hurt 1 more.', boon: 'Your dash comes back 25% sooner and hits twice as hard.' },
+};
+export const PACT_IDS = Object.keys(NIGHT_PACTS) as PactId[];
+/** Turning the pact down. */
+export const NO_PACT = 'nopact';
+
+/** Ascension: a fused relic, ascended with a shard a boss leaves, hits far harder and faster. */
+export const ASCENDED: Record<FusionId, string> = {
+  cleaver: 'Worldsplitter', halo: 'Crown of Bones', barrage: 'Bone Storm', hellwalk: 'Inferno Stride', tempest: 'Wrath of Heaven',
+  glacier: 'Endless Winter', requiem: 'Doom Choir', eclipse: 'Black Sun', legion: 'Host of Souls', ossuary: 'Charnel Field', judgement: 'Last Judgement',
+};
+export const ASCEND_LEVEL = 40;
+export const ASCEND_TEXT = 'Ascended: hits 75% harder and comes round 20% sooner.';
+export type AscendPick = `asc:${FusionId}`;
+export const isAscend = (id: string): id is AscendPick => id.startsWith('asc:');
+
+export type Pickup = { x: number; y: number; kind: 'soul' | 'bigsoul' | 'glowcap' | 'potion' | 'forge' | 'chest' | 'shard'; v: number };
 
 /** Your thrown things: bone darts, the scythe (which comes back) and wisps (which seek). */
 export interface Dart {
@@ -59,9 +115,9 @@ export interface Shot { x: number; y: number; vx: number; vy: number; r: number;
  * A boss's lane: marked on the ground first, then it strikes everything along it. A Gravelord's
  * lane is the path of his charge.
  */
-export interface Lane { x: number; y: number; ang: number; len: number; w: number; at: number; dmg: number; charge?: number; grasp?: boolean }
+export interface Lane { x: number; y: number; ang: number; len: number; w: number; at: number; dmg: number; charge?: number; grasp?: boolean; blast?: boolean }
 /** Things to draw for a moment: a spade swing, a lightning strike, a bell's ring, spikes, a lance, a lane bursting. */
-export interface Flash { kind: 'swing' | 'bolt' | 'ring' | 'spike' | 'beam' | 'lane' | 'grasp'; x: number; y: number; at: number; ang?: number; r?: number }
+export interface Flash { kind: 'swing' | 'bolt' | 'ring' | 'spike' | 'beam' | 'lane' | 'grasp' | 'blast' | 'blink'; x: number; y: number; at: number; ang?: number; r?: number; asc?: boolean }
 
 /** Relics in the Night Shift: weapons that fight on their own, and charms that help. */
 export type RelicKind =
@@ -145,8 +201,9 @@ export const NIGHT_BLESSINGS: NightBlessing[] = [
 ];
 export const NIGHT_BLESSING = Object.fromEntries(NIGHT_BLESSINGS.map((b) => [b.id, b])) as Record<BlessingId, NightBlessing>;
 
-/** A level-up choice: a relic, a fusion at the forge, or a blessing. */
-export type NightPick = RelicKind | FusionId | BlessingId;
+/** A level-up choice: a relic, a fusion at the forge, a blessing, a pact (or refusing it), or an ascension. */
+export type NightPick = RelicKind | FusionId | BlessingId | PactId | typeof NO_PACT | AscendPick;
+export const isPact = (id: NightPick): id is PactId | typeof NO_PACT => id === NO_PACT || id in NIGHT_PACTS;
 export const isFusion = (id: NightPick): id is FusionId => id in NIGHT_FUSION;
 export const isBlessing = (id: NightPick): id is BlessingId => id in NIGHT_BLESSING;
 
@@ -229,9 +286,24 @@ export interface Night {
   bossesRisen: number;
   over: boolean;
   rand: () => number;
+  /** The late-night rules (events, elites, pacts and ascension). */
+  v2: boolean;
+  /** The event under way, and when the next begins. */
+  event: { kind: NightEventKind; at: number; until: number } | null;
+  nextEventAt: number;
+  lastEvent: NightEventKind | '';
+  /** Events lived through this night. */
+  events: number;
+  pacts: Partial<Record<PactId, boolean>>;
+  pactOffers: number;
+  ascended: Partial<Record<FusionId, boolean>>;
+  ascendOffers: number;
+  /** Elites put down, and treasure chests opened. */
+  eliteKills: number;
+  chests: number;
 }
 
-export function newNight(rand: () => number = Math.random): Night {
+export function newNight(rand: () => number = Math.random, v2 = true): Night {
   return {
     t: 0,
     x: FIELD / 2,
@@ -275,6 +347,17 @@ export function newNight(rand: () => number = Math.random): Night {
     bossesRisen: 0,
     over: false,
     rand,
+    v2,
+    event: null,
+    nextEventAt: FIRST_EVENT,
+    lastEvent: '',
+    events: 0,
+    pacts: {},
+    pactOffers: 0,
+    ascended: {},
+    ascendOffers: 0,
+    eliteKills: 0,
+    chests: 0,
   };
 }
 
@@ -283,9 +366,17 @@ const lv = (n: Night, r: RelicKind) => n.relics[r] ?? 0;
 export const xpToLevel = (level: number) => 2 + level * 2 + Math.floor((level * level) / 10);
 /** How many times a blessing has been taken. */
 export const bl = (n: Night, b: BlessingId) => n.blessings?.[b] ?? 0;
-const dmgMul = (n: Night) => (1 + 0.12 * lv(n, 'whetstone')) * (1 + 0.06 * bl(n, 'might'));
+const dmgMul = (n: Night) => (1 + 0.12 * lv(n, 'whetstone')) * (1 + 0.06 * bl(n, 'might')) * (n.pacts?.blood ? 1.2 : 1);
 // Quickening and warding shrink by a share each time, so they never reach nothing.
-const cdMul = (n: Night) => (1 - 0.08 * lv(n, 'hourglass')) * 0.96 ** bl(n, 'quickening');
+const cdMul = (n: Night) => (1 - 0.08 * lv(n, 'hourglass')) * 0.96 ** bl(n, 'quickening') * (n.pacts?.haste ? 0.9 : 1);
+/** A weapon whose fusion has ascended: how much harder it hits, and how much sooner it comes round. */
+const ascOf = (n: Night, r: RelicKind) => {
+  const f = fusionOf(n, r);
+  return Boolean(f && n.ascended?.[f.id]);
+};
+const pw = (n: Night, r: RelicKind) => (ascOf(n, r) ? 1.75 : 1);
+/** Whether a weapon has ascended, for drawing it in gold. */
+export const ascendedWeapon = (n: Night, r: RelicKind) => ascOf(n, r);
 /** What's left of a hit after the Blessing of Warding. */
 export const wardMul = (n: Night) => 0.96 ** bl(n, 'warding');
 /** How far the Seer's Lens (and the Blessing of Reach) stretch every area weapon. */
@@ -317,11 +408,29 @@ const readyFusions = (n: Night) => NIGHT_FUSIONS.filter((f) => !n.fused[f.id] &&
 
 /** Three choices for a level-up: relics you can still add or sharpen. */
 export function levelChoices(n: Night): NightPick[] {
+  if (n.pactOffers > 0) return pactChoices(n);
+  if (n.ascendOffers > 0) return ascendChoices(n);
   if (n.forgeOffers > 0) return forgeChoices(n);
   // A fusion ready at the forge is always offered first.
   const ready = readyFusions(n);
   const forge: NightPick[] = ready.length ? [ready[Math.floor(n.rand() * ready.length)].id] : [];
   return [...forge, ...relicChoices(n)].slice(0, 3);
+}
+
+/** A boss has fallen: two pacts you haven't taken, and turning them down. */
+function pactChoices(n: Night): NightPick[] {
+  const open = PACT_IDS.filter((id) => !n.pacts[id]);
+  const out: NightPick[] = [];
+  while (out.length < 2 && open.length) out.push(open.splice(Math.floor(n.rand() * open.length), 1)[0]);
+  return [...out, NO_PACT];
+}
+
+/** A shard picked up: the fused relics that can still ascend (up to three). */
+function ascendChoices(n: Night): NightPick[] {
+  const open = NIGHT_FUSIONS.filter((f) => n.fused[f.id] && !n.ascended[f.id]).map((f) => `asc:${f.id}` as AscendPick);
+  const out: NightPick[] = [];
+  while (out.length < 3 && open.length) out.push(open.splice(Math.floor(n.rand() * open.length), 1)[0]);
+  return out;
 }
 
 /**
@@ -360,6 +469,23 @@ function relicChoices(n: Night): NightPick[] {
 /** Take a relic (or its next level) for a waiting level. */
 export function chooseRelic(n: Night, id: NightPick) {
   if (n.pendingLevels <= 0) return;
+  if (n.pactOffers > 0) {
+    if (!isPact(id)) return;
+    if (id !== NO_PACT) n.pacts[id] = true;
+    n.pactOffers--;
+    n.pendingLevels--;
+    return;
+  }
+  if (n.ascendOffers > 0) {
+    if (!isAscend(id)) return;
+    const f = id.slice(4) as FusionId;
+    if (!n.fused[f] || n.ascended[f]) return;
+    n.ascended[f] = true;
+    n.ascendOffers--;
+    n.pendingLevels--;
+    return;
+  }
+  if (isPact(id) || isAscend(id)) return;
   if (isBlessing(id)) {
     n.blessings[id] = bl(n, id) + 1;
     n.pendingLevels--;
@@ -398,7 +524,7 @@ function edgeSpot(n: Night): { x: number; y: number } {
   return { x: Math.max(1, Math.min(FIELD - 1, n.x + Math.cos(ang) * d)), y: Math.max(1, Math.min(FIELD - 1, n.y + Math.sin(ang) * d)) };
 }
 
-function spawn(n: Night, kind: FoeKind, at?: { x: number; y: number }) {
+function spawn(n: Night, kind: FoeKind, at?: { x: number; y: number }, elite?: EliteKind | 'treasure') {
   const s = STATS[kind];
   const { x, y } = at ?? edgeSpot(n);
   const boss = isBoss(kind);
@@ -409,10 +535,37 @@ function spawn(n: Night, kind: FoeKind, at?: { x: number; y: number }) {
   const late = lateNight(n);
   const hp = Math.round(s.hp * (boss ? (tier === 0 ? 0.65 : 1 + 0.7 * tier) : 1 + n.t / 120 + (n.t / 300) ** 2) * LATE_HP ** late);
   const dmg = s.dmg + Math.floor(n.t / (boss ? 240 : 180)) - (boss && tier === 0 ? 2 : 0) + Math.floor(late / 1.5);
-  n.foes.push({
-    id: n.nextId++, kind, x, y, hp, maxHp: hp, speed: s.speed * (boss ? 1 + 0.05 * n.bossesRisen : 1 + Math.min(0.6, 0.06 * late)), dmg, r: s.r, xp: s.xp,
+  // Pacts: hungrier, faster, harder-biting dead.
+  const hunger = !boss && n.pacts?.hunger ? 1.3 : 1;
+  const haste = !boss && n.pacts?.haste ? 1.15 : 1;
+  const fangs = n.pacts?.fangs ? 1 : 0;
+  const f: Foe = {
+    id: n.nextId++, kind, x, y, hp: hp * hunger, maxHp: hp * hunger, speed: s.speed * (boss ? 1 + 0.05 * n.bossesRisen : 1 + Math.min(0.6, 0.06 * late)) * haste, dmg: dmg + fangs, r: s.r, xp: s.xp,
     slowUntil: 0, skullAt: 0, kx: 0, ky: 0, hitAt: -1, boss, atkAt: n.t + (tier === 0 ? 4 : 2.5), atkN: 0, tier,
-  });
+  };
+  if (elite === 'treasure') {
+    // Golden, quick and tough, and it runs.
+    f.treasure = true;
+    f.hp = f.maxHp = Math.round(60 * (1 + n.t / 120));
+    f.r = 0.45;
+    f.xp = 25;
+  } else if (elite) {
+    f.elite = elite;
+    f.hp = f.maxHp = f.hp * 4;
+    f.r *= 1.3;
+    f.xp *= 5;
+    f.dmg += 1;
+    if (elite === 'blinking') f.blinkAt = n.t + 2 + n.rand() * 2;
+  }
+  n.foes.push(f);
+}
+
+/** From ELITE_LEVEL, a share of the dead come as elites, more as the levels climb. */
+function eliteRoll(n: Night): EliteKind | undefined {
+  if (!n.v2 || n.level < ELITE_LEVEL) return undefined;
+  if (n.rand() >= Math.min(0.12, 0.03 + (n.level - ELITE_LEVEL) * 0.002)) return undefined;
+  const kinds: EliteKind[] = ['armored', 'splitting', 'volatile', 'blinking'];
+  return kinds[Math.floor(n.rand() * kinds.length)];
 }
 
 /** Minutes past the tenth: how far into the late night it is (0 before). */
@@ -436,21 +589,46 @@ function pickKind(n: Night): FoeKind {
   return 'ghoul';
 }
 
-function hurtFoe(n: Night, f: Foe, amount: number) {
+function hurtFoe(n: Night, f: Foe, amount: number, dashHit = false) {
   if (f.hp <= 0) return;
+  // An armored elite's shell turns most harm aside, until a dash cracks it.
+  if (f.elite === 'armored' && !f.cracked) {
+    if (dashHit) f.cracked = true;
+    else amount *= 0.25;
+  }
   f.hp -= amount * dmgMul(n);
   f.hitAt = n.t;
   if (f.hp <= 0) {
     n.kills++;
     n.pickups.push({ x: f.x, y: f.y, kind: f.xp >= 5 ? 'bigsoul' : 'soul', v: f.xp });
+    const healing = !n.pacts?.blood;
     if (f.boss) {
       n.bossKills++;
       if (!n.felledKinds.includes(f.kind)) n.felledKinds.push(f.kind);
+      if (n.v2) {
+        // A pact to weigh, while any are left untaken.
+        if (PACT_IDS.some((id) => !n.pacts[id])) {
+          n.pactOffers++;
+          n.pendingLevels++;
+        }
+        // A shard to ascend a fused relic, once there's one to ascend.
+        if (n.level >= ASCEND_LEVEL && NIGHT_FUSIONS.some((x) => n.fused[x.id] && !n.ascended[x.id])) n.pickups.push({ x: f.x, y: f.y + 0.7, kind: 'shard', v: 1 });
+      }
+    }
+    if (f.treasure) {
+      n.pickups.push({ x: f.x, y: f.y, kind: 'chest', v: 1 });
+    } else if (f.elite) {
+      n.eliteKills++;
+      if (f.elite === 'splitting') for (let k = 0; k < 3; k++) spawn(n, 'ghoul', { x: f.x + Math.cos(k * 2.1) * 0.6, y: f.y + Math.sin(k * 2.1) * 0.6 });
+      if (f.elite === 'volatile') n.lanes.push({ x: f.x, y: f.y, ang: 0, len: 0, w: 1.7, at: n.t + 0.9, dmg: f.dmg + 2, blast: true });
+      if (healing && n.rand() < 0.2) n.pickups.push({ x: f.x, y: f.y + 0.3, kind: 'glowcap', v: 5 });
     }
     if (f.boss) {
       // a boss leaves a healing potion and an ember from the Soul Forge
-      n.pickups.push({ x: f.x + 0.6, y: f.y, kind: 'potion', v: 1 });
+      if (healing) n.pickups.push({ x: f.x + 0.6, y: f.y, kind: 'potion', v: 1 });
       n.pickups.push({ x: f.x - 0.6, y: f.y, kind: 'forge', v: 1 });
+    } else if (!healing) {
+      // no potions or glowcaps under the Pact of Blood
     } else if (n.rand() < 0.012) n.pickups.push({ x: f.x, y: f.y + 0.3, kind: 'glowcap', v: 5 });
     else if (n.t - n.potionAt > POTION_GAP && n.rand() < 0.006) {
       n.potionAt = n.t;
@@ -571,14 +749,14 @@ export const DASH_TIME = 0.2;
 const DASH_BURST = 4.5;
 export const DASH_COOLDOWN = 2.5;
 /** The dash's wait, shortened by the Shade Cloak. */
-export const dashCooldown = (n: Night) => DASH_COOLDOWN * (1 - 0.1 * lv(n, 'cloak'));
+export const dashCooldown = (n: Night) => DASH_COOLDOWN * (1 - 0.1 * lv(n, 'cloak')) * (n.pacts?.fangs ? 0.75 : 1);
 /** A healing potion mends this share of your max health. */
 export const POTION_HEAL = 0.3;
 /** At most one potion from the ordinary dead in this many seconds. */
 const POTION_GAP = 25;
 
 /** What the dash does to each foe it hits: more as the night (and the dead) get tougher. */
-export const dashDamage = (n: Night) => (8 + n.t / 10) * dmgMul(n);
+export const dashDamage = (n: Night) => (8 + n.t / 10) * dmgMul(n) * (n.pacts?.fangs ? 2 : 1);
 
 /** Dash the way you're facing, if it's ready: a quick burst you can't be hurt during. */
 export function dash(n: Night, dx = 0, dy = 0): boolean {
@@ -610,7 +788,7 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
     for (const f of n.foes) {
       if (f.hp <= 0 || n.dashHit.includes(f.id) || Math.hypot(f.x - n.x, f.y - n.y) > f.r + PLAYER_R + 0.35) continue;
       n.dashHit.push(f.id);
-      hurtFoe(n, f, dashDamage(n));
+      hurtFoe(n, f, dashDamage(n), true);
       if (!f.boss) {
         // to whichever side of your path it was on
         const side = (f.x - n.x) * -n.fy + (f.y - n.y) * n.fx >= 0 ? 1 : -1;
@@ -640,11 +818,39 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
   if (lv(n, 'moss') && Math.floor(n.t / mossEvery) !== Math.floor((n.t - dt) / mossEvery)) n.hp = Math.min(n.maxHp, n.hp + 1);
 
   // ---- the dead arrive ----
-  const rate = 1.6 + (n.t / 60) * 1.0;
+  const ev = n.event && n.t < n.event.until ? n.event.kind : null;
+  const rate = (1.6 + (n.t / 60) * 1.0) * (n.pacts?.throng ? 1.3 : 1) * (ev === 'bloodmoon' ? 1.5 : 1);
   n.spawnDebt += rate * dt;
   while (n.spawnDebt >= 1) {
     n.spawnDebt--;
-    if (n.foes.length < MAX_FOES) spawn(n, pickKind(n));
+    if (n.foes.length < MAX_FOES) spawn(n, pickKind(n), undefined, eliteRoll(n));
+  }
+  // ---- night events ----
+  if (n.event && n.t >= n.event.until) {
+    // The Treasure Ghoul gets away if it wasn't caught.
+    if (n.event.kind === 'treasure') n.foes = n.foes.filter((f) => !f.treasure);
+    n.event = null;
+  }
+  if (n.v2 && !n.event && n.t >= n.nextEventAt) {
+    const kinds = (Object.keys(NIGHT_EVENTS) as NightEventKind[]).filter((k) => k !== n.lastEvent);
+    const kind = kinds[Math.floor(n.rand() * kinds.length)];
+    n.event = { kind, at: n.t, until: n.t + NIGHT_EVENTS[kind].secs };
+    n.lastEvent = kind;
+    n.events++;
+    n.nextEventAt += EVENT_EVERY;
+    if (kind === 'swarm') {
+      // a ring of the dead, the tougher kinds too, closing in from all round
+      const count = Math.min(80, 30 + Math.floor(n.t / 20));
+      for (let k = 0; k < count; k++) {
+        const a = (k / count) * Math.PI * 2;
+        const pick: FoeKind = k % 7 === 0 ? 'brute' : k % 3 === 0 ? 'wraith' : 'ghoul';
+        spawn(n, pick, { x: Math.max(1, Math.min(FIELD - 1, n.x + Math.cos(a) * 8.5)), y: Math.max(1, Math.min(FIELD - 1, n.y + Math.sin(a) * 8.5)) });
+      }
+    }
+    if (kind === 'treasure') {
+      const a = n.rand() * Math.PI * 2;
+      spawn(n, 'ghoul', { x: Math.max(1, Math.min(FIELD - 1, n.x + Math.cos(a) * 6)), y: Math.max(1, Math.min(FIELD - 1, n.y + Math.sin(a) * 6)) }, 'treasure');
+    }
   }
   if (n.t >= nextBossAt(n)) {
     spawn(n, BOSS_ORDER[n.bossesRisen % BOSS_ORDER.length]);
@@ -663,7 +869,7 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
   const ready = (r: RelicKind, every: number) => {
     if (!lv(n, r)) return false;
     if ((n.next[r] ?? 0) > n.t) return false;
-    n.next[r] = n.t + every * cdMul(n);
+    n.next[r] = n.t + every * cdMul(n) * (ascOf(n, r) ? 0.8 : 1);
     return true;
   };
   const L = (r: RelicKind) => lv(n, r);
@@ -687,14 +893,14 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
     const half = n.fused.cleaver ? Math.PI : ((55 + 10 * L('spade')) * Math.PI) / 180;
     const target = nearest(n, reach + 1.5);
     const facing = target ? Math.atan2(target.y - n.y, target.x - n.x) : Math.atan2(n.fy, n.fx);
-    n.flashes.push({ kind: 'swing', x: n.x, y: n.y, at: n.t, ang: facing, r: reach });
+    n.flashes.push({ kind: 'swing', x: n.x, y: n.y, at: n.t, ang: facing, r: reach, asc: ascOf(n, 'spade') });
     for (const f of n.foes) {
       const d = near(n, f);
       if (d > reach + f.r) continue;
       let diff = Math.abs(Math.atan2(f.y - n.y, f.x - n.x) - facing);
       if (diff > Math.PI) diff = Math.PI * 2 - diff;
       if (diff <= half || d < 0.6) {
-        hurtFoe(n, f, (4 + 2 * L('spade')) * (n.fused.cleaver ? 2 : 1));
+        hurtFoe(n, f, (4 + 2 * L('spade')) * (n.fused.cleaver ? 2 : 1) * pw(n, 'spade'));
         if (!f.boss) {
           f.kx += ((f.x - n.x) / (d || 1)) * 0.5;
           f.ky += ((f.y - n.y) / (d || 1)) * 0.5;
@@ -712,7 +918,7 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
     for (const f of n.foes) {
       if (f.skullAt > n.t || Math.hypot(f.x - sx, f.y - sy) > f.r + 0.35) continue;
       f.skullAt = n.t + 0.4;
-      hurtFoe(n, f, (3 + L('skulls')) * (n.fused.halo ? 2 : 1));
+      hurtFoe(n, f, (3 + L('skulls')) * (n.fused.halo ? 2 : 1) * pw(n, 'skulls'));
     }
   }
 
@@ -721,7 +927,7 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
     const targets = n.foes.filter((f) => f.hp > 0).sort((a, b) => near(n, a) - near(n, b)).slice(0, n.fused.barrage ? 8 : Math.min(4, Math.ceil(L('quiver') / 1.5)));
     for (const f of targets) {
       const d = near(n, f) || 1;
-      n.darts.push({ x: n.x, y: n.y, vx: ((f.x - n.x) / d) * 10, vy: ((f.y - n.y) / d) * 10, dmg: 4 + L('quiver'), pierce: Math.floor(L('quiver') / 2) + (n.fused.barrage ? 3 : 0), life: 1.2, hit: [], kind: 'dart' });
+      n.darts.push({ x: n.x, y: n.y, vx: ((f.x - n.x) / d) * 10, vy: ((f.y - n.y) / d) * 10, dmg: (4 + L('quiver')) * pw(n, 'quiver'), pierce: Math.floor(L('quiver') / 2) + (n.fused.barrage ? 3 : 0), life: 1.2, hit: [], kind: 'dart' });
     }
   }
   // The scythe: out toward a foe, then home again, cutting through everything both ways.
@@ -731,14 +937,14 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
     const base = f ? Math.atan2(f.y - n.y, f.x - n.x) : Math.atan2(n.fy, n.fx);
     for (let k = 0; k < count; k++) {
       const a = n.fused.eclipse ? base + (k / count) * Math.PI * 2 : base + (k - (count - 1) / 2) * 0.5;
-      n.darts.push({ x: n.x, y: n.y, vx: Math.cos(a) * 9, vy: Math.sin(a) * 9, dmg: (6 + 2 * L('scythe')) * (n.fused.eclipse ? 2 : 1), pierce: 999, life: 1.6, hit: [], kind: 'scythe' });
+      n.darts.push({ x: n.x, y: n.y, vx: Math.cos(a) * 9, vy: Math.sin(a) * 9, dmg: (6 + 2 * L('scythe')) * (n.fused.eclipse ? 2 : 1) * pw(n, 'scythe'), pierce: 999, life: 1.6, hit: [], kind: 'scythe' });
     }
   }
   // Wisps: slow little ghosts that turn toward the nearest foe.
   if (ready('wisps', Math.max(0.7, 1.6 - 0.15 * L('wisps')))) {
     for (let k = 0; k < (1 + Math.floor(L('wisps') / 2)) * (n.fused.legion ? 3 : 1); k++) {
       const a = n.rand() * Math.PI * 2;
-      n.darts.push({ x: n.x, y: n.y, vx: Math.cos(a) * 5, vy: Math.sin(a) * 5, dmg: 5 + 2 * L('wisps'), pierce: 0, life: 3, hit: [], kind: 'wisp' });
+      n.darts.push({ x: n.x, y: n.y, vx: Math.cos(a) * 5, vy: Math.sin(a) * 5, dmg: (5 + 2 * L('wisps')) * pw(n, 'wisps'), pierce: 0, life: 3, hit: [], kind: 'wisp' });
     }
   }
   for (const d of n.darts) {
@@ -776,7 +982,7 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
   // Ember: burning ground left behind you.
   if (ready('ember', 0.35)) {
     const hell = n.fused.hellwalk ? 1 : 0;
-    n.flames.push({ x: n.x, y: n.y, until: n.t + (1.6 + 0.4 * L('ember')) * (1 + 0.5 * hell), r: (0.6 + 0.05 * L('ember')) * area(n) * (1 + 0.8 * hell), dps: (4 + 2 * L('ember')) * (1 + hell) });
+    n.flames.push({ x: n.x, y: n.y, until: n.t + (1.6 + 0.4 * L('ember')) * (1 + 0.5 * hell), r: (0.6 + 0.05 * L('ember')) * area(n) * (1 + 0.8 * hell), dps: (4 + 2 * L('ember')) * (1 + hell) * pw(n, 'ember') });
   }
   if (n.flames.length) {
     for (const fl of n.flames) for (const f of n.foes) if (Math.hypot(f.x - fl.x, f.y - fl.y) < fl.r + f.r) hurtFoe(n, f, fl.dps * dt);
@@ -788,8 +994,8 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
     const close = n.foes.filter((f) => f.hp > 0 && near(n, f) < (n.fused.tempest ? 10 : 7));
     for (let k = 0; k < (1 + L('storm')) * (n.fused.tempest ? 2 : 1) && close.length; k++) {
       const f = close.splice(Math.floor(n.rand() * close.length), 1)[0];
-      n.flashes.push({ kind: 'bolt', x: f.x, y: f.y, at: n.t });
-      hurtFoe(n, f, 8 + 4 * L('storm'));
+      n.flashes.push({ kind: 'bolt', x: f.x, y: f.y, at: n.t, asc: ascOf(n, 'storm') });
+      hurtFoe(n, f, (8 + 4 * L('storm')) * pw(n, 'storm'));
     }
   }
 
@@ -800,8 +1006,8 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
     for (let k = 0; k < (1 + L('spikes')) * (n.fused.ossuary ? 2 : 1) && close.length; k++) {
       const c = close.splice(Math.floor(n.rand() * close.length), 1)[0];
       const at = { x: c.x, y: c.y };
-      n.flashes.push({ kind: 'spike', x: at.x, y: at.y, at: n.t, r });
-      for (const f of n.foes) if (near(at, f) < r + f.r) hurtFoe(n, f, (7 + 3 * L('spikes')) * (n.fused.ossuary ? 1.5 : 1));
+      n.flashes.push({ kind: 'spike', x: at.x, y: at.y, at: n.t, r, asc: ascOf(n, 'spikes') });
+      for (const f of n.foes) if (near(at, f) < r + f.r) hurtFoe(n, f, (7 + 3 * L('spikes')) * (n.fused.ossuary ? 1.5 : 1) * pw(n, 'spikes'));
     }
   }
 
@@ -812,8 +1018,8 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
     for (let k = 0; k < (n.fused.judgement ? 4 : 1); k++) {
       const ang = base + (k * Math.PI) / 2;
       const beam: Lane = { x: n.x, y: n.y, ang, len: 6 + L('lance'), w: 0.45, at: n.t, dmg: 0 };
-      n.flashes.push({ kind: 'beam', x: n.x, y: n.y, at: n.t, ang, r: beam.len });
-      for (const o of n.foes) if (laneDist(beam, o.x, o.y) < beam.w + o.r) hurtFoe(n, o, (10 + 5 * L('lance')) * (n.fused.judgement ? 1.5 : 1));
+      n.flashes.push({ kind: 'beam', x: n.x, y: n.y, at: n.t, ang, r: beam.len, asc: ascOf(n, 'lance') });
+      for (const o of n.foes) if (laneDist(beam, o.x, o.y) < beam.w + o.r) hurtFoe(n, o, (10 + 5 * L('lance')) * (n.fused.judgement ? 1.5 : 1) * pw(n, 'lance'));
     }
   }
 
@@ -821,17 +1027,17 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
   const fr = frostRadius(n);
   if (fr) for (const f of n.foes) if (near(n, f) < fr + f.r) {
     f.slowUntil = n.t + 0.2;
-    hurtFoe(n, f, (1 + 0.6 * L('frost')) * (n.fused.glacier ? 2.5 : 1) * dt);
+    hurtFoe(n, f, (1 + 0.6 * L('frost')) * (n.fused.glacier ? 2.5 : 1) * pw(n, 'frost') * dt);
   }
 
   // The bell: a toll that throws everything back.
   if (ready('bell', Math.max(1.6, 4 - 0.45 * L('bell')) * (n.fused.requiem ? 0.5 : 1))) {
     const r = (2.4 + 0.4 * L('bell')) * area(n);
-    n.flashes.push({ kind: 'ring', x: n.x, y: n.y, at: n.t, r });
+    n.flashes.push({ kind: 'ring', x: n.x, y: n.y, at: n.t, r, asc: ascOf(n, 'bell') });
     for (const f of n.foes) {
       const d = near(n, f);
       if (d > r + f.r) continue;
-      hurtFoe(n, f, (5 + 3 * L('bell')) * (n.fused.requiem ? 3 : 1));
+      hurtFoe(n, f, (5 + 3 * L('bell')) * (n.fused.requiem ? 3 : 1) * pw(n, 'bell'));
       if (!f.boss) {
         f.kx += ((f.x - n.x) / (d || 1)) * 1.6;
         f.ky += ((f.y - n.y) / (d || 1)) * 1.6;
@@ -855,13 +1061,33 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
       f.y = Math.max(0.5, Math.min(FIELD - 0.5, f.y));
     }
     let d = near(n, f) || 1;
+    // A blinking elite: gone, and back right beside you.
+    if (f.elite === 'blinking' && f.blinkAt !== undefined && n.t >= f.blinkAt) {
+      f.blinkAt = n.t + 3.5 + n.rand() * 1.5;
+      if (d > 2.5) {
+        n.flashes.push({ kind: 'blink', x: f.x, y: f.y, at: n.t });
+        const a = n.rand() * Math.PI * 2;
+        f.x = Math.max(0.5, Math.min(FIELD - 0.5, n.x + Math.cos(a) * 2.2));
+        f.y = Math.max(0.5, Math.min(FIELD - 0.5, n.y + Math.sin(a) * 2.2));
+        n.flashes.push({ kind: 'blink', x: f.x, y: f.y, at: n.t });
+        d = near(n, f) || 1;
+      }
+    }
+    // The Treasure Ghoul runs from you (but never quite out of reach).
+    if (f.treasure) {
+      const away = d < 10 ? -1 : 0.3;
+      const sp = playerSpeed(n) * 0.72 * (f.slowUntil > n.t ? 0.6 : 1);
+      f.x = Math.max(0.7, Math.min(FIELD - 0.7, f.x + ((n.x - f.x) / d) * away * sp * dt + Math.sin(n.t * 2 + f.id) * 0.6 * dt));
+      f.y = Math.max(0.7, Math.min(FIELD - 0.7, f.y + ((n.y - f.y) / d) * away * sp * dt + Math.cos(n.t * 2 + f.id) * 0.6 * dt));
+      continue;
+    }
     // Left far behind: it comes round again from out of sight.
     if (d > 15 && !f.boss) {
       Object.assign(f, edgeSpot(n));
       d = near(n, f) || 1;
     }
     if (f.boss) bossAttack(n, f);
-    const slow = f.slowUntil > n.t ? 1 - frostSlow(n, f) : 1;
+    const slow = (f.slowUntil > n.t ? 1 - frostSlow(n, f) : 1) * (ev === 'bloodmoon' && !f.boss ? 1.25 : 1);
     // Bats weave as they come.
     const wob = f.kind === 'bat' ? Math.sin(n.t * 6 + f.id) * 0.6 : 0;
     const ux = (n.x - f.x) / d;
@@ -888,7 +1114,7 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
   n.shots = n.shots.filter((s) => s.life > 0 && s.x > -1 && s.y > -1 && s.x < FIELD + 1 && s.y < FIELD + 1);
   for (const l of n.lanes) {
     if (n.t < l.at) continue;
-    n.flashes.push({ kind: l.grasp ? 'grasp' : 'lane', x: l.x, y: l.y, at: n.t, ang: l.ang, r: l.grasp ? l.w : l.len });
+    n.flashes.push({ kind: l.blast ? 'blast' : l.grasp ? 'grasp' : 'lane', x: l.x, y: l.y, at: n.t, ang: l.ang, r: l.grasp || l.blast ? l.w : l.len });
     if (laneDist(l, n.x, n.y) < l.w + PLAYER_R) hurtYou(n, l.dmg);
     const charger = l.charge ? n.foes.find((f) => f.id === l.charge) : undefined;
     if (charger) {
@@ -911,7 +1137,8 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
 
   // ---- pickups ----
   const pull = pickupRadius(n);
-  const soulMul = (1 + 0.15 * lv(n, 'coin')) * (1 + 0.05 * bl(n, 'greed'));
+  const evMul = ev === 'bloodmoon' ? 2 : ev === 'fog' ? 1.5 : 1;
+  const soulMul = (1 + 0.15 * lv(n, 'coin')) * (1 + 0.05 * bl(n, 'greed')) * (n.pacts?.hunger ? 1.3 : 1) * evMul;
   for (const p of n.pickups) {
     const d = near(n, p);
     if (d < pull) {
@@ -929,6 +1156,16 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
       else if (p.kind === 'forge') {
         n.pendingLevels++;
         n.forgeOffers++;
+      } else if (p.kind === 'chest') {
+        // the Treasure Ghoul's chest: two levels at once, and a heap of souls
+        n.pendingLevels += 2;
+        n.chests++;
+        n.xp += 20 * soulMul;
+      } else if (p.kind === 'shard') {
+        if (NIGHT_FUSIONS.some((x) => n.fused[x.id] && !n.ascended[x.id])) {
+          n.pendingLevels++;
+          n.ascendOffers++;
+        }
       } else n.xp += p.v * soulMul;
       p.v = 0;
     }
@@ -936,7 +1173,7 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
   n.pickups = n.pickups.filter((p) => p.v > 0);
   // Too many souls lying about: the oldest are gathered into one big one.
   if (n.pickups.length > 400) {
-    const keep = (p: Pickup) => p.kind === 'glowcap' || p.kind === 'potion' || p.kind === 'forge';
+    const keep = (p: Pickup) => p.kind !== 'soul' && p.kind !== 'bigsoul';
     const old = n.pickups.splice(0, n.pickups.length - 300);
     n.pickups.unshift(...old.filter(keep));
     old.splice(0, old.length, ...old.filter((p) => !keep(p)));
@@ -949,9 +1186,10 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
   }
 }
 
-/** What a night pays, in Souls: one for every six put down, up to 500. */
+/** What a night pays, in Souls: one for every six put down, up to 500, and up to 150 more for every pact taken. */
 export function nightSouls(n: Night): number {
-  return Math.min(500, Math.floor(n.kills / 6));
+  const pacts = Object.values(n.pacts ?? {}).filter(Boolean).length;
+  return Math.min(500 + 150 * pacts, Math.floor((n.kills / 6) * (n.pacts?.throng ? 1.3 : 1)));
 }
 
 /** Night Shift achievements this night has earned so far (ids from ACHIEVEMENTS). */
@@ -966,5 +1204,8 @@ export function nightFeats(n: Night): string[] {
   if (n.t >= 180 && (n.firstHitAt < 0 || n.firstHitAt >= 180)) out.push('nsuntouched');
   if (n.felledKinds.length >= 3) out.push('nsbosses');
   if (Object.values(n.blessings).reduce((a, b) => a + (b ?? 0), 0) >= 25) out.push('nsblessed');
+  if (Object.values(n.ascended ?? {}).some(Boolean)) out.push('nsascend');
+  if (Object.values(n.pacts ?? {}).filter(Boolean).length >= 3) out.push('nspacts');
+  if ((n.chests ?? 0) >= 1) out.push('nstreasure');
   return out;
 }

@@ -234,6 +234,9 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'nsuntouched', name: 'Ghost of the Graveyard', desc: 'Get through the first 3 minutes of a Night Shift without being hit.', souls: 150 },
   { id: 'nsbosses', name: 'Bossbreaker', desc: 'Take down the Gravelord, the Drowned Abbot and the Lich in one Night Shift.', souls: 300 },
   { id: 'nsblessed', name: 'Blessed', desc: 'Take 25 blessings in one Night Shift.', souls: 400 },
+  { id: 'nsascend', name: 'Ascendant', desc: 'Ascend a fused relic in the Night Shift.', souls: 300 },
+  { id: 'nspacts', name: 'Pactbound', desc: 'Seal three Night Pacts in one Night Shift.', souls: 300 },
+  { id: 'nstreasure', name: 'Gold Digger', desc: 'Catch the Treasure Ghoul in the Night Shift.', souls: 150 },
 ];
 
 /** Dailies played in all, and the achievement each count earns. */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { cleanGraveState, newGraveState } from './graveshift';
-import { DASH_COOLDOWN, FIELD, FIRST_BOSS, NIGHT_RELICS, POTION_HEAL, dash, dashCooldown, isBlessing, lateNight, MAX_LEVEL, chooseRelic, nightFeats, isFusion, levelChoices, newNight, nightSouls, step, wardMul, xpToLevel } from './nightshift';
+import { ASCEND_LEVEL, ELITE_LEVEL, FIRST_EVENT, NO_PACT, dashDamage, isAscend, isPact, DASH_COOLDOWN, FIELD, FIRST_BOSS, NIGHT_RELICS, POTION_HEAL, dash, dashCooldown, isBlessing, lateNight, MAX_LEVEL, chooseRelic, nightFeats, isFusion, levelChoices, newNight, nightSouls, step, wardMul, xpToLevel } from './nightshift';
 
 /** A small fixed random source, so every run of a test is the same night. */
 function seeded(seed: number) {
@@ -253,6 +253,7 @@ describe('the Night Shift', () => {
     n.pickups.push({ x: n.x, y: n.y, kind: 'forge', v: 1 });
     n.pendingLevels = 0;
     n.forgeOffers = 0;
+    n.pactOffers = 0;
     step(n, 1 / 60, 0, 0);
     expect(n.pendingLevels).toBe(1);
     expect(n.forgeOffers).toBe(1);
@@ -308,5 +309,79 @@ describe('the Night Shift', () => {
     const back = cleanGraveState(JSON.parse(JSON.stringify(s)), 0);
     expect(back).toMatchObject({ nights: 3, dawns: 1, nightBest: 412, nightKills: 900 });
     expect(cleanGraveState({ nights: 'x' }, 0).nights).toBe(0);
+  });
+});
+
+describe('the late night: events, elites, pacts and ascension', () => {
+  it('brings an event a minute after the bosses, one at a time, and not the same twice running', () => {
+    const n = play(31, FIRST_EVENT + 1);
+    expect(n.over || n.events >= 1).toBe(true);
+    if (!n.over) {
+      expect(n.event).not.toBeNull();
+      const first = n.event!.kind;
+      const m = play(31, FIRST_EVENT + 121);
+      if (!m.over) expect(m.lastEvent).not.toBe(first);
+    }
+  });
+
+  it('keeps the old rules when the late night is off', () => {
+    const n = newNight(seeded(5), false);
+    n.t = FIRST_EVENT + 5;
+    n.level = ELITE_LEVEL + 40;
+    for (let k = 0; k < 600; k++) step(n, 1 / 60, 1, 0);
+    expect(n.events).toBe(0);
+    expect(n.foes.some((f) => f.elite)).toBe(false);
+  });
+
+  it('sends elites past their level, and an armored one breaks only to a dash', () => {
+    const n = newNight(seeded(6));
+    n.level = ELITE_LEVEL + 50;
+    for (let k = 0; k < 60 * 40 && !n.foes.some((f) => f.elite === 'armored'); k++) step(n, 1 / 60, Math.cos(k / 50), Math.sin(k / 50));
+    const e = n.foes.find((f) => f.elite === 'armored');
+    expect(e).toBeTruthy();
+  });
+
+  it('offers a pact when a boss falls, and a pact changes the night', () => {
+    const n = play(24, FIRST_BOSS + 1);
+    const boss = n.foes.find((f) => f.boss)!;
+    boss.hp = 0.0001;
+    n.x = boss.x - 0.5;
+    n.y = boss.y;
+    for (let i = 0; i < 120 && n.foes.some((f) => f.boss) && !n.pactOffers; i++) step(n, 1 / 60, 0, 0);
+    expect(n.pactOffers).toBe(1);
+    const c = levelChoices(n);
+    expect(c.every(isPact)).toBe(true);
+    expect(c).toContain(NO_PACT);
+    const before = dashDamage(n);
+    n.pacts = {};
+    chooseRelic(n, 'fangs');
+    expect(n.pacts.fangs).toBe(true);
+    expect(dashDamage(n)).toBeCloseTo(before * 2);
+    expect(n.pactOffers).toBe(0);
+  });
+
+  it('ascends a fused relic with a shard, past its level', () => {
+    const n = newNight(seeded(8));
+    n.level = ASCEND_LEVEL;
+    n.relics.spade = MAX_LEVEL;
+    n.relics.lens = 1;
+    n.fused.cleaver = true;
+    n.pickups.push({ x: n.x, y: n.y, kind: 'shard', v: 1 });
+    step(n, 1 / 60, 0, 0);
+    expect(n.ascendOffers).toBe(1);
+    const c = levelChoices(n);
+    expect(c).toEqual(['asc:cleaver']);
+    expect(isAscend(c[0])).toBe(true);
+    chooseRelic(n, c[0]);
+    expect(n.ascended.cleaver).toBe(true);
+    expect(nightFeats(n)).toContain('nsascend');
+  });
+
+  it('pays more Souls for every pact', () => {
+    const n = newNight(seeded(9));
+    n.kills = 12000;
+    expect(nightSouls(n)).toBe(500);
+    n.pacts = { hunger: true, haste: true };
+    expect(nightSouls(n)).toBe(800);
   });
 });
