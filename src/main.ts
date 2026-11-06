@@ -16,7 +16,7 @@ import { Renderer } from './render';
 import { resetCanvases, sprites } from './sprites';
 import { RAID_JOIN_MIN, RAID_SUBMIT_MIN, RAID_TURNS, currentRaid, nextRaid, raidBossName, raidConfig, raidJoinable, raidTimeLabel, type RaidSlot } from './raid';
 import { hashSeed } from './rng';
-import { ONLINE, communityKills, loadHall, submitHorde, hordeBoard, claimInvite, myInvites, raidHit, raidPlayer, raidState, type RaidState, challengeBoard, emailReminderOff, sendFeedback, setEmailReminder, type FeedbackKind, challengeNews, createChallenge, dailyBoard, endlessBoard, getChallenge, mySummons, noteRun, noteSummon, pingActivity, setPresenceSource, startActivityPings, waitingGifts, claimGift, submitChallengeRun, type Challenge, type ChallengeRow } from './online';
+import { ONLINE, loadCloudRuns, saveCloudRuns, type CloudRuns, communityKills, loadHall, submitHorde, hordeBoard, claimInvite, myInvites, raidHit, raidPlayer, raidState, type RaidState, challengeBoard, emailReminderOff, sendFeedback, setEmailReminder, type FeedbackKind, challengeNews, createChallenge, dailyBoard, endlessBoard, getChallenge, mySummons, noteRun, noteSummon, pingActivity, setPresenceSource, startActivityPings, waitingGifts, claimGift, submitChallengeRun, type Challenge, type ChallengeRow } from './online';
 import {
   ACT2_MAIN, ACT2_QUESTS, ACT2_TITLE, act2Open, ACT_TITLE, ACT1_QUESTS, LORE, LORE_COUNT, MAIN_QUESTS, QUESTS, QUEST_BY_N, SPEAKERS, conversation, facePortrait, houndStats, npcMarker, npcPresent, petName, questStatus,
   type Line, type NpcId, type Quest, type StoryState,
@@ -35,7 +35,7 @@ import { DISCORD_URL, KOFI_URL, copyText, descentStrip, discordHtml, followXHtml
 import { installMode, onInstallChange, promptInstall, setupInstall } from './install';
 import { bountiesHtml, progressBounties } from './bounties';
 import { enableReminders, loadReminders, reminderPrefs, remindersAvailable, remindersNeedInstall, timeZone } from './push';
-import { claimPodiums, claimWeekly, clearBeat, lastBeat, type PodiumFinish, type WeeklyFinish } from './social';
+import { onAccountSynced, claimPodiums, claimWeekly, clearBeat, lastBeat, type PodiumFinish, type WeeklyFinish } from './social';
 import { claimInlineHtml, wireClaimInline, keepNameHtml, wireKeepName, endlessRecord, ensureGuest, initSocial, needsName, unclaimed, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
 import { currentStreak, loadSave, recordDaily, streakStats, WARD_EVERY, writeSave, type RunResult } from './storage';
 import { $, calmChosen, calmMotion, esc, formStatus, hideOverlay, on, onSubmit, overlay, overlayShownAt, screen, setCalm, showOverlay, toast } from './ui';
@@ -304,13 +304,69 @@ function savedSeconds(): number {
   }
 }
 
+// ---------- runs kept on the account ----------
+// While signed in (a guest account counts), an unfinished run is copied to the account every
+// so often, so clearing the browser (or switching device) doesn't lose it.
+const CLOUD_EVERY = 15000;
+let cloudTimer = 0;
+let cloudDirty: CloudRuns = {};
+function cloudPush(slot: keyof CloudRuns, value: unknown, now = false) {
+  if (!ONLINE || !session.account?.name) return;
+  cloudDirty[slot] = value;
+  if (now) return void flushCloud();
+  if (!cloudTimer) cloudTimer = window.setTimeout(() => void flushCloud(), CLOUD_EVERY);
+}
+async function flushCloud() {
+  window.clearTimeout(cloudTimer);
+  cloudTimer = 0;
+  const patch = cloudDirty;
+  cloudDirty = {};
+  const acc = session.account;
+  if (!acc || !Object.keys(patch).length) return;
+  await saveCloudRuns(acc.id, patch).catch(() => undefined);
+}
+window.addEventListener('visibilitychange', () => {
+  if (document.hidden) void flushCloud();
+});
+window.addEventListener('pagehide', () => void flushCloud());
+
+/** After signing in: an unfinished run on the account comes back if this browser has none (or an older one). */
+onAccountSynced(() => {
+  const acc = session.account;
+  if (!acc) return;
+  void loadCloudRuns(acc.id).then((remote) => {
+    if (!remote) return;
+    let restored = false;
+    for (const [slot, key] of [['run', RUN_KEY], ['horde', HORDE_RUN_KEY]] as const) {
+      const r = remote[slot] as { seed?: number; log?: string } | null | undefined;
+      if (!r || typeof r.log !== 'string') continue;
+      try {
+        const raw = localStorage.getItem(key);
+        const local = raw ? (JSON.parse(raw) as { seed?: number; log?: string }) : null;
+        // Keep this browser's run unless the account's is the same run, further along.
+        if (local && !(local.seed === r.seed && (local.log?.length ?? 0) < r.log.length)) continue;
+        localStorage.setItem(key, JSON.stringify(r));
+        restored = true;
+      } catch {
+        // storage blocked: nothing to restore into
+      }
+    }
+    if (restored && (savedRun() || savedHorde())) {
+      toast('☁️ Your unfinished run is back. Tap Continue to pick it up.');
+      if (screen === 'title') showTitle();
+    }
+  });
+});
+
 function saveRun() {
   // Story chapters are short, and start over rather than resume.
   if (!game || game.phase === 'dead' || game.mode === 'story') return;
   // A Horde run keeps its own slot, so it never overwrites a saved Endless or Daily run.
   if (game.mode === 'horde') {
     try {
-      localStorage.setItem(HORDE_RUN_KEY, JSON.stringify({ dailyNo: game.dailyNo, seed: game.seed, log: game.header() + game.log, seconds: Math.round(runSeconds) }));
+      const run = { dailyNo: game.dailyNo, seed: game.seed, log: game.header() + game.log, seconds: Math.round(runSeconds) };
+      localStorage.setItem(HORDE_RUN_KEY, JSON.stringify(run));
+      cloudPush('horde', run);
     } catch {
       // Storage blocked: the run just can't be resumed.
     }
@@ -319,6 +375,7 @@ function saveRun() {
   try {
     const run: SavedRun = { mode: game.mode, seed: game.seed, dailyNo: game.dailyNo, log: game.header() + game.log, seconds: Math.round(runSeconds), ...(challenge ? { challenge } : {}) };
     localStorage.setItem(RUN_KEY, JSON.stringify(run));
+    cloudPush('run', run);
   } catch {
     // Storage blocked: the run just can't be resumed.
   }
@@ -327,6 +384,7 @@ function saveRun() {
 const HORDE_RUN_KEY = 'omc:horde-run';
 
 function clearHordeRun() {
+  cloudPush('horde', null, true);
   try {
     localStorage.removeItem(HORDE_RUN_KEY);
   } catch {
@@ -357,6 +415,7 @@ function savedHorde(): { game: Game; seconds: number } | null {
 }
 
 function clearRun() {
+  cloudPush('run', null, true);
   try {
     localStorage.removeItem(RUN_KEY);
   } catch {

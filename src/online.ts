@@ -362,6 +362,27 @@ export async function communityKills(since: string): Promise<number | null> {
   return Number(data) || 0;
 }
 
+/** A run in progress, kept on the account so a wiped browser can pick it up again. */
+export interface CloudRuns {
+  run?: unknown;
+  horde?: unknown;
+}
+
+/** Save (or with null, clear) the account's unfinished runs. Only the slots given change. */
+export async function saveCloudRuns(userId: string, patch: CloudRuns): Promise<void> {
+  const sb = await client();
+  const { error } = await sb.from('saved_runs').upsert({ user_id: userId, ...patch, updated_at: new Date().toISOString() });
+  if (error) throw friendly(error, 'Could not save your run.');
+}
+
+/** The account's unfinished runs, or null (none, or the table isn't set up yet). */
+export async function loadCloudRuns(userId: string): Promise<CloudRuns | null> {
+  const sb = await client();
+  const { data, error } = await sb.from('saved_runs').select('run, horde').eq('user_id', userId).maybeSingle();
+  if (error || !data) return null;
+  return data as CloudRuns;
+}
+
 export async function saveRemoteMeta(userId: string, value: unknown): Promise<void> {
   const sb = await client();
   await sb.from('profiles').update({ meta: value }).eq('id', userId);

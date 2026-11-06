@@ -147,11 +147,18 @@ async function refreshAccount() {
   onChange();
 }
 
+/** Called once the account's progress has synced (main uses it to bring back unfinished runs). */
+const syncedHooks: (() => void)[] = [];
+export function onAccountSynced(cb: () => void) {
+  syncedHooks.push(cb);
+}
+
 async function afterSignIn() {
   refreshReminders();
   await flushPending();
   await syncFromServer();
   await syncMeta();
+  for (const cb of syncedHooks) cb();
   await backfill();
 }
 

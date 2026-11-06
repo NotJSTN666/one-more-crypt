@@ -750,3 +750,8 @@ revoke all on function public.submit_night(int, int, int, text) from public;
 revoke all on function public.night_board(text) from public;
 grant execute on function public.submit_night(int, int, int, text) to authenticated;
 grant execute on function public.night_board(text) to anon, authenticated;
+
+-- Unfinished runs kept on the account, so a wiped browser (or another device) can continue them.
+create table if not exists public.saved_runs (user_id uuid primary key references auth.users (id) on delete cascade, run jsonb, horde jsonb, updated_at timestamptz not null default now(), check (octet_length(coalesce(run::text, '')) + octet_length(coalesce(horde::text, '')) <= 600000));
+alter table public.saved_runs enable row level security;
+create policy "own saved runs" on public.saved_runs for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
