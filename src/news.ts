@@ -24,14 +24,33 @@ export interface NewsDay {
 export const NEWS: NewsDay[] = [
   {
     date: '2026-11-09',
-    title: 'The Night Shift grows teeth',
+    title: 'The Night Shift: dawn, new dead and the Night Shrine',
     notes: [
+      '🌅 Dawn: survive 30 minutes and the night is won. Greet the sun for half again the Souls, or walk on into the Nightmare.',
+      '💀 New dead join as the night goes on: Bone Archers, walls of Shieldbearers, Drowned Chargers and Plague Monks who raise the fallen.',
+      '👁️ The Void Eye joins the bosses, and at 25 minutes the Night Mother rises.',
+      '🕯️ The Night Shrine: spend Souls on gifts for every night. More health, rerolls, banishing relics you never want, and a weapon to start with.',
+      '🎲 Level-ups can be rerolled or skipped, and relics banished for the night.',
+      '🦸 Every hero brings a perk to the night.',
       '🌙 Night events: every two minutes, a minute after each boss, the night turns. A Blood Moon, a Swarm closing in from every side, a Grave Fog, or a Treasure Ghoul fleeing with a chest worth two levels.',
       '✴️ Elites from level 55: glowing dead with gifts of their own. Armored ones shrug off harm until a dash cracks them; others split, explode or blink to your side.',
       '🕯️ Night Pacts: when a boss falls, take a curse on the night for a boon, or refuse. Every pact raises what the night can pay in Souls.',
       '✦ Ascension: from level 40, bosses leave a shard that ascends a fused relic into something far stronger, struck in gold.',
-      '🏅 New achievements: Ascendant, Pactbound and Gold Digger.',
+      '🏅 New achievements: Dawnbringer, Mother of Night, Into the Nightmare, Ascendant, Pactbound and Gold Digger.',
     ],
+  },
+  {
+    date: '2026-11-06',
+    title: 'Light in the dark',
+    notes: [
+      '🕯️ The crypt is lit by its lights now: candles, lava, the open stairs, potions, burning and frozen foes and bosses each throw their own light, and your relics tint your lantern.',
+      '🌙 The Night Shift: the night deepens and turns as the hours pass, every flame and strike lights the graveyard, and a moon by the clock shows the hour.',
+      '☠️ Bosses in the Night Shift make an entrance, and the dead fall each their own way, leaving bones and ichor behind.',
+      '🔢 Damage numbers for the Night Shift, if you like them, in Settings.',
+      '☁️ Signed in? An unfinished run is kept on your account, so clearing your browser or switching device won\'t lose it.',
+    ],
+    fixes: ['✨ The choice you\'re on now lights up on every Night Shift card.'],
+    go: ['settings'],
   },
   {
     date: '2026-11-04',
