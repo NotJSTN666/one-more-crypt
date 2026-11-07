@@ -29,6 +29,7 @@ export const NEWS: NewsDay[] = [
       '🤝 Night Shift companions, hounds, spectral knights and thralls now roam the ground around you and fight there, instead of crowding at your side.',
       '👤 Spectral Knights are now pale ghosts, so you can always tell them from yourself.',
     ],
+    fixes: ['🔍 The Night Shift no longer zooms out when your row of relics grows onto a new line.'],
   },
   {
     date: '2026-11-06',

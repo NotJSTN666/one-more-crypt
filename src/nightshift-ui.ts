@@ -227,6 +227,11 @@ function startNight(back: () => void) {
   fitCanvas();
   const onResize = () => fitCanvas();
   window.addEventListener('resize', onResize);
+  // The stage also changes size without the window doing so (the relic row wrapping onto a
+  // new line as relics come): measure again then, or the old picture is squeezed to fit and
+  // the whole field seems to zoom out.
+  const stageWatch = typeof ResizeObserver === 'function' ? new ResizeObserver(() => fitCanvas()) : null;
+  stageWatch?.observe(stage);
 
   // ---- input: keys held, the stick, or a drag on the stage ----
   const held = new Set<string>();
@@ -314,6 +319,7 @@ function startNight(back: () => void) {
     window.removeEventListener('keyup', onKeyUp);
     window.removeEventListener('blur', onBlur);
     window.removeEventListener('resize', onResize);
+    stageWatch?.disconnect();
     document.removeEventListener('visibilitychange', onHide);
   }
   const STICK_R = 46;
