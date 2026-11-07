@@ -480,6 +480,9 @@ export interface Night {
   /** The ultimate: its meter (0 to 1), and the one under way (and until when). */
   ult: number;
   ultAt: number;
+  /** The Mage's meteor, falling (it lands at `at`), and the Rogue's path through the dead, for the drawing. */
+  meteor?: { x: number; y: number; at: number } | null;
+  ultPath?: { x: number; y: number }[];
   ultUntil: number;
   ultsUsed: number;
   /** Recent kills and hits, for the drawing (kept short). */
@@ -1677,6 +1680,7 @@ export function ultimate(n: Night): boolean {
     }
   } else if (h === 'rogue') {
     const targets = n.foes.filter((f) => f.hp > 0).sort((a, b) => near(n, a) - near(n, b)).slice(0, 12);
+    n.ultPath = [{ x: n.x, y: n.y }, ...targets.map((f) => ({ x: f.x, y: f.y }))];
     for (const f of targets) {
       n.flashes.push({ kind: 'blink', x: f.x, y: f.y, at: n.t });
       hit(f, 40);
@@ -1705,11 +1709,9 @@ export function ultimate(n: Night): boolean {
         at = { x: c.x, y: c.y };
       }
     }
-    n.flashes.push({ kind: 'slam', x: at.x, y: at.y, at: n.t, r: 3.2 });
-    n.flashes.push({ kind: 'ult', x: at.x, y: at.y, at: n.t, r: 3.2 });
-    for (const f of n.foes) if (f.hp > 0 && near(at, f) < 3.2 + f.r) hit(f, f.boss ? 80 : 45);
-    n.flames.push({ x: at.x, y: at.y, until: n.t + 5, r: 2.6, dps: 12 + n.t / 20 });
-    n.ultUntil = n.t + 0.8;
+    // it falls for a moment first, then lands
+    n.meteor = { x: at.x, y: at.y, at: n.t + 0.6 };
+    n.ultUntil = n.t + 1.4;
   } else if (h === 'barbarian') {
     n.ultUntil = n.t + 6;
     n.flashes.push({ kind: 'ult', x: n.x, y: n.y, at: n.t, r: 2.5 });
@@ -1727,6 +1729,15 @@ export function ultimate(n: Night): boolean {
 
 /** The heroes' own weapons. */
 function signatures(n: Night, dt: number) {
+  // The Mage's meteor lands.
+  if (n.meteor && n.t >= n.meteor.at) {
+    const at = n.meteor;
+    n.meteor = null;
+    n.flashes.push({ kind: 'slam', x: at.x, y: at.y, at: n.t, r: 3.4 });
+    n.flashes.push({ kind: 'ult', x: at.x, y: at.y, at: n.t, r: 3.4 });
+    for (const f of n.foes) if (f.hp > 0 && near(at, f) < 3.4 + f.r) hurtFoe(n, f, (f.boss ? 80 : 45) * (1 + n.t / 300));
+    n.flames.push({ x: at.x, y: at.y, until: n.t + 5, r: 2.6, dps: 12 + n.t / 20 });
+  }
   // The Ranger's Hail of Arrows, while it lasts: a volley on a foe near you every moment.
   if (n.t < (n.ultUntil ?? 0) && ultHero(n) === 'ranger' && Math.floor(n.t / 0.12) !== Math.floor((n.t - dt) / 0.12)) {
     const close = n.foes.filter((f) => f.hp > 0 && near(n, f) < 9);

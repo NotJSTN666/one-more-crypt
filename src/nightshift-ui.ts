@@ -216,6 +216,7 @@ function startNight(back: () => void) {
         <div class="ns-boss" id="ns-boss" hidden><span id="ns-boss-name"></span><i><b id="ns-boss-bar"></b></i></div>
         <div class="ns-event" id="ns-event" hidden></div>
         <div class="ns-bosscard" id="ns-bosscard" hidden></div>
+        <div class="ns-ultcard" id="ns-ultcard" hidden></div>
         <div class="ns-hint" id="ns-hint">${touch ? 'Use the stick to move, and 💨 to dash.' : 'WASD or arrows to move, Space to dash.'} Your relics fight on their own. Put down as many as you can.</div>
         ${touch ? '' : dashButton('desk') + ultButton('desk')}
         <div class="ns-modal" id="ns-modal" hidden></div>
@@ -348,12 +349,23 @@ function startNight(back: () => void) {
     }
   };
   const doUlt = () => {
-    if (ultimate(n)) {
-      sfx.fuse();
-      ultFlashAt = performance.now();
-      toast(`${ULTIMATES[ultHero(n)].emoji} ${ULTIMATES[ultHero(n)].name}!`);
-    }
+    if (!ultimate(n)) return;
+    const h = ultHero(n);
+    sfx.fuse();
+    sfx.toll();
+    ultFlashAt = performance.now();
+    // the name slams across the field in the hero's colour, and the ground shakes
+    const card = $id('ns-ultcard');
+    card.style.setProperty('--uc', ULT_COLOR[h]);
+    card.innerHTML = `<b>${esc(ULTIMATES[h].name)}</b><small>${esc(HERO_BY_ID[h as keyof typeof HERO_BY_ID]?.name ?? '')} · ultimate</small>`;
+    card.hidden = false;
+    card.classList.remove('go');
+    void card.offsetWidth;
+    card.classList.add('go');
+    window.setTimeout(() => (card.hidden = true), 1700);
+    ultQuakeAt = n.t;
   };
+  let ultQuakeAt = -10;
   let ultFlashAt = -1e9;
   const doDash = () => {
     const [dx, dy] = dir();
@@ -1117,6 +1129,206 @@ function startNight(back: () => void) {
     }
   }
 
+  // ---- the ultimates, drawn big ----
+  const rainFx: { x: number; y: number; tx: number; ty: number; life: number }[] = [];
+  let rainLast = 0;
+  function ultimateFx(t: number, sx: (x: number) => number, sy: (y: number) => number) {
+    const h = ultHero(n);
+    const since = n.t - (n.ultAt ?? -10);
+    const on = n.t < (n.ultUntil ?? 0);
+    const col = ULT_RGB[h];
+    const hx = sx(n.x);
+    const hy = sy(n.y);
+    // the edges of the screen take the hero's colour while it lasts
+    if (on || since < 0.8) {
+      const k = on ? Math.min(1, since / 0.2) : Math.max(0, 1 - (since - ((n.ultUntil ?? 0) - (n.ultAt ?? 0))) / 0.4);
+      const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
+      vg.addColorStop(0, `rgba(${col},0)`);
+      vg.addColorStop(1, `rgba(${col},${0.35 * k})`);
+      ctx.fillStyle = vg;
+      ctx.fillRect(0, 0, W, H);
+    }
+    if (since > 6.5) return;
+    ctx.save();
+    if (h === 'ranger' && on) {
+      // a dark sky, and arrows streaking down all over the field
+      ctx.fillStyle = 'rgba(10, 14, 24, 0.28)';
+      ctx.fillRect(0, 0, W, H);
+      const now = performance.now();
+      const spawn = Math.min(12, Math.floor((now - rainLast) / 12));
+      if (spawn > 0) rainLast = now;
+      for (let k = 0; k < spawn; k++) {
+        const tx = (n.x * TILE - W / 2 + Math.random() * W) / TILE;
+        const ty = (n.y * TILE - H / 2 + Math.random() * H) / TILE;
+        rainFx.push({ x: tx - 2.4, y: ty - 4.2, tx, ty, life: 0.28 });
+      }
+    }
+    if (rainFx.length) {
+      for (const a of rainFx) {
+        const k = 1 - a.life / 0.28;
+        const ax = a.x + (a.tx - a.x) * k;
+        const ay = a.y + (a.ty - a.y) * k;
+        const X = sx(ax);
+        const Y = sy(ay);
+        ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(X - 14, Y - 24);
+        ctx.lineTo(X, Y);
+        ctx.stroke();
+        ctx.strokeStyle = '#d8b884';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(X - 6, Y - 10);
+        ctx.lineTo(X, Y);
+        ctx.stroke();
+        ctx.fillStyle = '#e8eefc';
+        ctx.fillRect(X - 1, Y - 1, 2, 2);
+        a.life -= 1 / 60;
+        if (a.life <= 0) for (let q = 0; q < 3; q++) sparks.push({ x: a.tx, y: a.ty, vx: (Math.random() - 0.5) * 2, vy: -Math.random() * 1.5, life: 0.35, max: 0.35, color: q ? '#a08a6a' : '#e8eefc', size: 1 });
+      }
+      for (let i = rainFx.length - 1; i >= 0; i--) if (rainFx[i].life <= 0) rainFx.splice(i, 1);
+    }
+    if (h === 'mage' && n.meteor) {
+      // the meteor falls from high up onto its mark, its shadow growing beneath
+      const left = Math.max(0, (n.meteor.at - n.t) / 0.6);
+      const mx = sx(n.meteor.x + 5 * left);
+      const my = sy(n.meteor.y - 9 * left);
+      const gx = sx(n.meteor.x);
+      const gy = sy(n.meteor.y);
+      ctx.fillStyle = `rgba(0,0,0,${0.5 * (1 - left)})`;
+      ctx.beginPath();
+      ctx.ellipse(gx, gy, 40 * (1 - left * 0.7), 16 * (1 - left * 0.7), 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = `rgba(255,120,40,${0.8 * (1 - left)})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(gx, gy, 54, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalCompositeOperation = 'lighter';
+      for (let k = 6; k >= 0; k--) {
+        ctx.fillStyle = `rgba(255,${140 - k * 12},${40},${0.12 + 0.1 * (6 - k) / 6})`;
+        ctx.beginPath();
+        ctx.arc(mx + k * 5, my - k * 9, 12 - k, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalCompositeOperation = 'source-over';
+      glowAt(mx, my, '255,160,60', 34, 0.8);
+      ctx.fillStyle = '#5a2a1a';
+      ctx.beginPath();
+      ctx.arc(mx, my, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffcf5a';
+      ctx.beginPath();
+      ctx.arc(mx - 3, my - 3, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (h === 'mage' && since > 0.6 && since < 1.3) {
+      const e = (since - 0.6) / 0.7;
+      ctx.fillStyle = `rgba(255, 180, 90, ${0.35 * (1 - e)})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+    if (h === 'knight' && on) {
+      // a gold dome round you, shimmering
+      const R = 30 + 2 * Math.sin(t * 8);
+      ctx.globalCompositeOperation = 'lighter';
+      const dg = ctx.createRadialGradient(hx, hy - 4, R * 0.5, hx, hy - 4, R);
+      dg.addColorStop(0, 'rgba(255,215,120,0)');
+      dg.addColorStop(0.8, 'rgba(255,215,120,0.18)');
+      dg.addColorStop(1, 'rgba(255,240,180,0.5)');
+      ctx.fillStyle = dg;
+      ctx.beginPath();
+      ctx.arc(hx, hy - 4, R, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = `rgba(255,235,170,${0.6 + 0.3 * Math.sin(t * 12)})`;
+      ctx.lineWidth = 1.5;
+      for (let k = 0; k < 6; k++) {
+        const a = t * 1.5 + (k * Math.PI) / 3;
+        ctx.beginPath();
+        ctx.arc(hx, hy - 4, R, a, a + 0.6);
+        ctx.stroke();
+      }
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    if (h === 'paladin' && since < 1.2) {
+      // a pillar of light from the sky
+      const e = since / 1.2;
+      const w = 26 * (1 - e * 0.6);
+      ctx.globalCompositeOperation = 'lighter';
+      const pg = ctx.createLinearGradient(hx - w, 0, hx + w, 0);
+      pg.addColorStop(0, 'rgba(255,240,190,0)');
+      pg.addColorStop(0.5, `rgba(255,250,220,${0.85 * (1 - e)})`);
+      pg.addColorStop(1, 'rgba(255,240,190,0)');
+      ctx.fillStyle = pg;
+      ctx.fillRect(hx - w, 0, w * 2, hy + 6);
+      glowAt(hx, hy, '255,240,190', 60, 0.7 * (1 - e));
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    if (h === 'rogue' && since < 0.8 && n.ultPath && n.ultPath.length > 1) {
+      // slashes from foe to foe
+      const e = since / 0.8;
+      const shown = Math.min(n.ultPath.length, 1 + Math.floor((since / 0.35) * n.ultPath.length));
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 1; i < shown; i++) {
+        const a = n.ultPath[i - 1];
+        const b = n.ultPath[i];
+        ctx.strokeStyle = `rgba(200,170,255,${0.9 * (1 - e)})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(sx(a.x), sy(a.y));
+        ctx.lineTo(sx(b.x), sy(b.y));
+        ctx.stroke();
+        ctx.strokeStyle = `rgba(255,255,255,${1 - e})`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        glowAt(sx(b.x), sy(b.y), '200,170,255', 14, 0.8 * (1 - e));
+      }
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    if (h === 'necro' && since < 2) {
+      // a circle of green runes under you as the dead climb out
+      const e = since / 2;
+      const R = 44 * Math.min(1, since * 4);
+      ctx.strokeStyle = `rgba(120,255,170,${0.8 * (1 - e)})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(hx, hy + 4, R, R * 0.55, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.ellipse(hx, hy + 4, R * 0.7, R * 0.38, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      for (let k = 0; k < 10; k++) {
+        const a = t * 0.8 + (k / 10) * Math.PI * 2;
+        ctx.fillStyle = `rgba(160,255,200,${0.9 * (1 - e)})`;
+        ctx.fillRect(hx + Math.cos(a) * R * 0.85 - 1, hy + 4 + Math.sin(a) * R * 0.47 - 2, 2, 4);
+      }
+      glowAt(hx, hy, '90,220,150', 50, 0.5 * (1 - e));
+    }
+    if (h === 'barbarian' && on) {
+      // flames lick up round you
+      for (let k = 0; k < 3; k++) {
+        const a = Math.random() * Math.PI * 2;
+        sparks.push({ x: n.x + Math.cos(a) * 0.5, y: n.y + Math.sin(a) * 0.3, vx: (Math.random() - 0.5) * 0.6, vy: -2 - Math.random() * 1.5, life: 0.5, max: 0.5, color: Math.random() < 0.5 ? '#ff5a3a' : '#ffb04a', size: 2 });
+      }
+    }
+    if (h === 'bellringer' && since < 1.6) {
+      // three great waves rolling out across the field
+      ctx.globalCompositeOperation = 'lighter';
+      for (let k = 0; k < 3; k++) {
+        const e = (since - k * 0.18) / 1.2;
+        if (e < 0 || e > 1) continue;
+        ctx.strokeStyle = `rgba(190,150,255,${0.8 * (1 - e)})`;
+        ctx.lineWidth = 4 * (1 - e) + 1;
+        ctx.beginPath();
+        ctx.arc(hx, hy, 9 * TILE * e, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    ctx.restore();
+  }
+
   function draw(t: number) {
     if (!W) fitCanvas();
     ctx.setTransform(S, 0, 0, S, 0, 0);
@@ -1131,8 +1343,9 @@ function startNight(back: () => void) {
     const sy = (y: number) => y * TILE - camY;
     // the ground shakes as a boss climbs out (not with calm motion)
     const qk = n.t - quake.at;
-    if (qk < 0.5 && !calmMotion()) {
-      const amp = 3 * (1 - qk / 0.5);
+    const uq = n.t - ultQuakeAt;
+    if ((qk < 0.5 || uq < 0.6) && !calmMotion()) {
+      const amp = Math.max(qk < 0.5 ? 3 * (1 - qk / 0.5) : 0, uq < 0.6 ? 5 * (1 - uq / 0.6) : 0);
       ctx.setTransform(S, 0, 0, S, Math.round((Math.random() - 0.5) * amp * 2) * S, Math.round((Math.random() - 0.5) * amp * 2) * S);
     }
     ctx.fillStyle = '#0b0910';
@@ -1973,6 +2186,7 @@ function startNight(back: () => void) {
 
     // the night: dark that deepens and turns as the hours pass, with every light cutting its own pool
     nightLight(sx, sy);
+    ultimateFx(t, sx, sy);
     // the boss's shockwave rolling out as it rises
     if (qk < 0.8) {
       const r = 8 + qk * 120;
@@ -2094,6 +2308,9 @@ export function showNightShrine(back: () => void) {
 }
 
 const dashSide = (stick: StickSide): 'left' | 'right' => (stick === 'right' ? 'left' : 'right');
+
+const ULT_COLOR: Record<string, string> = { knight: '#f2c14e', rogue: '#c9a8ff', necro: '#7ee081', paladin: '#fff0b0', ranger: '#b8e07a', mage: '#ff8a3c', barbarian: '#ff5a4a', bellringer: '#b48cff' };
+const ULT_RGB: Record<string, string> = { knight: '242,193,78', rogue: '170,130,255', necro: '90,220,150', paladin: '255,240,190', ranger: '160,210,110', mage: '255,120,50', barbarian: '255,60,50', bellringer: '170,130,255' };
 
 function ultButton(side: 'left' | 'right' | 'desk'): string {
   return `<button type="button" class="ns-ult ${side}" id="ns-ult" aria-label="Ultimate"><span id="ns-ult-emoji">⚡</span><small>${side === 'desk' ? 'E' : 'Ult'}</small></button>`;
