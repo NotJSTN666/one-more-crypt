@@ -4287,6 +4287,39 @@ onInstallChange(() => {
 updateMuteIcon();
 fitBoard();
 newGame('endless');
+// ---------- links straight to a mode ----------
+// onemorecrypt.com/?play=daily|endless|horde|night opens that mode, so a post about the
+// Night Shift can link right into it. The parameter is dropped from the address afterwards,
+// so a reload lands on the title as usual.
+
+type PlayMode = 'daily' | 'endless' | 'horde' | 'night';
+const PLAY_MODES: Record<string, PlayMode> = {
+  daily: 'daily', endless: 'endless', horde: 'horde', night: 'night', nightshift: 'night',
+};
+
+function playFromLink(): PlayMode | null {
+  try {
+    const u = new URL(location.href);
+    if (!u.searchParams.has('play')) return null;
+    const mode = PLAY_MODES[(u.searchParams.get('play') ?? '').toLowerCase().trim()] ?? null;
+    u.searchParams.delete('play');
+    history.replaceState(null, '', u.toString());
+    return mode;
+  } catch {
+    return null;
+  }
+}
+
+/** Press a mode's button on the title screen (Continue when that mode has a run waiting). */
+function openMode(mode: PlayMode) {
+  const resumable = savedRun();
+  const id =
+    (mode === 'daily' || mode === 'endless') && resumable?.mode === mode ? 'continue'
+    : mode === 'night' ? 'nightshift'
+    : mode;
+  overlay.querySelector<HTMLButtonElement>(`#${id}`)?.click();
+}
+
 // Starts restoring any session in the background; must run before the first screen draws.
 setPresenceSource(() => {
   // A Night Shift under way: how far into it, for the Census.
@@ -4326,19 +4359,31 @@ if (unsub && ONLINE) {
     toast(ok ? '📧 Email reminders are off. You can turn them back on from your profile.' : '📧 Those email reminders were already off.');
   });
 }
+const playMode = visiting || challengeCode ? null : playFromLink();
 // Back again: tell them what's new (only on a plain visit, not a shared link).
-if (!visiting && !challengeCode && !unsub && !savedRun()) {
+if (!visiting && !challengeCode && !unsub && !playMode && !savedRun()) {
   if (actTwoNewsWaiting()) showActTwoNews();
   else if (bellNewsWaiting()) showBellNews();
   else if (newsWaiting()) showStoryNews();
 }
 // Someone brand new: straight into the crypt (a one-minute tutorial, then today's daily).
 // They're asked for a name after their first run, once they've seen where they'd place.
-if (firstVisit() && !visiting && !challengeCode) {
+if (firstVisit() && !visiting && !challengeCode && (!playMode || playMode === 'daily')) {
   save.seenOnlineLogin = true;
   save.seenLogin = true;
   writeSave(save);
   startTutorial(() => startRun('daily'), "Enter today's crypt");
+} else if (playMode) {
+  // A link straight to one mode: arrive on the title, then press that mode's button for
+  // them, so continuing a run, the tutorial offer and the Night Shift's intro all work as usual.
+  if (firstVisit()) {
+    save.seenOnlineLogin = true;
+    save.seenLogin = true;
+    writeSave(save);
+  }
+  if (playMode === 'daily' && save.daily[dailyNumber()] && !savedRun()) {
+    toast("🕯️ You've already conquered today's crypt. The next one opens at midnight.");
+  } else openMode(playMode);
 }
 startGhosts();
 requestAnimationFrame(loop);
