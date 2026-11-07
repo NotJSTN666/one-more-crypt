@@ -16,7 +16,7 @@ import type { EnemyKind } from './game';
 import { celebrate, celebrateNotes } from './progress-ui';
 import type { AchievementDef } from './content';
 import {
-  dashCooldown, FIELD, MAX_LEVEL, type Night, area, dash, spadeReach, NIGHT_RELIC, NIGHT_RELICS, chooseRelic, frostRadius, levelChoices, newNight, nextBossAt, nightSouls, skullCount, skullOrbit, step, xpToLevel, NIGHT_FUSION, fusionOf, isFusion, nightFeats, isBlessing, NIGHT_BLESSING, NIGHT_BLESSINGS, bl, type NightPick, ASCENDED, ASCEND_TEXT, DAWN, ELITES, NEW_FOES, isBoss as isBossKind, NIGHT_PERKS, chooseDawn, reroll, banish, skipLevel, plainLevel, type RelicKind, NIGHT_EVENTS, NIGHT_PACTS, NO_PACT, ascendedWeapon, isAscend, isPact, type FusionId, type PactId, ALLY_PICK, COMPANIONS, COMPANION_IDS, type CompanionId, NIGHT_RANK_AT, NIGHT_RANK_REWARDS, MAX_NIGHT_RANK, nightRank, companionOpen, shieldCount, shieldOrbit } from './nightshift';
+  dashCooldown, FIELD, MAX_LEVEL, type Night, area, dash, spadeReach, NIGHT_RELIC, NIGHT_RELICS, chooseRelic, frostRadius, levelChoices, newNight, nextBossAt, nightSouls, skullCount, skullOrbit, step, xpToLevel, NIGHT_FUSION, fusionOf, isFusion, nightFeats, isBlessing, NIGHT_BLESSING, NIGHT_BLESSINGS, bl, type NightPick, ASCENDED, ASCEND_TEXT, DAWN, ELITES, NEW_FOES, isBoss as isBossKind, NIGHT_PERKS, chooseDawn, reroll, banish, skipLevel, plainLevel, type RelicKind, NIGHT_EVENTS, NIGHT_PACTS, NO_PACT, ascendedWeapon, isAscend, isPact, type FusionId, type PactId, ALLY_PICK, COMPANIONS, COMPANION_IDS, type CompanionId, NIGHT_RANK_AT, NIGHT_RANK_REWARDS, MAX_NIGHT_RANK, nightRank, companionOpen, shieldCount, shieldOrbit, ULTIMATES, ultHero, ultimate } from './nightshift';
 import { ONLINE, nightBoard, submitNight } from './online';
 import { featCosmetics, seasonDress, soulSurge } from './progression';
 import { claimInlineHtml, keepNameHtml, wireKeepName, ensureGuest, playerName, showLeaderboard, signedIn, unclaimed, wireClaimInline } from './social';
@@ -158,7 +158,7 @@ export function showNightShift(back: () => void) {
       const open = heroUnlocked(h.id);
       return `<button type="button" class="ns-pick ${h.id === hero ? 'on' : ''}" data-hero="${h.id}" ${open ? '' : 'disabled'}>${face(h.id)}<b>${esc(h.name)}</b><small>${open ? nightIcon(NIGHT_RELICS.find((r) => r.hero === h.id)?.id ?? '', '') + ' ' + esc(NIGHT_RELICS.find((r) => r.hero === h.id)?.name ?? '') : '🔒 Locked'}</small></button>`;
     }).join('')}</div>
-    <p class="fine ns-pickinfo">${esc(HERO_BY_ID[hero].name)}: ${esc(NIGHT_RELICS.find((r) => r.hero === hero)?.text(1) ?? '')} ${esc(NIGHT_PERKS[hero] ?? '')}</p>
+    <p class="fine ns-pickinfo">${esc(HERO_BY_ID[hero].name)}: ${esc(NIGHT_RELICS.find((r) => r.hero === hero)?.text(1) ?? '')} ${esc(NIGHT_PERKS[hero] ?? '')}<br><b>${ULTIMATES[hero]?.emoji ?? '⚡'} Ultimate, ${esc(ULTIMATES[hero]?.name ?? '')}:</b> ${esc(ULTIMATES[hero]?.text ?? '')}</p>
     <h3 class="shop-head">Companion</h3>
     <div class="ns-pickrow">
       <button type="button" class="ns-pick ${ally === '' ? 'on' : ''}" data-ally=""><span class="ally-none">🚶</span><b>Alone</b><small>Just you</small></button>
@@ -217,10 +217,10 @@ function startNight(back: () => void) {
         <div class="ns-event" id="ns-event" hidden></div>
         <div class="ns-bosscard" id="ns-bosscard" hidden></div>
         <div class="ns-hint" id="ns-hint">${touch ? 'Use the stick to move, and 💨 to dash.' : 'WASD or arrows to move, Space to dash.'} Your relics fight on their own. Put down as many as you can.</div>
-        ${touch ? '' : dashButton('desk')}
+        ${touch ? '' : dashButton('desk') + ultButton('desk')}
         <div class="ns-modal" id="ns-modal" hidden></div>
       </div>
-      ${touch ? `<div class="ns-pad" id="ns-pad"><div class="ns-joy ${side}" id="ns-joy"><i id="ns-knob"></i></div>${dashButton(dashSide(side))}</div>` : ''}
+      ${touch ? `<div class="ns-pad" id="ns-pad"><div class="ns-joy ${side}" id="ns-joy"><i id="ns-knob"></i></div>${dashButton(dashSide(side))}${ultButton(dashSide(side))}</div>` : ''}
     </div>`);
   const canvas = overlay.querySelector<HTMLCanvasElement>('#ns-canvas')!;
   const stage = overlay.querySelector<HTMLElement>('#ns-stage')!;
@@ -337,11 +337,24 @@ function startNight(back: () => void) {
       if (!e.repeat && !paused) doDash();
       return;
     }
+    if (e.key === 'e' || e.key === 'E' || e.key === 'q' || e.key === 'Q') {
+      e.preventDefault();
+      if (!e.repeat && !paused) doUlt();
+      return;
+    }
     if (KEY_DIR[e.key]) {
       e.preventDefault();
       held.add(e.key);
     }
   };
+  const doUlt = () => {
+    if (ultimate(n)) {
+      sfx.fuse();
+      ultFlashAt = performance.now();
+      toast(`${ULTIMATES[ultHero(n)].emoji} ${ULTIMATES[ultHero(n)].name}!`);
+    }
+  };
+  let ultFlashAt = -1e9;
   const doDash = () => {
     const [dx, dy] = dir();
     if (dash(n, dx, dy)) sfx.dash();
@@ -418,6 +431,15 @@ function startNight(back: () => void) {
     el.addEventListener('pointercancel', lift);
   };
   const dashBtn = overlay.querySelector<HTMLElement>('#ns-dash')!;
+  const ultBtn = overlay.querySelector<HTMLElement>('#ns-ult')!;
+  overlay.querySelector('#ns-ult-emoji')!.textContent = ULTIMATES[ultHero(n)].emoji;
+  ultBtn.setAttribute('aria-label', `Ultimate: ${ULTIMATES[ultHero(n)].name}`);
+  ultBtn.hidden = !n.v2;
+  ultBtn.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!paused && !choosing) doUlt();
+  });
   // The dash button takes its own touch, so pressing it never moves the stick.
   dashBtn.addEventListener('pointerdown', (e) => {
     e.stopPropagation();
@@ -460,6 +482,8 @@ function startNight(back: () => void) {
         joy?.classList.add(s);
         dashBtn.classList.remove('left', 'right');
         dashBtn.classList.add(dashSide(s));
+        ultBtn.classList.remove('left', 'right');
+        ultBtn.classList.add(dashSide(s));
         modal.querySelectorAll('[data-side]').forEach((o) => o.classList.toggle('on', o === b));
       }),
     );
@@ -754,6 +778,8 @@ function startNight(back: () => void) {
   }
   relicRow();
   let dashShown = -1;
+  let ultShown = -1;
+  let ultActive = false;
   function hud() {
     const ready = Math.max(0, Math.min(1, 1 - (n.dashReady - n.t) / dashCooldown(n)));
     // Steps of the fill, plus "ready" as its own step: rounding alone would land 99% and
@@ -763,6 +789,17 @@ function startNight(back: () => void) {
       dashShown = step10;
       dashBtn.style.setProperty('--cd', `${ready * 360}deg`);
       dashBtn.classList.toggle('ready', ready >= 1);
+    }
+    const u = Math.max(0, Math.min(1, n.ult ?? 0));
+    const uStep = u >= 1 ? 41 : Math.floor(u * 40);
+    const active = n.t < (n.ultUntil ?? 0);
+    if (uStep !== ultShown || active !== ultActive) {
+      if (u >= 1 && ultShown < 41 && ultShown >= 0) toast(`⚡ Ultimate ready: ${ULTIMATES[ultHero(n)].name}${touch ? '' : ' (E)'}`);
+      ultShown = uStep;
+      ultActive = active;
+      ultBtn.style.setProperty('--cd', `${(active ? 1 : u) * 360}deg`);
+      ultBtn.classList.toggle('ready', u >= 1);
+      ultBtn.classList.toggle('active', active);
     }
     const key = `${Math.ceil(n.hp)}/${n.maxHp}|${Math.floor(n.t)}|${n.kills}|${n.level}|${n.xp}`;
     if (key === hudKey) return;
@@ -1553,6 +1590,18 @@ function startNight(back: () => void) {
       ctx.restore();
     }
 
+    // an ultimate under way: the Knight glows gold, the Barbarian burns red
+    if (n.t < (n.ultUntil ?? 0)) {
+      const h = ultHero(n);
+      if (h === 'knight' || h === 'barbarian') glowAt(sx(n.x), sy(n.y) - 3, h === 'knight' ? '255,215,120' : '255,70,60', 22 + 3 * Math.sin(t * 10), 0.55);
+    }
+    // a whole-screen flash the moment an ultimate goes off
+    const sinceUlt = (performance.now() - ultFlashAt) / 1000;
+    if (sinceUlt < 0.35) {
+      ctx.fillStyle = `rgba(255, 230, 170, ${0.3 * (1 - sinceUlt / 0.35)})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+
     // a dash leaves a trail of fading afterimages
     if (n.t < n.dashUntil) {
       for (let k = 3; k >= 1; k--) {
@@ -1714,6 +1763,21 @@ function startNight(back: () => void) {
         ctx.globalCompositeOperation = 'source-over';
         glowAt(x0, y0, col, 14, fade * 0.9);
         if (age < 0.1) for (let k = 0; k < 4; k++) sparks.push({ x: fl.x, y: fl.y, vx: (Math.random() - 0.5) * 4, vy: (Math.random() - 0.5) * 4, life: 0.35, max: 0.35, color: '#e8f6ff', size: 1 });
+      } else if (fl.kind === 'ult') {
+        // an ultimate: a great gold ring and a burst of light
+        const R = (fl.r ?? 3) * TILE;
+        ctx.globalCompositeOperation = 'lighter';
+        for (const [lag, wdt] of [[0, 4], [0.15, 2]] as const) {
+          if (age < lag) continue;
+          const e = Math.min(1, (age - lag) * 1.6);
+          ctx.strokeStyle = `rgba(255,215,120,${0.9 * (1 - e)})`;
+          ctx.lineWidth = wdt;
+          ctx.beginPath();
+          ctx.arc(x0, y0, R * (0.3 + e), 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.globalCompositeOperation = 'source-over';
+        if (age < 0.3) glowAt(x0, y0, '255,215,120', R, (0.3 - age) * 3);
       } else if (fl.kind === 'nova' || fl.kind === 'slam' || fl.kind === 'toll') {
         // Holy Nova (white-gold, filled), Ground Slam (earthen, with dust), Great Toll (violet rings)
         const R = (fl.r ?? 2) * TILE;
@@ -2030,6 +2094,10 @@ export function showNightShrine(back: () => void) {
 }
 
 const dashSide = (stick: StickSide): 'left' | 'right' => (stick === 'right' ? 'left' : 'right');
+
+function ultButton(side: 'left' | 'right' | 'desk'): string {
+  return `<button type="button" class="ns-ult ${side}" id="ns-ult" aria-label="Ultimate"><span id="ns-ult-emoji">⚡</span><small>${side === 'desk' ? 'E' : 'Ult'}</small></button>`;
+}
 
 function dashButton(side: 'left' | 'right' | 'desk'): string {
   return `<button type="button" class="ns-dash ${side} ready" id="ns-dash" aria-label="Dash">💨<small>${side === 'desk' ? 'Space' : 'Dash'}</small></button>`;

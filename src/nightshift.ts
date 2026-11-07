@@ -29,6 +29,24 @@ export const NIGHT_PERKS: Record<string, string> = {
   barbarian: 'Hits up to 40% harder as your health falls.',
   bellringer: 'Starts with the Grave Bell.',
 };
+/**
+ * Ultimates: each hero's great move. The meter fills as the dead fall (bosses fill it faster);
+ * when it's full, one press unleashes it.
+ */
+export const ULTIMATES: Record<string, { name: string; emoji: string; text: string }> = {
+  knight: { name: 'Last Stand', emoji: '🛡️', text: 'Five seconds untouchable, a shockwave that throws everything back, and twice the Bulwark.' },
+  rogue: { name: 'Shadow Dance', emoji: '🗡️', text: 'Strike the twelve nearest foes in a blur of blinks.' },
+  necro: { name: 'Army of the Dead', emoji: '💀', text: 'Ten thralls claw up around you for twelve seconds.' },
+  paladin: { name: 'Divine Light', emoji: '✨', text: 'Heal 40% and burn everything in a wide ring.' },
+  ranger: { name: 'Hail of Arrows', emoji: '🏹', text: 'Three seconds of arrows raining down on everything near you.' },
+  mage: { name: 'Meteor', emoji: '☄️', text: 'A meteor crashes into the thickest crowd and leaves the ground burning.' },
+  barbarian: { name: 'Berserk', emoji: '🪓', text: 'Six seconds of double damage, faster weapons, and a little health on each kill.' },
+  bellringer: { name: 'Doom Toll', emoji: '🔔', text: 'One great toll stuns everything nearby for three seconds (bosses briefly).' },
+};
+/** Kills to fill the meter (a boss counts for 25). */
+export const ULT_KILLS = 140;
+/** The hero whose ultimate this night uses. */
+export const ultHero = (n: Night) => (n.hero && ULTIMATES[n.hero] ? n.hero : 'knight');
 /** What the Night Shrine has given (bought with Souls, kept between nights). */
 export interface NightShrine { vigor?: number; reroll?: number; banish?: number; start?: RelicKind }
 
@@ -218,7 +236,7 @@ export interface Shot { x: number; y: number; vx: number; vy: number; r: number;
  */
 export interface Lane { x: number; y: number; ang: number; len: number; w: number; at: number; dmg: number; charge?: number; grasp?: boolean; blast?: boolean; quiet?: boolean }
 /** Things to draw for a moment: a spade swing, a lightning strike, a bell's ring, spikes, a lance, a lane bursting. */
-export interface Flash { kind: 'swing' | 'bolt' | 'ring' | 'spike' | 'beam' | 'lane' | 'grasp' | 'blast' | 'blink' | 'nova' | 'rain' | 'slam' | 'toll'; x: number; y: number; at: number; ang?: number; r?: number; asc?: boolean }
+export interface Flash { kind: 'swing' | 'bolt' | 'ring' | 'spike' | 'beam' | 'lane' | 'grasp' | 'blast' | 'blink' | 'nova' | 'rain' | 'slam' | 'toll' | 'ult'; x: number; y: number; at: number; ang?: number; r?: number; asc?: boolean }
 
 /** Relics in the Night Shift: weapons that fight on their own, and charms that help. */
 export type RelicKind =
@@ -459,6 +477,11 @@ export interface Night {
   /** Your Night Rank, for which relics can come up. */
   rank: number;
   minions: Minion[];
+  /** The ultimate: its meter (0 to 1), and the one under way (and until when). */
+  ult: number;
+  ultAt: number;
+  ultUntil: number;
+  ultsUsed: number;
   /** Recent kills and hits, for the drawing (kept short). */
   deaths: { x: number; y: number; kind: FoeKind; at: number }[];
   hits: { x: number; y: number; amt: number; at: number }[];
@@ -572,6 +595,10 @@ function baseNight(rand: () => number, v2: boolean): Night {
     helperLife: 1,
     rank: MAX_NIGHT_RANK_ALL,
     minions: [],
+    ult: 0,
+    ultAt: -1,
+    ultUntil: 0,
+    ultsUsed: 0,
     deaths: [],
     hits: [],
   };
@@ -582,9 +609,10 @@ const lv = (n: Night, r: RelicKind) => n.relics[r] ?? 0;
 export const xpToLevel = (level: number) => 2 + level * 2 + Math.floor((level * level) / 10);
 /** How many times a blessing has been taken. */
 export const bl = (n: Night, b: BlessingId) => n.blessings?.[b] ?? 0;
-const dmgMul = (n: Night) => (1 + 0.12 * lv(n, 'whetstone')) * (1 + 0.06 * bl(n, 'might')) * (n.pacts?.blood ? 1.2 : 1) * (n.hero === 'barbarian' ? 1 + 0.4 * (1 - Math.max(0, n.hp) / n.maxHp) : 1);
+const berserk = (n: Night) => n.t < (n.ultUntil ?? 0) && ultHero(n) === 'barbarian';
+const dmgMul = (n: Night) => (berserk(n) ? 2 : 1) * (1 + 0.12 * lv(n, 'whetstone')) * (1 + 0.06 * bl(n, 'might')) * (n.pacts?.blood ? 1.2 : 1) * (n.hero === 'barbarian' ? 1 + 0.4 * (1 - Math.max(0, n.hp) / n.maxHp) : 1);
 // Quickening and warding shrink by a share each time, so they never reach nothing.
-const cdMul = (n: Night) => (1 - 0.08 * lv(n, 'hourglass')) * 0.96 ** bl(n, 'quickening') * (n.pacts?.haste ? 0.9 : 1);
+const cdMul = (n: Night) => (berserk(n) ? 0.65 : 1) * (1 - 0.08 * lv(n, 'hourglass')) * 0.96 ** bl(n, 'quickening') * (n.pacts?.haste ? 0.9 : 1);
 /** A weapon whose fusion has ascended: how much harder it hits, and how much sooner it comes round. */
 const ascOf = (n: Night, r: RelicKind) => {
   const f = fusionOf(n, r);
@@ -604,7 +632,7 @@ export const pickupRadius = (n: Night) => 1.3 + 1.2 * lv(n, 'magnet');
 export const playerSpeed = (n: Night) => 4 * (1 + 0.08 * lv(n, 'boots')) * (1 + Math.min(0.6, 0.03 * bl(n, 'fleet')));
 export const skullCount = (n: Night) => (lv(n, 'skulls') ? (1 + lv(n, 'skulls')) * (n.fused.halo ? 2 : 1) : 0);
 /** The Knight's Bulwark: how many shields circle, and how close. */
-export const shieldCount = (n: Night) => (lv(n, 'bulwark') ? (1 + Math.floor(lv(n, 'bulwark') / 2)) * (n.fused.aegis ? 2 : 1) : 0);
+export const shieldCount = (n: Night) => (lv(n, 'bulwark') ? (1 + Math.floor(lv(n, 'bulwark') / 2)) * (n.fused.aegis ? 2 : 1) * (n.t < (n.ultUntil ?? 0) && ultHero(n) === 'knight' ? 2 : 1) : 0);
 export const shieldOrbit = (n: Night) => (n.fused.aegis ? 1.45 : 1.05);
 /** How far the skulls circle. */
 export const skullOrbit = (n: Night) => (n.fused.halo ? 2.2 : 1.6);
@@ -873,6 +901,7 @@ function hurtFoe(n: Night, f: Foe, amount: number, dashHit = false) {
   }
   if (f.hp <= 0) {
     n.kills++;
+    if (n.v2 && n.t >= (n.ultUntil ?? 0)) n.ult = Math.min(1, (n.ult ?? 0) + (f.boss ? 25 : 1) / ULT_KILLS);
     n.deaths.push({ x: f.x, y: f.y, kind: f.kind, at: n.t });
     if (n.deaths.length > 60) n.deaths.splice(0, n.deaths.length - 60);
     if (f.kind === 'mother') n.motherFelled = true;
@@ -920,12 +949,14 @@ function hurtFoe(n: Night, f: Foe, amount: number, dashHit = false) {
       n.pickups.push({ x: f.x, y: f.y + 0.3, kind: 'potion', v: 1 });
     }
     if (lv(n, 'fang') && n.rand() < 0.05 * lv(n, 'fang')) n.hp = Math.min(n.maxHp, n.hp + 1);
+    if (berserk(n) && n.rand() < 0.25) n.hp = Math.min(n.maxHp, n.hp + 1);
   }
 }
 
 /** You take a hit, unless you've just been hit. */
 function hurtYou(n: Night, dmg: number, from?: Foe) {
   if (n.t < n.hurtUntil || n.t < n.dashUntil) return;
+  if (n.t < (n.ultUntil ?? 0) && ultHero(n) === 'knight') return;
   if (n.firstHitAt < 0) n.firstHitAt = n.t;
   n.hp -= dmg * wardMul(n);
   n.hurtUntil = n.t + 0.75;
@@ -1622,8 +1653,89 @@ function raiseThralls(n: Night, at: { x: number; y: number }, count: number, lif
   }
 }
 
+/** Unleash the ultimate, if the meter is full. */
+export function ultimate(n: Night): boolean {
+  if (!n.v2 || n.over || n.pendingLevels > 0 || (n.ult ?? 0) < 1) return false;
+  n.ult = 0;
+  n.ultAt = n.t;
+  // what the ultimate itself puts down doesn't fill the meter again
+  n.ultUntil = n.t + 0.5;
+  n.ultsUsed = (n.ultsUsed ?? 0) + 1;
+  const h = ultHero(n);
+  const hit = (f: Foe, amt: number) => hurtFoe(n, f, amt * (1 + n.t / 300));
+  const near8 = (r: number) => n.foes.filter((f) => f.hp > 0 && near(n, f) < r + f.r);
+  if (h === 'knight') {
+    n.ultUntil = n.t + 5;
+    n.flashes.push({ kind: 'ult', x: n.x, y: n.y, at: n.t, r: 4 });
+    for (const f of near8(4)) {
+      hit(f, 12);
+      if (!f.boss) {
+        const d = near(n, f) || 1;
+        f.kx += ((f.x - n.x) / d) * 3;
+        f.ky += ((f.y - n.y) / d) * 3;
+      }
+    }
+  } else if (h === 'rogue') {
+    const targets = n.foes.filter((f) => f.hp > 0).sort((a, b) => near(n, a) - near(n, b)).slice(0, 12);
+    for (const f of targets) {
+      n.flashes.push({ kind: 'blink', x: f.x, y: f.y, at: n.t });
+      hit(f, 40);
+    }
+    n.ultUntil = n.t + 0.6;
+    n.hurtUntil = Math.max(n.hurtUntil, n.t + 1.2);
+  } else if (h === 'necro') {
+    raiseThralls(n, n, 10, 12, 6 + n.t / 40);
+    n.flashes.push({ kind: 'ult', x: n.x, y: n.y, at: n.t, r: 3 });
+    n.ultUntil = n.t + 1;
+  } else if (h === 'paladin') {
+    n.hp = Math.min(n.maxHp, n.hp + Math.ceil(n.maxHp * 0.4));
+    n.flashes.push({ kind: 'nova', x: n.x, y: n.y, at: n.t, r: 6 * area(n) });
+    for (const f of near8(6 * area(n))) hit(f, f.boss ? 60 : 30);
+    n.ultUntil = n.t + 0.8;
+  } else if (h === 'ranger') {
+    n.ultUntil = n.t + 3;
+  } else if (h === 'mage') {
+    const close = n.foes.filter((f) => f.hp > 0 && near(n, f) < 9);
+    let at: { x: number; y: number } = { x: n.x + n.fx * 3, y: n.y + n.fy * 3 };
+    let most = -1;
+    for (const c of close.slice(0, 50)) {
+      const crowd = close.filter((o) => near(o, c) < 2.5).length;
+      if (crowd > most) {
+        most = crowd;
+        at = { x: c.x, y: c.y };
+      }
+    }
+    n.flashes.push({ kind: 'slam', x: at.x, y: at.y, at: n.t, r: 3.2 });
+    n.flashes.push({ kind: 'ult', x: at.x, y: at.y, at: n.t, r: 3.2 });
+    for (const f of n.foes) if (f.hp > 0 && near(at, f) < 3.2 + f.r) hit(f, f.boss ? 80 : 45);
+    n.flames.push({ x: at.x, y: at.y, until: n.t + 5, r: 2.6, dps: 12 + n.t / 20 });
+    n.ultUntil = n.t + 0.8;
+  } else if (h === 'barbarian') {
+    n.ultUntil = n.t + 6;
+    n.flashes.push({ kind: 'ult', x: n.x, y: n.y, at: n.t, r: 2.5 });
+  } else if (h === 'bellringer') {
+    n.flashes.push({ kind: 'toll', x: n.x, y: n.y, at: n.t, r: 9 });
+    for (const f of near8(9)) {
+      hit(f, 10);
+      f.slowUntil = n.t + 3;
+      f.stunUntil = n.t + (f.boss ? 0.8 : 3);
+    }
+    n.ultUntil = n.t + 1;
+  }
+  return true;
+}
+
 /** The heroes' own weapons. */
 function signatures(n: Night, dt: number) {
+  // The Ranger's Hail of Arrows, while it lasts: a volley on a foe near you every moment.
+  if (n.t < (n.ultUntil ?? 0) && ultHero(n) === 'ranger' && Math.floor(n.t / 0.12) !== Math.floor((n.t - dt) / 0.12)) {
+    const close = n.foes.filter((f) => f.hp > 0 && near(n, f) < 9);
+    for (let k = 0; k < 2 && close.length; k++) {
+      const c = close.splice(Math.floor(n.rand() * close.length), 1)[0];
+      n.flashes.push({ kind: 'rain', x: c.x, y: c.y, at: n.t, r: 1.2 });
+      for (const f of n.foes) if (f.hp > 0 && near(c, f) < 1.2 + f.r) hurtFoe(n, f, 14 * (1 + n.t / 300));
+    }
+  }
   const cd = cdMul(n);
   const ready = (r: RelicKind, every: number) => {
     if (!lv(n, r) || (n.next[r] ?? 0) > n.t) return false;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { cleanGraveState, newGraveState } from './graveshift';
-import { DAWN, MOTHER_AT, banish, chooseDawn, reroll, skipLevel, ASCEND_LEVEL, ELITE_LEVEL, FIRST_EVENT, NO_PACT, dashDamage, isAscend, isPact, DASH_COOLDOWN, FIELD, FIRST_BOSS, NIGHT_RELICS, POTION_HEAL, dash, dashCooldown, isBlessing, lateNight, MAX_LEVEL, chooseRelic, nightFeats, isFusion, levelChoices, newNight, nightSouls, step, wardMul, xpToLevel, ALLY_PICK, COMPANION_IDS, nightRank, companionOpen, MAX_NIGHT_RANK } from './nightshift';
+import { DAWN, MOTHER_AT, banish, chooseDawn, reroll, skipLevel, ASCEND_LEVEL, ELITE_LEVEL, FIRST_EVENT, NO_PACT, dashDamage, isAscend, isPact, DASH_COOLDOWN, FIELD, FIRST_BOSS, NIGHT_RELICS, POTION_HEAL, dash, dashCooldown, isBlessing, lateNight, MAX_LEVEL, chooseRelic, nightFeats, isFusion, levelChoices, newNight, nightSouls, step, wardMul, xpToLevel, ALLY_PICK, COMPANION_IDS, nightRank, companionOpen, MAX_NIGHT_RANK, ultimate } from './nightshift';
 
 /** A small fixed random source, so every run of a test is the same night. */
 function seeded(seed: number) {
@@ -613,5 +613,42 @@ describe('heroes, Night Ranks and companion gear', () => {
     const g = cleanGraveState({ ...newGraveState(0), nights: 10, nightKills: 1000, nightTotal: undefined }, 0);
     expect(g.nightTotal).toBe(5000);
     expect(cleanGraveState({ ...newGraveState(0), nightTotal: 42 }, 0).nightTotal).toBe(42);
+  });
+});
+
+describe('ultimates', () => {
+  it('fill as the dead fall, then each hero unleashes theirs once', () => {
+    for (const hero of ['knight', 'rogue', 'necro', 'paladin', 'ranger', 'mage', 'barbarian', 'bellringer']) {
+      const n = newNight(seeded(21), true, { hero });
+      n.relics = {};
+      for (let k = 0; k < 60 * 40 && n.foes.length < 30; k++) {
+        n.hp = n.maxHp;
+        step(n, 1 / 60, 0, 0);
+      }
+      expect(ultimate(n), hero).toBe(false);
+      n.ult = 1;
+      n.hp = n.maxHp / 2;
+      const before = n.foes.reduce((a, f) => a + f.hp, 0);
+      const hpBefore = n.hp;
+      expect(ultimate(n), hero).toBe(true);
+      expect(n.ult).toBe(0);
+      for (let k = 0; k < 60; k++) step(n, 1 / 60, 0, 0);
+      const after = n.foes.reduce((a, f) => a + f.hp, 0);
+      if (hero === 'paladin') expect(n.hp).toBeGreaterThan(hpBefore);
+      if (hero === 'necro') expect(n.minions.filter((m) => m.kind === 'thrall').length).toBeGreaterThan(5);
+      if (!['barbarian', 'knight'].includes(hero)) expect(after + n.kills, hero).not.toBe(before);
+    }
+  });
+
+  it('the Knight cannot be hurt during Last Stand', () => {
+    const n = newNight(seeded(2), true, { hero: 'knight' });
+    n.ult = 1;
+    ultimate(n);
+    const hp = n.hp;
+    for (let k = 0; k < 60 * 4; k++) {
+      n.hurtUntil = 0;
+      step(n, 1 / 60, 0, 0);
+    }
+    expect(n.hp).toBeGreaterThanOrEqual(hp);
   });
 });
