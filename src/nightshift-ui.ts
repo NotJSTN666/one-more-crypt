@@ -4,7 +4,7 @@ import { portalHappy, portalPlaying } from './portal';
 // relics fighting on their own, a level-up choice whenever you fill the soul bar, the bosses'
 // bolts and lanes to dodge, and how many you put down. On phones a joystick sits at the bottom.
 
-import { setMusicDepth, setMusicMood, setNightHeat, sfx } from './audio';
+import { setMusicDepth, setMusicMood, setNightHeat, sfx, ultSound } from './audio';
 import { drawAura } from './aura';
 import { centralDate } from './daily';
 import { NIGHT_GIFT, NIGHT_GIFT_KILLS } from './graveshift';
@@ -351,8 +351,7 @@ function startNight(back: () => void) {
   const doUlt = () => {
     if (!ultimate(n)) return;
     const h = ultHero(n);
-    sfx.fuse();
-    sfx.toll();
+    ultSound(h);
     ultFlashAt = performance.now();
     // the name slams across the field in the hero's colour, and the ground shakes
     const card = $id('ns-ultcard');

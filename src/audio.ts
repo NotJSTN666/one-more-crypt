@@ -70,6 +70,138 @@ function noise(dur: number, vol: number, filterFreq: number) {
   src.start();
 }
 
+/** Filtered noise, after a delay, its filter sweeping from one frequency to another. */
+function noiseAt(delay: number, dur: number, vol: number, type: BiquadFilterType, f0: number, f1 = f0, q = 1) {
+  if (!ctx || muted) return;
+  const t0 = ctx.currentTime + delay;
+  const len = Math.max(1, Math.floor(ctx.sampleRate * dur));
+  const buffer = ctx.createBuffer(1, len, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+  const src = ctx.createBufferSource();
+  src.buffer = buffer;
+  const filter = ctx.createBiquadFilter();
+  filter.type = type;
+  filter.Q.value = q;
+  filter.frequency.setValueAtTime(f0, t0);
+  filter.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t0 + dur);
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(vol, t0 + Math.min(0.02, dur / 4));
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  src.connect(filter).connect(gain).connect(ctx.destination);
+  src.start(t0);
+  src.stop(t0 + dur);
+}
+
+/** A tone with a slow wobble in pitch (for wails and roars). */
+function wobble(freq: number, dur: number, type: OscillatorType, vol: number, slideTo: number, rate: number, depth: number, delay = 0) {
+  if (!ctx || muted) return;
+  const t0 = ctx.currentTime + delay;
+  const o = ctx.createOscillator();
+  const lfo = ctx.createOscillator();
+  const lg = ctx.createGain();
+  const g = ctx.createGain();
+  o.type = type;
+  o.frequency.setValueAtTime(freq, t0);
+  o.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+  lfo.frequency.value = rate;
+  lg.gain.value = depth;
+  lfo.connect(lg).connect(o.frequency);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(vol, t0 + Math.min(0.15, dur / 3));
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g).connect(ctx.destination);
+  o.start(t0);
+  lfo.start(t0);
+  o.stop(t0 + dur);
+  lfo.stop(t0 + dur);
+}
+
+/** Each hero's ultimate has its own sound. */
+export function ultSound(hero: string) {
+  switch (hero) {
+    case 'rogue': {
+      // a flurry of blades: swish after swish, then a sharp ring of steel
+      for (let k = 0; k < 7; k++) noiseAt(k * 0.065, 0.1, 0.6, 'bandpass', 5200 - k * 300, 1400, 2);
+      tone(2400, 0.35, 'sawtooth', 0.05, 3600, 0.5);
+      tone(3600, 0.5, 'sine', 0.12, 3400, 0.5);
+      noiseAt(0.5, 0.25, 0.3, 'highpass', 6000);
+      break;
+    }
+    case 'necro': {
+      // the earth stirs: a low drone, rattling bones, and a wail rising out of the grave
+      tone(55, 1.6, 'sawtooth', 0.1, 50);
+      tone(58, 1.6, 'sawtooth', 0.08, 52);
+      noiseAt(0, 1.2, 0.18, 'lowpass', 180, 1600);
+      for (let k = 0; k < 8; k++) noiseAt(0.25 + k * 0.09 + Math.random() * 0.04, 0.03, 0.2, 'bandpass', 2600 + Math.random() * 1200, 2600, 6);
+      wobble(330, 1.4, 'sine', 0.11, 520, 6, 14, 0.2);
+      wobble(247, 1.3, 'triangle', 0.04, 392, 5, 10, 0.3);
+      break;
+    }
+    case 'paladin': {
+      // light from above: a bright chime, a rising major arpeggio, and a soft wash
+      [523, 659, 784, 1047, 1319, 1568].forEach((f, i) => tone(f, 0.9 - i * 0.05, 'sine', 0.1, undefined, i * 0.06));
+      tone(2093, 1.4, 'sine', 0.05, undefined, 0.35);
+      tone(1568, 1.4, 'triangle', 0.04, undefined, 0.35);
+      tone(262, 1.4, 'triangle', 0.06, undefined, 0.1);
+      noiseAt(0.05, 1.2, 0.08, 'highpass', 4000, 9000);
+      break;
+    }
+    case 'ranger': {
+      // a bowstring, then arrows whistling down and thudding in all round
+      tone(196, 0.2, 'triangle', 0.25, 120);
+      noiseAt(0, 0.1, 0.4, 'bandpass', 900, 500, 3);
+      for (let k = 0; k < 14; k++) {
+        const d = 0.15 + k * 0.07 + Math.random() * 0.05;
+        noiseAt(d, 0.16, 0.4, 'bandpass', 4200 + Math.random() * 1500, 1800, 3);
+        noiseAt(d + 0.14, 0.06, 0.45, 'lowpass', 500, 200);
+      }
+      break;
+    }
+    case 'mage': {
+      // a meteor falling (it lands about 0.6s in), then a blast and a rumble
+      tone(1800, 0.6, 'sine', 0.06, 260);
+      noiseAt(0, 0.6, 0.1, 'bandpass', 3000, 500, 2);
+      noiseAt(0.58, 1.4, 0.45, 'lowpass', 1400, 120);
+      tone(70, 1.2, 'sine', 0.3, 28, 0.58);
+      tone(140, 0.4, 'square', 0.06, 50, 0.58);
+      noiseAt(0.62, 0.25, 0.2, 'highpass', 3000, 6000);
+      break;
+    }
+    case 'barbarian': {
+      // a war roar over pounding drums
+      [0, 0.18, 0.36, 0.5].forEach((d) => {
+        tone(110, 0.25, 'sine', 0.22, 45, d);
+        noiseAt(d, 0.12, 0.18, 'lowpass', 600, 200);
+      });
+      wobble(150, 1, 'sawtooth', 0.07, 105, 18, 9, 0.05);
+      wobble(152, 1, 'sawtooth', 0.06, 102, 21, 11, 0.05);
+      wobble(75, 1, 'square', 0.05, 55, 16, 4, 0.05);
+      noiseAt(0.05, 0.9, 0.08, 'bandpass', 900, 500, 1.5);
+      break;
+    }
+    case 'bellringer': {
+      // one great bell, ringing out long
+      tone(65, 3.2, 'sine', 0.22);
+      tone(130, 2.6, 'sine', 0.1);
+      tone(65 * 2.76, 2, 'sine', 0.07);
+      tone(65 * 5.4, 1.3, 'sine', 0.04);
+      tone(65 * 8.93, 0.8, 'sine', 0.025);
+      noiseAt(0, 0.08, 0.25, 'bandpass', 1800, 1200, 2);
+      break;
+    }
+    default: {
+      // the Knight's Last Stand: a shield's clang, a deep boom, and a short rising call
+      [220, 331, 662, 993].forEach((f, i) => tone(f, 0.5 - i * 0.08, 'square', 0.05 - i * 0.008));
+      noiseAt(0, 0.12, 0.3, 'highpass', 3000, 5000);
+      tone(90, 0.9, 'sine', 0.28, 38);
+      [196, 247, 294, 392].forEach((f, i) => tone(f, 0.8, 'triangle', 0.06, undefined, 0.22 + i * 0.07));
+      break;
+    }
+  }
+}
+
 export const sfx = {
   step: () => tone(90, 0.05, 'triangle', 0.08),
   hit: () => {
