@@ -1407,9 +1407,23 @@ function startNight(back: () => void) {
       ctx.save();
       let img: CanvasImageSource;
       if (m.kind === 'spectre') {
-        ctx.globalAlpha = 0.55 + 0.15 * Math.sin(t * 3 + m.x);
+        // a pale, see-through ghost of a knight, so it never looks like you
         glowAt(x + 6, y + 6, '140,200,255', 10, 0.35);
-        img = fresh ? spectreSprite.white : spectreSprite.normal;
+        const fade = 0.3 + 0.08 * Math.sin(t * 3 + m.x);
+        ctx.globalAlpha = fade;
+        if (m.fx < 0) {
+          ctx.translate(x + 12, y);
+          ctx.scale(-1, 1);
+          ctx.drawImage(spectreSprite.normal, 0, 0, 12, 12);
+          ctx.globalAlpha = fresh ? 0.75 : 0.35;
+          ctx.drawImage(spectreSprite.white, 0, 0, 12, 12);
+        } else {
+          ctx.drawImage(spectreSprite.normal, x, y, 12, 12);
+          ctx.globalAlpha = fresh ? 0.75 : 0.35;
+          ctx.drawImage(spectreSprite.white, x, y, 12, 12);
+        }
+        ctx.restore();
+        continue;
       } else {
         // thralls crumble as their time runs out
         if (m.kind === 'thrall') ctx.globalAlpha = Math.max(0.3, Math.min(1, (m.until - n.t) / 1.5));

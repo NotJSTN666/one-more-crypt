@@ -50,9 +50,11 @@ export const COMPANIONS: Record<CompanionId, { name: string; emoji: string; text
 export const COMPANION_IDS = Object.keys(COMPANIONS) as CompanionId[];
 /** The level-up choice that sharpens your companion. */
 export const ALLY_PICK = 'ally';
-export interface Ally { x: number; y: number; fx: number; level: number; next: number; actAt: number }
+export interface Ally { x: number; y: number; fx: number; level: number; next: number; actAt: number; ox?: number; oy?: number; wanderAt?: number }
 /** Your other helpers on the field: hounds and spectral knights (from relics), and thralls (which crumble in time). */
-export interface Minion { kind: 'hound' | 'spectre' | 'thrall'; x: number; y: number; fx: number; next: number; until: number; actAt: number; dmg: number }
+export interface Minion { kind: 'hound' | 'spectre' | 'thrall'; x: number; y: number; fx: number; next: number; until: number; actAt: number; dmg: number; ox?: number; oy?: number; wanderAt?: number }
+/** Helpers fight anywhere within this many tiles of you, and drift back when nothing's near. */
+const LEASH = 7.5;
 const MAX_THRALLS = 40;
 
 export interface Foe {
@@ -1476,6 +1478,27 @@ function walk(m: { x: number; y: number; fx: number }, tx: number, ty: number, s
   if (Math.abs(tx - m.x) > 0.05) m.fx = tx > m.x ? 1 : -1;
 }
 
+/**
+ * A helper with nothing to fight drifts about its own patch of ground a few tiles from you,
+ * picking a new spot now and then, rather than walking at your heel.
+ */
+function roam(n: Night, m: { x: number; y: number; fx: number; ox?: number; oy?: number; wanderAt?: number }, speed: number, dt: number) {
+  if (m.ox === undefined || m.oy === undefined || (m.wanderAt ?? 0) <= n.t) {
+    const a = n.rand() * Math.PI * 2;
+    const r = 2.5 + n.rand() * 2.5;
+    m.ox = Math.cos(a) * r;
+    m.oy = Math.sin(a) * r;
+    m.wanderAt = n.t + 2.5 + n.rand() * 2.5;
+  }
+  walk(m, Math.max(0.5, Math.min(FIELD - 0.5, n.x + m.ox)), Math.max(0.5, Math.min(FIELD - 0.5, n.y + (m.oy ?? 0))), speed, dt, 0.3);
+}
+
+/** The nearest foe to a helper, within reach of it and not too far from you. */
+function hunt(n: Night, m: { x: number; y: number }, within: number): Foe | null {
+  const f = nearestFoe(n, m, within);
+  return f && near(f, n) < LEASH ? f : null;
+}
+
 /** Raise thralls round a point: they hunt the dead for a while, then crumble. */
 function raiseThralls(n: Night, at: { x: number; y: number }, count: number, life: number, dmg: number) {
   for (let k = 0; k < count; k++) {
@@ -1502,9 +1525,9 @@ function helpers(n: Night, dt: number) {
       a.x = n.x - n.fx;
       a.y = n.y - n.fy;
     }
-    const foe = nearestFoe(n, n, ranged ? 7 : 5);
-    if (foe && !ranged) walk(a, foe.x, foe.y, 4.6, dt, foe.r + 0.5);
-    else walk(a, n.x - n.fx * 1.3 + (n.fy ? 0.8 : 0), n.y - n.fy * 1.3 + (n.fx ? 0.8 : 0), 4.4, dt, 0.4);
+    const foe = ranged ? null : hunt(n, a, 6);
+    if (foe) walk(a, foe.x, foe.y, 4.6, dt, foe.r + 0.5);
+    else roam(n, a, ranged ? 3.2 : 3.6, dt);
     if (n.t >= a.next) {
       const c = n.companion;
       let every = 1;
@@ -1614,14 +1637,17 @@ function helpers(n: Night, dt: number) {
   if (tl && (n.next.totem ?? 0) <= n.t) {
     n.next.totem = n.t + Math.max(2.5, 6 - 0.6 * tl) * cd * (ascOf(n, 'totem') ? 0.8 : 1);
     const barrow = n.fused.barrow ? 2 : 1;
-    raiseThralls(n, n, (1 + Math.floor(tl / 2)) * barrow, (6 + tl) * barrow, (3 + 2 * tl) * pw(n, 'totem'));
+    // they claw up a few steps away, not at your feet
+    const ang = n.rand() * Math.PI * 2;
+    const at = { x: Math.max(1, Math.min(FIELD - 1, n.x + Math.cos(ang) * 2.8)), y: Math.max(1, Math.min(FIELD - 1, n.y + Math.sin(ang) * 2.8)) };
+    raiseThralls(n, at, (1 + Math.floor(tl / 2)) * barrow, (6 + tl) * barrow, (3 + 2 * tl) * pw(n, 'totem'));
   }
 
   for (const m of n.minions) {
     if (m.kind === 'thrall') {
-      const f = nearestFoe(n, m, 7);
+      const f = hunt(n, m, 7);
       if (f) walk(m, f.x, f.y, 2.6, dt, f.r + 0.25);
-      else walk(m, n.x, n.y, 2.6, dt, 1.2);
+      else roam(n, m, 2, dt);
       if (f && n.t >= m.next && near(m, f) < f.r + 0.5) {
         hurtFoe(n, f, m.dmg);
         m.next = n.t + 0.6;
@@ -1634,9 +1660,9 @@ function helpers(n: Night, dt: number) {
       m.y = n.y + (n.rand() - 0.5) * 2;
     }
     if (m.kind === 'hound') {
-      const f = nearestFoe(n, n, 8);
+      const f = hunt(n, m, 8);
       if (f) walk(m, f.x, f.y, (n.fused.wildhunt ? 7.5 : 6) * (1 + 0.05 * hl), dt, f.r + 0.2);
-      else walk(m, n.x + 0.9, n.y + 0.4, 6, dt, 0.5);
+      else roam(n, m, 4, dt);
       if (f && n.t >= m.next && near(m, f) < f.r + 0.45) {
         hurtFoe(n, f, (6 + 3 * hl) * (n.fused.wildhunt ? 2 : 1) * pw(n, 'hound'));
         m.next = n.t + Math.max(0.4, 0.9 - 0.1 * hl) * cd;
@@ -1644,9 +1670,9 @@ function helpers(n: Night, dt: number) {
       }
     } else {
       // a spectral knight: walks out to the dead near you and swings at all round
-      const f = nearestFoe(n, n, 6);
+      const f = hunt(n, m, 6);
       if (f) walk(m, f.x, f.y, 3.8, dt, f.r + 0.6);
-      else walk(m, n.x - 1, n.y - 0.6, 3.8, dt, 0.8);
+      else roam(n, m, 2.8, dt);
       if (f && n.t >= m.next && near(m, f) < f.r + 1.3) {
         for (const o of n.foes) if (o.hp > 0 && near(m, o) < 1.3 + o.r) hurtFoe(n, o, (6 + 3 * sl) * (n.fused.revenant ? 2 : 1) * pw(n, 'spectre'));
         n.flashes.push({ kind: 'swing', x: m.x, y: m.y, at: n.t, ang: Math.atan2(f.y - m.y, f.x - m.x), r: 1.3, asc: ascOf(n, 'spectre') });

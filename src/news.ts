@@ -23,6 +23,14 @@ export interface NewsDay {
 
 export const NEWS: NewsDay[] = [
   {
+    date: '2026-11-07',
+    title: 'Room to breathe for your helpers',
+    notes: [
+      '🤝 Night Shift companions, hounds, spectral knights and thralls now roam the ground around you and fight there, instead of crowding at your side.',
+      '👤 Spectral Knights are now pale ghosts, so you can always tell them from yourself.',
+    ],
+  },
+  {
     date: '2026-11-06',
     title: 'Companions in the Night Shift, a calmer title screen, and links straight into a mode',
     notes: [
