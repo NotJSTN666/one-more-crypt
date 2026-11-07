@@ -227,7 +227,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   // The Night Shift.
   { id: 'nsfirst', name: 'First Light', desc: 'Survive 5 minutes in the Night Shift.', souls: 50 },
   { id: 'ns15', name: 'Graveyard Shift', desc: 'Survive 15 minutes in the Night Shift.', souls: 200 },
-  { id: 'ns25', name: 'Dawn Never Comes', desc: 'Survive 25 minutes in the Night Shift.', souls: 600 },
+  { id: 'ns25', name: 'Dawn Never Comes', desc: 'Survive 20 minutes in the Night Shift.', souls: 600 },
   { id: 'ns1k', name: 'A Thousand Graves', desc: 'Put down 1,000 in one Night Shift.', souls: 150 },
   { id: 'ns10k', name: 'Ten Thousand Graves', desc: 'Put down 10,000 in one Night Shift.', souls: 800 },
   { id: 'nsforge3', name: 'Soul Forger', desc: 'Make 3 fusions at the Soul Forge in one Night Shift.', souls: 200 },

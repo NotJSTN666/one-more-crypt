@@ -3738,7 +3738,7 @@ function showNightIntro() {
       <div><span>🕹️</span><p><b>Keep moving.</b> ${touch ? 'Use the stick at the bottom.' : 'WASD or the arrow keys.'} Your relics attack on their own.</p></div>
       <div><span>💀</span><p><b>Grow stronger.</b> The dead drop souls. Fill the bar to take a new relic, or sharpen one you have.</p></div>
       <div><span>💨</span><p><b>Dash</b> (${touch ? 'the 💨 button' : 'Space'}) to slip through anything. Don't stand still: the dead claw up from below.</p></div>
-      <div><span>☠️</span><p><b>A boss rises every two minutes.</b> Dodge its bolts, and step out of the red lanes before they burst.</p></div>
+      <div><span>☠️</span><p><b>A boss rises every minute and a half</b>, two at a time after ten minutes. Dodge their bolts, and step out of the red lanes before they burst. Last 20 minutes and dawn breaks.</p></div>
       <div><span>🏆</span><p><b>Put down as many as you can.</b> Your best night goes on the leaderboard.</p></div>
     </div>
     <button class="btn primary" id="ns-start">Start the night</button>

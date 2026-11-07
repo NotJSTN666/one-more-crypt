@@ -1,6 +1,6 @@
 // The Night Shift: a survival mode. The dead come at you from every side, in real time, and
 // never stop; you keep moving while your relics fight for you, and every level you pick a relic
-// to add or sharpen. Bosses rise every two minutes, each tougher than the last, with attacks to
+// to add or sharpen. Bosses rise every minute and a half (in pairs from the tenth minute), each tougher than the last, with attacks to
 // dodge. The score is how many you put down before the night takes you.
 //
 // This is the simulation alone (no drawing): advance it with step(), feeding it the direction
@@ -10,14 +10,16 @@ export type FoeKind = 'ghoul' | 'bat' | 'wraith' | 'brute' | 'imp' | 'archer' | 
 export type BossKind = 'boss' | 'abbot' | 'lich' | 'voideye' | 'mother';
 /** The late night's new dead: when each first comes, and what it does. */
 export const NEW_FOES: { kind: FoeKind; at: number; name: string; text: string }[] = [
-  { kind: 'archer', at: 480, name: 'Bone Archers', text: 'keep their distance and shoot' },
-  { kind: 'boneknight', at: 720, name: 'Shieldbearers', text: 'march in a wall' },
-  { kind: 'drowned', at: 960, name: 'Drowned Chargers', text: 'mark a line, then rush down it' },
-  { kind: 'monk', at: 1200, name: 'Plague Monks', text: 'raise the dead around them. Hunt them down' },
+  { kind: 'archer', at: 360, name: 'Bone Archers', text: 'keep their distance and shoot' },
+  { kind: 'boneknight', at: 480, name: 'Shieldbearers', text: 'march in a wall' },
+  { kind: 'drowned', at: 600, name: 'Drowned Chargers', text: 'mark a line, then rush down it' },
+  { kind: 'monk', at: 720, name: 'Plague Monks', text: 'raise the dead around them. Hunt them down' },
 ];
 /** The Night Mother rises at this time; dawn breaks at DAWN. */
-export const MOTHER_AT = 1500;
-export const DAWN = 1800;
+export const MOTHER_AT = 900;
+export const DAWN = 1200;
+/** From this time, bosses rise two at a time. */
+export const TWIN_BOSSES_AT = 600;
 /** Heroes in the Night Shift: each has a perk (with the late-night rules). */
 export const NIGHT_PERKS: Record<string, string> = {
   knight: '+6 max health, and potions heal more.',
@@ -357,6 +359,8 @@ export const NIGHT_RELIC = Object.fromEntries(NIGHT_RELICS.map((r) => [r.id, r])
 /** The first boss rises at this time, then one more every BOSS_EVERY seconds. */
 export const FIRST_BOSS = 90;
 export const BOSS_EVERY = 120;
+/** With the late-night rules, a boss every minute and a half. */
+export const BOSS_EVERY_V2 = 90;
 const BOSS_ORDER: BossKind[] = ['boss', 'abbot', 'lich'];
 const BOSS_ORDER_V2: BossKind[] = ['boss', 'abbot', 'lich', 'voideye'];
 export const isBoss = (k: FoeKind): k is BossKind => k === 'boss' || k === 'abbot' || k === 'lich' || k === 'voideye' || k === 'mother';
@@ -652,7 +656,7 @@ export function frostSlow(n: Night, f: Foe): number {
 }
 export const PLAYER_R = 0.35;
 /** When the next boss rises. */
-export const nextBossAt = (n: Night) => FIRST_BOSS + n.bossesRisen * BOSS_EVERY;
+export const nextBossAt = (n: Night) => FIRST_BOSS + n.bossesRisen * (n.v2 ? BOSS_EVERY_V2 : BOSS_EVERY);
 
 const readyFusions = (n: Night) => NIGHT_FUSIONS.filter((f) => !n.fused[f.id] && lv(n, f.weapon) >= MAX_LEVEL && lv(n, f.charm) > 0);
 
@@ -878,9 +882,9 @@ function pickKind(n: Night): FoeKind {
     ['wraith', t > 75 ? 4 : 0],
     ['brute', t > 150 ? 2 + t / 200 : 0],
     ['imp', t > 240 ? 4 : 0],
-    ['archer', n.v2 && t > 480 ? 3 : 0],
-    ['drowned', n.v2 && t > 960 ? 2 : 0],
-    ['monk', n.v2 && t > 1200 ? 0.6 : 0],
+    ['archer', n.v2 && t > 360 ? 3 : 0],
+    ['drowned', n.v2 && t > 600 ? 2 : 0],
+    ['monk', n.v2 && t > 720 ? 0.6 : 0],
   ];
   const total = table.reduce((a, [, w]) => a + w, 0);
   let r = n.rand() * total;
@@ -1237,6 +1241,11 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
     if (!n.foes.some((f) => f.kind === 'mother')) {
       const order = n.v2 ? BOSS_ORDER_V2 : BOSS_ORDER;
       spawn(n, order[n.bossesRisen % order.length]);
+      // From the tenth minute they come in pairs: a second, different boss from the other side.
+      if (n.v2 && n.t >= TWIN_BOSSES_AT) {
+        const a = Math.atan2(n.fy, n.fx) + Math.PI + (n.rand() - 0.5);
+        spawn(n, order[(n.bossesRisen + 2) % order.length], { x: Math.max(2, Math.min(FIELD - 2, n.x + Math.cos(a) * 10)), y: Math.max(2, Math.min(FIELD - 2, n.y + Math.sin(a) * 10)) });
+      }
     }
     n.bossesRisen++;
   }
@@ -1246,7 +1255,7 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
     spawn(n, 'mother', { x: Math.max(2, Math.min(FIELD - 2, n.x + Math.cos(a) * 7)), y: Math.max(2, Math.min(FIELD - 2, n.y + Math.sin(a) * 7)) });
   }
   // From the twelfth minute, now and then a wall of Shieldbearers marches in.
-  if (n.v2 && n.t > 720 && Math.floor(n.t / 40) > Math.floor((n.t - dt) / 40)) {
+  if (n.v2 && n.t > 480 && Math.floor(n.t / 40) > Math.floor((n.t - dt) / 40)) {
     const a = n.rand() * Math.PI * 2;
     const cx = n.x + Math.cos(a) * 9;
     const cy = n.y + Math.sin(a) * 9;
@@ -2043,7 +2052,7 @@ export function nightFeats(n: Night): string[] {
   const out: string[] = [];
   if (n.t >= 300) out.push('nsfirst');
   if (n.t >= 900) out.push('ns15');
-  if (n.t >= 1500) out.push('ns25');
+  if (n.t >= 1200) out.push('ns25');
   if (n.kills >= 1000) out.push('ns1k');
   if (n.kills >= 10000) out.push('ns10k');
   if (Object.values(n.fused).filter(Boolean).length >= 3) out.push('nsforge3');

@@ -32,6 +32,7 @@ export const NEWS: NewsDay[] = [
       '🎬 Finish your first daily and a short clip shows what else waits in the crypt: Endless, Horde, the Night Shift and Story.',
       '📋 Copy your result is back where you can see it: right under your numbers when a run ends, and on the title screen for today\'s finished daily.',
       '⚡ Every hero has an ultimate in the Night Shift: fill the meter by putting down the dead, then unleash it with the gold button or E. Last Stand, Shadow Dance, Army of the Dead, Divine Light, Hail of Arrows, Meteor, Berserk and Doom Toll.',
+      '🌙 A tighter Night Shift: bosses rise every minute and a half, two at a time from the tenth minute, the new dead arrive sooner, the Night Mother rises at 15 minutes and dawn breaks at 20.',
       '🎨 Every relic, fusion, boon, blessing and pact has a new hand-made pixel-art icon instead of an emoji.',
       '🗡️ Companion gear at the Night Shrine: Companion\'s Blade, War Banner, Old Bond, Helper\'s Charm and Oathstone, each opening at a Night Rank.',
       '🤝 Night Shift companions, hounds, spectral knights and thralls now roam the ground around you and fight there, instead of crowding at your side.',

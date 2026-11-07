@@ -766,7 +766,7 @@ function startNight(back: () => void) {
     const list = document.getElementById('ns-board');
     if (!list) return;
     list.innerHTML = rows?.length
-      ? rows.slice(0, 10).map((r, i) => `<li><span>${['🥇', '🥈', '🥉'][i] ?? `${i + 1}.`} ${esc(r.name)} <small>${r.seconds >= 1800 ? '🌅 ' : ''}${fmt(r.seconds)} · lv ${r.level}</small></span><b>💀 ${r.kills.toLocaleString()}</b></li>`).join('')
+      ? rows.slice(0, 10).map((r, i) => `<li><span>${['🥇', '🥈', '🥉'][i] ?? `${i + 1}.`} ${esc(r.name)} <small>${r.seconds >= DAWN ? '🌅 ' : ''}${fmt(r.seconds)} · lv ${r.level}</small></span><b>💀 ${r.kills.toLocaleString()}</b></li>`).join('')
       : '<li class="fine">No one on the board yet this week. Be the first.</li>';
   }
 
@@ -819,7 +819,7 @@ function startNight(back: () => void) {
     $id('ns-hp-bar').style.width = `${Math.max(0, (n.hp / n.maxHp) * 100)}%`;
     $id('ns-clock').textContent = fmt(n.t);
     // the night passes: dusk, night, the deep of it, the hour before dawn
-    $id('ns-moon').textContent = n.nightmare ? '🌑' : n.dawn ? '🌅' : n.t < 300 ? '🌆' : n.t < 900 ? '🌙' : n.t < 1500 ? '🌘' : '🌄';
+    $id('ns-moon').textContent = n.nightmare ? '🌑' : n.dawn ? '🌅' : n.t < 240 ? '🌆' : n.t < 600 ? '🌙' : n.t < 1020 ? '🌘' : '🌄';
     $id('ns-next').textContent = fmt(nextBossAt(n) - n.t);
     $id('ns-kills').textContent = String(n.kills);
     $id('ns-level').textContent = `Lv ${n.level}`;
@@ -1075,7 +1075,7 @@ function startNight(back: () => void) {
     const deep = [6, 4, 14, 0.55];
     const red = [22, 4, 10, 0.6];
     const gold = [40, 22, 12, 0.32];
-    const c = t < 300 ? mix(dusk, deep, t / 300) : t < 900 ? deep : t < 1500 ? mix(deep, red, (t - 900) / 300) : mix(red, gold, (t - 1500) / 300);
+    const c = t < 240 ? mix(dusk, deep, t / 240) : t < 600 ? deep : t < 900 ? mix(deep, red, (t - 600) / 300) : mix(red, gold, Math.min(1, (t - 900) / 300));
     return c as [number, number, number, number];
   }
   function nightLight(sx: (x: number) => number, sy: (y: number) => number) {

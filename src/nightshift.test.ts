@@ -414,14 +414,14 @@ describe('the longer night: dawn, new dead, bosses, shrine and perks', () => {
     expect(n.t).toBeGreaterThan(DAWN);
   });
 
-  it('brings the new dead late in the night, and the Night Mother at 25 minutes', () => {
+  it('brings the new dead late in the night, and the Night Mother at 15 minutes', () => {
     const n = newNight(seeded(42));
     n.t = MOTHER_AT - 0.01;
     n.bossesRisen = 12;
     step(n, 1 / 60, 0, 0);
     expect(n.foes.some((f) => f.kind === 'mother')).toBe(true);
     const m = newNight(seeded(43));
-    m.t = 1250;
+    m.t = 800;
     m.maxHp = m.hp = 9999;
     for (let k = 0; k < 60 * 30; k++) step(m, 1 / 60, Math.cos(k / 40), Math.sin(k / 40));
     const kinds = new Set(m.foes.map((f) => f.kind));
@@ -650,5 +650,30 @@ describe('ultimates', () => {
       step(n, 1 / 60, 0, 0);
     }
     expect(n.hp).toBeGreaterThanOrEqual(hp);
+  });
+});
+
+describe('the twenty-minute night', () => {
+  it('raises a boss every minute and a half, and two at once from the tenth minute', () => {
+    const n = newNight(seeded(8));
+    n.maxHp = n.hp = 1e6;
+    const risen: number[] = [];
+    let last = 0;
+    for (let k = 0; k < 60 * 700 && !n.dawnOffer; k++) {
+      n.hp = n.maxHp;
+      n.pendingLevels = 0;
+      step(n, 1 / 60, Math.cos(k / 50), Math.sin(k / 50));
+      if (n.bossesRisen > last) {
+        risen.push(Math.round(n.t));
+        last = n.bossesRisen;
+        if (n.t >= 600 && n.t < MOTHER_AT) expect(n.foes.filter((f) => f.boss && Math.abs(f.atkAt - (n.t + 2.5)) < 0.05).length).toBe(2);
+      }
+    }
+    expect(risen.slice(0, 3)).toEqual([90, 180, 270]);
+  });
+
+  it('breaks dawn at 20 minutes', () => {
+    expect(DAWN).toBe(1200);
+    expect(MOTHER_AT).toBe(900);
   });
 });
