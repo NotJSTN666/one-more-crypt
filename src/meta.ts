@@ -107,7 +107,7 @@ export interface Meta {
   hallHidden: string[];
   /** The Night Shrine: permanent Night Shift upgrades bought with Souls. */
   /** The Night Shrine's gifts, the weapon to start with, and the companion ('' to go alone; unset until first chosen). */
-  nightShrine: { vigor: number; reroll: number; banish: number; arsenal: boolean; start: string; companion?: string };
+  nightShrine: { vigor: number; reroll: number; banish: number; arsenal: boolean; start: string; companion?: string; blade?: number; banner?: number; bond?: number; charm?: number; oath?: number; hero?: string };
   /** Dailies played in all, in a row or not (the most any device has counted). */
   dailyTotal: number;
   /** Runs finished today (by Daily number), for the one-more-run bonus. */
@@ -273,7 +273,7 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   // How the Hall is decorated is a choice: keep this device's, unless it hasn't made one.
   if (!meta.hallHidden.length) meta.hallHidden = ids(other.hallHidden);
   const shr = cleanShrine(other.nightShrine);
-  meta.nightShrine = { vigor: Math.max(meta.nightShrine.vigor, shr.vigor), reroll: Math.max(meta.nightShrine.reroll, shr.reroll), banish: Math.max(meta.nightShrine.banish, shr.banish), arsenal: meta.nightShrine.arsenal || shr.arsenal, start: meta.nightShrine.start || shr.start, ...(meta.nightShrine.companion ?? shr.companion) !== undefined ? { companion: meta.nightShrine.companion ?? shr.companion } : {} };
+  meta.nightShrine = { vigor: Math.max(meta.nightShrine.vigor, shr.vigor), reroll: Math.max(meta.nightShrine.reroll, shr.reroll), banish: Math.max(meta.nightShrine.banish, shr.banish), arsenal: meta.nightShrine.arsenal || shr.arsenal, start: meta.nightShrine.start || shr.start, ...Object.fromEntries((['blade', 'banner', 'bond', 'charm', 'oath'] as const).map((k) => [k, Math.max(meta.nightShrine[k] ?? 0, shr[k] ?? 0)])), ...(meta.nightShrine.hero ?? shr.hero) !== undefined ? { hero: meta.nightShrine.hero ?? shr.hero } : {}, ...(meta.nightShrine.companion ?? shr.companion) !== undefined ? { companion: meta.nightShrine.companion ?? shr.companion } : {} };
   meta.dailyTotal = Math.max(meta.dailyTotal ?? 0, Math.floor(Number(other.dailyTotal) || 0));
   meta.trialsDone = Math.max(meta.trialsDone ?? 0, Math.floor(Number(other.trialsDone) || 0));
   meta.rival ||= typeof other.rival === 'string' ? other.rival.slice(0, 24) : '';
@@ -1419,24 +1419,31 @@ export function finishHordeMeta(dailyNo: number, score: number, wave: number, ki
 // ---------- the Night Shrine ----------
 
 /** What each Night Shrine gift costs at each level, and how many levels it has. */
-export const SHRINE: Record<'vigor' | 'reroll' | 'banish' | 'arsenal', { name: string; emoji: string; text: string; costs: number[] }> = {
+export type ShrineKey = 'vigor' | 'reroll' | 'banish' | 'arsenal' | 'blade' | 'banner' | 'bond' | 'oath' | 'charm';
+/** The Night Shrine's gifts: some open only at a Night Rank. */
+export const SHRINE: Record<ShrineKey, { name: string; emoji: string; text: string; costs: number[]; rank?: number }> = {
   vigor: { name: 'Vigor', emoji: '❤️', text: '+4 max health in every night.', costs: [300, 600, 900, 1200, 1500] },
   reroll: { name: 'Second Thoughts', emoji: '🎲', text: 'Reroll a level-up\'s choices once more each night.', costs: [500, 1000, 1500] },
   banish: { name: 'Banishment', emoji: '🚫', text: 'Banish a relic you never want, once more each night.', costs: [400, 800, 1200] },
   arsenal: { name: 'Arsenal', emoji: '⚔️', text: 'Choose a weapon to start every night with.', costs: [1500] },
+  blade: { name: "Companion's Blade", emoji: '🗡️', text: 'Your companion hits 20% harder.', costs: [600, 1200, 1800], rank: 4 },
+  banner: { name: 'War Banner', emoji: '🚩', text: 'Your companion acts 8% sooner.', costs: [700, 1400, 2100], rank: 7 },
+  bond: { name: 'Old Bond', emoji: '🤝', text: 'Your companion starts the night a level higher.', costs: [1000, 2000], rank: 10 },
+  charm: { name: "Helper's Charm", emoji: '🧿', text: 'Hounds, spectral knights and thralls hit 15% harder and thralls last longer.', costs: [800, 1600, 2400], rank: 12 },
+  oath: { name: 'Oathstone', emoji: '🪨', text: 'Your companion can grow two levels higher.', costs: [1500, 3000], rank: 14 },
 };
 export type ShrineGift = keyof typeof SHRINE;
 
 function cleanShrine(v: unknown): Meta['nightShrine'] {
   const o = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
   const lvl = (k: string, max: number) => Math.max(0, Math.min(max, Math.floor(Number(o[k]) || 0)));
-  return { vigor: lvl('vigor', 5), reroll: lvl('reroll', 3), banish: lvl('banish', 3), arsenal: o.arsenal === true, start: typeof o.start === 'string' ? o.start.slice(0, 16) : '', ...(typeof o.companion === 'string' ? { companion: o.companion.slice(0, 16) } : {}) };
+  return { vigor: lvl('vigor', 5), reroll: lvl('reroll', 3), banish: lvl('banish', 3), arsenal: o.arsenal === true, start: typeof o.start === 'string' ? o.start.slice(0, 16) : '', ...(typeof o.companion === 'string' ? { companion: o.companion.slice(0, 16) } : {}), ...(typeof o.hero === 'string' ? { hero: o.hero.slice(0, 16) } : {}), blade: lvl('blade', 3), banner: lvl('banner', 3), bond: lvl('bond', 2), charm: lvl('charm', 3), oath: lvl('oath', 2) };
 }
 
 /** The level a Night Shrine gift is at (Arsenal is 0 or 1). */
 export function shrineLevel(g: ShrineGift): number {
   const s = meta.nightShrine;
-  return g === 'arsenal' ? (s.arsenal ? 1 : 0) : s[g];
+  return g === 'arsenal' ? (s.arsenal ? 1 : 0) : s[g] ?? 0;
 }
 
 /** Buy the next level of a Night Shrine gift. */
@@ -1449,6 +1456,12 @@ export function buyShrine(g: ShrineGift): boolean {
   else meta.nightShrine[g] = at + 1;
   saveMeta();
   return true;
+}
+
+/** Choose the Night Shift hero. */
+export function setNightHero(id: string) {
+  meta.nightShrine.hero = id;
+  saveMeta();
 }
 
 /** Choose the Night Shift companion ('' to go alone). */

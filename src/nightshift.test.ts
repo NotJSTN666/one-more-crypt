@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { cleanGraveState, newGraveState } from './graveshift';
-import { DAWN, MOTHER_AT, banish, chooseDawn, reroll, skipLevel, ASCEND_LEVEL, ELITE_LEVEL, FIRST_EVENT, NO_PACT, dashDamage, isAscend, isPact, DASH_COOLDOWN, FIELD, FIRST_BOSS, NIGHT_RELICS, POTION_HEAL, dash, dashCooldown, isBlessing, lateNight, MAX_LEVEL, chooseRelic, nightFeats, isFusion, levelChoices, newNight, nightSouls, step, wardMul, xpToLevel, ALLY_PICK, COMPANION_IDS } from './nightshift';
+import { DAWN, MOTHER_AT, banish, chooseDawn, reroll, skipLevel, ASCEND_LEVEL, ELITE_LEVEL, FIRST_EVENT, NO_PACT, dashDamage, isAscend, isPact, DASH_COOLDOWN, FIELD, FIRST_BOSS, NIGHT_RELICS, POTION_HEAL, dash, dashCooldown, isBlessing, lateNight, MAX_LEVEL, chooseRelic, nightFeats, isFusion, levelChoices, newNight, nightSouls, step, wardMul, xpToLevel, ALLY_PICK, COMPANION_IDS, nightRank, companionOpen, MAX_NIGHT_RANK } from './nightshift';
 
 /** A small fixed random source, so every run of a test is the same night. */
 function seeded(seed: number) {
@@ -544,5 +544,74 @@ describe('helpers: companions and the relics that fight beside you', () => {
     const before = Math.hypot(f.x - n.ally!.x, f.y - n.ally!.y);
     for (let k = 0; k < 20; k++) step(n, 1 / 60, 0, 0);
     expect(Math.hypot(f.x - n.ally!.x, f.y - n.ally!.y)).toBeLessThan(before);
+  });
+});
+
+describe('heroes, Night Ranks and companion gear', () => {
+  it('each hero starts with their own weapon, and only they are offered it', () => {
+    const sig: Record<string, string> = { knight: 'bulwark', rogue: 'knives', necro: 'legion', paladin: 'nova', ranger: 'arrowrain', mage: 'orb', barbarian: 'slam', bellringer: 'toll' };
+    for (const [hero, w] of Object.entries(sig)) {
+      const n = newNight(seeded(5), true, { hero });
+      expect(n.relics[w as keyof typeof n.relics], hero).toBe(1);
+      for (let k = 0; k < 60; k++) {
+        n.pendingLevels = 1;
+        const c = levelChoices(n);
+        for (const o of Object.values(sig)) if (o !== w) expect(c).not.toContain(o);
+        chooseRelic(n, c[0]);
+      }
+    }
+  });
+
+  it('every signature weapon hurts the dead', () => {
+    for (const hero of ['knight', 'rogue', 'necro', 'paladin', 'ranger', 'mage', 'barbarian', 'bellringer']) {
+      const n = newNight(seeded(9), true, { hero });
+      const keep = Object.keys(n.relics).filter((r) => r !== 'spade' && !['quiver', 'storm', 'bell'].includes(r));
+      n.relics = Object.fromEntries(keep.map((r) => [r, 3]));
+      while (!n.foes.length) step(n, 1 / 60, 0, 0);
+      n.spawnDebt = -1e9;
+      const f = n.foes[0];
+      n.foes = [f];
+      Object.assign(f, { hp: 1e6, maxHp: 1e6, speed: 0, dmg: 0, x: n.x + 1.5, y: n.y + 0.4 });
+      n.fx = 1;
+      n.fy = 0;
+      // the Necromancer's legion needs kills: give it some weak dead
+      for (let k = 0; k < 60 * 8; k++) step(n, 1 / 60, 0, 0);
+      if (hero !== 'necro') expect(f.hp, hero).toBeLessThan(1e6);
+    }
+  });
+
+  it('counts Night Ranks from lifetime kills', () => {
+    expect(nightRank(0)).toBe(1);
+    expect(nightRank(199)).toBe(1);
+    expect(nightRank(200)).toBe(2);
+    expect(nightRank(1e9)).toBe(MAX_NIGHT_RANK);
+    expect(companionOpen('knight', 1)).toBe(true);
+    expect(companionOpen('necro', 1)).toBe(false);
+    expect(companionOpen('necro', 2)).toBe(true);
+    expect(companionOpen('bellringer', 14)).toBe(false);
+  });
+
+  it('keeps helper relics out until their rank', () => {
+    const n = newNight(seeded(4), true, { hero: 'knight', rank: 1 });
+    for (let k = 0; k < 80; k++) {
+      n.pendingLevels = 1;
+      const c = levelChoices(n);
+      expect(c).not.toContain('hound');
+      expect(c).not.toContain('totem');
+      expect(c).not.toContain('spectre');
+      chooseRelic(n, c[0]);
+    }
+  });
+
+  it('companion gear: a bond starts them higher, an oathstone lets them grow further', () => {
+    const n = newNight(seeded(4), true, { companion: 'ranger', gear: { bond: 2, oath: 2 }, rank: 20 });
+    expect(n.ally!.level).toBe(4);
+    expect(n.allyMax).toBe(MAX_LEVEL + 5);
+  });
+
+  it('estimates lifetime kills for nights saved before the total was kept', () => {
+    const g = cleanGraveState({ ...newGraveState(0), nights: 10, nightKills: 1000, nightTotal: undefined }, 0);
+    expect(g.nightTotal).toBe(5000);
+    expect(cleanGraveState({ ...newGraveState(0), nightTotal: 42 }, 0).nightTotal).toBe(42);
   });
 });

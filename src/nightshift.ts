@@ -48,6 +48,54 @@ export const COMPANIONS: Record<CompanionId, { name: string; emoji: string; text
   bellringer: { name: 'Bell-Ringer', emoji: '🔔', text: 'Rings a bell that throws back and slows the dead near them.', up: 'A louder, wider toll.' },
 };
 export const COMPANION_IDS = Object.keys(COMPANIONS) as CompanionId[];
+
+/**
+ * Night Ranks: everything ever put down in the Night Shift counts toward the next. Each rank
+ * opens something: companions, the helper relics, and the Night Shrine's companion gear.
+ */
+export const NIGHT_RANK_AT = [0, 200, 500, 1000, 1700, 2600, 3800, 5300, 7100, 9300, 12000, 15000, 19000, 24000, 30000, 37000, 45000, 55000, 67000, 80000];
+export interface RankReward { companion?: CompanionId; relic?: RelicKind; shrine?: string; text: string }
+export const NIGHT_RANK_REWARDS: Record<number, RankReward> = {
+  1: { text: 'The Knight and the Ranger answer your call as companions' },
+  2: { companion: 'necro', text: 'The Necromancer joins your companions' },
+  3: { relic: 'hound', text: 'The Crypt Hound joins the relics' },
+  4: { shrine: 'blade', text: "Companion's Blade at the Night Shrine" },
+  5: { companion: 'mage', text: 'The Mage joins your companions' },
+  6: { relic: 'totem', text: 'The Thrall Totem joins the relics' },
+  7: { shrine: 'banner', text: 'War Banner at the Night Shrine' },
+  8: { companion: 'paladin', text: 'The Paladin joins your companions' },
+  9: { relic: 'spectre', text: 'The Spectral Knight joins the relics' },
+  10: { shrine: 'bond', text: 'Old Bond at the Night Shrine' },
+  11: { companion: 'barbarian', text: 'The Barbarian joins your companions' },
+  12: { shrine: 'charm', text: "Helper's Charm at the Night Shrine" },
+  13: { companion: 'rogue', text: 'The Rogue joins your companions' },
+  14: { shrine: 'oath', text: 'Oathstone at the Night Shrine' },
+  15: { companion: 'bellringer', text: 'The Bell-Ringer joins your companions' },
+  16: { text: 'Your companion starts every night one level higher' },
+  17: { text: 'Every helper hits 10% harder' },
+  18: { text: 'Your companion can grow one level higher still' },
+  19: { text: 'Every helper hits 10% harder again' },
+  20: { text: 'Night Warden: the highest rank. The dead know your name' },
+};
+export const MAX_NIGHT_RANK = NIGHT_RANK_AT.length;
+/** The Night Rank for this many lifetime kills (1 to MAX_NIGHT_RANK). */
+export function nightRank(total: number): number {
+  let r = 1;
+  for (let i = 1; i < NIGHT_RANK_AT.length; i++) if (total >= NIGHT_RANK_AT[i]) r = i + 1;
+  return r;
+}
+/** Companions open at this rank. */
+export function companionOpen(id: string, rank: number): boolean {
+  if (id === 'knight' || id === 'ranger') return true;
+  return Object.entries(NIGHT_RANK_REWARDS).some(([r, w]) => w.companion === id && rank >= Number(r));
+}
+/** Helper relics open at their rank. */
+export function relicOpen(id: RelicKind, rank: number): boolean {
+  const at = Object.entries(NIGHT_RANK_REWARDS).find(([, w]) => w.relic === id);
+  return !at || rank >= Number(at[0]);
+}
+/** Companion gear from the Night Shrine, and what the Night Rank adds. */
+export interface NightGear { blade?: number; banner?: number; bond?: number; charm?: number; oath?: number }
 /** The level-up choice that sharpens your companion. */
 export const ALLY_PICK = 'ally';
 export interface Ally { x: number; y: number; fx: number; level: number; next: number; actAt: number; ox?: number; oy?: number; wanderAt?: number }
@@ -92,6 +140,9 @@ export interface Foe {
   blinkAt?: number;
   /** The Treasure Ghoul: flees, and leaves a chest if caught. */
   treasure?: boolean;
+  /** When the Bulwark may bash this one again, and stunned (by the Great Toll) until. */
+  bashAt?: number;
+  stunUntil?: number;
 }
 
 /** Elite foes, from level ELITE_LEVEL: tougher, glowing, and each with a gift. */
@@ -137,6 +188,7 @@ export const ASCENDED: Record<FusionId, string> = {
   cleaver: 'Worldsplitter', halo: 'Crown of Bones', barrage: 'Bone Storm', hellwalk: 'Inferno Stride', tempest: 'Wrath of Heaven',
   glacier: 'Endless Winter', requiem: 'Doom Choir', eclipse: 'Black Sun', legion: 'Host of Souls', ossuary: 'Charnel Field', judgement: 'Last Judgement',
   barrow: 'Barrow King', wildhunt: 'Hounds of the Grave', revenant: 'Deathless Guard',
+  aegis: 'Unbroken Wall', nightblades: 'Thousand Cuts', deathmarch: 'Army of the Dead', sanctum: 'Dawn Incarnate', starfall: 'Sky of Arrows', singularity: 'Event Horizon', earthshatter: 'World Breaker', deathknell: 'Last Toll',
 };
 export const ASCEND_LEVEL = 40;
 export const ASCEND_TEXT = 'Ascended: hits 75% harder and comes round 20% sooner.';
@@ -155,7 +207,7 @@ export interface Dart {
   pierce: number;
   life: number;
   hit: number[];
-  kind: 'dart' | 'scythe' | 'wisp' | 'missile';
+  kind: 'dart' | 'scythe' | 'wisp' | 'missile' | 'knife' | 'orb';
 }
 export interface Flame { x: number; y: number; until: number; r: number; dps: number }
 /** A boss's bolt, flying at you. */
@@ -166,12 +218,13 @@ export interface Shot { x: number; y: number; vx: number; vy: number; r: number;
  */
 export interface Lane { x: number; y: number; ang: number; len: number; w: number; at: number; dmg: number; charge?: number; grasp?: boolean; blast?: boolean; quiet?: boolean }
 /** Things to draw for a moment: a spade swing, a lightning strike, a bell's ring, spikes, a lance, a lane bursting. */
-export interface Flash { kind: 'swing' | 'bolt' | 'ring' | 'spike' | 'beam' | 'lane' | 'grasp' | 'blast' | 'blink'; x: number; y: number; at: number; ang?: number; r?: number; asc?: boolean }
+export interface Flash { kind: 'swing' | 'bolt' | 'ring' | 'spike' | 'beam' | 'lane' | 'grasp' | 'blast' | 'blink' | 'nova' | 'rain' | 'slam' | 'toll'; x: number; y: number; at: number; ang?: number; r?: number; asc?: boolean }
 
 /** Relics in the Night Shift: weapons that fight on their own, and charms that help. */
 export type RelicKind =
   | 'spade' | 'skulls' | 'quiver' | 'ember' | 'storm' | 'frost' | 'bell' | 'scythe' | 'wisps' | 'spikes' | 'lance'
   | 'totem' | 'hound' | 'spectre'
+  | 'bulwark' | 'knives' | 'legion' | 'nova' | 'arrowrain' | 'orb' | 'slam' | 'toll'
   | 'heart' | 'boots' | 'magnet' | 'fang' | 'whetstone' | 'hourglass' | 'moss' | 'thorns' | 'lens' | 'coin' | 'cloak';
 
 export interface NightRelic {
@@ -179,6 +232,8 @@ export interface NightRelic {
   name: string;
   emoji: string;
   weapon: boolean;
+  /** A hero's signature weapon: only that hero can carry it. */
+  hero?: string;
   /** What each level does, for the level-up choice (index = level reached, 1-5). */
   text: (level: number) => string;
 }
@@ -202,6 +257,14 @@ export const NIGHT_RELICS: NightRelic[] = [
   { id: 'totem', name: 'Thrall Totem', emoji: '🗿', weapon: true, text: (l) => (l === 1 ? 'Now and then raises thralls from the earth to fight for you a while.' : 'More thralls, lasting longer and biting harder.') },
   { id: 'hound', name: 'Crypt Hound', emoji: '🐕', weapon: true, text: (l) => (l === 1 ? 'A hound that runs down the nearest of the dead and bites.' : l === 4 ? 'A second hound joins the hunt.' : 'Faster, harder bites.') },
   { id: 'spectre', name: 'Spectral Knight', emoji: '👤', weapon: true, text: (l) => (l === 1 ? 'A ghostly knight walks with you, cutting down whatever comes close.' : l === 3 || l === 5 ? 'Another knight answers the call.' : 'Harder, quicker swings.') },
+  { id: 'bulwark', name: 'Bulwark', emoji: '🛡️', weapon: true, hero: 'knight', text: (l) => (l === 1 ? 'A shield circles close round you, bashing the dead and blocking bolts.' : 'One more shield now and then, and they bash harder.') },
+  { id: 'knives', name: 'Shadow Knives', emoji: '🔪', weapon: true, hero: 'rogue', text: (l) => (l === 1 ? 'A fan of knives, thrown the way you move.' : 'More knives, thrown sooner, and they cut through.') },
+  { id: 'legion', name: 'Bone Legion', emoji: '🧟', weapon: true, hero: 'necro', text: (l) => (l === 1 ? 'Some of the dead you put down rise again to fight for you.' : 'More of them rise, and they bite harder.') },
+  { id: 'nova', name: 'Holy Nova', emoji: '🌟', weapon: true, hero: 'paladin', text: (l) => (l === 1 ? 'A burst of light that burns the dead round you and heals you a little.' : 'A wider, brighter burst, more often.') },
+  { id: 'arrowrain', name: 'Arrow Rain', emoji: '🌧️', weapon: true, hero: 'ranger', text: (l) => (l === 1 ? 'A volley of arrows falls on the thickest crowd near you.' : 'A wider, harder volley, more often.') },
+  { id: 'orb', name: 'Arcane Orb', emoji: '🟣', weapon: true, hero: 'mage', text: (l) => (l === 1 ? 'A slow orb that passes through everything in its path.' : 'A bigger orb that burns harder, more often.') },
+  { id: 'slam', name: 'Ground Slam', emoji: '💥', weapon: true, hero: 'barbarian', text: (l) => (l === 1 ? 'A shockwave round you, harder the more you are hurt.' : 'A wider, harder slam, more often.') },
+  { id: 'toll', name: 'Great Toll', emoji: '📯', weapon: true, hero: 'bellringer', text: (l) => (l === 1 ? 'A great ring rolls out from you, hurting and stunning the dead it meets.' : 'A wider ring that stuns for longer.') },
   { id: 'heart', name: 'Iron Heart', emoji: '🫀', weapon: false, text: () => '+5 max health, and heal 5.' },
   { id: 'boots', name: 'Swift Boots', emoji: '🥾', weapon: false, text: () => 'Move 8% faster.' },
   { id: 'magnet', name: 'Grave Magnet', emoji: '🧲', weapon: false, text: () => 'Pull in souls from further away.' },
@@ -218,7 +281,7 @@ export const NIGHT_RELICS: NightRelic[] = [
  * The Soul Forge: a weapon at its top level fuses with its partner charm (any level) into
  * something stronger. A fusion is offered as one of the level-up choices once it's ready.
  */
-export type FusionId = 'cleaver' | 'halo' | 'barrage' | 'hellwalk' | 'tempest' | 'glacier' | 'requiem' | 'eclipse' | 'legion' | 'ossuary' | 'judgement' | 'barrow' | 'wildhunt' | 'revenant';
+export type FusionId = 'cleaver' | 'halo' | 'barrage' | 'hellwalk' | 'tempest' | 'glacier' | 'requiem' | 'eclipse' | 'legion' | 'ossuary' | 'judgement' | 'barrow' | 'wildhunt' | 'revenant' | 'aegis' | 'nightblades' | 'deathmarch' | 'sanctum' | 'starfall' | 'singularity' | 'earthshatter' | 'deathknell';
 export interface NightFusion { id: FusionId; name: string; emoji: string; weapon: RelicKind; charm: RelicKind; text: string }
 export const NIGHT_FUSIONS: NightFusion[] = [
   { id: 'cleaver', name: 'Grave Cleaver', emoji: '🪓', weapon: 'spade', charm: 'lens', text: 'The spade swings all the way round, twice as hard.' },
@@ -234,6 +297,14 @@ export const NIGHT_FUSIONS: NightFusion[] = [
   { id: 'judgement', name: 'Judgement', emoji: '✨', weapon: 'lance', charm: 'hourglass', text: 'Four beams at once, one each way, and harder.' },
   { id: 'barrow', name: 'Barrow Host', emoji: '⚱️', weapon: 'totem', charm: 'moss', text: 'Twice the thralls, and they last twice as long.' },
   { id: 'wildhunt', name: 'The Wild Hunt', emoji: '🐺', weapon: 'hound', charm: 'boots', text: 'Three hounds, running faster and biting twice as hard.' },
+  { id: 'aegis', name: 'Aegis', emoji: '🔰', weapon: 'bulwark', charm: 'heart', text: 'Twice the shields on a wider ring, bashing twice as hard.' },
+  { id: 'nightblades', name: 'Night Blades', emoji: '🌒', weapon: 'knives', charm: 'cloak', text: 'Twice the knives, and every dash throws a ring of them.' },
+  { id: 'deathmarch', name: 'Death March', emoji: '🪦', weapon: 'legion', charm: 'fang', text: 'Twice as many rise, and they last twice as long.' },
+  { id: 'sanctum', name: 'Sanctum', emoji: '☀️', weapon: 'nova', charm: 'moss', text: 'A far wider nova that heals twice as much.' },
+  { id: 'starfall', name: 'Starfall', emoji: '🌠', weapon: 'arrowrain', charm: 'magnet', text: 'Three volleys at once, each wider.' },
+  { id: 'singularity', name: 'Singularity', emoji: '🕳️', weapon: 'orb', charm: 'lens', text: 'The orb drags the dead into it, and burns twice as hard.' },
+  { id: 'earthshatter', name: 'Earthshatter', emoji: '⛰️', weapon: 'slam', charm: 'whetstone', text: 'A slam half again as wide, hitting twice as hard.' },
+  { id: 'deathknell', name: 'Death Knell', emoji: '🔕', weapon: 'toll', charm: 'coin', text: 'Tolls twice as often, hitting twice as hard.' },
   { id: 'revenant', name: 'Revenant Guard', emoji: '⚔️', weapon: 'spectre', charm: 'thorns', text: 'Twice the knights, and they cut twice as deep.' },
 ];
 export const NIGHT_FUSION = Object.fromEntries(NIGHT_FUSIONS.map((f) => [f.id, f])) as Record<FusionId, NightFusion>;
@@ -379,13 +450,22 @@ export interface Night {
   /** Your companion (none if ''), where they are, and your other helpers. */
   companion: CompanionId | '';
   ally: Ally | null;
+  /** How strong your companion and helpers are, from the Shrine's gear and your Night Rank. */
+  allyMul: number;
+  allyCd: number;
+  allyMax: number;
+  helperMul: number;
+  helperLife: number;
+  /** Your Night Rank, for which relics can come up. */
+  rank: number;
   minions: Minion[];
   /** Recent kills and hits, for the drawing (kept short). */
   deaths: { x: number; y: number; kind: FoeKind; at: number }[];
   hits: { x: number; y: number; amt: number; at: number }[];
 }
 
-export function newNight(rand: () => number = Math.random, v2 = true, opts: { hero?: string; shrine?: NightShrine; companion?: string } = {}): Night {
+const MAX_NIGHT_RANK_ALL = 20;
+export function newNight(rand: () => number = Math.random, v2 = true, opts: { hero?: string; shrine?: NightShrine; companion?: string; gear?: NightGear; rank?: number } = {}): Night {
   const n = baseNight(rand, v2);
   if (!v2) return n;
   const hero = opts.hero ?? '';
@@ -399,9 +479,22 @@ export function newNight(rand: () => number = Math.random, v2 = true, opts: { he
   const s = start[hero];
   if (s) n.relics[s] = 1;
   if (sh.start && sh.start !== 'spade' && NIGHT_RELIC[sh.start]?.weapon) n.relics[sh.start] = Math.max(1, n.relics[sh.start] ?? 0);
+  // The hero's own weapon, which only they carry.
+  const sig = NIGHT_RELICS.find((r) => r.hero && r.hero === hero);
+  if (sig) n.relics[sig.id] = 1;
+  const g = opts.gear ?? {};
+  // Without a rank given (tests), every relic is open but no rank bonuses apply.
+  n.rank = opts.rank ?? MAX_NIGHT_RANK_ALL;
+  const rank = opts.rank ?? 0;
+  n.allyMul = 1 + 0.2 * (g.blade ?? 0);
+  n.allyCd = 1 - 0.08 * (g.banner ?? 0);
+  n.allyMax = MAX_LEVEL + 2 * (g.oath ?? 0) + (rank >= 18 ? 1 : 0);
+  n.helperMul = (1 + 0.15 * (g.charm ?? 0)) * (rank >= 17 ? 1.1 : 1) * (rank >= 19 ? 1.1 : 1);
+  n.helperLife = 1 + 0.2 * (g.charm ?? 0);
   if (opts.companion && opts.companion in COMPANIONS) {
     n.companion = opts.companion as CompanionId;
-    n.ally = { x: n.x - 1.2, y: n.y + 0.6, fx: 1, level: 1, next: 0, actAt: -1 };
+    const start = Math.min(n.allyMax, 1 + (g.bond ?? 0) + (rank >= 16 ? 1 : 0));
+    n.ally = { x: n.x - 1.2, y: n.y + 0.6, fx: 1, level: start, next: 0, actAt: -1 };
   }
   return n;
 }
@@ -472,6 +565,12 @@ function baseNight(rand: () => number, v2: boolean): Night {
     motherFelled: false,
     companion: '',
     ally: null,
+    allyMul: 1,
+    allyCd: 1,
+    allyMax: MAX_LEVEL,
+    helperMul: 1,
+    helperLife: 1,
+    rank: MAX_NIGHT_RANK_ALL,
     minions: [],
     deaths: [],
     hits: [],
@@ -504,6 +603,9 @@ export const pickupRadius = (n: Night) => 1.3 + 1.2 * lv(n, 'magnet');
 // The fleet blessing stops adding past +60%, so you can still steer.
 export const playerSpeed = (n: Night) => 4 * (1 + 0.08 * lv(n, 'boots')) * (1 + Math.min(0.6, 0.03 * bl(n, 'fleet')));
 export const skullCount = (n: Night) => (lv(n, 'skulls') ? (1 + lv(n, 'skulls')) * (n.fused.halo ? 2 : 1) : 0);
+/** The Knight's Bulwark: how many shields circle, and how close. */
+export const shieldCount = (n: Night) => (lv(n, 'bulwark') ? (1 + Math.floor(lv(n, 'bulwark') / 2)) * (n.fused.aegis ? 2 : 1) : 0);
+export const shieldOrbit = (n: Night) => (n.fused.aegis ? 1.45 : 1.05);
 /** How far the skulls circle. */
 export const skullOrbit = (n: Night) => (n.fused.halo ? 2.2 : 1.6);
 export const frostRadius = (n: Night) => (lv(n, 'frost') ? (1.5 + 0.2 * lv(n, 'frost')) * area(n) * (n.fused.glacier ? 1.5 : 1) : 0);
@@ -564,7 +666,7 @@ function forgeChoices(n: Night): NightPick[] {
 
 function relicChoices(n: Night): NightPick[] {
   const weapons = NIGHT_RELICS.filter((r) => r.weapon && lv(n, r.id) > 0).length;
-  const open = NIGHT_RELICS.filter((r) => !n.banished?.includes(r.id) && lv(n, r.id) < MAX_LEVEL && (lv(n, r.id) > 0 || !r.weapon || weapons < MAX_WEAPONS));
+  const open = NIGHT_RELICS.filter((r) => !n.banished?.includes(r.id) && lv(n, r.id) < MAX_LEVEL && (lv(n, r.id) > 0 || !r.weapon || weapons < MAX_WEAPONS) && (!r.hero || r.hero === n.hero) && (lv(n, r.id) > 0 || relicOpen(r.id, n.rank ?? MAX_NIGHT_RANK_ALL)));
   const out: NightPick[] = [];
   const pool = [...open];
   // With only the spade in hand, one choice is always a new weapon.
@@ -577,7 +679,7 @@ function relicChoices(n: Night): NightPick[] {
     }
   }
   // Now and then, one choice sharpens your companion.
-  if (n.ally && n.ally.level < MAX_LEVEL && out.length < 3 && n.rand() < 0.3) out.push(ALLY_PICK);
+  if (n.ally && n.ally.level < (n.allyMax ?? MAX_LEVEL) && out.length < 3 && n.rand() < 0.3) out.push(ALLY_PICK);
   while (out.length < 3 && pool.length) out.push(pool.splice(Math.floor(n.rand() * pool.length), 1)[0].id);
   // Running out of relics: blessings fill the rest, so there's always something to take.
   const blessings = [...NIGHT_BLESSINGS];
@@ -640,7 +742,7 @@ export function chooseRelic(n: Night, id: NightPick) {
   }
   if (isPact(id) || isAscend(id)) return;
   if (id === ALLY_PICK) {
-    if (!n.ally || n.ally.level >= MAX_LEVEL) return;
+    if (!n.ally || n.ally.level >= (n.allyMax ?? MAX_LEVEL)) return;
     n.ally.level++;
     n.pendingLevels--;
     if (n.forgeOffers > 0) n.forgeOffers--;
@@ -774,6 +876,10 @@ function hurtFoe(n: Night, f: Foe, amount: number, dashHit = false) {
     n.deaths.push({ x: f.x, y: f.y, kind: f.kind, at: n.t });
     if (n.deaths.length > 60) n.deaths.splice(0, n.deaths.length - 60);
     if (f.kind === 'mother') n.motherFelled = true;
+    // the Bone Legion: some of the fallen rise again on your side
+    if (lv(n, 'legion') && !f.boss && n.rand() < (0.06 + 0.03 * lv(n, 'legion')) * (n.fused.deathmarch ? 2 : 1)) {
+      raiseThralls(n, f, 1, (6 + lv(n, 'legion')) * (n.fused.deathmarch ? 2 : 1), (4 + 2 * lv(n, 'legion')) * pw(n, 'legion'));
+    }
     // the Necromancer's dead may rise again on your side, as a wisp
     if (n.hero === 'necro' && n.v2 && !f.boss && n.rand() < 0.05) {
       const a = n.rand() * Math.PI * 2;
@@ -997,6 +1103,12 @@ export function dash(n: Night, dx = 0, dy = 0): boolean {
   }
   n.dashUntil = n.t + DASH_TIME;
   n.dashReady = n.t + dashCooldown(n);
+  if (n.fused.nightblades) {
+    for (let k = 0; k < 12; k++) {
+      const a = (k / 12) * Math.PI * 2;
+      n.darts.push({ x: n.x, y: n.y, vx: Math.cos(a) * 11, vy: Math.sin(a) * 11, dmg: (5 + 2 * lv(n, 'knives')) * 2 * pw(n, 'knives'), pierce: 2, life: 0.9, hit: [], kind: 'knife' });
+    }
+  }
   n.dashHit = [];
   return true;
 }
@@ -1217,7 +1329,7 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
     d.y += d.vy * dt;
     d.life -= dt;
     for (const f of n.foes) {
-      if (f.hp <= 0 || d.hit.includes(f.id) || Math.hypot(f.x - d.x, f.y - d.y) > f.r + (d.kind === 'scythe' ? 0.45 : 0.15)) continue;
+      if (f.hp <= 0 || d.hit.includes(f.id) || Math.hypot(f.x - d.x, f.y - d.y) > f.r + (d.kind === 'scythe' ? 0.45 : d.kind === 'orb' ? 0.55 + 0.05 * lv(n, 'orb') : 0.15)) continue;
       d.hit.push(f.id);
       hurtFoe(n, f, d.dmg);
       if (d.kind === 'wisp' && n.fused.legion && f.hp <= 0 && n.rand() < 0.1) n.hp = Math.min(n.maxHp, n.hp + 1);
@@ -1294,6 +1406,7 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
       }
     }
   }
+  signatures(n, dt);
   helpers(n, dt);
   n.flashes = n.flashes.filter((fl) => n.t - fl.at < 0.4);
 
@@ -1352,7 +1465,7 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
     const ux = (tx - f.x) / td;
     const uy = (ty - f.y) / td;
     const drownedCharge = f.kind === 'drowned' && Math.abs(f.kx) + Math.abs(f.ky) > 0.05;
-    if (!charging && !drownedCharge) {
+    if (!charging && !drownedCharge && !((f.stunUntil ?? 0) > n.t)) {
       const back = keepOff && d < keepOff ? -0.7 : keepOff && d < keepOff + 1 ? 0 : 1;
       f.x += (ux * back - uy * wob) * f.speed * slow * dt;
       f.y += (uy * back + ux * wob) * f.speed * slow * dt;
@@ -1506,6 +1619,116 @@ function raiseThralls(n: Night, at: { x: number; y: number }, count: number, lif
     const a = n.rand() * Math.PI * 2;
     n.minions.push({ kind: 'thrall', x: Math.max(0.5, Math.min(FIELD - 0.5, at.x + Math.cos(a) * 0.9)), y: Math.max(0.5, Math.min(FIELD - 0.5, at.y + Math.sin(a) * 0.9)), fx: 1, next: n.t + 0.4, until: n.t + life, actAt: -1, dmg });
     n.flashes.push({ kind: 'grasp', x: at.x + Math.cos(a) * 0.9, y: at.y + Math.sin(a) * 0.9, at: n.t, r: 0.5 });
+  }
+}
+
+/** The heroes' own weapons. */
+function signatures(n: Night, dt: number) {
+  const cd = cdMul(n);
+  const ready = (r: RelicKind, every: number) => {
+    if (!lv(n, r) || (n.next[r] ?? 0) > n.t) return false;
+    n.next[r] = n.t + every * cd * (ascOf(n, r) ? 0.8 : 1);
+    return true;
+  };
+  // Bulwark: shields circling close, bashing what they touch and stopping bolts.
+  const shields = shieldCount(n);
+  for (let k = 0; k < shields; k++) {
+    const a = -n.t * 2.2 + (k / shields) * Math.PI * 2;
+    const sx = n.x + Math.cos(a) * shieldOrbit(n);
+    const sy = n.y + Math.sin(a) * shieldOrbit(n);
+    for (const s of n.shots) if (Math.hypot(s.x - sx, s.y - sy) < s.r + 0.35) s.life = 0;
+    for (const f of n.foes) {
+      if (f.hp <= 0 || (f.bashAt ?? 0) > n.t || Math.hypot(f.x - sx, f.y - sy) > f.r + 0.4) continue;
+      f.bashAt = n.t + 0.5;
+      hurtFoe(n, f, (5 + 3 * lv(n, 'bulwark')) * (n.fused.aegis ? 2 : 1) * pw(n, 'bulwark'));
+      if (!f.boss) {
+        const d = near(n, f) || 1;
+        f.kx += ((f.x - n.x) / d) * 1.1;
+        f.ky += ((f.y - n.y) / d) * 1.1;
+      }
+    }
+  }
+  // Shadow Knives: a fan the way you're moving.
+  if (ready('knives', Math.max(0.4, 1.0 - 0.1 * lv(n, 'knives')))) {
+    const count = (3 + lv(n, 'knives')) * (n.fused.nightblades ? 2 : 1);
+    const base = Math.atan2(n.fy, n.fx);
+    for (let k = 0; k < count; k++) {
+      const a = base + (count > 1 ? (k / (count - 1) - 0.5) * 0.9 : 0);
+      n.darts.push({ x: n.x, y: n.y, vx: Math.cos(a) * 11, vy: Math.sin(a) * 11, dmg: (5 + 2 * lv(n, 'knives')) * pw(n, 'knives'), pierce: Math.floor(lv(n, 'knives') / 3), life: 0.8, hit: [], kind: 'knife' });
+    }
+  }
+  // Holy Nova: a burst of light that burns and heals.
+  if (ready('nova', Math.max(2.5, 5 - 0.45 * lv(n, 'nova')))) {
+    const r = (2 + 0.25 * lv(n, 'nova')) * area(n) * (n.fused.sanctum ? 1.6 : 1);
+    n.flashes.push({ kind: 'nova', x: n.x, y: n.y, at: n.t, r, asc: ascOf(n, 'nova') });
+    for (const f of n.foes) if (f.hp > 0 && near(n, f) < r + f.r) hurtFoe(n, f, (8 + 4 * lv(n, 'nova')) * pw(n, 'nova'));
+    if (!n.pacts?.blood) n.hp = Math.min(n.maxHp, n.hp + (n.fused.sanctum ? 2 : 1));
+  }
+  // Arrow Rain: a volley on the thickest crowd near you.
+  if (ready('arrowrain', Math.max(1.6, 3.2 - 0.3 * lv(n, 'arrowrain')))) {
+    const close = n.foes.filter((f) => f.hp > 0 && near(n, f) < 8);
+    const volleys = n.fused.starfall ? 3 : 1;
+    const r = (1.3 + 0.12 * lv(n, 'arrowrain')) * area(n) * (n.fused.starfall ? 1.3 : 1);
+    const taken: { x: number; y: number }[] = [];
+    for (let v = 0; v < volleys && close.length; v++) {
+      let best = close[0];
+      let most = -1;
+      for (const c of close.slice(0, 40)) {
+        if (taken.some((t) => near(t, c) < r)) continue;
+        const crowd = close.filter((o) => near(o, c) < r).length;
+        if (crowd > most) {
+          most = crowd;
+          best = c;
+        }
+      }
+      const at = { x: best.x, y: best.y };
+      taken.push(at);
+      n.flashes.push({ kind: 'rain', x: at.x, y: at.y, at: n.t, r, asc: ascOf(n, 'arrowrain') });
+      for (const f of n.foes) if (f.hp > 0 && near(at, f) < r + f.r) hurtFoe(n, f, (9 + 4 * lv(n, 'arrowrain')) * pw(n, 'arrowrain'));
+    }
+  }
+  // Arcane Orb: slow, and through everything.
+  if (ready('orb', Math.max(1.6, 3 - 0.25 * lv(n, 'orb')))) {
+    const f = nearestFoe(n, n, 9);
+    const a = f ? Math.atan2(f.y - n.y, f.x - n.x) : Math.atan2(n.fy, n.fx);
+    n.darts.push({ x: n.x, y: n.y, vx: Math.cos(a) * 3, vy: Math.sin(a) * 3, dmg: (8 + 4 * lv(n, 'orb')) * (n.fused.singularity ? 2 : 1) * pw(n, 'orb'), pierce: 999, life: 3.2, hit: [], kind: 'orb' });
+  }
+  if (n.fused.singularity) {
+    for (const d of n.darts) {
+      if (d.kind !== 'orb') continue;
+      for (const f of n.foes) {
+        const dd = near(d, f);
+        if (f.boss || f.hp <= 0 || dd > 2.2 || dd < 0.2) continue;
+        f.x += ((d.x - f.x) / dd) * 2.2 * dt;
+        f.y += ((d.y - f.y) / dd) * 2.2 * dt;
+      }
+    }
+  }
+  // Ground Slam: harder the more you're hurt.
+  if (ready('slam', Math.max(1.4, 3 - 0.3 * lv(n, 'slam')))) {
+    const r = (1.8 + 0.2 * lv(n, 'slam')) * area(n) * (n.fused.earthshatter ? 1.5 : 1);
+    const rage = 1 + (1 - Math.max(0, n.hp) / n.maxHp);
+    n.flashes.push({ kind: 'slam', x: n.x, y: n.y, at: n.t, r, asc: ascOf(n, 'slam') });
+    for (const f of n.foes) {
+      const d = near(n, f);
+      if (f.hp <= 0 || d > r + f.r) continue;
+      hurtFoe(n, f, (8 + 4 * lv(n, 'slam')) * rage * (n.fused.earthshatter ? 2 : 1) * pw(n, 'slam'));
+      if (!f.boss) {
+        f.kx += ((f.x - n.x) / (d || 1)) * 1.2;
+        f.ky += ((f.y - n.y) / (d || 1)) * 1.2;
+      }
+    }
+  }
+  // Great Toll: a ring that stuns (slows hard) what it meets.
+  if (ready('toll', Math.max(1.8, 3.6 - 0.3 * lv(n, 'toll')) * (n.fused.deathknell ? 0.5 : 1))) {
+    const r = (3 + 0.4 * lv(n, 'toll')) * area(n);
+    n.flashes.push({ kind: 'toll', x: n.x, y: n.y, at: n.t, r, asc: ascOf(n, 'toll') });
+    for (const f of n.foes) {
+      if (f.hp <= 0 || near(n, f) > r + f.r) continue;
+      hurtFoe(n, f, (5 + 2 * lv(n, 'toll')) * (n.fused.deathknell ? 2 : 1) * pw(n, 'toll'));
+      f.slowUntil = n.t + 1 + 0.2 * lv(n, 'toll');
+      f.stunUntil = n.t + (f.boss ? 0.2 : 0.5 + 0.1 * lv(n, 'toll'));
+    }
   }
 }
 

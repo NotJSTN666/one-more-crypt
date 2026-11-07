@@ -24,8 +24,12 @@ export interface NewsDay {
 export const NEWS: NewsDay[] = [
   {
     date: '2026-11-07',
-    title: 'Room to breathe for your helpers',
+    title: 'Night Shift: choose your hero, Night Ranks, and a weapon for every hero',
     notes: [
+      '🌙 Before each night, choose your hero and your companion. Your picks are remembered, so Start is still one tap.',
+      '⚔️ Every hero now brings their own weapon to the night: the Knight\'s Bulwark, the Rogue\'s Shadow Knives, the Necromancer\'s Bone Legion, the Paladin\'s Holy Nova, the Ranger\'s Arrow Rain, the Mage\'s Arcane Orb, the Barbarian\'s Ground Slam and the Bell-Ringer\'s Great Toll. Each has its own Soul Forge fusion.',
+      '🏅 Night Ranks: everything you put down counts toward the next rank, and ranks open new companions, the helper relics and new gear. Your past nights already count.',
+      '🗡️ Companion gear at the Night Shrine: Companion\'s Blade, War Banner, Old Bond, Helper\'s Charm and Oathstone, each opening at a Night Rank.',
       '🤝 Night Shift companions, hounds, spectral knights and thralls now roam the ground around you and fight there, instead of crowding at your side.',
       '👤 Spectral Knights are now pale ghosts, so you can always tell them from yourself.',
     ],

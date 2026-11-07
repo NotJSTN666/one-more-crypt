@@ -9,13 +9,13 @@ import { centralDate } from './daily';
 import { NIGHT_GIFT, NIGHT_GIFT_KILLS } from './graveshift';
 import { heroSprite } from './hero';
 import { grave, groundFor, hash, paintGround, seasonWeather, setDress, tree, type Dress, type Px } from './hollow-art';
-import { SHRINE, buyShrine, setCompanion, grantFeats, graveState, meta, noteMonth, noteTrial, outfitFor, receiveGift, saveMeta, setShrineStart, shrineLevel, type ShrineGift } from './meta';
-import { HERO_BY_ID } from './content';
+import { SHRINE, buyShrine, setCompanion, setNightHero, heroUnlocked, grantFeats, graveState, meta, noteMonth, noteTrial, outfitFor, receiveGift, saveMeta, setShrineStart, shrineLevel, type ShrineGift } from './meta';
+import { HERO_BY_ID, HEROES, type HeroId } from './content';
 import type { EnemyKind } from './game';
 import { celebrate, celebrateNotes } from './progress-ui';
 import type { AchievementDef } from './content';
 import {
-  dashCooldown, FIELD, MAX_LEVEL, type Night, area, dash, spadeReach, NIGHT_RELIC, NIGHT_RELICS, chooseRelic, frostRadius, levelChoices, newNight, nextBossAt, nightSouls, skullCount, skullOrbit, step, xpToLevel, NIGHT_FUSION, fusionOf, isFusion, nightFeats, isBlessing, NIGHT_BLESSING, NIGHT_BLESSINGS, bl, type NightPick, ASCENDED, ASCEND_TEXT, DAWN, ELITES, NEW_FOES, isBoss as isBossKind, NIGHT_PERKS, chooseDawn, reroll, banish, skipLevel, plainLevel, type RelicKind, NIGHT_EVENTS, NIGHT_PACTS, NO_PACT, ascendedWeapon, isAscend, isPact, type FusionId, type PactId, ALLY_PICK, COMPANIONS, COMPANION_IDS, type CompanionId } from './nightshift';
+  dashCooldown, FIELD, MAX_LEVEL, type Night, area, dash, spadeReach, NIGHT_RELIC, NIGHT_RELICS, chooseRelic, frostRadius, levelChoices, newNight, nextBossAt, nightSouls, skullCount, skullOrbit, step, xpToLevel, NIGHT_FUSION, fusionOf, isFusion, nightFeats, isBlessing, NIGHT_BLESSING, NIGHT_BLESSINGS, bl, type NightPick, ASCENDED, ASCEND_TEXT, DAWN, ELITES, NEW_FOES, isBoss as isBossKind, NIGHT_PERKS, chooseDawn, reroll, banish, skipLevel, plainLevel, type RelicKind, NIGHT_EVENTS, NIGHT_PACTS, NO_PACT, ascendedWeapon, isAscend, isPact, type FusionId, type PactId, ALLY_PICK, COMPANIONS, COMPANION_IDS, type CompanionId, NIGHT_RANK_AT, NIGHT_RANK_REWARDS, MAX_NIGHT_RANK, nightRank, companionOpen, shieldCount, shieldOrbit } from './nightshift';
 import { ONLINE, nightBoard, submitNight } from './online';
 import { featCosmetics, seasonDress, soulSurge } from './progression';
 import { claimInlineHtml, keepNameHtml, wireKeepName, ensureGuest, playerName, showLeaderboard, signedIn, unclaimed, wireClaimInline } from './social';
@@ -115,40 +115,81 @@ export function nightV2Live(): boolean {
   return centralDate() >= NIGHT_V2_FROM || /[?&]preview=night2\b/.test(location.search);
 }
 
-/** Start a night: the first time, choose a companion to walk it with you first. */
-export function showNightShift(back: () => void) {
-  if (meta.nightShrine.companion === undefined) return showCompanionPick(() => startNight(back), back, true);
-  startNight(back);
+/** Your Night Rank, from everything you've ever put down in the Night Shift. */
+export function myNightRank(): number {
+  return nightRank(graveState().nightTotal ?? 0);
 }
 
-/** Choose who walks the night with you (or go alone). Kept for every night after. */
-export function showCompanionPick(then: () => void, back: () => void, first = false) {
-  const now = meta.nightShrine.companion ?? '';
-  const ids = COMPANION_IDS.filter((id) => id !== meta.hero);
-  showOverlay('night-companion', `
-    <h2>🤝 Choose a companion</h2>
-    <p class="sub">${first ? 'Another hero walks the night with you, fighting in their own way. Level-ups now and then offer to make them stronger.' : 'Who walks the night with you.'}</p>
-    <div class="ns-companions">${ids.map((id) => {
-      const c = COMPANIONS[id];
-      return `<button type="button" class="ns-choice ${now === id ? 'on' : ''}" data-ally="${id}">
-        <span class="ns-choice-emoji"><canvas class="ally-face" data-face="${id}" width="12" height="12"></canvas></span>
-        <span class="ns-choice-info"><b>${esc(c.name)}</b> <small>${c.emoji}${now === id ? ' · with you now' : ''}</small><span>${esc(c.text)}</span></span>
-      </button>`;
+/** The hero you take into the night: your last pick, if it's still unlocked. */
+function nightHero(): HeroId {
+  const h = meta.nightShrine.hero as HeroId | undefined;
+  return h && HERO_BY_ID[h] && heroUnlocked(h) ? h : (meta.hero as HeroId);
+}
+
+/** The companion you take: your last pick, if it's open at your rank and isn't your hero. */
+function nightCompanion(hero: string): string {
+  const c = meta.nightShrine.companion ?? '';
+  return c && c !== hero && companionOpen(c, myNightRank()) ? c : '';
+}
+
+function rankBarHtml(): string {
+  const total = graveState().nightTotal ?? 0;
+  const rank = nightRank(total);
+  if (rank >= MAX_NIGHT_RANK) return `<div class="ns-rank"><b>🌙 Night Rank ${rank}</b> <small>Night Warden · ${total.toLocaleString()} put down</small></div>`;
+  const from = NIGHT_RANK_AT[rank - 1];
+  const to = NIGHT_RANK_AT[rank];
+  const next = NIGHT_RANK_REWARDS[rank + 1];
+  return `<div class="ns-rank"><b>🌙 Night Rank ${rank}</b> <small>${(to - total).toLocaleString()} more to rank ${rank + 1}${next ? `: ${esc(next.text)}` : ''}</small><i><b style="width:${Math.round(((total - from) / (to - from)) * 100)}%"></b></i></div>`;
+}
+
+/** Before each night: who you are, and who walks with you. Remembered, so Start is one tap. */
+export function showNightShift(back: () => void) {
+  const rank = myNightRank();
+  const hero = nightHero();
+  const ally = nightCompanion(hero);
+  const face = (id: string) => `<canvas class="ally-face" data-face="${id}" width="12" height="12"></canvas>`;
+  showOverlay('night-setup', `
+    <button class="btn back-top" id="back">← Back</button>
+    <h2>🌙 The Night Shift</h2>
+    ${rankBarHtml()}
+    <h3 class="shop-head">Your hero</h3>
+    <div class="ns-pickrow">${HEROES.map((h) => {
+      const open = heroUnlocked(h.id);
+      return `<button type="button" class="ns-pick ${h.id === hero ? 'on' : ''}" data-hero="${h.id}" ${open ? '' : 'disabled'}>${face(h.id)}<b>${esc(h.name)}</b><small>${open ? esc(NIGHT_RELICS.find((r) => r.hero === h.id)?.emoji ?? '') + ' ' + esc(NIGHT_RELICS.find((r) => r.hero === h.id)?.name ?? '') : '🔒 Locked'}</small></button>`;
     }).join('')}</div>
-    <button class="btn ${now === '' && !first ? 'primary' : ''}" data-ally="">🚶 Go alone</button>
-    <p class="fine">You can change this any time at the Night Shrine.</p>
-    <button class="btn" id="back">← Back</button>`);
+    <p class="fine ns-pickinfo">${esc(HERO_BY_ID[hero].name)}: ${esc(NIGHT_RELICS.find((r) => r.hero === hero)?.text(1) ?? '')} ${esc(NIGHT_PERKS[hero] ?? '')}</p>
+    <h3 class="shop-head">Companion</h3>
+    <div class="ns-pickrow">
+      <button type="button" class="ns-pick ${ally === '' ? 'on' : ''}" data-ally=""><span class="ally-none">🚶</span><b>Alone</b><small>Just you</small></button>
+      ${COMPANION_IDS.map((id) => {
+        const open = companionOpen(id, rank);
+        const at = Object.entries(NIGHT_RANK_REWARDS).find(([, w]) => w.companion === id)?.[0];
+        const mine = id === hero;
+        return `<button type="button" class="ns-pick ${id === ally ? 'on' : ''}" data-ally="${id}" ${open && !mine ? '' : 'disabled'}>${face(id)}<b>${esc(COMPANIONS[id].name)}</b><small>${mine ? 'Your hero' : open ? COMPANIONS[id].emoji : `🔒 Rank ${at}`}</small></button>`;
+      }).join('')}
+    </div>
+    ${ally ? `<p class="fine ns-pickinfo">${esc(COMPANIONS[ally as CompanionId].name)}: ${esc(COMPANIONS[ally as CompanionId].text)}</p>` : ''}
+    <button class="btn primary" id="ns-go">Start the night</button>
+    <button class="btn" id="ns-shrine">🕯️ Night Shrine<small>Gifts and companion gear, for Souls</small></button>`);
   overlay.querySelectorAll<HTMLCanvasElement>('canvas.ally-face').forEach((c) => {
-    const id = c.dataset.face as CompanionId;
+    const id = c.dataset.face as HeroId;
     const fit = outfitFor(id);
     c.getContext('2d')!.drawImage(heroSprite(id, {}, [], fit.look, fit.head).normal, 0, 0, 12, 12);
   });
+  overlay.querySelectorAll<HTMLElement>('[data-hero]').forEach((b) =>
+    b.addEventListener('click', () => {
+      setNightHero(b.dataset.hero ?? '');
+      showNightShift(back);
+    }),
+  );
   overlay.querySelectorAll<HTMLElement>('[data-ally]').forEach((b) =>
     b.addEventListener('click', () => {
       setCompanion(b.dataset.ally ?? '');
-      then();
+      showNightShift(back);
     }),
   );
+  on('#ns-go', () => startNight(back));
+  on('#ns-shrine', () => showNightShrine(() => showNightShift(back)));
   on('#back', back);
 }
 
@@ -192,12 +233,14 @@ function startNight(back: () => void) {
   portalPlaying(true);
   const v2 = nightV2Live();
   const sh = meta.nightShrine;
-  const n = newNight(Math.random, v2, { hero: meta.hero, shrine: { vigor: sh.vigor, reroll: sh.reroll, banish: sh.banish, start: sh.arsenal && sh.start ? (sh.start as RelicKind) : undefined }, companion: sh.companion && sh.companion !== meta.hero ? sh.companion : '' });
+  const myHero = nightHero();
+  const rankAtStart = myNightRank();
+  const n = newNight(Math.random, v2, { hero: myHero, shrine: { vigor: sh.vigor, reroll: sh.reroll, banish: sh.banish, start: sh.arsenal && sh.start ? (sh.start as RelicKind) : undefined }, companion: nightCompanion(myHero), gear: { blade: sh.blade, banner: sh.banner, bond: sh.bond, charm: sh.charm, oath: sh.oath }, rank: rankAtStart });
   current = n;
   // Local development only: the night, for poking at from the console.
   if (import.meta.env.DEV) (window as unknown as { night?: unknown }).night = n;
-  const fit = outfitFor(meta.hero);
-  const hero = heroSprite(meta.hero, {}, [], fit.look, fit.head);
+  const fit = outfitFor(myHero);
+  const hero = heroSprite(myHero, {}, [], fit.look, fit.head);
   const allyFit = n.companion ? outfitFor(n.companion) : null;
   const allySprite = n.companion && allyFit ? heroSprite(n.companion, {}, [], allyFit.look, allyFit.head) : null;
   const spectreSprite = heroSprite('knight', {}, []);
@@ -619,6 +662,10 @@ function startNight(back: () => void) {
     s.nights++;
     s.nightBest = Math.max(s.nightBest, Math.floor(n.t));
     s.nightKills = Math.max(s.nightKills, n.kills);
+    s.nightTotal = (s.nightTotal ?? 0) + n.kills;
+    const rankNow = nightRank(s.nightTotal);
+    const gained: string[] = [];
+    for (let r = rankAtStart + 1; r <= rankNow; r++) gained.push(`🌙 Rank ${r}: ${NIGHT_RANK_REWARDS[r]?.text ?? 'a step closer'}`);
     const title = n.kills >= NIGHT_GIFT_KILLS && !meta.gifts.includes(NIGHT_GIFT);
     if (title) receiveGift(NIGHT_GIFT);
     saveMeta();
@@ -629,6 +676,7 @@ function startNight(back: () => void) {
       if (!overlay.querySelector('#ns-canvas')) return;
       showOverlay('nightshift-end', `
         <h2>${n.dawn && !n.nightmare ? '🌅 You saw the dawn' : n.nightmare ? 'The Nightmare takes you' : 'The night takes you'}</h2>
+        ${gained.length ? `<div class="ns-rankup"><b>Night Rank up!</b>${gained.map((g) => `<span>${esc(g)}</span>`).join('')}</div>` : ''}
         <div class="ns-score"><b>${n.kills}</b><span>put down${best ? ' · new best' : ''}</span></div>
         <div class="ns-results">
           <div><b>${fmt(n.t)}</b><span>survived</span></div>
@@ -644,10 +692,13 @@ function startNight(back: () => void) {
         ${ONLINE ? `<h3 class="shop-head">This week's Night Shift</h3><p class="fine" id="ns-rank">Posting your night…</p><ol class="raid-top" id="ns-board"><li class="fine">Loading…</li></ol><button class="btn" id="ns-boards">🏆 All Night Shift boards</button>` : ''}
         ${ONLINE && (!signedIn() || unclaimed()) ? claimInlineHtml(`You're on the Night Shift board as ${unclaimed() ? esc(playerName()) : 'a guest'}. Type a name and your nights show under it.`) : ''}
         ${keepNameHtml()}
+        ${rankBarHtml()}
+        <button class="btn" id="ns-setup">🌙 Change hero or companion</button>
         ${n.v2 ? '<button class="btn" id="ns-shrine">🕯️ Night Shrine<small>Spend Souls on gifts for every night</small></button>' : ''}
         <button class="btn" id="back">← Back</button>`);
-      on('#ns-again', () => showNightShift(back));
+      on('#ns-again', () => startNight(back));
       on('#ns-shrine', () => showNightShrine(back));
+      on('#ns-setup', () => showNightShift(back));
       on('#back', back);
       on('#ns-boards', () => showLeaderboard(back, 'night', 25, 'week'));
       wireClaimInline(() => {
@@ -672,7 +723,7 @@ function startNight(back: () => void) {
   async function loadBoard(post: boolean) {
     const rank = document.getElementById('ns-rank');
     if (post && (signedIn() || (await ensureGuest()))) {
-      const posted = await submitNight({ kills: n.kills, seconds: Math.floor(n.t), level: n.level, hero: meta.hero }).catch(() => null);
+      const posted = await submitNight({ kills: n.kills, seconds: Math.floor(n.t), level: n.level, hero: myHero }).catch(() => null);
       if (rank?.isConnected) rank.textContent = posted ? `Your best night is #${posted.rank} of all time.` : 'Could not post your night. Your best is saved here.';
     } else if (rank) rank.textContent = 'Your best night counts.';
     const rows = await nightBoard('week').catch(() => null);
@@ -1334,7 +1385,7 @@ function startNight(back: () => void) {
     }
 
     // darts, scythes and wisps
-    const ascDart = { dart: ascendedWeapon(n, 'quiver'), scythe: ascendedWeapon(n, 'scythe'), wisp: ascendedWeapon(n, 'wisps'), missile: false };
+    const ascDart = { dart: ascendedWeapon(n, 'quiver'), scythe: ascendedWeapon(n, 'scythe'), wisp: ascendedWeapon(n, 'wisps'), missile: false, knife: ascendedWeapon(n, 'knives'), orb: ascendedWeapon(n, 'orb') };
     for (const d of n.darts) {
       const x = sx(d.x);
       const y = sy(d.y);
@@ -1356,6 +1407,29 @@ function startNight(back: () => void) {
         }
         ctx.globalAlpha = 1;
         glowAt(x, y, dark ? '160,110,255' : '200,215,255', 9, 0.45);
+      } else if (d.kind === 'knife') {
+        // a thrown knife: a short bright blade along its path
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(Math.atan2(uy, ux));
+        ctx.fillStyle = 'rgba(200,210,230,0.35)';
+        ctx.fillRect(-9, -0.5, 6, 1);
+        ctx.fillStyle = '#e8eefc';
+        ctx.fillRect(-3, -1, 6, 2);
+        ctx.fillStyle = '#5a4030';
+        ctx.fillRect(-5, -1, 2, 2);
+        ctx.restore();
+      } else if (d.kind === 'orb') {
+        // the Arcane Orb: a slow violet sphere, pulsing
+        const R = (0.5 + 0.05 * (n.relics.orb ?? 1)) * TILE;
+        glowAt(x, y, n.fused.singularity ? '120,60,200' : '170,110,255', R * 1.8, 0.55);
+        ctx.fillStyle = n.fused.singularity ? 'rgba(20,0,40,0.85)' : 'rgba(150,100,255,0.55)';
+        ctx.beginPath();
+        ctx.arc(x, y, R * (0.85 + 0.1 * Math.sin(t * 9)), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#e6d4ff';
+        ctx.lineWidth = 1;
+        ctx.stroke();
       } else if (d.kind === 'missile') {
         // the Mage's missile: a violet spark with a short tail
         for (let k = 1; k <= 3; k++) {
@@ -1535,6 +1609,19 @@ function startNight(back: () => void) {
       px(x + 1, y - 1, 2, 1, halo ? '#7a3cff' : '#ff4a2a');
     }
 
+    // the Bulwark's shields, circling close
+    const shields = shieldCount(n);
+    for (let k = 0; k < shields; k++) {
+      const a = -n.t * 2.2 + (k / shields) * Math.PI * 2;
+      const x = Math.round(sx(n.x + Math.cos(a) * shieldOrbit(n)));
+      const y = Math.round(sy(n.y + Math.sin(a) * shieldOrbit(n)));
+      glowAt(x, y, n.fused.aegis ? '120,200,255' : '200,210,230', 7, 0.45);
+      px(x - 3, y - 4, 6, 7, n.fused.aegis ? '#7fc8ff' : '#9aa3b5');
+      px(x - 2, y - 3, 4, 5, n.fused.aegis ? '#d6f0ff' : '#dfe4ee');
+      px(x - 1, y - 2, 2, 3, '#c9a05a');
+      px(x - 2, y + 3, 4, 1, n.fused.aegis ? '#7fc8ff' : '#9aa3b5');
+    }
+
     // the bosses' bolts
     for (const s of n.shots) {
       const x = Math.round(sx(s.x));
@@ -1619,6 +1706,52 @@ function startNight(back: () => void) {
         ctx.globalCompositeOperation = 'source-over';
         glowAt(x0, y0, col, 14, fade * 0.9);
         if (age < 0.1) for (let k = 0; k < 4; k++) sparks.push({ x: fl.x, y: fl.y, vx: (Math.random() - 0.5) * 4, vy: (Math.random() - 0.5) * 4, life: 0.35, max: 0.35, color: '#e8f6ff', size: 1 });
+      } else if (fl.kind === 'nova' || fl.kind === 'slam' || fl.kind === 'toll') {
+        // Holy Nova (white-gold, filled), Ground Slam (earthen, with dust), Great Toll (violet rings)
+        const R = (fl.r ?? 2) * TILE;
+        const grow = Math.min(1, age * (fl.kind === 'toll' ? 1.3 : 2.2));
+        const col = fl.kind === 'nova' ? '255,240,190' : fl.kind === 'slam' ? '210,140,80' : '170,140,255';
+        ctx.globalCompositeOperation = 'lighter';
+        if (fl.kind === 'nova') {
+          ctx.fillStyle = `rgba(${col},${0.22 * fade})`;
+          ctx.beginPath();
+          ctx.arc(x0, y0, R * grow, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        const rings = fl.kind === 'toll' ? [0, 0.22] : [0];
+        for (const lag of rings) {
+          if (age < lag) continue;
+          const e = Math.min(1, (age - lag) * (fl.kind === 'toll' ? 1.3 : 2.2));
+          ctx.strokeStyle = `rgba(${col},${0.85 * (1 - e * 0.8) * fade})`;
+          ctx.lineWidth = fl.kind === 'slam' ? 4 : 2.5;
+          ctx.beginPath();
+          ctx.arc(x0, y0, R * e, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.globalCompositeOperation = 'source-over';
+        if (fl.kind === 'slam' && age < 0.08) for (let k = 0; k < 8; k++) {
+          const a = Math.random() * Math.PI * 2;
+          sparks.push({ x: fl.x + Math.cos(a) * (fl.r ?? 2) * 0.6, y: fl.y + Math.sin(a) * (fl.r ?? 2) * 0.6, vx: Math.cos(a) * 2, vy: Math.sin(a) * 2 - 1, life: 0.45, max: 0.45, color: '#8a6a4a', size: 2 });
+        }
+        if (age < 0.2) glowAt(x0, y0, col, R * 0.6, (0.2 - age) * 2.5);
+      } else if (fl.kind === 'rain') {
+        // Arrow Rain: streaks falling into a ring on the ground
+        const R = (fl.r ?? 1.3) * TILE;
+        ctx.strokeStyle = `rgba(200,230,160,${0.5 * fade})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.ellipse(x0, y0, R, R * 0.55, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        for (let k = 0; k < 10; k++) {
+          const hx = x0 + (hash(Math.round(fl.at * 100), k) - 0.5) * R * 1.8;
+          const hy = y0 + (hash(Math.round(fl.at * 100), k + 20) - 0.5) * R;
+          const drop = Math.max(0, 1 - age * 3 - k * 0.03);
+          ctx.strokeStyle = `rgba(240,230,200,${0.9 * fade})`;
+          ctx.beginPath();
+          ctx.moveTo(hx, hy - 10 - drop * 30);
+          ctx.lineTo(hx, hy - drop * 30);
+          ctx.stroke();
+        }
       } else if (fl.kind === 'ring') {
         // the bell's toll: a gold shockwave, a softer echo behind it
         const R = (fl.r ?? 2) * TILE;
@@ -1848,6 +1981,13 @@ export function showNightShrine(back: () => void) {
       const d = SHRINE[g];
       const at = shrineLevel(g);
       const cost = d.costs[at];
+      if (d.rank && myNightRank() < d.rank) {
+        return `<div class="shrine-gift locked">
+        <span class="shrine-emoji">${d.emoji}</span>
+        <span class="shrine-info"><b>${esc(d.name)}</b><small>${esc(d.text)}</small></span>
+        <span class="shrine-done">🔒 Night Rank ${d.rank}</span>
+      </div>`;
+      }
       const pips = d.costs.map((_, i) => `<i class="${i < at ? 'on' : ''}"></i>`).join('');
       return `<div class="shrine-gift">
         <span class="shrine-emoji">${d.emoji}</span>
@@ -1859,13 +1999,12 @@ export function showNightShrine(back: () => void) {
       <button class="btn ${meta.nightShrine.start ? '' : 'primary'}" data-start="">⛏️ Just the spade</button>
       ${weapons.map((w) => `<button class="btn ${meta.nightShrine.start === w.id ? 'primary' : ''}" data-start="${w.id}">${w.emoji} ${esc(w.name)}</button>`).join('')}
     </div>` : ''}
-    <h3 class="shop-head">🤝 Companion</h3>
-    <p class="fine">${meta.nightShrine.companion && meta.nightShrine.companion !== meta.hero && meta.nightShrine.companion in COMPANIONS ? `${COMPANIONS[meta.nightShrine.companion as CompanionId].emoji} ${esc(COMPANIONS[meta.nightShrine.companion as CompanionId].name)} walks the night with you.` : 'You walk the night alone.'}</p>
-    <button class="btn" id="ns-companion">🤝 Choose a companion</button>
-    <p class="fine">Heroes bring a perk to the night too: ${esc(HERO_BY_ID[meta.hero as keyof typeof HERO_BY_ID]?.name ?? '')}, ${esc(NIGHT_PERKS[meta.hero] ?? '')}</p>
+    <p class="fine">Choose your hero and companion before each night. Each hero brings their own weapon and a perk.</p>
     <button class="btn" id="back">← Back</button>`);
   overlay.querySelectorAll<HTMLElement>('[data-buy]').forEach((b) =>
     b.addEventListener('click', () => {
+      const want = SHRINE[b.dataset.buy as ShrineGift];
+      if (want.rank && myNightRank() < want.rank) return;
       if (buyShrine(b.dataset.buy as ShrineGift)) {
         sfx.relic();
         toast(`🕯️ The Shrine grants ${SHRINE[b.dataset.buy as ShrineGift].name}`);
@@ -1879,7 +2018,6 @@ export function showNightShrine(back: () => void) {
       showNightShrine(back);
     }),
   );
-  on('#ns-companion', () => showCompanionPick(() => showNightShrine(back), () => showNightShrine(back)));
   on('#back', back);
 }
 

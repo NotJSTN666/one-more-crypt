@@ -5764,3 +5764,54 @@ body.tutorial #relic-bar {
   border-color: #7fb2ff;
   background: rgba(127, 178, 255, 0.12);
 }
+
+/* The Night Shift's setup: your hero, your companion, and your Night Rank. */
+.ns-pickrow {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 6px;
+  margin: 6px 0 4px;
+}
+.ns-pick {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 8px 4px;
+  border: 1px solid var(--line, #2d2139);
+  background: rgba(20, 12, 26, 0.6);
+  color: inherit;
+  cursor: pointer;
+  font-family: var(--pixel);
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.ns-pick b { font-weight: normal; }
+.ns-pick small { font-size: 8px; opacity: 0.7; letter-spacing: 0.5px; text-transform: none; font-family: var(--read); }
+.ns-pick.on { border-color: var(--gold); box-shadow: 0 0 10px rgba(242, 193, 78, 0.35); color: var(--gold); }
+.ns-pick:disabled { opacity: 0.4; cursor: default; }
+.ns-pick .ally-face { width: 36px; height: 36px; }
+.ns-pick .ally-none { font-size: 26px; line-height: 36px; }
+.ns-pickinfo { text-align: left; margin: 4px 0 10px; }
+.ns-rank {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 10px;
+  font-family: var(--pixel);
+  letter-spacing: 2px;
+  color: #bcd6ff;
+}
+.ns-rank small { font-family: var(--read); letter-spacing: 0; color: var(--text); opacity: 0.8; }
+.ns-rank i { display: block; height: 6px; background: rgba(127, 178, 255, 0.15); border: 1px solid rgba(127, 178, 255, 0.4); }
+.ns-rank i b { display: block; height: 100%; background: #7fb2ff; }
+.ns-rankup {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0;
+  padding: 10px;
+  border: 1px solid #7fb2ff;
+  background: rgba(127, 178, 255, 0.1);
+  color: #d6e6ff;
+}
+.ns-rankup b { font-family: var(--pixel); letter-spacing: 2px; color: #bcd6ff; }
+.shrine-gift.locked { opacity: 0.5; }

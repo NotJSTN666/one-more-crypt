@@ -39,6 +39,8 @@ export interface GraveState {
   dawns: number;
   nightBest: number;
   nightKills: number;
+  /** Everything ever put down in the Night Shift, for the Night Rank. */
+  nightTotal: number;
   at: number;
 }
 
@@ -140,6 +142,7 @@ export function newGraveState(now: number): GraveState {
     dawns: 0,
     nightBest: 0,
     nightKills: 0,
+    nightTotal: 0,
     at: now,
   };
 }
@@ -176,6 +179,8 @@ export function cleanGraveState(raw: unknown, now: number): GraveState {
     dawns: count(r.dawns),
     nightBest: count(r.nightBest),
     nightKills: count(r.nightKills),
+    // Saved before the total was kept: a fair guess from the best night and the nights stood.
+    nightTotal: r.nightTotal !== undefined ? count(r.nightTotal) : Math.round((count(r.nightKills) * Math.max(count(r.nights), count(r.nightKills) ? 1 : 0)) / 2),
     at: Number(r.at) || 0,
   };
 }
