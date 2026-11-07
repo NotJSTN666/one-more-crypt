@@ -24,8 +24,10 @@ export interface NewsDay {
 export const NEWS: NewsDay[] = [
   {
     date: '2026-11-07',
-    title: 'A calmer title screen, and links straight into a mode',
+    title: 'Companions in the Night Shift, a calmer title screen, and links straight into a mode',
     notes: [
+      '🤝 Night Shift companions: choose another hero to walk the night with you. The Ranger shoots, the Mage casts, the Knight holds the dead off you, the Necromancer raises thralls, and more. Level-ups now and then make them stronger. Change who it is at the Night Shrine.',
+      '🗿 Three new Night Shift relics that fight beside you: the Thrall Totem, the Crypt Hound and the Spectral Knight, each with its own fusion.',
       '🕯️ The title screen is now just today\'s crypt, Delve deeper (Endless, Horde and the Night Shift) and Story. Everything else is under More.',
       '🔗 Share a link that opens one mode directly, each with its own preview: onemorecrypt.com/daily, /endless, /horde or /night.',
     ],

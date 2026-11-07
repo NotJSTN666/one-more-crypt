@@ -5741,3 +5741,26 @@ body.tutorial #relic-bar {
 }
 .title-play .delve-btn small { opacity: 0.8; }
 .title-play .story-btn { border-color: #3e8db5; }
+
+/* Night Shift companions: a pale blue, like the ring at their feet. */
+.ns-companions {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+}
+.ns-companions .ns-choice { width: 100%; }
+.ns-choice.on { outline: 2px solid var(--gold); outline-offset: 2px; }
+.ns-choice.ally {
+  border-color: #7fb2ff;
+  background: linear-gradient(180deg, rgba(127, 178, 255, 0.16), rgba(0, 0, 0, 0.25)), var(--panel);
+}
+.ns-choice.ally b { color: #bcd6ff; }
+.ally-face {
+  width: 36px;
+  height: 36px;
+  image-rendering: pixelated;
+}
+.ns-relic.ally {
+  border-color: #7fb2ff;
+  background: rgba(127, 178, 255, 0.12);
+}

@@ -106,7 +106,8 @@ export interface Meta {
   /** Hall decorations you own but took down. Still yours; put them back up any time. */
   hallHidden: string[];
   /** The Night Shrine: permanent Night Shift upgrades bought with Souls. */
-  nightShrine: { vigor: number; reroll: number; banish: number; arsenal: boolean; start: string };
+  /** The Night Shrine's gifts, the weapon to start with, and the companion ('' to go alone; unset until first chosen). */
+  nightShrine: { vigor: number; reroll: number; banish: number; arsenal: boolean; start: string; companion?: string };
   /** Dailies played in all, in a row or not (the most any device has counted). */
   dailyTotal: number;
   /** Runs finished today (by Daily number), for the one-more-run bonus. */
@@ -272,7 +273,7 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   // How the Hall is decorated is a choice: keep this device's, unless it hasn't made one.
   if (!meta.hallHidden.length) meta.hallHidden = ids(other.hallHidden);
   const shr = cleanShrine(other.nightShrine);
-  meta.nightShrine = { vigor: Math.max(meta.nightShrine.vigor, shr.vigor), reroll: Math.max(meta.nightShrine.reroll, shr.reroll), banish: Math.max(meta.nightShrine.banish, shr.banish), arsenal: meta.nightShrine.arsenal || shr.arsenal, start: meta.nightShrine.start || shr.start };
+  meta.nightShrine = { vigor: Math.max(meta.nightShrine.vigor, shr.vigor), reroll: Math.max(meta.nightShrine.reroll, shr.reroll), banish: Math.max(meta.nightShrine.banish, shr.banish), arsenal: meta.nightShrine.arsenal || shr.arsenal, start: meta.nightShrine.start || shr.start, ...(meta.nightShrine.companion ?? shr.companion) !== undefined ? { companion: meta.nightShrine.companion ?? shr.companion } : {} };
   meta.dailyTotal = Math.max(meta.dailyTotal ?? 0, Math.floor(Number(other.dailyTotal) || 0));
   meta.trialsDone = Math.max(meta.trialsDone ?? 0, Math.floor(Number(other.trialsDone) || 0));
   meta.rival ||= typeof other.rival === 'string' ? other.rival.slice(0, 24) : '';
@@ -1429,7 +1430,7 @@ export type ShrineGift = keyof typeof SHRINE;
 function cleanShrine(v: unknown): Meta['nightShrine'] {
   const o = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
   const lvl = (k: string, max: number) => Math.max(0, Math.min(max, Math.floor(Number(o[k]) || 0)));
-  return { vigor: lvl('vigor', 5), reroll: lvl('reroll', 3), banish: lvl('banish', 3), arsenal: o.arsenal === true, start: typeof o.start === 'string' ? o.start.slice(0, 16) : '' };
+  return { vigor: lvl('vigor', 5), reroll: lvl('reroll', 3), banish: lvl('banish', 3), arsenal: o.arsenal === true, start: typeof o.start === 'string' ? o.start.slice(0, 16) : '', ...(typeof o.companion === 'string' ? { companion: o.companion.slice(0, 16) } : {}) };
 }
 
 /** The level a Night Shrine gift is at (Arsenal is 0 or 1). */
@@ -1448,6 +1449,12 @@ export function buyShrine(g: ShrineGift): boolean {
   else meta.nightShrine[g] = at + 1;
   saveMeta();
   return true;
+}
+
+/** Choose the Night Shift companion ('' to go alone). */
+export function setCompanion(id: string) {
+  meta.nightShrine.companion = id;
+  saveMeta();
 }
 
 export function setShrineStart(id: string) {

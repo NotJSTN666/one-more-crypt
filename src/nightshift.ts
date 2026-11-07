@@ -32,6 +32,29 @@ export const NIGHT_PERKS: Record<string, string> = {
 /** What the Night Shrine has given (bought with Souls, kept between nights). */
 export interface NightShrine { vigor?: number; reroll?: number; banish?: number; start?: RelicKind }
 
+/**
+ * A companion: a second hero who walks the night beside you, fighting in their own way. Chosen
+ * before the night; level-ups now and then offer to sharpen them (up to MAX_LEVEL).
+ */
+export type CompanionId = 'knight' | 'rogue' | 'necro' | 'paladin' | 'ranger' | 'mage' | 'barbarian' | 'bellringer';
+export const COMPANIONS: Record<CompanionId, { name: string; emoji: string; text: string; up: string }> = {
+  knight: { name: 'Knight', emoji: '🛡️', text: 'Holds the line: draws the dead near them and bashes them back.', up: 'Draws them from further off, and bashes harder.' },
+  rogue: { name: 'Rogue', emoji: '🗡️', text: 'Blinks to a foe and stabs it, again and again.', up: 'Quicker, deadlier stabs.' },
+  necro: { name: 'Necromancer', emoji: '💀', text: 'Raises thralls from the earth to fight beside you.', up: 'More thralls, and they bite harder.' },
+  paladin: { name: 'Paladin', emoji: '✝️', text: 'Smites the nearest foe, and now and then heals you.', up: 'Smites harder, and heals more often.' },
+  ranger: { name: 'Ranger', emoji: '🏹', text: 'Shoots arrows at the dead from your side.', up: 'More arrows, and they pierce.' },
+  mage: { name: 'Mage', emoji: '🔮', text: 'Casts seeking missiles at the dead.', up: 'More missiles, and they hit harder.' },
+  barbarian: { name: 'Barbarian', emoji: '🪓', text: 'Wades in and spins, cutting everything round them.', up: 'A wider, harder spin.' },
+  bellringer: { name: 'Bell-Ringer', emoji: '🔔', text: 'Rings a bell that throws back and slows the dead near them.', up: 'A louder, wider toll.' },
+};
+export const COMPANION_IDS = Object.keys(COMPANIONS) as CompanionId[];
+/** The level-up choice that sharpens your companion. */
+export const ALLY_PICK = 'ally';
+export interface Ally { x: number; y: number; fx: number; level: number; next: number; actAt: number }
+/** Your other helpers on the field: hounds and spectral knights (from relics), and thralls (which crumble in time). */
+export interface Minion { kind: 'hound' | 'spectre' | 'thrall'; x: number; y: number; fx: number; next: number; until: number; actAt: number; dmg: number }
+const MAX_THRALLS = 40;
+
 export interface Foe {
   id: number;
   kind: FoeKind;
@@ -111,6 +134,7 @@ export const NO_PACT = 'nopact';
 export const ASCENDED: Record<FusionId, string> = {
   cleaver: 'Worldsplitter', halo: 'Crown of Bones', barrage: 'Bone Storm', hellwalk: 'Inferno Stride', tempest: 'Wrath of Heaven',
   glacier: 'Endless Winter', requiem: 'Doom Choir', eclipse: 'Black Sun', legion: 'Host of Souls', ossuary: 'Charnel Field', judgement: 'Last Judgement',
+  barrow: 'Barrow King', wildhunt: 'Hounds of the Grave', revenant: 'Deathless Guard',
 };
 export const ASCEND_LEVEL = 40;
 export const ASCEND_TEXT = 'Ascended: hits 75% harder and comes round 20% sooner.';
@@ -129,7 +153,7 @@ export interface Dart {
   pierce: number;
   life: number;
   hit: number[];
-  kind: 'dart' | 'scythe' | 'wisp';
+  kind: 'dart' | 'scythe' | 'wisp' | 'missile';
 }
 export interface Flame { x: number; y: number; until: number; r: number; dps: number }
 /** A boss's bolt, flying at you. */
@@ -145,6 +169,7 @@ export interface Flash { kind: 'swing' | 'bolt' | 'ring' | 'spike' | 'beam' | 'l
 /** Relics in the Night Shift: weapons that fight on their own, and charms that help. */
 export type RelicKind =
   | 'spade' | 'skulls' | 'quiver' | 'ember' | 'storm' | 'frost' | 'bell' | 'scythe' | 'wisps' | 'spikes' | 'lance'
+  | 'totem' | 'hound' | 'spectre'
   | 'heart' | 'boots' | 'magnet' | 'fang' | 'whetstone' | 'hourglass' | 'moss' | 'thorns' | 'lens' | 'coin' | 'cloak';
 
 export interface NightRelic {
@@ -172,6 +197,9 @@ export const NIGHT_RELICS: NightRelic[] = [
   { id: 'wisps', name: 'Wandering Wisps', emoji: '👻', weapon: true, text: (l) => (l === 1 ? 'Little ghosts that hunt down the dead for you.' : 'More wisps, and they bite harder.') },
   { id: 'spikes', name: 'Bone Spikes', emoji: '🦴', weapon: true, text: (l) => (l === 1 ? 'Spikes burst up under foes near you.' : 'More spikes, wider and harder.') },
   { id: 'lance', name: 'Soul Lance', emoji: '🔱', weapon: true, text: (l) => (l === 1 ? 'A beam that runs through every foe in a line.' : 'A longer beam that hits harder and more often.') },
+  { id: 'totem', name: 'Thrall Totem', emoji: '🗿', weapon: true, text: (l) => (l === 1 ? 'Now and then raises thralls from the earth to fight for you a while.' : 'More thralls, lasting longer and biting harder.') },
+  { id: 'hound', name: 'Crypt Hound', emoji: '🐕', weapon: true, text: (l) => (l === 1 ? 'A hound that runs down the nearest of the dead and bites.' : l === 4 ? 'A second hound joins the hunt.' : 'Faster, harder bites.') },
+  { id: 'spectre', name: 'Spectral Knight', emoji: '👤', weapon: true, text: (l) => (l === 1 ? 'A ghostly knight walks with you, cutting down whatever comes close.' : l === 3 || l === 5 ? 'Another knight answers the call.' : 'Harder, quicker swings.') },
   { id: 'heart', name: 'Iron Heart', emoji: '🫀', weapon: false, text: () => '+5 max health, and heal 5.' },
   { id: 'boots', name: 'Swift Boots', emoji: '🥾', weapon: false, text: () => 'Move 8% faster.' },
   { id: 'magnet', name: 'Grave Magnet', emoji: '🧲', weapon: false, text: () => 'Pull in souls from further away.' },
@@ -188,7 +216,7 @@ export const NIGHT_RELICS: NightRelic[] = [
  * The Soul Forge: a weapon at its top level fuses with its partner charm (any level) into
  * something stronger. A fusion is offered as one of the level-up choices once it's ready.
  */
-export type FusionId = 'cleaver' | 'halo' | 'barrage' | 'hellwalk' | 'tempest' | 'glacier' | 'requiem' | 'eclipse' | 'legion' | 'ossuary' | 'judgement';
+export type FusionId = 'cleaver' | 'halo' | 'barrage' | 'hellwalk' | 'tempest' | 'glacier' | 'requiem' | 'eclipse' | 'legion' | 'ossuary' | 'judgement' | 'barrow' | 'wildhunt' | 'revenant';
 export interface NightFusion { id: FusionId; name: string; emoji: string; weapon: RelicKind; charm: RelicKind; text: string }
 export const NIGHT_FUSIONS: NightFusion[] = [
   { id: 'cleaver', name: 'Grave Cleaver', emoji: '🪓', weapon: 'spade', charm: 'lens', text: 'The spade swings all the way round, twice as hard.' },
@@ -202,6 +230,9 @@ export const NIGHT_FUSIONS: NightFusion[] = [
   { id: 'legion', name: 'Spirit Legion', emoji: '🕯️', weapon: 'wisps', charm: 'fang', text: 'Three times the wisps, and a wisp kill may heal you.' },
   { id: 'ossuary', name: 'Ossuary', emoji: '⚰️', weapon: 'spikes', charm: 'coin', text: 'Twice the spikes, wider and harder.' },
   { id: 'judgement', name: 'Judgement', emoji: '✨', weapon: 'lance', charm: 'hourglass', text: 'Four beams at once, one each way, and harder.' },
+  { id: 'barrow', name: 'Barrow Host', emoji: '⚱️', weapon: 'totem', charm: 'moss', text: 'Twice the thralls, and they last twice as long.' },
+  { id: 'wildhunt', name: 'The Wild Hunt', emoji: '🐺', weapon: 'hound', charm: 'boots', text: 'Three hounds, running faster and biting twice as hard.' },
+  { id: 'revenant', name: 'Revenant Guard', emoji: '⚔️', weapon: 'spectre', charm: 'thorns', text: 'Twice the knights, and they cut twice as deep.' },
 ];
 export const NIGHT_FUSION = Object.fromEntries(NIGHT_FUSIONS.map((f) => [f.id, f])) as Record<FusionId, NightFusion>;
 /** The fusion a weapon became, if it did. */
@@ -225,7 +256,7 @@ export const NIGHT_BLESSINGS: NightBlessing[] = [
 export const NIGHT_BLESSING = Object.fromEntries(NIGHT_BLESSINGS.map((b) => [b.id, b])) as Record<BlessingId, NightBlessing>;
 
 /** A level-up choice: a relic, a fusion at the forge, a blessing, a pact (or refusing it), or an ascension. */
-export type NightPick = RelicKind | FusionId | BlessingId | PactId | typeof NO_PACT | AscendPick;
+export type NightPick = RelicKind | FusionId | BlessingId | PactId | typeof NO_PACT | AscendPick | typeof ALLY_PICK;
 export const isPact = (id: NightPick): id is PactId | typeof NO_PACT => id === NO_PACT || id in NIGHT_PACTS;
 export const isFusion = (id: NightPick): id is FusionId => id in NIGHT_FUSION;
 export const isBlessing = (id: NightPick): id is BlessingId => id in NIGHT_BLESSING;
@@ -343,12 +374,16 @@ export interface Night {
   nightmare: boolean;
   motherRisen: boolean;
   motherFelled: boolean;
+  /** Your companion (none if ''), where they are, and your other helpers. */
+  companion: CompanionId | '';
+  ally: Ally | null;
+  minions: Minion[];
   /** Recent kills and hits, for the drawing (kept short). */
   deaths: { x: number; y: number; kind: FoeKind; at: number }[];
   hits: { x: number; y: number; amt: number; at: number }[];
 }
 
-export function newNight(rand: () => number = Math.random, v2 = true, opts: { hero?: string; shrine?: NightShrine } = {}): Night {
+export function newNight(rand: () => number = Math.random, v2 = true, opts: { hero?: string; shrine?: NightShrine; companion?: string } = {}): Night {
   const n = baseNight(rand, v2);
   if (!v2) return n;
   const hero = opts.hero ?? '';
@@ -362,6 +397,10 @@ export function newNight(rand: () => number = Math.random, v2 = true, opts: { he
   const s = start[hero];
   if (s) n.relics[s] = 1;
   if (sh.start && sh.start !== 'spade' && NIGHT_RELIC[sh.start]?.weapon) n.relics[sh.start] = Math.max(1, n.relics[sh.start] ?? 0);
+  if (opts.companion && opts.companion in COMPANIONS) {
+    n.companion = opts.companion as CompanionId;
+    n.ally = { x: n.x - 1.2, y: n.y + 0.6, fx: 1, level: 1, next: 0, actAt: -1 };
+  }
   return n;
 }
 
@@ -429,6 +468,9 @@ function baseNight(rand: () => number, v2: boolean): Night {
     nightmare: false,
     motherRisen: false,
     motherFelled: false,
+    companion: '',
+    ally: null,
+    minions: [],
     deaths: [],
     hits: [],
   };
@@ -532,6 +574,8 @@ function relicChoices(n: Night): NightPick[] {
       pool.splice(pool.indexOf(r), 1);
     }
   }
+  // Now and then, one choice sharpens your companion.
+  if (n.ally && n.ally.level < MAX_LEVEL && out.length < 3 && n.rand() < 0.3) out.push(ALLY_PICK);
   while (out.length < 3 && pool.length) out.push(pool.splice(Math.floor(n.rand() * pool.length), 1)[0].id);
   // Running out of relics: blessings fill the rest, so there's always something to take.
   const blessings = [...NIGHT_BLESSINGS];
@@ -593,6 +637,13 @@ export function chooseRelic(n: Night, id: NightPick) {
     return;
   }
   if (isPact(id) || isAscend(id)) return;
+  if (id === ALLY_PICK) {
+    if (!n.ally || n.ally.level >= MAX_LEVEL) return;
+    n.ally.level++;
+    n.pendingLevels--;
+    if (n.forgeOffers > 0) n.forgeOffers--;
+    return;
+  }
   if (isBlessing(id)) {
     n.blessings[id] = bl(n, id) + 1;
     n.pendingLevels--;
@@ -1152,7 +1203,7 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
       d.vx = Math.cos(back) * 10;
       d.vy = Math.sin(back) * 10;
       if (Math.hypot(n.x - d.x, n.y - d.y) < 0.5) d.life = 0;
-    } else if (d.kind === 'wisp') {
+    } else if (d.kind === 'wisp' || d.kind === 'missile') {
       const f = nearest(d, 8);
       if (f) {
         const a = Math.atan2(f.y - d.y, f.x - d.x);
@@ -1241,6 +1292,7 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
       }
     }
   }
+  helpers(n, dt);
   n.flashes = n.flashes.filter((fl) => n.t - fl.at < 0.4);
 
   // ---- the dead move, and bite ----
@@ -1258,6 +1310,8 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
       f.y = Math.max(0.5, Math.min(FIELD - 0.5, f.y));
     }
     let d = near(n, f) || 1;
+    // A Knight companion draws the ordinary dead to themself (they can't be hurt).
+    const taunt = n.ally && n.companion === 'knight' && !f.boss && !f.treasure && near(n.ally, f) < 2.2 + 0.3 * n.ally.level ? n.ally : null;
     // A blinking elite: gone, and back right beside you.
     if (f.elite === 'blinking' && f.blinkAt !== undefined && n.t >= f.blinkAt) {
       f.blinkAt = n.t + 3.5 + n.rand() * 1.5;
@@ -1290,8 +1344,11 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
     const slow = (f.slowUntil > n.t ? 1 - frostSlow(n, f) : 1) * (ev === 'bloodmoon' && !f.boss ? 1.25 : 1);
     // Bats weave as they come.
     const wob = f.kind === 'bat' ? Math.sin(n.t * 6 + f.id) * 0.6 : 0;
-    const ux = (n.x - f.x) / d;
-    const uy = (n.y - f.y) / d;
+    const tx = taunt ? taunt.x : n.x;
+    const ty = taunt ? taunt.y : n.y;
+    const td = taunt ? near(taunt, f) || 1 : d;
+    const ux = (tx - f.x) / td;
+    const uy = (ty - f.y) / td;
     const drownedCharge = f.kind === 'drowned' && Math.abs(f.kx) + Math.abs(f.ky) > 0.05;
     if (!charging && !drownedCharge) {
       const back = keepOff && d < keepOff ? -0.7 : keepOff && d < keepOff + 1 ? 0 : 1;
@@ -1392,6 +1449,213 @@ export function step(n: Night, dt: number, dx: number, dy: number) {
     n.level++;
     n.pendingLevels++;
   }
+}
+
+/** The nearest living foe to a point, within a distance. */
+function nearestFoe(n: Night, from: { x: number; y: number }, within = Infinity): Foe | null {
+  let best: Foe | null = null;
+  let bd = within;
+  for (const f of n.foes) {
+    if (f.hp <= 0) continue;
+    const d = near(from, f);
+    if (d < bd) {
+      bd = d;
+      best = f;
+    }
+  }
+  return best;
+}
+
+/** Walk a helper toward a point at a speed, stopping short by `stop`. */
+function walk(m: { x: number; y: number; fx: number }, tx: number, ty: number, speed: number, dt: number, stop = 0) {
+  const d = Math.hypot(tx - m.x, ty - m.y);
+  if (d <= stop || d < 0.01) return;
+  const step = Math.min(d - stop, speed * dt);
+  m.x = Math.max(0.5, Math.min(FIELD - 0.5, m.x + ((tx - m.x) / d) * step));
+  m.y = Math.max(0.5, Math.min(FIELD - 0.5, m.y + ((ty - m.y) / d) * step));
+  if (Math.abs(tx - m.x) > 0.05) m.fx = tx > m.x ? 1 : -1;
+}
+
+/** Raise thralls round a point: they hunt the dead for a while, then crumble. */
+function raiseThralls(n: Night, at: { x: number; y: number }, count: number, life: number, dmg: number) {
+  for (let k = 0; k < count; k++) {
+    if (n.minions.filter((m) => m.kind === 'thrall').length >= MAX_THRALLS) return;
+    const a = n.rand() * Math.PI * 2;
+    n.minions.push({ kind: 'thrall', x: Math.max(0.5, Math.min(FIELD - 0.5, at.x + Math.cos(a) * 0.9)), y: Math.max(0.5, Math.min(FIELD - 0.5, at.y + Math.sin(a) * 0.9)), fx: 1, next: n.t + 0.4, until: n.t + life, actAt: -1, dmg });
+    n.flashes.push({ kind: 'grasp', x: at.x + Math.cos(a) * 0.9, y: at.y + Math.sin(a) * 0.9, at: n.t, r: 0.5 });
+  }
+}
+
+/**
+ * Your helpers: the companion, the hounds and spectral knights your relics bring, and the
+ * thralls the Necromancer and the Thrall Totem raise. They can't be hurt; they just fight.
+ */
+function helpers(n: Night, dt: number) {
+  const cd = cdMul(n);
+  // ---- the companion ----
+  const a = n.ally;
+  if (a) {
+    const L = a.level;
+    const ranged = n.companion === 'ranger' || n.companion === 'mage' || n.companion === 'paladin' || n.companion === 'necro';
+    // Too far behind: they catch up in a blink.
+    if (near(a, n) > 9) {
+      a.x = n.x - n.fx;
+      a.y = n.y - n.fy;
+    }
+    const foe = nearestFoe(n, n, ranged ? 7 : 5);
+    if (foe && !ranged) walk(a, foe.x, foe.y, 4.6, dt, foe.r + 0.5);
+    else walk(a, n.x - n.fx * 1.3 + (n.fy ? 0.8 : 0), n.y - n.fy * 1.3 + (n.fx ? 0.8 : 0), 4.4, dt, 0.4);
+    if (n.t >= a.next) {
+      const c = n.companion;
+      let every = 1;
+      if (c === 'knight') {
+        every = Math.max(0.6, 1.3 - 0.12 * L);
+        let any = false;
+        for (const f of n.foes) {
+          const d = near(a, f);
+          if (f.hp <= 0 || d > 1.3 + f.r) continue;
+          any = true;
+          hurtFoe(n, f, 5 + 3 * L);
+          if (!f.boss) {
+            f.kx += ((f.x - a.x) / (d || 1)) * 0.9;
+            f.ky += ((f.y - a.y) / (d || 1)) * 0.9;
+          }
+        }
+        if (any) {
+          a.actAt = n.t;
+          n.flashes.push({ kind: 'swing', x: a.x, y: a.y, at: n.t, ang: Math.atan2(n.fy, n.fx), r: 1.3 });
+        }
+      } else if (c === 'rogue') {
+        every = Math.max(0.45, 1.1 - 0.12 * L);
+        const f = nearestFoe(n, a, 6);
+        if (f) {
+          n.flashes.push({ kind: 'blink', x: a.x, y: a.y, at: n.t });
+          a.x = Math.max(0.5, Math.min(FIELD - 0.5, f.x - Math.sign(f.x - n.x || 1) * (f.r + 0.3)));
+          a.y = f.y;
+          hurtFoe(n, f, (12 + 6 * L) * (f.hp >= f.maxHp ? 1.5 : 1));
+          a.actAt = n.t;
+        }
+      } else if (c === 'necro') {
+        every = Math.max(2, 5 - 0.5 * L);
+        raiseThralls(n, a, 1 + Math.floor(L / 2), 7 + L, 3 + 2 * L + n.t / 90);
+        a.actAt = n.t;
+      } else if (c === 'paladin') {
+        every = Math.max(1, 2.3 - 0.22 * L);
+        const f = nearestFoe(n, a, 7);
+        if (f) {
+          n.flashes.push({ kind: 'bolt', x: f.x, y: f.y, at: n.t });
+          hurtFoe(n, f, (8 + 4 * L) * (f.boss ? 2 : 1));
+          a.actAt = n.t;
+        }
+        // a gentle heal every few seconds
+        const healEvery = Math.max(4, 10 - L);
+        if (Math.floor(n.t / healEvery) !== Math.floor((n.t - every) / healEvery) && n.hp < n.maxHp) n.hp = Math.min(n.maxHp, n.hp + 1 + Math.floor(L / 2));
+      } else if (c === 'ranger') {
+        every = Math.max(0.35, 0.95 - 0.1 * L);
+        const targets = n.foes.filter((f) => f.hp > 0 && near(a, f) < 8).sort((p, q) => near(a, p) - near(a, q)).slice(0, 1 + Math.floor(L / 2));
+        for (const f of targets) {
+          const d = near(a, f) || 1;
+          n.darts.push({ x: a.x, y: a.y, vx: ((f.x - a.x) / d) * 11, vy: ((f.y - a.y) / d) * 11, dmg: 4 + 2 * L, pierce: Math.floor(L / 2), life: 1.1, hit: [], kind: 'dart' });
+        }
+        if (targets.length) a.actAt = n.t;
+      } else if (c === 'mage') {
+        every = Math.max(0.8, 1.9 - 0.2 * L);
+        if (nearestFoe(n, a, 8)) {
+          for (let k = 0; k < 1 + Math.floor(L / 2); k++) {
+            const ang = n.rand() * Math.PI * 2;
+            n.darts.push({ x: a.x, y: a.y, vx: Math.cos(ang) * 5, vy: Math.sin(ang) * 5, dmg: 10 + 5 * L, pierce: 0, life: 2.5, hit: [], kind: 'missile' });
+          }
+          a.actAt = n.t;
+        }
+      } else if (c === 'barbarian') {
+        every = Math.max(0.8, 1.6 - 0.15 * L);
+        const r = 1.5 + 0.12 * L;
+        let any = false;
+        for (const f of n.foes) {
+          if (f.hp <= 0 || near(a, f) > r + f.r) continue;
+          any = true;
+          hurtFoe(n, f, 6 + 3 * L);
+        }
+        if (any) {
+          a.actAt = n.t;
+          n.flashes.push({ kind: 'swing', x: a.x, y: a.y, at: n.t, ang: 0, r });
+        }
+      } else if (c === 'bellringer') {
+        every = Math.max(2, 4.6 - 0.45 * L);
+        const r = 2.2 + 0.3 * L;
+        n.flashes.push({ kind: 'ring', x: a.x, y: a.y, at: n.t, r });
+        for (const f of n.foes) {
+          const d = near(a, f);
+          if (f.hp <= 0 || d > r + f.r) continue;
+          hurtFoe(n, f, 4 + 3 * L);
+          f.slowUntil = n.t + 1;
+          if (!f.boss) {
+            f.kx += ((f.x - a.x) / (d || 1)) * 1.4;
+            f.ky += ((f.y - a.y) / (d || 1)) * 1.4;
+          }
+        }
+        a.actAt = n.t;
+      }
+      a.next = n.t + every * cd;
+    }
+  }
+
+  // ---- the relics' helpers: keep as many hounds and knights as their levels call for ----
+  const want = (kind: 'hound' | 'spectre', count: number) => {
+    const have = n.minions.filter((m) => m.kind === kind);
+    for (let k = have.length; k < count; k++) n.minions.push({ kind, x: n.x + (n.rand() - 0.5) * 2, y: n.y + (n.rand() - 0.5) * 2, fx: 1, next: n.t + 0.5, until: Infinity, actAt: -1, dmg: 0 });
+  };
+  const hl = lv(n, 'hound');
+  if (hl) want('hound', n.fused.wildhunt ? 3 : hl >= 4 ? 2 : 1);
+  const sl = lv(n, 'spectre');
+  if (sl) want('spectre', (1 + (sl >= 3 ? 1 : 0) + (sl >= 5 ? 1 : 0)) * (n.fused.revenant ? 2 : 1));
+  // The Thrall Totem raises its own.
+  const tl = lv(n, 'totem');
+  if (tl && (n.next.totem ?? 0) <= n.t) {
+    n.next.totem = n.t + Math.max(2.5, 6 - 0.6 * tl) * cd * (ascOf(n, 'totem') ? 0.8 : 1);
+    const barrow = n.fused.barrow ? 2 : 1;
+    raiseThralls(n, n, (1 + Math.floor(tl / 2)) * barrow, (6 + tl) * barrow, (3 + 2 * tl) * pw(n, 'totem'));
+  }
+
+  for (const m of n.minions) {
+    if (m.kind === 'thrall') {
+      const f = nearestFoe(n, m, 7);
+      if (f) walk(m, f.x, f.y, 2.6, dt, f.r + 0.25);
+      else walk(m, n.x, n.y, 2.6, dt, 1.2);
+      if (f && n.t >= m.next && near(m, f) < f.r + 0.5) {
+        hurtFoe(n, f, m.dmg);
+        m.next = n.t + 0.6;
+        m.actAt = n.t;
+      }
+      continue;
+    }
+    if (near(m, n) > 10) {
+      m.x = n.x + (n.rand() - 0.5) * 2;
+      m.y = n.y + (n.rand() - 0.5) * 2;
+    }
+    if (m.kind === 'hound') {
+      const f = nearestFoe(n, n, 8);
+      if (f) walk(m, f.x, f.y, (n.fused.wildhunt ? 7.5 : 6) * (1 + 0.05 * hl), dt, f.r + 0.2);
+      else walk(m, n.x + 0.9, n.y + 0.4, 6, dt, 0.5);
+      if (f && n.t >= m.next && near(m, f) < f.r + 0.45) {
+        hurtFoe(n, f, (6 + 3 * hl) * (n.fused.wildhunt ? 2 : 1) * pw(n, 'hound'));
+        m.next = n.t + Math.max(0.4, 0.9 - 0.1 * hl) * cd;
+        m.actAt = n.t;
+      }
+    } else {
+      // a spectral knight: walks out to the dead near you and swings at all round
+      const f = nearestFoe(n, n, 6);
+      if (f) walk(m, f.x, f.y, 3.8, dt, f.r + 0.6);
+      else walk(m, n.x - 1, n.y - 0.6, 3.8, dt, 0.8);
+      if (f && n.t >= m.next && near(m, f) < f.r + 1.3) {
+        for (const o of n.foes) if (o.hp > 0 && near(m, o) < 1.3 + o.r) hurtFoe(n, o, (6 + 3 * sl) * (n.fused.revenant ? 2 : 1) * pw(n, 'spectre'));
+        n.flashes.push({ kind: 'swing', x: m.x, y: m.y, at: n.t, ang: Math.atan2(f.y - m.y, f.x - m.x), r: 1.3, asc: ascOf(n, 'spectre') });
+        m.next = n.t + Math.max(0.7, 1.4 - 0.12 * sl) * cd;
+        m.actAt = n.t;
+      }
+    }
+  }
+  n.minions = n.minions.filter((m) => m.until > n.t);
 }
 
 /** What a night pays, in Souls: one for every six put down, up to 500, and up to 150 more for every pact taken. */

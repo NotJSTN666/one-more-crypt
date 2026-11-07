@@ -9,13 +9,13 @@ import { centralDate } from './daily';
 import { NIGHT_GIFT, NIGHT_GIFT_KILLS } from './graveshift';
 import { heroSprite } from './hero';
 import { grave, groundFor, hash, paintGround, seasonWeather, setDress, tree, type Dress, type Px } from './hollow-art';
-import { SHRINE, buyShrine, grantFeats, graveState, meta, noteMonth, noteTrial, outfitFor, receiveGift, saveMeta, setShrineStart, shrineLevel, type ShrineGift } from './meta';
+import { SHRINE, buyShrine, setCompanion, grantFeats, graveState, meta, noteMonth, noteTrial, outfitFor, receiveGift, saveMeta, setShrineStart, shrineLevel, type ShrineGift } from './meta';
 import { HERO_BY_ID } from './content';
 import type { EnemyKind } from './game';
 import { celebrate, celebrateNotes } from './progress-ui';
 import type { AchievementDef } from './content';
 import {
-  dashCooldown, FIELD, MAX_LEVEL, type Night, area, dash, spadeReach, NIGHT_RELIC, NIGHT_RELICS, chooseRelic, frostRadius, levelChoices, newNight, nextBossAt, nightSouls, skullCount, skullOrbit, step, xpToLevel, NIGHT_FUSION, fusionOf, isFusion, nightFeats, isBlessing, NIGHT_BLESSING, NIGHT_BLESSINGS, bl, type NightPick, ASCENDED, ASCEND_TEXT, DAWN, ELITES, NEW_FOES, isBoss as isBossKind, NIGHT_PERKS, chooseDawn, reroll, banish, skipLevel, plainLevel, type RelicKind, NIGHT_EVENTS, NIGHT_PACTS, NO_PACT, ascendedWeapon, isAscend, isPact, type FusionId, type PactId } from './nightshift';
+  dashCooldown, FIELD, MAX_LEVEL, type Night, area, dash, spadeReach, NIGHT_RELIC, NIGHT_RELICS, chooseRelic, frostRadius, levelChoices, newNight, nextBossAt, nightSouls, skullCount, skullOrbit, step, xpToLevel, NIGHT_FUSION, fusionOf, isFusion, nightFeats, isBlessing, NIGHT_BLESSING, NIGHT_BLESSINGS, bl, type NightPick, ASCENDED, ASCEND_TEXT, DAWN, ELITES, NEW_FOES, isBoss as isBossKind, NIGHT_PERKS, chooseDawn, reroll, banish, skipLevel, plainLevel, type RelicKind, NIGHT_EVENTS, NIGHT_PACTS, NO_PACT, ascendedWeapon, isAscend, isPact, type FusionId, type PactId, ALLY_PICK, COMPANIONS, COMPANION_IDS, type CompanionId } from './nightshift';
 import { ONLINE, nightBoard, submitNight } from './online';
 import { featCosmetics, seasonDress, soulSurge } from './progression';
 import { claimInlineHtml, keepNameHtml, wireKeepName, ensureGuest, playerName, showLeaderboard, signedIn, unclaimed, wireClaimInline } from './social';
@@ -115,7 +115,44 @@ export function nightV2Live(): boolean {
   return centralDate() >= NIGHT_V2_FROM || /[?&]preview=night2\b/.test(location.search);
 }
 
+/** Start a night: the first time, choose a companion to walk it with you first. */
 export function showNightShift(back: () => void) {
+  if (meta.nightShrine.companion === undefined) return showCompanionPick(() => startNight(back), back, true);
+  startNight(back);
+}
+
+/** Choose who walks the night with you (or go alone). Kept for every night after. */
+export function showCompanionPick(then: () => void, back: () => void, first = false) {
+  const now = meta.nightShrine.companion ?? '';
+  const ids = COMPANION_IDS.filter((id) => id !== meta.hero);
+  showOverlay('night-companion', `
+    <h2>🤝 Choose a companion</h2>
+    <p class="sub">${first ? 'Another hero walks the night with you, fighting in their own way. Level-ups now and then offer to make them stronger.' : 'Who walks the night with you.'}</p>
+    <div class="ns-companions">${ids.map((id) => {
+      const c = COMPANIONS[id];
+      return `<button type="button" class="ns-choice ${now === id ? 'on' : ''}" data-ally="${id}">
+        <span class="ns-choice-emoji"><canvas class="ally-face" data-face="${id}" width="12" height="12"></canvas></span>
+        <span class="ns-choice-info"><b>${esc(c.name)}</b> <small>${c.emoji}${now === id ? ' · with you now' : ''}</small><span>${esc(c.text)}</span></span>
+      </button>`;
+    }).join('')}</div>
+    <button class="btn ${now === '' && !first ? 'primary' : ''}" data-ally="">🚶 Go alone</button>
+    <p class="fine">You can change this any time at the Night Shrine.</p>
+    <button class="btn" id="back">← Back</button>`);
+  overlay.querySelectorAll<HTMLCanvasElement>('canvas.ally-face').forEach((c) => {
+    const id = c.dataset.face as CompanionId;
+    const fit = outfitFor(id);
+    c.getContext('2d')!.drawImage(heroSprite(id, {}, [], fit.look, fit.head).normal, 0, 0, 12, 12);
+  });
+  overlay.querySelectorAll<HTMLElement>('[data-ally]').forEach((b) =>
+    b.addEventListener('click', () => {
+      setCompanion(b.dataset.ally ?? '');
+      then();
+    }),
+  );
+  on('#back', back);
+}
+
+function startNight(back: () => void) {
   const touch = matchMedia('(pointer: coarse)').matches;
   const side = stickSide();
   showOverlay('nightshift', `
@@ -155,12 +192,15 @@ export function showNightShift(back: () => void) {
   portalPlaying(true);
   const v2 = nightV2Live();
   const sh = meta.nightShrine;
-  const n = newNight(Math.random, v2, { hero: meta.hero, shrine: { vigor: sh.vigor, reroll: sh.reroll, banish: sh.banish, start: sh.arsenal && sh.start ? (sh.start as RelicKind) : undefined } });
+  const n = newNight(Math.random, v2, { hero: meta.hero, shrine: { vigor: sh.vigor, reroll: sh.reroll, banish: sh.banish, start: sh.arsenal && sh.start ? (sh.start as RelicKind) : undefined }, companion: sh.companion && sh.companion !== meta.hero ? sh.companion : '' });
   current = n;
   // Local development only: the night, for poking at from the console.
   if (import.meta.env.DEV) (window as unknown as { night?: unknown }).night = n;
   const fit = outfitFor(meta.hero);
   const hero = heroSprite(meta.hero, {}, [], fit.look, fit.head);
+  const allyFit = n.companion ? outfitFor(n.companion) : null;
+  const allySprite = n.companion && allyFit ? heroSprite(n.companion, {}, [], allyFit.look, allyFit.head) : null;
+  const spectreSprite = heroSprite('knight', {}, []);
   const ground = fieldCanvas();
   let paused = false;
   let ended = false;
@@ -450,6 +490,15 @@ export function showNightShift(back: () => void) {
             ${touch ? '' : `<kbd>${i + 1}</kbd>`}
           </button>`;
         }
+        if (id === ALLY_PICK) {
+          if (!n.ally || !n.companion) return '';
+          const c = COMPANIONS[n.companion];
+          return `<button type="button" class="ns-choice ally" data-pick="${id}">
+            <span class="ns-choice-emoji">${c.emoji}</span>
+            <span class="ns-choice-info"><b>${esc(c.name)} companion</b> <small>🤝 Lv ${n.ally.level + 1}${n.ally.level + 1 === MAX_LEVEL ? ' · max' : ''}</small><span>${esc(c.up)}</span></span>
+            ${touch ? '' : `<kbd>${i + 1}</kbd>`}
+          </button>`;
+        }
         const r = NIGHT_RELIC[id];
         const at = n.relics[id] ?? 0;
         return `<button type="button" class="ns-choice" data-pick="${id}">
@@ -538,6 +587,9 @@ export function showNightShift(back: () => void) {
         sfx.toll();
         toast(`🕯️ ${NIGHT_PACTS[id as PactId].name} sealed`);
       }
+    } else if (id === ALLY_PICK && n.companion) {
+      sfx.relic();
+      toast(`🤝 ${COMPANIONS[n.companion].name} grows stronger`);
     } else sfx.heal();
     relicRow();
     last = performance.now();
@@ -628,7 +680,7 @@ export function showNightShift(back: () => void) {
   // ---- the HUD ----
   let hudKey = '';
   function relicRow() {
-    $id('ns-relics').innerHTML = NIGHT_RELICS.filter((r) => n.relics[r.id])
+    $id('ns-relics').innerHTML = (n.ally && n.companion ? `<span class="ns-relic ally" title="${esc(COMPANIONS[n.companion].name)} companion, level ${n.ally.level}">${COMPANIONS[n.companion].emoji}<small>${n.ally.level}</small></span>` : '') + NIGHT_RELICS.filter((r) => n.relics[r.id])
       .map((r) => {
         const f = fusionOf(n, r.id);
         if (f && n.ascended[f.id]) return `<span class="ns-relic fused ascended" title="${esc(ASCENDED[f.id])}">${f.emoji}<small>✦</small></span>`;
@@ -731,6 +783,7 @@ export function showNightShift(back: () => void) {
     if (!touch) highlight(0);
   }
   if (n.v2 && NIGHT_PERKS[n.hero]) window.setTimeout(() => toast(`${HERO_BY_ID[n.hero as keyof typeof HERO_BY_ID]?.name ?? 'Hero'}: ${NIGHT_PERKS[n.hero]}`), 1500);
+  if (n.companion) window.setTimeout(() => toast(`🤝 ${COMPANIONS[n.companion as CompanionId].name} walks the night with you`), 4200);
   // The bosses up last frame, so one that falls can be named; and when the last fell, for the flash.
   let bossesUp: { id: number; kind: string }[] = [];
   let felledAt = -10;
@@ -1275,7 +1328,7 @@ export function showNightShift(back: () => void) {
     }
 
     // darts, scythes and wisps
-    const ascDart = { dart: ascendedWeapon(n, 'quiver'), scythe: ascendedWeapon(n, 'scythe'), wisp: ascendedWeapon(n, 'wisps') };
+    const ascDart = { dart: ascendedWeapon(n, 'quiver'), scythe: ascendedWeapon(n, 'scythe'), wisp: ascendedWeapon(n, 'wisps'), missile: false };
     for (const d of n.darts) {
       const x = sx(d.x);
       const y = sy(d.y);
@@ -1297,6 +1350,16 @@ export function showNightShift(back: () => void) {
         }
         ctx.globalAlpha = 1;
         glowAt(x, y, dark ? '160,110,255' : '200,215,255', 9, 0.45);
+      } else if (d.kind === 'missile') {
+        // the Mage's missile: a violet spark with a short tail
+        for (let k = 1; k <= 3; k++) {
+          ctx.globalAlpha = 0.45 - k * 0.12;
+          px(Math.round(x - ux * k * 2.5) - 1, Math.round(y - uy * k * 2.5) - 1, 2, 2, '#c9a8ff');
+        }
+        ctx.globalAlpha = 1;
+        glowAt(x, y, '180,120,255', 8, 0.6);
+        px(Math.round(x) - 2, Math.round(y) - 2, 4, 4, '#e6d4ff');
+        px(Math.round(x) - 1, Math.round(y) - 1, 2, 2, '#ffffff');
       } else if (d.kind === 'wisp') {
         // ghost-fire: a flickering head with a fading tail
         const fl = 0.8 + 0.2 * Math.sin(t * 30 + d.x * 7);
@@ -1326,6 +1389,66 @@ export function showNightShift(back: () => void) {
         ctx.restore();
         if (n.fused.barrage) glowAt(x, y, '255,230,170', 5, 0.35);
       }
+    }
+
+    // your helpers: thralls, hounds and spectral knights, then your companion
+    for (const m of [...n.minions].sort((a, b) => a.y - b.y)) {
+      const x = Math.round(sx(m.x) - 6);
+      const y = Math.round(sy(m.y) - 9);
+      if (x < -16 || y < -16 || x > W + 16 || y > H + 16) continue;
+      const fresh = n.t - m.actAt < 0.15;
+      px(x + 2, y + 11, 8, 2, 'rgba(0,0,0,0.35)');
+      // a faint blue ring: on your side, not theirs
+      ctx.strokeStyle = 'rgba(127, 178, 255, 0.55)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.ellipse(x + 6, y + 12, 5, 2, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.save();
+      let img: CanvasImageSource;
+      if (m.kind === 'spectre') {
+        ctx.globalAlpha = 0.55 + 0.15 * Math.sin(t * 3 + m.x);
+        glowAt(x + 6, y + 6, '140,200,255', 10, 0.35);
+        img = fresh ? spectreSprite.white : spectreSprite.normal;
+      } else {
+        // thralls crumble as their time runs out
+        if (m.kind === 'thrall') ctx.globalAlpha = Math.max(0.3, Math.min(1, (m.until - n.t) / 1.5));
+        const frames = enemyFrames(m.kind === 'hound' ? 'hound' : 'thrall');
+        img = (fresh ? frames.attack : frames.idle[Math.floor(t * 3 + m.x) % 2]).normal;
+      }
+      if (m.fx < 0) {
+        ctx.translate(x + 12, y);
+        ctx.scale(-1, 1);
+        ctx.drawImage(img, 0, 0, 12, 12);
+      } else ctx.drawImage(img, x, y, 12, 12);
+      ctx.restore();
+    }
+    if (n.ally && allySprite) {
+      const a = n.ally;
+      const ax = Math.round(sx(a.x) - 6);
+      const ay = Math.round(sy(a.y) - 9);
+      if (n.companion === 'knight') {
+        // the ground they hold
+        ctx.strokeStyle = 'rgba(127, 178, 255, 0.14)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(sx(a.x), sy(a.y), (2.2 + 0.3 * a.level) * TILE, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      // a pale blue ring at their feet, so they're easy to tell from you
+      ctx.strokeStyle = 'rgba(127, 178, 255, 0.75)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.ellipse(sx(a.x), ay + 13, 7, 3, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      const img = n.t - a.actAt < 0.12 ? allySprite.white : allySprite.normal;
+      ctx.save();
+      if (a.fx < 0) {
+        ctx.translate(ax + 12, ay);
+        ctx.scale(-1, 1);
+        ctx.drawImage(img, 0, 0, 12, 12);
+      } else ctx.drawImage(img, ax, ay, 12, 12);
+      ctx.restore();
     }
 
     // a dash leaves a trail of fading afterimages
@@ -1716,6 +1839,9 @@ export function showNightShrine(back: () => void) {
       <button class="btn ${meta.nightShrine.start ? '' : 'primary'}" data-start="">⛏️ Just the spade</button>
       ${weapons.map((w) => `<button class="btn ${meta.nightShrine.start === w.id ? 'primary' : ''}" data-start="${w.id}">${w.emoji} ${esc(w.name)}</button>`).join('')}
     </div>` : ''}
+    <h3 class="shop-head">🤝 Companion</h3>
+    <p class="fine">${meta.nightShrine.companion && meta.nightShrine.companion !== meta.hero && meta.nightShrine.companion in COMPANIONS ? `${COMPANIONS[meta.nightShrine.companion as CompanionId].emoji} ${esc(COMPANIONS[meta.nightShrine.companion as CompanionId].name)} walks the night with you.` : 'You walk the night alone.'}</p>
+    <button class="btn" id="ns-companion">🤝 Choose a companion</button>
     <p class="fine">Heroes bring a perk to the night too: ${esc(HERO_BY_ID[meta.hero as keyof typeof HERO_BY_ID]?.name ?? '')}, ${esc(NIGHT_PERKS[meta.hero] ?? '')}</p>
     <button class="btn" id="back">← Back</button>`);
   overlay.querySelectorAll<HTMLElement>('[data-buy]').forEach((b) =>
@@ -1733,6 +1859,7 @@ export function showNightShrine(back: () => void) {
       showNightShrine(back);
     }),
   );
+  on('#ns-companion', () => showCompanionPick(() => showNightShrine(back), () => showNightShrine(back)));
   on('#back', back);
 }
 

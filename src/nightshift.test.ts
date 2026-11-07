@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { cleanGraveState, newGraveState } from './graveshift';
-import { DAWN, MOTHER_AT, banish, chooseDawn, reroll, skipLevel, ASCEND_LEVEL, ELITE_LEVEL, FIRST_EVENT, NO_PACT, dashDamage, isAscend, isPact, DASH_COOLDOWN, FIELD, FIRST_BOSS, NIGHT_RELICS, POTION_HEAL, dash, dashCooldown, isBlessing, lateNight, MAX_LEVEL, chooseRelic, nightFeats, isFusion, levelChoices, newNight, nightSouls, step, wardMul, xpToLevel } from './nightshift';
+import { DAWN, MOTHER_AT, banish, chooseDawn, reroll, skipLevel, ASCEND_LEVEL, ELITE_LEVEL, FIRST_EVENT, NO_PACT, dashDamage, isAscend, isPact, DASH_COOLDOWN, FIELD, FIRST_BOSS, NIGHT_RELICS, POTION_HEAL, dash, dashCooldown, isBlessing, lateNight, MAX_LEVEL, chooseRelic, nightFeats, isFusion, levelChoices, newNight, nightSouls, step, wardMul, xpToLevel, ALLY_PICK, COMPANION_IDS } from './nightshift';
 
 /** A small fixed random source, so every run of a test is the same night. */
 function seeded(seed: number) {
@@ -453,5 +453,96 @@ describe('the longer night: dawn, new dead, bosses, shrine and perks', () => {
     skipLevel(n);
     expect(n.pendingLevels).toBe(1);
     expect(n.hp).toBe(8);
+  });
+});
+
+describe('helpers: companions and the relics that fight beside you', () => {
+  /** A night with nothing of yours fighting, one tough dummy a few tiles off, and no more dead coming. */
+  function dummyNight(companion: string, seed = 7) {
+    const n = newNight(seeded(seed), true, { companion });
+    n.relics = {};
+    while (!n.foes.length) step(n, 1 / 60, 0, 0);
+    n.spawnDebt = -1e9;
+    const f = n.foes[0];
+    n.foes = [f];
+    Object.assign(f, { hp: 1e6, maxHp: 1e6, speed: 0, dmg: 0, x: n.x + 3.5, y: n.y });
+    return { n, f };
+  }
+
+  it('every companion hero fights the dead in their own way', () => {
+    for (const id of COMPANION_IDS) {
+      const { n, f } = dummyNight(id);
+      expect(n.ally, id).not.toBeNull();
+      for (let k = 0; k < 60 * 8; k++) step(n, 1 / 60, 0, 0);
+      expect(f.hp, `${id} should hurt the dead`).toBeLessThan(1e6);
+    }
+  });
+
+  it('walks alone without a companion, and the companion never takes the hero\'s own place in choices', () => {
+    const alone = newNight(seeded(3));
+    expect(alone.ally).toBeNull();
+    for (let k = 0; k < 40; k++) {
+      alone.pendingLevels = 1;
+      expect(levelChoices(alone)).not.toContain(ALLY_PICK);
+      chooseRelic(alone, levelChoices(alone)[0]);
+    }
+  });
+
+  it('level-ups offer to sharpen the companion, up to the top level', () => {
+    const n = newNight(seeded(11), true, { companion: 'ranger' });
+    let offered = 0;
+    for (let k = 0; k < 200 && n.ally!.level < MAX_LEVEL; k++) {
+      n.pendingLevels = 1;
+      const c = levelChoices(n);
+      if (c.includes(ALLY_PICK)) {
+        offered++;
+        chooseRelic(n, ALLY_PICK);
+      } else chooseRelic(n, c[0]);
+    }
+    expect(offered).toBeGreaterThan(0);
+    expect(n.ally!.level).toBe(MAX_LEVEL);
+    n.pendingLevels = 1;
+    expect(levelChoices(n)).not.toContain(ALLY_PICK);
+  });
+
+  it('the Paladin heals you now and then', () => {
+    const { n } = dummyNight('paladin');
+    n.hp = 5;
+    for (let k = 0; k < 60 * 12; k++) step(n, 1 / 60, 0, 0);
+    expect(n.hp).toBeGreaterThan(5);
+  });
+
+  it('the Thrall Totem raises thralls that hunt, then crumble', () => {
+    const { n, f } = dummyNight('');
+    n.relics = { totem: 3 };
+    for (let k = 0; k < 60 * 2; k++) step(n, 1 / 60, 0, 0);
+    expect(n.minions.some((m) => m.kind === 'thrall')).toBe(true);
+    for (let k = 0; k < 60 * 6; k++) step(n, 1 / 60, 0, 0);
+    expect(f.hp).toBeLessThan(1e6);
+    n.relics = {};
+    for (let k = 0; k < 60 * 15; k++) step(n, 1 / 60, 0, 0);
+    expect(n.minions.filter((m) => m.kind === 'thrall')).toHaveLength(0);
+  });
+
+  it('hounds and spectral knights come with their relics, more at higher levels and fused', () => {
+    const { n, f } = dummyNight('');
+    n.relics = { hound: 1, spectre: 1 };
+    for (let k = 0; k < 60 * 6; k++) step(n, 1 / 60, 0, 0);
+    expect(n.minions.filter((m) => m.kind === 'hound')).toHaveLength(1);
+    expect(n.minions.filter((m) => m.kind === 'spectre')).toHaveLength(1);
+    expect(f.hp).toBeLessThan(1e6);
+    n.relics = { hound: 5, spectre: 5, boots: 1, thorns: 1 };
+    n.fused = { wildhunt: true, revenant: true };
+    step(n, 1 / 60, 0, 0);
+    expect(n.minions.filter((m) => m.kind === 'hound')).toHaveLength(3);
+    expect(n.minions.filter((m) => m.kind === 'spectre')).toHaveLength(6);
+  });
+
+  it('a Knight companion draws the ordinary dead to themself', () => {
+    const { n, f } = dummyNight('knight');
+    Object.assign(f, { speed: 1.5, x: n.ally!.x + 1.5, y: n.ally!.y + 1.5 });
+    const before = Math.hypot(f.x - n.ally!.x, f.y - n.ally!.y);
+    for (let k = 0; k < 20; k++) step(n, 1 / 60, 0, 0);
+    expect(Math.hypot(f.x - n.ally!.x, f.y - n.ally!.y)).toBeLessThan(before);
   });
 });
