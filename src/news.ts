@@ -24,10 +24,12 @@ export interface NewsDay {
 export const NEWS: NewsDay[] = [
   {
     date: '2026-11-07',
-    title: 'Links straight into a mode',
+    title: 'A calmer title screen, and links straight into a mode',
     notes: [
+      '🕯️ The title screen is now just today\'s crypt, Delve deeper (Endless, Horde and the Night Shift) and Story. Everything else is under More.',
       '🔗 Share a link that opens one mode directly, each with its own preview: onemorecrypt.com/daily, /endless, /horde or /night.',
     ],
+    fixes: ['💨 The Night Shift\'s dash button now lights back up when the dash is ready.'],
   },
   {
     date: '2026-11-06',

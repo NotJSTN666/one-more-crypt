@@ -1311,6 +1311,44 @@ function zoneTip(g: Game): string {
 
 // ---------- overlays ----------
 
+const DRAWER_KEY = 'omc:title-more';
+function drawerOpen(): boolean {
+  try {
+    return localStorage.getItem(DRAWER_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+function setDrawerOpen(open: boolean) {
+  try {
+    localStorage.setItem(DRAWER_KEY, open ? '1' : '0');
+  } catch {
+    // Storage blocked: it just starts closed next time.
+  }
+}
+
+/** "Delve deeper": the other ways to play, one tap from the title. */
+function showDelve() {
+  const resumable = savedRun();
+  const endlessBtn = resumable?.mode === 'endless'
+    ? `<button class="btn primary" id="continue">▶ Continue Endless<small>${HERO_BY_ID[resumable.hero].name} · floor ${resumable.floor} · ${resumable.player.hp}/${resumable.player.maxHp} HP</small></button>`
+    : `<button class="btn" id="endless">♾️ Endless Descent<small>${save.bestEndless ? `Your best: floor ${save.bestEndless}<span class="endless-record"></span>` : 'Choose your hero. No limit, no daily reset.'}</small></button>`;
+  showOverlay('delve', `
+    <button class="btn back-top" id="back">← Back</button>
+    <h2>Delve deeper</h2>
+    <p class="sub">Today's crypt is one try. These are as many as you like.</p>
+    ${endlessBtn}
+    ${hordeButtonHtml()}
+    ${nightButtonHtml()}
+  `);
+  on('#back', showTitle);
+  on('#continue', () => resumable && resumeRun(resumable));
+  on('#endless', () => withTutorialOffer(() => showHeroSelect(() => startRun('endless'), showDelve), showDelve));
+  wireHordeButton();
+  on('#nightshift', () => (nightIntroSeen() ? showNightShift(showDelve) : showNightIntro()));
+  showEndlessRecord();
+}
+
 function showTitle() {
   portalPlaying(false);
   // A newer version came out while the app sat open: load it now, between runs.
@@ -1329,7 +1367,6 @@ function showTitle() {
         <div>Daily #${today} conquered</div>
         <div class="strip">${descentStrip(done.floor)}</div>
         <div class="sub" style="margin:0">Floor ${done.floor} · ${done.kills} kills</div>
-        <a class="btn discord" href="${DISCORD_URL}" target="_blank" rel="noopener">💬 Discord</a>
         <div class="sub" style="margin:6px 0 0">Next crypt opens in <span class="countdown">--:--:--</span></div>
       </div>`
     : resumable?.mode === 'daily'
@@ -1337,63 +1374,67 @@ function showTitle() {
       : `<button class="btn primary" id="daily">Daily Descent #${today}<small>Today's hero: the ${heroToday}. One attempt.</small></button>`;
   // Once today's daily is done (and nothing is waiting to be continued), Endless is the next step.
   const endlessNext = Boolean(done) && !resumable;
-  const endlessBtn = `<button class="btn ${endlessNext ? 'primary' : ''}" id="endless">Endless Descent<small>${
-    endlessNext
-      ? `${save.bestEndless ? `Your best: floor ${save.bestEndless}` : 'No limit. No daily reset. How deep can you go?'}<span class="endless-record"></span>`
-      : save.bestEndless ? `Deepest: floor ${save.bestEndless}` : 'Choose your hero, random crypts'
-  }</small></button>`;
   const continueBlock = resumable
     ? `<button class="btn primary" id="continue">▶ Continue ${resumable.mode === 'daily' ? `Daily #${resumable.dailyNo}` : 'Endless'}<small>${HERO_BY_ID[resumable.hero].name} · floor ${resumable.floor} · ${resumable.player.hp}/${resumable.player.maxHp} HP</small></button>`
     : '';
   const ns = (n: number) => n.toLocaleString();
-  // Two columns on a computer: what to play on the left, everything else on the right.
+  // One thing to do, front and centre: today's crypt (or the run waiting), then a single
+  // "Delve deeper" for the other modes. Everything else waits in the More drawer.
+  const delveBtn = `<button class="btn ${endlessNext ? 'primary' : ''} delve-btn" id="delve">⚔️ Delve deeper<small>Endless · Horde · The Night Shift</small></button>`;
+  const extras = [
+    raid.phase !== 'open' ? raidCardHtml(raid) : '',
+    welcomeTitleHtml(),
+    keepNameHtml(false),
+    surgeHtml(),
+    trialHtml(),
+    ONLINE ? '<div class="together" id="together" hidden></div><div class="rival-line" id="rival-line" hidden></div>' : '',
+    bountiesHtml(today),
+  ].join('');
+  // A gift to claim or a name to keep: worth a dot on the closed drawer.
+  const nudge = /gift waiting|keep-name/i.test(welcomeTitleHtml() + keepNameHtml(false));
   showOverlay('title', `
     ${accountChip()}
     <h1 class="logo">One More Crypt</h1>
     <p class="tagline">One crypt. One try a day. How deep can you go?</p>
     ${onlineCountHtml()}
-    <div class="title-cols"><div class="title-play">
+    <div class="title-play">
     ${continueBlock}
     ${dailyBlock}
-    ${raid.phase !== 'soon' ? raidCardHtml(raid) : ''}
-    ${endlessBtn}
-    ${hordeButtonHtml()}
-    ${nightButtonHtml()}
+    ${raid.phase === 'open' ? raidCardHtml(raid) : ''}
+    ${delveBtn}
+    <button class="btn story-btn" id="story">📖 Story<small>${storyProgress()}</small></button>
     ${streak > 1 ? `<div class="streak">🕯️ ${streak}-day streak</div>` : ''}
-    ${raid.phase === 'soon' ? raidCardHtml(raid) : ''}
-    ${welcomeTitleHtml()}
-    ${keepNameHtml(false)}
-    ${surgeHtml()}
-    ${trialHtml()}
-    ${ONLINE ? '<div class="together" id="together" hidden></div><div class="rival-line" id="rival-line" hidden></div>' : ''}
-    ${bountiesHtml(today)}
-    </div><div class="title-more">
-    <h2 class="title-section">Adventure</h2>
-    <div class="tiles">
-      ${storyTileHtml()}
-      ${titleTile('hollow', '🌙', 'The Hollow', 'Graveyard & your isle')}
-      ${titleTile('act2', '🔔', 'Act II', act2Open() ? 'Part 1 open' : 'Opens Friday', 'act2-tile')}
     </div>
-    <h2 class="title-section">Your crypt</h2>
-    <div class="tiles">
-      ${titleTile('hall', '🏰', 'Crypt Hall', `<span style="color:${rankFor(meta.earned).color}">${esc(rankFor(meta.earned).name)}</span>`)}
-      ${titleTile('wardrobe', '🎨', 'Wardrobe', 'Dress your heroes')}
-      ${titleTile('ossuary', '🏛️', 'Ossuary', `💀 ${ns(meta.souls)} Souls${meta.bought.includes(marketPiece(today).id) ? '' : ` · 🕯️ Today: ${esc(marketPiece(today).name)}`}`)}
-      ${titleTile('grimoire', '📖', 'Grimoire', 'Relics & combos')}
-      ${ONLINE ? titleTile('leaderboard', '🏆', 'Leaderboards', 'Daily & Endless') : ''}
-      ${ONLINE ? titleTile('invite', '👥', 'Bring a friend', meta.invite.friends ? `${meta.invite.friends} brought` : 'You both get a cloak') : ''}
-      ${titleTile('feedback', '💬', 'Feedback', 'Bugs & ideas')}
-      ${titleTile('help', '❔', 'How to play', 'The basics')}
-    </div>
+    <details class="title-drawer" id="title-drawer"${drawerOpen() ? ' open' : ''}>
+      <summary>${nudge ? '<span class="drawer-dot"></span>' : ''}☰ More<small>Bounties · your Hall · Ossuary · leaderboards</small></summary>
+      <div class="drawer-body">
+      ${extras}
+      <h2 class="title-section">Adventure</h2>
+      <div class="tiles">
+        ${titleTile('hollow', '🌙', 'The Hollow', 'Graveyard & your isle')}
+        ${titleTile('act2', '🔔', 'Act II', act2Open() ? 'Part 1 open' : 'Opens Friday', 'act2-tile')}
+      </div>
+      <h2 class="title-section">Your crypt</h2>
+      <div class="tiles">
+        ${titleTile('hall', '🏰', 'Crypt Hall', `<span style="color:${rankFor(meta.earned).color}">${esc(rankFor(meta.earned).name)}</span>`)}
+        ${titleTile('wardrobe', '🎨', 'Wardrobe', 'Dress your heroes')}
+        ${titleTile('ossuary', '🏛️', 'Ossuary', `💀 ${ns(meta.souls)} Souls${meta.bought.includes(marketPiece(today).id) ? '' : ` · 🕯️ Today: ${esc(marketPiece(today).name)}`}`)}
+        ${titleTile('grimoire', '📖', 'Grimoire', 'Relics & combos')}
+        ${ONLINE ? titleTile('leaderboard', '🏆', 'Leaderboards', 'Daily & Endless') : ''}
+        ${ONLINE ? titleTile('invite', '👥', 'Bring a friend', meta.invite.friends ? `${meta.invite.friends} brought` : 'You both get a cloak') : ''}
+        ${titleTile('feedback', '💬', 'Feedback', 'Bugs & ideas')}
+        ${titleTile('help', '❔', 'How to play', 'The basics')}
+      </div>
+      </div>
+    </details>
     <div class="foot-links">${followXHtml}${discordHtml}${kofiHtml}<a class="follow-x privacy" href="${PRIVACY_URL}" target="_blank" rel="noopener">🔒 Privacy</a></div>
-    </div></div>
   `);
+  overlay.querySelector('#title-drawer')?.addEventListener('toggle', (e) => setDrawerOpen((e.currentTarget as HTMLDetailsElement).open));
+  on('#delve', () => showDelve());
   on('#account', () => (unclaimed() ? showLogin(showTitle, 'claim') : showProfile(showTitle)));
   on('#leaderboard', () => showLeaderboard(showTitle));
   on('#daily', () => withTutorialOffer(() => startRun('daily')));
   on('#continue', () => resumable && resumeRun(resumable));
-  on('#endless', () => withTutorialOffer(() => showHeroSelect(() => startRun('endless'), showTitle)));
-  if (endlessNext) showEndlessRecord();
   on('#ossuary', () => showOssuary(showTitle));
   if (ONLINE) {
     void fillTogether();
@@ -3683,7 +3724,8 @@ function showNightIntro() {
 }
 
 
-function storyTileHtml(): string {
+/** Where the story is up to, for the title's Story button. */
+function storyProgress(): string {
   const main = MAIN_QUESTS.filter((q) => meta.story.done.includes(q.n)).length;
   const next = MAIN_QUESTS.find((q) => !meta.story.done.includes(q.n));
   const two = ACT2_MAIN.filter((q) => meta.story.done.includes(q.n)).length;
@@ -3691,7 +3733,7 @@ function storyTileHtml(): string {
     ? main ? `Act I · ${main}/${MAIN_QUESTS.length}` : 'Start Act I'
     : !act2Open() ? 'Act II opens Friday'
     : two === ACT2_MAIN.length ? 'Act II · Part 2 soon' : two ? `Act II · ${two}/${ACT2_MAIN.length}` : 'Act II is open';
-  return titleTile('story', '📖', 'Story', sub, 'story-tile');
+  return sub;
 }
 
 /** The Act II teaser: what's under the lid, and a way to tell us what you want down there. */
@@ -4313,10 +4355,8 @@ function playFromLink(): PlayMode | null {
 /** Press a mode's button on the title screen (Continue when that mode has a run waiting). */
 function openMode(mode: PlayMode) {
   const resumable = savedRun();
-  const id =
-    (mode === 'daily' || mode === 'endless') && resumable?.mode === mode ? 'continue'
-    : mode === 'night' ? 'nightshift'
-    : mode;
+  if (mode !== 'daily') showDelve();
+  const id = resumable?.mode === mode ? 'continue' : mode === 'night' ? 'nightshift' : mode;
   overlay.querySelector<HTMLButtonElement>(`#${id}`)?.click();
 }
 

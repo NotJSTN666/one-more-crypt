@@ -646,7 +646,9 @@ export function showNightShift(back: () => void) {
   let dashShown = -1;
   function hud() {
     const ready = Math.max(0, Math.min(1, 1 - (n.dashReady - n.t) / dashCooldown(n)));
-    const step10 = Math.round(ready * 40);
+    // Steps of the fill, plus "ready" as its own step: rounding alone would land 99% and
+    // 100% on the same step, leaving the button a sliver short and dim for good.
+    const step10 = ready >= 1 ? 41 : Math.floor(ready * 40);
     if (step10 !== dashShown) {
       dashShown = step10;
       dashBtn.style.setProperty('--cd', `${ready * 360}deg`);
