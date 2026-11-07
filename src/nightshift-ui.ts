@@ -1,3 +1,4 @@
+import { nightIcon, nightFusionIcon, blessingIcon, pactIcon } from './relic-icons';
 import { portalHappy, portalPlaying } from './portal';
 // The Night Shift on screen: the graveyard at night seen from above, the dead closing in, your
 // relics fighting on their own, a level-up choice whenever you fill the soul bar, the bosses'
@@ -155,7 +156,7 @@ export function showNightShift(back: () => void) {
     <h3 class="shop-head">Your hero</h3>
     <div class="ns-pickrow">${HEROES.map((h) => {
       const open = heroUnlocked(h.id);
-      return `<button type="button" class="ns-pick ${h.id === hero ? 'on' : ''}" data-hero="${h.id}" ${open ? '' : 'disabled'}>${face(h.id)}<b>${esc(h.name)}</b><small>${open ? esc(NIGHT_RELICS.find((r) => r.hero === h.id)?.emoji ?? '') + ' ' + esc(NIGHT_RELICS.find((r) => r.hero === h.id)?.name ?? '') : '🔒 Locked'}</small></button>`;
+      return `<button type="button" class="ns-pick ${h.id === hero ? 'on' : ''}" data-hero="${h.id}" ${open ? '' : 'disabled'}>${face(h.id)}<b>${esc(h.name)}</b><small>${open ? nightIcon(NIGHT_RELICS.find((r) => r.hero === h.id)?.id ?? '', '') + ' ' + esc(NIGHT_RELICS.find((r) => r.hero === h.id)?.name ?? '') : '🔒 Locked'}</small></button>`;
     }).join('')}</div>
     <p class="fine ns-pickinfo">${esc(HERO_BY_ID[hero].name)}: ${esc(NIGHT_RELICS.find((r) => r.hero === hero)?.text(1) ?? '')} ${esc(NIGHT_PERKS[hero] ?? '')}</p>
     <h3 class="shop-head">Companion</h3>
@@ -506,7 +507,7 @@ function startNight(back: () => void) {
           }
           const pc = NIGHT_PACTS[id];
           return `<button type="button" class="ns-choice pact" data-pick="${id}">
-            <span class="ns-choice-emoji">${pc.emoji}</span>
+            <span class="ns-choice-emoji">${pactIcon(id, pc.emoji)}</span>
             <span class="ns-choice-info"><b>${esc(pc.name)}</b> <small>🕯️ Pact · Souls cap +150</small><span class="curse">☠️ ${esc(pc.curse)}</span><span>✨ ${esc(pc.boon)}</span></span>
             ${touch ? '' : `<kbd>${i + 1}</kbd>`}
           </button>`;
@@ -515,7 +516,7 @@ function startNight(back: () => void) {
           const fid = id.slice(4) as FusionId;
           const f = NIGHT_FUSION[fid];
           return `<button type="button" class="ns-choice ascend" data-pick="${id}">
-            <span class="ns-choice-emoji">${f.emoji}</span>
+            <span class="ns-choice-emoji">${nightFusionIcon(fid, f.emoji)}</span>
             <span class="ns-choice-info"><b>${esc(ASCENDED[fid])}</b> <small>✦ Ascend ${esc(f.name)}</small><span>${esc(ASCEND_TEXT)}</span></span>
             ${touch ? '' : `<kbd>${i + 1}</kbd>`}
           </button>`;
@@ -524,8 +525,8 @@ function startNight(back: () => void) {
           // a fusion at the Soul Forge: the weapon and its charm become one
           const f = NIGHT_FUSION[id];
           return `<button type="button" class="ns-choice forge" data-pick="${id}">
-            <span class="ns-choice-emoji">${f.emoji}</span>
-            <span class="ns-choice-info"><b>${esc(f.name)}</b> <small>🔥 Soul Forge · ${NIGHT_RELIC[f.weapon].emoji} + ${NIGHT_RELIC[f.charm].emoji}</small><span>${esc(f.text)}</span></span>
+            <span class="ns-choice-emoji">${nightFusionIcon(id, f.emoji)}</span>
+            <span class="ns-choice-info"><b>${esc(f.name)}</b> <small>🔥 Soul Forge · ${nightIcon(f.weapon, NIGHT_RELIC[f.weapon].emoji)} + ${nightIcon(f.charm, NIGHT_RELIC[f.charm].emoji)}</small><span>${esc(f.text)}</span></span>
             ${touch ? '' : `<kbd>${i + 1}</kbd>`}
           </button>`;
         }
@@ -534,7 +535,7 @@ function startNight(back: () => void) {
           const b = NIGHT_BLESSING[id];
           const had = bl(n, id);
           return `<button type="button" class="ns-choice blessing" data-pick="${id}">
-            <span class="ns-choice-emoji">${b.emoji}</span>
+            <span class="ns-choice-emoji">${blessingIcon(id, b.emoji)}</span>
             <span class="ns-choice-info"><b>${esc(b.name)}</b> <small>✨ Blessing${had ? ` · ×${had + 1}` : ''}</small><span>${esc(b.text)}</span></span>
             ${touch ? '' : `<kbd>${i + 1}</kbd>`}
           </button>`;
@@ -551,7 +552,7 @@ function startNight(back: () => void) {
         const r = NIGHT_RELIC[id];
         const at = n.relics[id] ?? 0;
         return `<button type="button" class="ns-choice" data-pick="${id}">
-          <span class="ns-choice-emoji">${r.emoji}</span>
+          <span class="ns-choice-emoji">${nightIcon(id, r.emoji)}</span>
           <span class="ns-choice-info"><b>${esc(r.name)}</b> <small>${at ? `Lv ${at + 1}${at + 1 === MAX_LEVEL ? ' · max' : ''}` : r.weapon ? 'New weapon' : 'New charm'}</small><span>${esc(r.text(at + 1))}</span></span>
           ${touch ? '' : `<kbd>${i + 1}</kbd>`}
         </button>`;
@@ -671,7 +672,7 @@ function startNight(back: () => void) {
     saveMeta();
     sfx.death();
     setMusicMood('fallen');
-    const build = NIGHT_RELICS.filter((r) => n.relics[r.id]).map((r) => `${fusionOf(n, r.id)?.emoji ?? r.emoji}<small>${fusionOf(n, r.id) ? '★' : n.relics[r.id]}</small>`).join(' ');
+    const build = NIGHT_RELICS.filter((r) => n.relics[r.id]).map((r) => `${fusionOf(n, r.id) ? nightFusionIcon(fusionOf(n, r.id)!.id, fusionOf(n, r.id)!.emoji) : nightIcon(r.id, r.emoji)}<small>${fusionOf(n, r.id) ? '★' : n.relics[r.id]}</small>`).join(' ');
     window.setTimeout(() => {
       if (!overlay.querySelector('#ns-canvas')) return;
       showOverlay('nightshift-end', `
@@ -740,15 +741,15 @@ function startNight(back: () => void) {
     $id('ns-relics').innerHTML = (n.ally && n.companion ? `<span class="ns-relic ally" title="${esc(COMPANIONS[n.companion].name)} companion, level ${n.ally.level}">${COMPANIONS[n.companion].emoji}<small>${n.ally.level}</small></span>` : '') + NIGHT_RELICS.filter((r) => n.relics[r.id])
       .map((r) => {
         const f = fusionOf(n, r.id);
-        if (f && n.ascended[f.id]) return `<span class="ns-relic fused ascended" title="${esc(ASCENDED[f.id])}">${f.emoji}<small>✦</small></span>`;
+        if (f && n.ascended[f.id]) return `<span class="ns-relic fused ascended" title="${esc(ASCENDED[f.id])}">${nightFusionIcon(f.id, f.emoji)}<small>✦</small></span>`;
         return f
-          ? `<span class="ns-relic fused" title="${esc(f.name)}">${f.emoji}<small>★</small></span>`
-          : `<span class="ns-relic ${r.weapon ? '' : 'charm'}" title="${esc(r.name)}">${r.emoji}<small>${n.relics[r.id]}</small></span>`;
+          ? `<span class="ns-relic fused" title="${esc(f.name)}">${nightFusionIcon(f.id, f.emoji)}<small>★</small></span>`
+          : `<span class="ns-relic ${r.weapon ? '' : 'charm'}" title="${esc(r.name)}">${nightIcon(r.id, r.emoji)}<small>${n.relics[r.id]}</small></span>`;
       })
       .join('') + NIGHT_BLESSINGS.filter((b) => bl(n, b.id))
-      .map((b) => `<span class="ns-relic blessing" title="${esc(b.name)} ×${bl(n, b.id)}">${b.emoji}<small>×${bl(n, b.id)}</small></span>`)
+      .map((b) => `<span class="ns-relic blessing" title="${esc(b.name)} ×${bl(n, b.id)}">${blessingIcon(b.id, b.emoji)}<small>×${bl(n, b.id)}</small></span>`)
       .join('') + (Object.keys(NIGHT_PACTS) as PactId[]).filter((id) => n.pacts[id])
-      .map((id) => `<span class="ns-relic pact" title="${esc(NIGHT_PACTS[id].name)}: ${esc(NIGHT_PACTS[id].curse)} ${esc(NIGHT_PACTS[id].boon)}">${NIGHT_PACTS[id].emoji}<small>🕯️</small></span>`)
+      .map((id) => `<span class="ns-relic pact" title="${esc(NIGHT_PACTS[id].name)}: ${esc(NIGHT_PACTS[id].curse)} ${esc(NIGHT_PACTS[id].boon)}">${pactIcon(id, NIGHT_PACTS[id].emoji)}<small>🕯️</small></span>`)
       .join('');
   }
   relicRow();
@@ -2003,8 +2004,8 @@ export function showNightShrine(back: () => void) {
       </div>`;
     }).join('')}</div>
     ${meta.nightShrine.arsenal ? `<h3 class="shop-head">⚔️ Start each night with</h3><div class="shrine-weapons">
-      <button class="btn ${meta.nightShrine.start ? '' : 'primary'}" data-start="">⛏️ Just the spade</button>
-      ${weapons.map((w) => `<button class="btn ${meta.nightShrine.start === w.id ? 'primary' : ''}" data-start="${w.id}">${w.emoji} ${esc(w.name)}</button>`).join('')}
+      <button class="btn ${meta.nightShrine.start ? '' : 'primary'}" data-start="">${nightIcon('spade', '⛏️')} Just the spade</button>
+      ${weapons.map((w) => `<button class="btn ${meta.nightShrine.start === w.id ? 'primary' : ''}" data-start="${w.id}">${nightIcon(w.id, w.emoji)} ${esc(w.name)}</button>`).join('')}
     </div>` : ''}
     <p class="fine">Choose your hero and companion before each night. Each hero brings their own weapon and a perk.</p>
     <button class="btn" id="back">← Back</button>`);

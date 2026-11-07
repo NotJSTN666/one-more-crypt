@@ -1,3 +1,4 @@
+import { relicIcon } from './relic-icons';
 // "How to play" with living examples: tiny scenes run on the real game rules and
 // renderer, each looping a few scripted moves so new players can see each rule.
 // Below them, picture cards for the modes, the deeper crypt, every hero and every foe.
@@ -100,7 +101,7 @@ function relicStrip(): string {
     .map((log, i) => {
       const relics: Partial<Record<RelicId, number>> = {};
       for (const id of log) relics[id] = (relics[id] ?? 0) + 1;
-      const added = i === 0 ? '' : log.slice(stages[i - 1].length).map((id) => RELIC_BY_ID[id].emoji).join('');
+      const added = i === 0 ? '' : log.slice(stages[i - 1].length).map((id) => relicIcon(id, RELIC_BY_ID[id].emoji)).join('');
       return `${i ? `<span class="evo-arrow">${added}<br>➜</span>` : ''}<img src="${heroPortrait('knight', relics, log, 5)}" alt="" width="48" height="48" style="--i:${i}" />`;
     })
     .join('');
@@ -110,7 +111,7 @@ function relicStrip(): string {
 function relicPick(): string {
   const three: RelicId[] = ['ember', 'mirror', 'storm'];
   return `<div class="pick3">${three
-    .map((id, i) => `<div class="pick3-card${i === 1 ? ' chosen' : ''}"><span>${RELIC_BY_ID[id].emoji}</span><b>${RELIC_BY_ID[id].name}</b></div>`)
+    .map((id, i) => `<div class="pick3-card${i === 1 ? ' chosen' : ''}"><span>${relicIcon(id, RELIC_BY_ID[id].emoji)}</span><b>${RELIC_BY_ID[id].name}</b></div>`)
     .join('')}</div>`;
 }
 

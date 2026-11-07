@@ -1,4 +1,5 @@
 import './style.css';
+import { relicIcon, boonIcon, iconCanvas, iconsFromEmoji } from './relic-icons';
 import { PORTAL, initPortal, portalHappy, portalLoaded, portalPlaying } from './portal';
 import { audioRunning, fusionSound, isMusicEnabled, isMuted, onAudioState, setMusicDepth, setMusicEnabled, setMusicMood, setMuted, sfx, unlockAudio } from './audio';
 import { centralDate, dailyNumber, formatCountdown, msUntilNextDaily, weekStart } from './daily';
@@ -1161,7 +1162,7 @@ function updateHud(reset = false) {
       chip.className = 'relic-chip';
       chip.dataset.relic = id;
       if (!reset && i >= knownRelics) chip.classList.add('new');
-      chip.textContent = def.emoji;
+      chip.innerHTML = relicIcon(id, def.emoji);
       chip.setAttribute('aria-label', def.name);
       chip.addEventListener('click', () => {
         selectedRelic = selectedRelic === id ? null : id;
@@ -1819,7 +1820,7 @@ function showChoice() {
     ...offer.relics.map((r, i) => {
       const have = game.own(r.id);
       return { name: r.name, html: `<button class="${r.rarity}" data-i="${i}">
-        <span class="emoji">${r.emoji}</span>
+        <span class="emoji">${relicIcon(r.id, r.emoji)}</span>
         <span><span class="name">${r.name}</span><span class="tag">${r.rarity.toUpperCase()}${have ? ` · OWNED ×${have}` : ''}</span>
         <span class="desc">${relicText(r.desc(have + 1))}</span></span>
       </button>` };
@@ -1828,7 +1829,7 @@ function showChoice() {
       const b = BOON_BY_ID[id];
       const have = game.boons[id];
       return { name: b.name, html: `<button class="boon" data-i="${offer.relics.length + k}">
-        <span class="emoji">${b.emoji}</span>
+        <span class="emoji">${boonIcon(id, b.emoji)}</span>
         <span><span class="name">${b.name}</span><span class="tag">ABYSS BOON${have ? ` · TAKEN ×${have}` : ''}${b.max ? ` · MAX ${b.max}` : ''}</span>
         <span class="desc">${b.desc}</span></span>
       </button>` };
@@ -1950,8 +1951,8 @@ function showForge() {
       const [a, b] = f.from.map((id) => RELIC_BY_ID[id]);
       const ascend = f.tier === 2;
       return `<button class="${ascend ? 'ascended' : 'fused'}" data-i="${i}">
-        <span class="emoji">${known ? out.emoji : ascend ? '✨' : '❔'}</span>
-        <span><span class="name">${known ? out.name : ascend ? 'Unknown ascension' : 'Unknown fusion'}</span><span class="tag">${a.emoji} ${esc(a.name)} + ${b.emoji} ${esc(b.name)}</span>
+        <span class="emoji">${known ? relicIcon(f.id, out.emoji) : ascend ? '✨' : '❔'}</span>
+        <span><span class="name">${known ? out.name : ascend ? 'Unknown ascension' : 'Unknown fusion'}</span><span class="tag">${relicIcon(a.id, a.emoji)} ${esc(a.name)} + ${relicIcon(b.id, b.emoji)} ${esc(b.name)}</span>
         <span class="desc">${known ? relicText(out.desc(1)) : 'Fuse them to discover what they become.'}</span></span>
       </button>`;
     })
@@ -2007,7 +2008,7 @@ function showFused(id: FusedId, first: boolean) {
   const f = FUSION_BY_ID[id];
   const [a, b] = f.from.map((r) => RELIC_BY_ID[r]);
   const grants = Object.entries(f.grants)
-    .map(([gid, n]) => `${RELIC_BY_ID[gid as RelicId].emoji} ${esc(RELIC_BY_ID[gid as RelicId].name)}${(n ?? 0) > 1 ? ` ×${n}` : ''}`)
+    .map(([gid, n]) => `${relicIcon(gid, RELIC_BY_ID[gid as RelicId].emoji)} ${esc(RELIC_BY_ID[gid as RelicId].name)}${(n ?? 0) > 1 ? ` ×${n}` : ''}`)
     .join(' · ');
   const ascended = def.rarity === 'ascended';
   // Hide the forge screen while the fusion plays over the whole page, then reveal the details.
@@ -2016,6 +2017,7 @@ function showFused(id: FusedId, first: boolean) {
   fusionPlaying = true;
   playFusion({
     a: a.emoji, b: b.emoji, out: def.emoji, name: def.name, ascended,
+    aImg: iconCanvas(`m:${a.id}`), bImg: iconCanvas(`m:${b.id}`), outImg: iconCanvas(`m:${id}`),
     onDone: () => {
       fusionPlaying = false;
       fusedCard(id, first, grants);
@@ -2033,13 +2035,13 @@ function fusedCard(id: FusedId, first: boolean, grants: string) {
     <div class="fused-reveal ${ascended ? 'ascended' : ''}">
       <div class="fused-stage">
         <canvas class="fused-glow" width="240" height="160" aria-hidden="true"></canvas>
-        <div class="fused-emoji">${def.emoji}</div>
+        <div class="fused-emoji">${relicIcon(id, def.emoji)}</div>
       </div>
       ${first ? '<p class="fused-new">✨ New discovery</p>' : ''}
       <p class="fused-kind">${ascended ? 'Ascended relic' : 'Fused relic'}</p>
       <h2 class="fused-name" aria-label="${esc(def.name)}">${letters}</h2>
       <div class="fused-recipe" aria-label="Forged from ${esc(a.name)} and ${esc(b.name)}">
-        <span class="fr-a" title="${esc(a.name)}">${a.emoji}</span><span class="fr-op">+</span><span class="fr-b" title="${esc(b.name)}">${b.emoji}</span><span class="fr-op">=</span><span class="fr-out">${def.emoji}</span>
+        <span class="fr-a" title="${esc(a.name)}">${relicIcon(a.id, a.emoji)}</span><span class="fr-op">+</span><span class="fr-b" title="${esc(b.name)}">${relicIcon(b.id, b.emoji)}</span><span class="fr-op">=</span><span class="fr-out">${relicIcon(id, def.emoji)}</span>
       </div>
       <p class="fused-desc">${esc(relicText(def.desc(1)))}</p>
       <p class="fine fused-from">Forged from ${esc(a.name)} + ${esc(b.name)}</p>
@@ -2209,7 +2211,7 @@ function showDeath(r: RunResult, best: boolean) {
     ${ONLINE && !ch ? `<p class="rank-line ${daily ? 'daily-rank' : ''}" id="rank">${signedIn() ? 'Carving your name into the crypt…' : daily ? 'Counting the fallen…' : ''}</p>` : ''}
     ${ONLINE && (!signedIn() || unclaimed()) ? claimInlineHtml(ch ? 'Pick a name to post your run to the challenge board. No email needed.' : `You're on ${daily ? "today's" : 'the'} board as ${unclaimed() ? esc(playerName()) : 'a guest'}. Type a name and your runs show under it. No email needed.`) : ''}
     ${keepNameHtml()}
-    ${r.relics ? `<div class="strip" style="font-size:18px">${r.relics}</div>` : ''}
+    ${r.relics ? `<div class="strip relic-strip" style="font-size:18px">${game.relicLog.length ? [...new Set(game.relicLog)].map((id) => relicIcon(id, RELIC_BY_ID[id].emoji)).join('') : iconsFromEmoji(r.relics)}</div>` : ''}
     ${r.combos ? `<p class="combo-line">${esc(r.combos)}</p>` : ''}
     ${boonLine()}
     ${best ? '<p class="streak">New deepest descent!</p>' : ''}
@@ -2592,7 +2594,7 @@ function tomorrowHtml(): string {
 /** The Abyss boons a deep run gathered, if any. */
 function boonLine(): string {
   const taken = (Object.entries(game.boons) as [keyof typeof game.boons, number][]).filter(([, n]) => n > 0);
-  return taken.length ? `<p class="combo-line">Abyss boons: ${taken.map(([id, n]) => `${BOON_BY_ID[id].emoji}×${n}`).join(' ')}</p>` : '';
+  return taken.length ? `<p class="combo-line">Abyss boons: ${taken.map(([id, n]) => `${boonIcon(id, BOON_BY_ID[id].emoji)}×${n}`).join(' ')}</p>` : '';
 }
 
 /** Seven Nights on the results screen: the seven gifts, today's marked, and what tomorrow brings. */
@@ -3217,11 +3219,11 @@ function showBuild(tab: 'build' | 'log', back?: () => void) {
   const owned = [...new Set(g.relicLog)].map((id) => {
     const def = RELIC_BY_ID[id];
     const n = g.r(id);
-    return `<li><span class="build-emoji">${def.emoji}</span><span><b>${esc(def.name)}${n > 1 ? ` ×${n}` : ''}</b><small>${esc(relicText(def.desc(n)))}</small></span></li>`;
+    return `<li><span class="build-emoji">${relicIcon(id, def.emoji)}</span><span><b>${esc(def.name)}${n > 1 ? ` ×${n}` : ''}</b><small>${esc(relicText(def.desc(n)))}</small></span></li>`;
   }).join('');
   const boons = (Object.keys(g.boons) as (keyof typeof g.boons)[]).filter((id) => g.boons[id] > 0).map((id) => {
     const b = BOON_BY_ID[id];
-    return `<li><span class="build-emoji">${b.emoji}</span><span><b>${esc(b.name)}${g.boons[id] > 1 ? ` ×${g.boons[id]}` : ''}</b><small>${esc(b.desc)}</small></span></li>`;
+    return `<li><span class="build-emoji">${boonIcon(id, b.emoji)}</span><span><b>${esc(b.name)}${g.boons[id] > 1 ? ` ×${g.boons[id]}` : ''}</b><small>${esc(b.desc)}</small></span></li>`;
   }).join('');
   const log = turnLog.length
     ? [...turnLog].reverse().map((t) => `<div class="log-turn"><h4>Turn ${t.turn}${t.turn === g.turns ? ' · just now' : ''}</h4><ul>${t.lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul></div>`).join('')

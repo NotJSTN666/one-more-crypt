@@ -142,15 +142,18 @@ function rgbOf(hex: string): string {
  * The colour of a relic's icon: drawn small, its vivid pixels averaged, then brightened, so
  * a flame reads orange and a storm yellow. Falls back to the given colour for a grey icon.
  */
-function emojiColor(emoji: string, fallback: string): string {
+function emojiColor(emoji: string, fallback: string, img?: CanvasImageSource | null): string {
   const c = document.createElement('canvas');
   c.width = c.height = 32;
   const g = c.getContext('2d', { willReadFrequently: true });
   if (!g) return fallback;
-  g.font = '26px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
-  g.textAlign = 'center';
-  g.textBaseline = 'middle';
-  g.fillText(emoji, 16, 17);
+  if (img) g.drawImage(img, 4, 4, 24, 24);
+  else {
+    g.font = '26px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(emoji, 16, 17);
+  }
   const d = g.getImageData(0, 0, 32, 32).data;
   let r = 0, gr = 0, b = 0, n = 0;
   for (let i = 0; i < d.length; i += 4) {
@@ -183,14 +186,14 @@ function twinkle(ctx: CanvasRenderingContext2D, x: number, y: number, s: number)
   ctx.fill();
 }
 
-export function playFusion(opts: { a: string; b: string; out: string; name: string; ascended: boolean; onDone: () => void }) {
+export function playFusion(opts: { a: string; b: string; out: string; name: string; ascended: boolean; onDone: () => void; aImg?: CanvasImageSource | null; bImg?: CanvasImageSource | null; outImg?: CanvasImageSource | null }) {
   if (calmChosen()) return opts.onDone();
   // The forge's own colour (blue, or gold when ascended) lights the new relic; the two relics
   // going in each bring their own colour to the circle, their trails, the sparks and the waves.
   const color = opts.ascended ? '#f2c14e' : '#7fb4ff';
   const glowRGB = opts.ascended ? '242,193,78' : '127,180,255';
-  const colA = emojiColor(opts.a, color);
-  let colB = emojiColor(opts.b, opts.ascended ? '#ffb35a' : '#c9a8ff');
+  const colA = emojiColor(opts.a, color, opts.aImg);
+  let colB = emojiColor(opts.b, opts.ascended ? '#ffb35a' : '#c9a8ff', opts.bImg);
   // Two relics of the same colour still get two colours: the second leans toward the forge's.
   if (colB === colA) colB = opts.ascended ? '#ffb35a' : '#c9a8ff';
   const rgbA = rgbOf(colA);
@@ -386,8 +389,12 @@ export function playFusion(opts: { a: string; b: string; out: string; name: stri
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.globalAlpha = clamp(t / 0.25);
-      ctx.fillText(opts.a, pa.x, pa.y);
-      ctx.fillText(opts.b, pb.x, pb.y);
+      // the new pixel icons when there are some, else the emoji
+      ctx.imageSmoothingEnabled = false;
+      if (opts.aImg) ctx.drawImage(opts.aImg, pa.x - em / 2, pa.y - em / 2, em, em);
+      else ctx.fillText(opts.a, pa.x, pa.y);
+      if (opts.bImg) ctx.drawImage(opts.bImg, pb.x - em / 2, pb.y - em / 2, em, em);
+      else ctx.fillText(opts.b, pb.x, pb.y);
       ctx.restore();
     }
 
@@ -510,7 +517,9 @@ export function playFusion(opts: { a: string; b: string; out: string; name: stri
       ctx.textBaseline = 'middle';
       ctx.shadowColor = color;
       ctx.shadowBlur = 40;
-      ctx.fillText(opts.out, cx, cy - Math.sin(after * 3) * 4);
+      ctx.imageSmoothingEnabled = false;
+      if (opts.outImg) ctx.drawImage(opts.outImg, cx - em / 2, cy - em / 2 - Math.sin(after * 3) * 4, em, em);
+      else ctx.fillText(opts.out, cx, cy - Math.sin(after * 3) * 4);
       ctx.restore();
 
       // Its name slams in underneath, in light that runs from white to the forge's colour.

@@ -1,3 +1,4 @@
+import { relicIcon } from './relic-icons';
 // Screens for progress between runs: choosing a hero, the Ossuary (spend Souls on
 // unlocks) and the Grimoire (relic codex, combos and achievements).
 
@@ -94,7 +95,7 @@ export function showOssuary(back: () => void, tab: OssuaryTab = 'unlocks') {
       const cost = RELIC_COSTS[id] ?? 0;
       const owned = meta.relics.includes(id);
       return `<div class="shop-item ${owned ? 'owned' : ''}">
-        <span class="shop-emoji">${r.emoji}</span>
+        <span class="shop-emoji">${relicIcon(id, r.emoji)}</span>
         <span class="shop-info"><span class="name">${r.name}${r.endless ? ' <em class="endless-tag">Endless only</em>' : ''}</span><span class="desc">${r.desc(1)}</span></span>
         ${owned ? '<span class="owned-tag">In the pool</span>' : buy(`data-relic="${id}"`, cost)}
       </div>`;
@@ -271,7 +272,7 @@ export function showGrimoire(back: () => void, tab: GrimoireTab = 'relics') {
     body = `<div class="codex">${RELICS.map((r) => {
       const seen = relicDiscovered(r.id);
       return `<div class="codex-item ${seen ? '' : 'unknown'}">
-        <span class="shop-emoji">${seen ? r.emoji : '❔'}</span>
+        <span class="shop-emoji">${seen ? relicIcon(r.id, r.emoji) : '❔'}</span>
         <span class="shop-info"><span class="name">${seen ? r.name : '???'}</span>
         <span class="desc">${seen ? `${r.desc(1)} · taken ${meta.codex[r.id]}×` : 'Claim this relic to record it.'}</span></span>
       </div>`;
@@ -280,9 +281,9 @@ export function showGrimoire(back: () => void, tab: GrimoireTab = 'relics') {
     const row = (f: (typeof FUSIONS)[number]) => {
       const seen = !!meta.fusions[f.id];
       const r = RELIC_BY_ID[f.id];
-      const parts = f.from.map((id) => (seen || relicDiscovered(id) ? RELIC_BY_ID[id].emoji : '❔')).join(' + ');
+      const parts = f.from.map((id) => (seen || relicDiscovered(id) ? relicIcon(id, RELIC_BY_ID[id].emoji) : '❔')).join(' + ');
       return `<div class="codex-item ${seen ? '' : 'unknown'}">
-        <span class="shop-emoji">${seen ? r.emoji : '❔'}</span>
+        <span class="shop-emoji">${seen ? relicIcon(f.id, r.emoji) : '❔'}</span>
         <span class="shop-info"><span class="name">${seen ? r.name : '???'}</span>
         <span class="desc">${seen ? `${parts} · ${r.desc(1)}` : `${parts} · fuse at the Soul Forge to discover`}</span></span>
       </div>`;
@@ -295,7 +296,7 @@ export function showGrimoire(back: () => void, tab: GrimoireTab = 'relics') {
   } else if (tab === 'combos') {
     body = `<div class="codex">${COMBOS.map((c) => {
       const seen = !!meta.combos[c.id];
-      const parts = c.relics.map((id) => (relicDiscovered(id) ? RELIC_BY_ID[id].emoji : '❔')).join(' + ');
+      const parts = c.relics.map((id) => (relicDiscovered(id) ? relicIcon(id, RELIC_BY_ID[id].emoji) : '❔')).join(' + ');
       return `<div class="codex-item ${seen ? '' : 'unknown'}">
         <span class="shop-emoji">${seen ? c.emoji : '❔'}</span>
         <span class="shop-info"><span class="name">${seen ? c.name : '???'}</span>
