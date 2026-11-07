@@ -38,7 +38,7 @@ export const NEWS: NewsDay[] = [
       '🤝 Night Shift companions, hounds, spectral knights and thralls now roam the ground around you and fight there, instead of crowding at your side.',
       '👤 Spectral Knights are now pale ghosts, so you can always tell them from yourself.',
     ],
-    fixes: ['🔍 The Night Shift no longer zooms out when your row of relics grows onto a new line.', '⚡ No more lightning buzzing on and on while you choose a relic in the Night Shift.'],
+    fixes: ['🔍 The Night Shift no longer zooms out when your row of relics grows onto a new line.', '📏 The Night Shift\'s field stays full size however many relics you carry: they sit in one row you can swipe.', '⚡ No more lightning buzzing on and on while you choose a relic in the Night Shift.'],
   },
   {
     date: '2026-11-06',

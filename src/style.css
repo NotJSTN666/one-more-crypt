@@ -5917,3 +5917,24 @@ body.tutorial #relic-bar {
   100% { opacity: 0; transform: scale(1.1) skewX(-8deg); }
 }
 @media (prefers-reduced-motion: reduce) { .ns-ultcard.go { animation: none; } }
+
+/* The Night Shift's relic row stays one line however many you carry (swipe it sideways),
+   so the field never shrinks as the night goes on. */
+.ns-sub { flex-wrap: nowrap; min-width: 0; }
+.ns-relics {
+  flex: 1;
+  min-width: 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  height: 28px;
+  min-height: 28px;
+  gap: 3px;
+  mask-image: linear-gradient(90deg, #000 85%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent);
+}
+.ns-relics::-webkit-scrollbar { display: none; }
+.ns-relics .ns-relic { flex: none; padding: 1px 4px 1px 3px; font-size: 13px; line-height: 24px; }
+.ns-time { flex: none; }
