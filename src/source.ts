@@ -38,6 +38,10 @@ export function trafficSource(url: string, referrer: string, opts: { itch?: bool
     here = u.hostname;
     const tag = clean(u.searchParams.get('ref') || u.searchParams.get('utm_source') || '');
     if (tag) return { source: tag, host: '' };
+    // The short mode links (/night and so on) forward here, and pass on the site that
+    // linked to them, which the browser would otherwise report as our own page.
+    const via = clean(u.searchParams.get('via') || '');
+    if (via) referrer = `https://${via}/`;
   } catch {
     // Not a URL we can read: fall through to the referrer.
   }

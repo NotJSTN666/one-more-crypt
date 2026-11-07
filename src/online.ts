@@ -579,8 +579,9 @@ async function noteSource(): Promise<void> {
     const { source, host } = trafficSource(location.href, document.referrer, { itch: import.meta.env.MODE === 'itch', crazygames: import.meta.env.MODE === 'crazygames', app: runningAsApp() });
     // Tidy the tag out of the address bar, so shared links don't carry it on.
     const u = new globalThis.URL(location.href);
-    if (u.searchParams.has('ref') || [...u.searchParams.keys()].some((k) => k.startsWith('utm_'))) {
+    if (u.searchParams.has('ref') || u.searchParams.has('via') || [...u.searchParams.keys()].some((k) => k.startsWith('utm_'))) {
       u.searchParams.delete('ref');
+      u.searchParams.delete('via');
       for (const k of [...u.searchParams.keys()]) if (k.startsWith('utm_')) u.searchParams.delete(k);
       history.replaceState(history.state, '', u.toString());
     }

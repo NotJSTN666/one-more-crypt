@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "build:itch": "tsc --noEmit && vite build --mode itch --outDir dist-itch",
-    "build:crazygames": "tsc --noEmit && vite build --mode crazygames --outDir dist-crazygames && rm -rf dist-crazygames/press dist-crazygames/sw.js dist-crazygames/manifest.webmanifest dist-crazygames/icons dist-crazygames/og.png dist-crazygames/privacy.html",
+    "build:crazygames": "tsc --noEmit && vite build --mode crazygames --outDir dist-crazygames && rm -rf dist-crazygames/press dist-crazygames/sw.js dist-crazygames/manifest.webmanifest dist-crazygames/icons dist-crazygames/og.png dist-crazygames/privacy.html dist-crazygames/og dist-crazygames/daily dist-crazygames/endless dist-crazygames/horde dist-crazygames/night",
     "build:cards": "vite build --config vite.cards.config.ts"
   },
   "devDependencies": {

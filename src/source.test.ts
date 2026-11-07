@@ -20,6 +20,9 @@ describe('traffic sources', () => {
 
   it('counts direct visits, the app and itch', () => {
     expect(trafficSource(HOME, '').source).toBe('direct');
+    // Forwarded by a short mode link, which passes on who linked to it.
+    expect(trafficSource(`${HOME}?play=night&via=old.reddit.com`, 'https://onemorecrypt.com/night/').source).toBe('reddit');
+    expect(trafficSource(`${HOME}?play=night`, 'https://onemorecrypt.com/night/').source).toBe('direct');
     expect(trafficSource(HOME, 'https://onemorecrypt.com/#hall=bob').source).toBe('direct');
     expect(trafficSource(HOME, '', { app: true }).source).toBe('app');
     expect(trafficSource('https://html-classic.itch.zone/html/1/index.html', 'https://notjstn.itch.io/one-more-crypt', { itch: true }).source).toBe('itch');

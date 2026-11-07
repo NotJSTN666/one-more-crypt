@@ -26,7 +26,7 @@ export const NEWS: NewsDay[] = [
     date: '2026-11-07',
     title: 'Links straight into a mode',
     notes: [
-      '🔗 Share a link that opens one mode directly: onemorecrypt.com/?play=daily, ?play=endless, ?play=horde or ?play=night.',
+      '🔗 Share a link that opens one mode directly, each with its own preview: onemorecrypt.com/daily, /endless, /horde or /night.',
     ],
   },
   {
