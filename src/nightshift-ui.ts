@@ -848,6 +848,8 @@ function startNight(back: () => void) {
   // Achievements earned this night, and when they were last checked.
   const featsWon: AchievementDef[] = [];
   let featCheckAt = 0;
+  // The night's time when the strikes were last listened for.
+  let heardAt = -1;
   const frame = (now: number) => {
     if (!canvas.isConnected) return cleanup();
     const dt = Math.min(0.1, (now - last) / 1000);
@@ -900,9 +902,14 @@ function startNight(back: () => void) {
       toast(`🏆 ${fell ? BOSS_NAME[fell.kind] : 'The boss'} falls`);
     }
     bossesUp = n.foes.filter((f) => f.boss).map((f) => ({ id: f.id, kind: f.kind }));
-    if (n.flashes.some((f) => f.kind === 'bolt' && n.t - f.at < dt)) play('zap', 200);
-    if (n.flashes.some((f) => f.kind === 'ring' && n.t - f.at < dt)) play('block', 300);
-    if (n.flashes.some((f) => f.kind === 'lane' && n.t - f.at < dt)) play('crit', 250);
+    // Each strike sounds once: only flashes newer than the last frame's. (Timing them by the
+    // night's clock instead replayed the last one every frame while the night stood still,
+    // as it does while a relic is being chosen.)
+    const fresh = (k: string) => n.flashes.some((f) => f.kind === k && f.at > heardAt);
+    if (fresh('bolt')) play('zap', 200);
+    if (fresh('ring')) play('block', 300);
+    if (fresh('lane')) play('crit', 250);
+    heardAt = n.t;
     // Night events: a banner while one is under way.
     if (n.events > seen.events && n.event) {
       sfx.toll();
