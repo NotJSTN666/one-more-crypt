@@ -5815,3 +5815,30 @@ body.tutorial #relic-bar {
 }
 .ns-rankup b { font-family: var(--pixel); letter-spacing: 2px; color: #bcd6ff; }
 .shrine-gift.locked { opacity: 0.5; }
+
+/* The "Delve deeper" clip on a new player's first daily results. */
+.delve-clip {
+  position: relative;
+  width: min(100%, 360px);
+  margin: 4px auto 12px;
+  border: 1px solid #6b5426;
+  box-shadow: 0 0 18px rgba(242, 193, 78, 0.18);
+}
+.delve-clip video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  background: #0b0710;
+}
+.delve-skip {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(8, 5, 12, 0.7);
+  color: #e8dcc4;
+  cursor: pointer;
+}

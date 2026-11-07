@@ -2275,6 +2275,7 @@ function showDeath(r: RunResult, best: boolean) {
   on('#again', () => (daily ? showHeroSelect(() => startRun('endless'), backHere) : quickRestart()));
   if (daily) wireHordeButton();
   on('#keep-night', () => (nightIntroSeen() ? showNightShift(showTitle) : showNightIntro()));
+  on('#delve-skip', () => document.getElementById('delve-clip')?.remove());
   if (daily) showEndlessRecord();
   on('#ossuary', () => showOssuary(backHere));
   on('#hall', () => openHall(backHere));
@@ -3262,6 +3263,34 @@ function relicText(text: string): string {
 const HORDE_NEW_UNTIL = Date.UTC(2026, 10, 17);
 
 /** After the Daily: the three ways to keep playing, right under the run's stats. */
+// ---------- the "Delve deeper" clip ----------
+// A ten-second, silent look at Endless, Horde, the Night Shift and Story, shown once on the
+// results of a new player's first dailies, above the buttons that start them.
+const DELVE_CLIP_KEY = 'omc:delve-clip';
+function delveClipDue(): boolean {
+  if (PORTAL || Object.keys(save.daily).length > 2) return false;
+  try {
+    return localStorage.getItem(DELVE_CLIP_KEY) !== '1';
+  } catch {
+    return false;
+  }
+}
+function delveClipHtml(): string {
+  if (!delveClipDue()) return '';
+  try {
+    localStorage.setItem(DELVE_CLIP_KEY, '1');
+  } catch {
+    // shown again next time, which is fine
+  }
+  return `<div class="delve-clip" id="delve-clip">
+      <video poster="./media/delve-deeper.jpg" muted playsinline autoplay preload="auto" aria-label="Endless, Horde, the Night Shift and Story, in ten seconds">
+        <source src="./media/delve-deeper.mp4" type="video/mp4" />
+        <source src="./media/delve-deeper.webm" type="video/webm" />
+      </video>
+      <button type="button" class="delve-skip" id="delve-skip" aria-label="Close">✕</button>
+    </div>`;
+}
+
 function keepGoingHtml(): string {
   const n = dailyNumber();
   const saved = savedHorde();
@@ -3270,6 +3299,7 @@ function keepGoingHtml(): string {
     ? `Continue: wave ${saved.game.horde.wave}`
     : h ? `Best today: wave ${h.wave}` : `As the ${HERO_BY_ID[hordeHero(n)].name}`;
   return `<div class="keep-going">
+      ${delveClipHtml()}
       <p class="endless-tease">Daily done. Keep going?${save.bestEndless ? ` Your Endless best: <b>floor ${save.bestEndless}</b>` : ''}<span class="endless-record"></span></p>
       <div class="keep-row">
         <button class="btn primary keep-btn" id="again">♾️ Endless<small>No limit<span class="keys-hint"> · Enter</span></small></button>
