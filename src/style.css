@@ -5842,3 +5842,10 @@ body.tutorial #relic-bar {
   color: #e8dcc4;
   cursor: pointer;
 }
+
+/* Copy your result: right under the numbers, where it's seen. */
+.share-btn {
+  border-color: #6b5426;
+  margin: 10px auto;
+}
+.card .share-btn { margin: 8px auto 2px; font-size: 11px; padding: 8px 14px; }

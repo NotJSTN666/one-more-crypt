@@ -1367,6 +1367,7 @@ function showTitle() {
         <div>Daily #${today} conquered</div>
         <div class="strip">${descentStrip(done.floor)}</div>
         <div class="sub" style="margin:0">Floor ${done.floor} · ${done.kills} kills</div>
+        <button class="btn share-btn" id="copy-daily">📋 Copy today's result</button>
         <div class="sub" style="margin:6px 0 0">Next crypt opens in <span class="countdown">--:--:--</span></div>
       </div>`
     : resumable?.mode === 'daily'
@@ -1431,6 +1432,12 @@ function showTitle() {
   `);
   overlay.querySelector('#title-drawer')?.addEventListener('toggle', (e) => setDrawerOpen((e.currentTarget as HTMLDetailsElement).open));
   on('#delve', () => showDelve());
+  on('#copy-daily', async () => {
+    if (!done) return;
+    const label = `Daily #${today}`;
+    const text = shareText(done, label, lastLabel === label ? lastBeat : null) + (PORTAL ? '' : '\n' + siteUrl());
+    toast((await copyText(text)) ? '📋 Copied! Paste it anywhere' : 'Copy failed');
+  });
   on('#account', () => (unclaimed() ? showLogin(showTitle, 'claim') : showProfile(showTitle)));
   on('#leaderboard', () => showLeaderboard(showTitle));
   on('#daily', () => withTutorialOffer(() => startRun('daily')));
@@ -2196,6 +2203,7 @@ function showDeath(r: RunResult, best: boolean) {
       <div><b>${r.turns}</b>TURNS</div>
       ${r.seconds ? `<div><b>${playTime(r.seconds)}</b>TIME</div>` : ''}
     </div>
+    <button class="btn share-btn" id="copy">📋 Copy result<small>Paste it in Discord, a group chat, anywhere</small></button>
     ${daily ? keepGoingHtml() : ch ? '<button class="btn primary retry-btn" id="retry-challenge">↻ Retry<small>Same crypt, same hero</small></button>' : `<button class="btn primary retry-btn" id="again">↻ Retry<small>Straight back in as the ${esc(HERO_BY_ID[game.hero].name)}<span class="keys-hint"> · Enter or R</span></small></button>`}
     ${first ? `${welcomeTrackHtml()}${reminderPromptHtml()}` : ''}
     ${ONLINE && !ch ? `<p class="rank-line ${daily ? 'daily-rank' : ''}" id="rank">${signedIn() ? 'Carving your name into the crypt…' : daily ? 'Counting the fallen…' : ''}</p>` : ''}
@@ -2219,22 +2227,13 @@ function showDeath(r: RunResult, best: boolean) {
       daily
         ? `${streakTeaseHtml()}${tomorrowHtml()}${first ? '' : reminderPromptHtml()}${installNudgeHtml()}${ONLINE ? '<p class="podium-tease">🥇 Finish in the top 3 when the day ends to win exclusive headwear and Souls.</p>' : ''}
     ${ONLINE && !PORTAL ? `<button class="btn challenge-btn" id="challenge">⚔️ Challenge a friend<small>Today's crypt, your hero. Can they beat floor ${r.floor}?</small></button>` : ''}
-    ${discordBtn}
-    <div class="row">
-      <button class="btn" id="copy">Copy result</button>
-    </div>`
+    ${discordBtn}`
         : ch
           ? `${PORTAL ? '' : `<button class="btn" id="pass-challenge">📨 Pass the challenge on<small>Send ${esc(ch.name)}'s crypt to a friend</small></button>`}
-    ${discordBtn}
-    <div class="row">
-      <button class="btn" id="copy">Copy result</button>
-    </div>`
+    ${discordBtn}`
           : `${first ? '' : reminderPromptHtml()}${installNudgeHtml()}
     ${ONLINE && !PORTAL ? `<button class="btn challenge-btn" id="challenge">⚔️ Challenge a friend<small>Same crypt, same hero. Can they beat floor ${r.floor}?</small></button>` : ''}
-    ${discordBtn}
-    <div class="row">
-      <button class="btn" id="copy">Copy result</button>
-    </div>`
+    ${discordBtn}`
     }
     <div class="row grid2">
       ${ONLINE ? '<button class="btn" id="leaderboard">🏆 Leaderboard</button>' : ''}
