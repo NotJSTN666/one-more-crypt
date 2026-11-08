@@ -24,14 +24,14 @@ export interface NewsDay {
 export const NEWS: NewsDay[] = [
   {
     date: '2026-11-07',
-    title: 'Night Shift: choose your hero, Night Ranks, and a weapon for every hero',
+    title: 'Night Shift: choose your hero, ultimates, Night Ranks, and a tighter night',
     notes: [
       '🌙 Before each night, choose your hero and your companion. Your picks are remembered, so Start is still one tap.',
       '⚔️ Every hero now brings their own weapon to the night: the Knight\'s Bulwark, the Rogue\'s Shadow Knives, the Necromancer\'s Bone Legion, the Paladin\'s Holy Nova, the Ranger\'s Arrow Rain, the Mage\'s Arcane Orb, the Barbarian\'s Ground Slam and the Bell-Ringer\'s Great Toll. Each has its own Soul Forge fusion.',
       '🏅 Night Ranks: everything you put down counts toward the next rank, and ranks open new companions, the helper relics and new gear. Your past nights already count.',
       '🎬 Finish your first daily and a short clip shows what else waits in the crypt: Endless, Horde, the Night Shift and Story.',
       '📋 Copy your result is back where you can see it: right under your numbers when a run ends, and on the title screen for today\'s finished daily.',
-      '⚡ Every hero has an ultimate in the Night Shift: fill the meter by putting down the dead, then unleash it with the gold button or E. Last Stand, Shadow Dance, Army of the Dead, Divine Light, Hail of Arrows, Meteor, Berserk and Doom Toll.',
+      '⚡ Every hero has an ultimate in the Night Shift: fill the meter by putting down the dead, then unleash it with the gold button or E. Last Stand, Shadow Dance, Army of the Dead, Divine Light, Hail of Arrows, Meteor, Berserk and Doom Toll, each with its own big moment on screen and its own sound.',
       '🌙 A tighter Night Shift: bosses rise every minute and a half, two at a time from the tenth minute, the new dead arrive sooner, the Night Mother rises at 15 minutes and dawn breaks at 20.',
       '🎨 Every relic, fusion, boon, blessing and pact has a new hand-made pixel-art icon instead of an emoji.',
       '🗡️ Companion gear at the Night Shrine: Companion\'s Blade, War Banner, Old Bond, Helper\'s Charm and Oathstone, each opening at a Night Rank.',
