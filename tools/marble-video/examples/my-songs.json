@@ -1,0 +1,14 @@
+{
+  "title": "Top 6 Most\nRecognizable Melodies",
+  "handle": "@yourname",
+  "countdown": true,
+  "clipSeconds": 9,
+  "songs": [
+    { "name": "Song for #6", "audio": "../songs/song6.mp3", "start": 45.0 },
+    { "name": "Song for #5", "audio": "../songs/song5.mp3", "start": 62.5 },
+    { "name": "Song for #4", "audio": "../songs/song4.mp3", "start": 30.0 },
+    { "name": "Song for #3", "audio": "../songs/song3.mp3", "start": 12.0, "midi": "../songs/song3.mid", "midiStart": 20.0 },
+    { "name": "Song for #2", "audio": "../songs/song2.mp3", "start": 50.0, "hitsPerSecond": 5 },
+    { "name": "Song for #1", "audio": "../songs/song1.mp3", "start": 8.0, "duration": 10 }
+  ]
+}
