@@ -5987,3 +5987,13 @@ body.tutorial #relic-bar {
   image-rendering: pixelated;
 }
 @media (prefers-reduced-motion: reduce) { .strip.fill-in i, .big-stats b.landed { animation: none; } }
+.title-scene-name {
+  font-family: var(--pixel);
+  font-size: 9px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: center;
+  margin: 2px 0 4px;
+  min-height: 12px;
+}

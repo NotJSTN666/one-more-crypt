@@ -28,7 +28,7 @@ export const NEWS: NewsDay[] = [
     notes: [
       '👆 The tutorial is now three short steps, and a pointer shows your very first move.',
       '🎁 After your first run, tomorrow\'s gift is the first thing you see.',
-      '✨ More life on screen: your hero fights off the dead under the title, relics fly to your relic row when you claim them, heroes and foes lean into every strike, your hero blinks, and your results count up as the floors drop in.',
+      '✨ More life on screen: every hero takes a turn fighting off the dead under the title, each with their own attack, relics fly to your relic row when you claim them, heroes and foes lean into every strike, your hero blinks, and your results count up as the floors drop in.',
     ],
   },
   {

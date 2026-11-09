@@ -5,7 +5,7 @@ import { audioRunning, fusionSound, isMusicEnabled, isMuted, onAudioState, setMu
 import { centralDate, dailyNumber, formatCountdown, msUntilNextDaily, weekStart } from './daily';
 import { liveNews, unreadNews, type NewsGo } from './news';
 import { TRIAL_SOULS, trialProgressText, weekTrial } from './trials';
-import { ACHIEVEMENT_BY_ID, DAILY_TOTALS, ELITES, FEATURES, HERO_BY_ID, dailyHero, hordeHero, type ComboDef, type HeroId } from './content';
+import { ACHIEVEMENT_BY_ID, DAILY_TOTALS, ELITES, FEATURES, HERO_BY_ID, HEROES, dailyHero, hordeHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait, heroSprite } from './hero';
 import { BOON_BY_ID, ENEMY_INFO, W, MIST_BITE, REAPER_FLOOR, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode, type EnemyKind } from './game';
 import { acceptQuest, checkRun, grantFeats, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, finishHordeMeta, receiveGift, equipTitle, FAIR_DAILY, LEAN_DAILY, MISSILE_DAILY, type RunReward } from './meta';
@@ -1356,47 +1356,110 @@ function zoneTip(g: Game): string {
 function titleScene() {
   const c = overlay.querySelector<HTMLCanvasElement>('#title-scene');
   const ctx = c?.getContext('2d');
+  const label = overlay.querySelector<HTMLElement>('#title-scene-name');
   if (!c || !ctx) return;
-  const fit = outfitFor(meta.hero);
-  const hero = heroSprite(meta.hero, {}, [], fit.look, fit.head);
+  // Every hero takes a turn, your own first, each fighting their own way.
+  const order = [meta.hero as HeroId, ...HEROES.map((h) => h.id).filter((id) => id !== meta.hero)];
+  const spriteOf = (id: HeroId) => {
+    const fit = outfitFor(id);
+    return heroSprite(id, {}, [], fit.look, fit.head);
+  };
+  const STYLE: Record<string, { reach: number; col: string; every: number }> = {
+    knight: { reach: 13, col: '255,245,220', every: 0.3 },
+    rogue: { reach: 34, col: '200,170,255', every: 0.3 },
+    necro: { reach: 42, col: '120,255,170', every: 0.55 },
+    paladin: { reach: 40, col: '255,240,170', every: 0.6 },
+    ranger: { reach: 52, col: '216,184,132', every: 0.4 },
+    mage: { reach: 48, col: '180,130,255', every: 0.6 },
+    barbarian: { reach: 16, col: '255,120,70', every: 0.55 },
+    bellringer: { reach: 30, col: '242,193,78', every: 0.9 },
+  };
   const kinds: EnemyKind[] = ['ghoul', 'bat', 'wraith', 'archer', 'brute'];
-  type Foe = { kind: EnemyKind; x: number; side: number; hp: number; dead: number };
+  type Foe = { kind: EnemyKind; x: number; side: number; dead: number; doom: number };
+  type Shot = { x: number; y: number; vx: number; target: Foe; kind: 'arrow' | 'orb' | 'skull' };
   let foes: Foe[] = [];
-  let bits: { x: number; y: number; vx: number; vy: number; life: number }[] = [];
-  let spawnIn = 0.6;
+  let shots: Shot[] = [];
+  let bits: { x: number; y: number; vx: number; vy: number; life: number; col: string }[] = [];
+  let fx: { kind: 'beam' | 'ring' | 'slam' | 'streak'; x: number; x2?: number; t: number }[] = [];
+  let spawnIn = 0.4;
   let swing = 0;
   let face = 1;
   let n = 0;
+  let at = 0;
+  let turnT = 0;
+  let swap = 0.5;
+  let heroX = 60;
+  let hero = spriteOf(order[0]);
   let last = performance.now();
   const HX = 60;
   const still = calmMotion();
+  const name = () => {
+    if (label) label.textContent = `The ${HERO_BY_ID[order[at]].name}`;
+  };
+  name();
+  const kill = (f: Foe, col: string) => {
+    if (f.dead) return;
+    f.dead = 0.001;
+    for (let k = 0; k < 9; k++) bits.push({ x: f.x + 6, y: 12, vx: f.side * (10 + Math.random() * 30), vy: -20 - Math.random() * 30, life: 0.5, col });
+  };
   const frame = (now: number) => {
     if (!c.isConnected) return;
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     const t = now / 1000;
+    const id = order[at];
+    const st = STYLE[id] ?? STYLE.knight;
+    // the next hero steps in every few seconds, in a puff of light
+    turnT += dt;
+    swap = Math.max(0, swap - dt);
+    if (turnT > 4.6 && swing <= 0 && !shots.length) {
+      turnT = 0;
+      at = (at + 1) % order.length;
+      hero = spriteOf(order[at]);
+      swap = 0.5;
+      heroX = HX;
+      name();
+      for (let k = 0; k < 14; k++) bits.push({ x: HX + 6, y: 14, vx: (Math.random() - 0.5) * 60, vy: -Math.random() * 50, life: 0.45, col: STYLE[order[at]]?.col ?? '255,255,255' });
+    }
     spawnIn -= dt;
-    if (spawnIn <= 0 && foes.length < 3) {
+    if (spawnIn <= 0 && foes.filter((f) => !f.dead).length < 3) {
       const side = n % 2 ? -1 : 1;
-      foes.push({ kind: kinds[n % kinds.length], x: side > 0 ? 134 : -14, side, hp: 1, dead: 0 });
+      foes.push({ kind: kinds[n % kinds.length], x: side > 0 ? 134 : -14, side, dead: 0, doom: 0 });
       n++;
-      spawnIn = 1.3 + Math.random() * 1.2;
+      spawnIn = 0.9 + Math.random() * 0.9;
     }
     swing = Math.max(0, swing - dt);
+    heroX += (HX - heroX) * Math.min(1, dt * 6);
     for (const f of foes) {
       if (f.dead) {
         f.dead += dt;
         continue;
       }
-      const reach = HX + f.side * 13;
-      if ((f.side > 0 && f.x > reach) || (f.side < 0 && f.x < reach)) f.x -= f.side * (f.kind === 'bat' ? 26 : 15) * dt;
-      else if (swing <= 0) {
-        // in reach: the hero turns and strikes
-        swing = 0.3;
-        face = f.side;
-        f.dead = 0.001;
-        for (let k = 0; k < 9; k++) bits.push({ x: f.x + 6, y: 12, vx: f.side * (10 + Math.random() * 30), vy: -20 - Math.random() * 30, life: 0.5 });
-      }
+      const stop = HX + f.side * 13;
+      if ((f.side > 0 && f.x > stop) || (f.side < 0 && f.x < stop)) f.x -= f.side * (f.kind === 'bat' ? 26 : 15) * dt;
+      if (f.doom) continue;
+      const inReach = Math.abs(f.x - HX) <= st.reach && f.x > -6 && f.x < 126;
+      if (!inReach || swing > 0 || swap > 0.2) continue;
+      swing = st.every;
+      face = f.side;
+      if (id === 'ranger' || id === 'mage' || id === 'necro') {
+        f.doom = 1;
+        shots.push({ x: HX + 6 + face * 5, y: id === 'ranger' ? 13 : 12, vx: face * (id === 'ranger' ? 150 : 80), target: f, kind: id === 'ranger' ? 'arrow' : id === 'mage' ? 'orb' : 'skull' });
+      } else if (id === 'paladin') {
+        fx.push({ kind: 'beam', x: f.x + 6, t: 0 });
+        kill(f, st.col);
+      } else if (id === 'rogue') {
+        // a blink through the foe, and back
+        fx.push({ kind: 'streak', x: HX + 6, x2: f.x + 6 + f.side * 8, t: 0 });
+        heroX = f.x + f.side * 8;
+        kill(f, st.col);
+      } else if (id === 'bellringer') {
+        fx.push({ kind: 'ring', x: HX + 6, t: 0 });
+        for (const o of foes) if (Math.abs(o.x - HX) <= st.reach + 6) kill(o, st.col);
+      } else if (id === 'barbarian') {
+        fx.push({ kind: 'slam', x: HX + 6 + face * 8, t: 0 });
+        for (const o of foes) if (o.side === f.side && Math.abs(o.x - HX) <= st.reach + 10) kill(o, st.col);
+      } else kill(f, '232,220,196');
     }
     foes = foes.filter((f) => f.dead < 0.3);
     ctx.clearRect(0, 0, c.width, c.height);
@@ -1407,7 +1470,7 @@ function titleScene() {
     ctx.fill();
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
     for (const f of foes) ctx.fillRect(Math.round(f.x) + 2, 20, 8, 1);
-    ctx.fillRect(HX + 2, 20, 8, 1);
+    ctx.fillRect(Math.round(heroX) + 2, 20, 8, 1);
     for (const f of foes) {
       const fr = enemyFrames(f.kind);
       const img = f.dead ? fr.idle[0].white : fr.idle[Math.abs(Math.floor(t * 3 + f.x)) % 2].normal;
@@ -1420,17 +1483,77 @@ function titleScene() {
       ctx.restore();
     }
     ctx.globalAlpha = 1;
-    // the hero: breathing, and leaning into each strike
-    const p = swing > 0 ? Math.sin((1 - swing / 0.3) * Math.PI) : 0;
+    // each hero's own strike
+    for (const e of fx) {
+      e.t += dt;
+      if (e.kind === 'beam') {
+        const k = 1 - e.t / 0.35;
+        ctx.fillStyle = `rgba(${st.col},${0.8 * k})`;
+        ctx.fillRect(Math.round(e.x - 2 - k), 0, Math.round(4 + 2 * k), 20);
+        ctx.fillStyle = `rgba(255,255,255,${k})`;
+        ctx.fillRect(Math.round(e.x), 0, 1, 20);
+      } else if (e.kind === 'ring') {
+        const k = e.t / 0.5;
+        ctx.strokeStyle = `rgba(${st.col},${1 - k})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.ellipse(e.x, 16, 4 + k * 38, 2 + k * 9, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (e.kind === 'slam') {
+        const k = e.t / 0.35;
+        ctx.strokeStyle = `rgba(${st.col},${1 - k})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(e.x, 19, 3 + k * 20, 1 + k * 3, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      } else {
+        const k = 1 - e.t / 0.25;
+        ctx.strokeStyle = `rgba(${st.col},${k})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(e.x, 13);
+        ctx.lineTo(e.x2 ?? e.x, 13);
+        ctx.stroke();
+      }
+    }
+    fx = fx.filter((e) => e.t < (e.kind === 'ring' ? 0.5 : 0.35));
+    for (const sh of shots) {
+      sh.x += sh.vx * dt;
+      const hit = sh.target.dead || (sh.vx > 0 ? sh.x >= sh.target.x + 4 : sh.x <= sh.target.x + 8);
+      if (hit) {
+        kill(sh.target, st.col);
+        sh.vx = 0;
+        continue;
+      }
+      if (sh.kind === 'arrow') {
+        ctx.fillStyle = '#d8b884';
+        ctx.fillRect(Math.round(sh.x) - (sh.vx > 0 ? 5 : 0), sh.y, 5, 1);
+        ctx.fillStyle = '#e8eefc';
+        ctx.fillRect(Math.round(sh.x) + (sh.vx > 0 ? 0 : -1), sh.y, 1, 1);
+      } else {
+        const col = sh.kind === 'orb' ? '180,130,255' : '120,255,170';
+        ctx.fillStyle = `rgba(${col},0.35)`;
+        ctx.fillRect(Math.round(sh.x) - 2, sh.y - 2, 5, 5);
+        ctx.fillStyle = `rgb(${col})`;
+        ctx.fillRect(Math.round(sh.x) - 1, sh.y - 1, 3, 3);
+        ctx.fillStyle = sh.kind === 'skull' ? '#0d0812' : '#fff';
+        ctx.fillRect(Math.round(sh.x), sh.y, 1, 1);
+      }
+    }
+    shots = shots.filter((sh) => sh.vx !== 0);
+    // the hero: breathing, and leaning into each strike (the Barbarian leaps)
+    const p = swing > 0 ? Math.sin((1 - swing / st.every) * Math.PI) : 0;
     const breath = swing <= 0 && Math.sin(t * 2.6) > 0.55 ? 1 : 0;
+    const melee = id === 'knight' || id === 'barbarian';
     ctx.save();
-    ctx.translate(HX + 6 + face * p * 5, 14);
-    ctx.rotate(face * p * 0.3);
+    ctx.globalAlpha = swap > 0 ? 1 - swap / 0.5 : 1;
+    ctx.translate(Math.round(heroX) + 6 + face * p * (melee ? 5 : 2), 14 - (id === 'barbarian' ? p * 5 : 0));
+    ctx.rotate(face * p * (melee ? 0.3 : 0.15));
     ctx.scale(face, 1);
     ctx.drawImage(hero.normal, -6, -6 + breath, 12, 12 - breath);
     ctx.restore();
-    if (p > 0.2) {
-      ctx.strokeStyle = `rgba(255, 245, 220, ${p})`;
+    if (id === 'knight' && p > 0.2) {
+      ctx.strokeStyle = `rgba(${st.col}, ${p})`;
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.arc(HX + 6 + face * 6, 14, 9, face > 0 ? -1.1 : Math.PI - 1.1, face > 0 ? 1.1 : Math.PI + 1.1);
@@ -1441,7 +1564,7 @@ function titleScene() {
       b.y += b.vy * dt;
       b.vy += 120 * dt;
       b.life -= dt;
-      ctx.fillStyle = `rgba(232, 220, 196, ${Math.max(0, b.life * 2)})`;
+      ctx.fillStyle = `rgba(${b.col}, ${Math.max(0, b.life * 2)})`;
       ctx.fillRect(Math.round(b.x), Math.round(b.y), 1, 1);
     }
     bits = bits.filter((b) => b.life > 0);
@@ -1602,6 +1725,7 @@ function showTitle() {
     ${accountChip()}
     <h1 class="logo">One More Crypt</h1>
     <canvas class="title-scene" id="title-scene" width="132" height="22" aria-hidden="true"></canvas>
+    <div class="title-scene-name" id="title-scene-name" aria-hidden="true"></div>
     <p class="tagline">One crypt. One try a day. How deep can you go?</p>
     ${onlineCountHtml()}
     <div class="title-play">
