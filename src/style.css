@@ -5938,3 +5938,30 @@ body.tutorial #relic-bar {
 .ns-relics::-webkit-scrollbar { display: none; }
 .ns-relics .ns-relic { flex: none; padding: 1px 4px 1px 3px; font-size: 13px; line-height: 24px; }
 .ns-time { flex: none; }
+
+/* The tutorial's first step: a pointer on the tile to step onto. */
+#move-hint {
+  position: fixed;
+  z-index: 4;
+  pointer-events: none;
+  display: grid;
+  place-items: center;
+}
+#move-hint i {
+  position: absolute;
+  inset: 8%;
+  border: 2px solid #f2c14e;
+  box-shadow: 0 0 14px rgba(242, 193, 78, 0.7), inset 0 0 10px rgba(242, 193, 78, 0.35);
+  animation: move-hint-pulse 1s ease-in-out infinite;
+}
+#move-hint span {
+  position: relative;
+  font-size: 22px;
+  color: #f2c14e;
+  text-shadow: 0 2px 0 #000;
+  animation: move-hint-bob 0.8s ease-in-out infinite;
+}
+@keyframes move-hint-pulse { 50% { opacity: 0.35; transform: scale(0.9); } }
+@keyframes move-hint-bob { 50% { transform: translateY(-5px); } }
+@media (prefers-reduced-motion: reduce) { #move-hint i, #move-hint span { animation: none; } }
+#move-hint[hidden] { display: none; }

@@ -7,7 +7,7 @@ import { liveNews, unreadNews, type NewsGo } from './news';
 import { TRIAL_SOULS, trialProgressText, weekTrial } from './trials';
 import { ACHIEVEMENT_BY_ID, DAILY_TOTALS, ELITES, FEATURES, HERO_BY_ID, dailyHero, hordeHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait, heroSprite } from './hero';
-import { BOON_BY_ID, ENEMY_INFO, MIST_BITE, REAPER_FLOOR, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode } from './game';
+import { BOON_BY_ID, ENEMY_INFO, W, MIST_BITE, REAPER_FLOOR, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode } from './game';
 import { acceptQuest, checkRun, grantFeats, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, finishHordeMeta, receiveGift, equipTitle, FAIR_DAILY, LEAN_DAILY, MISSILE_DAILY, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
@@ -164,8 +164,10 @@ function stageTutorial() {
   const legal = tutorial.step === 0
     ? `<span class="coach-legal">By playing you agree to our <a href="${PRIVACY_URL}" target="_blank" rel="noopener">Privacy Policy</a>.</span>`
     : '';
-  coach(`${tutorial.step + 1} / ${TUTORIAL.length + 1} · ${step.title}`, step.coach + legal);
+  const says = typeof step.coach === 'function' ? step.coach(matchMedia('(pointer: coarse)').matches) : step.coach;
+  coach(`${tutorial.step + 1} / ${TUTORIAL.length} · ${step.title}`, says + legal);
   tutorial.busy = false;
+  placeMoveHint();
 }
 
 function coach(head: string, text: string) {
@@ -180,6 +182,7 @@ function coach(head: string, text: string) {
 function tutorialEvents(events: GameEvent[]) {
   if (!tutorial) return;
   updateHud();
+  placeMoveHint();
   if (game.phase === 'dead') {
     tutorial.busy = true;
     toast('Fallen! Try that again.');
@@ -188,20 +191,47 @@ function tutorialEvents(events: GameEvent[]) {
   }
   if (!TUTORIAL[tutorial.step].done(game, events)) return;
   if (game.phase === 'choose') {
-    coach(`${TUTORIAL.length + 1} / ${TUTORIAL.length + 1} · Relics`, RELIC_COACH);
+    coach(`${TUTORIAL.length} / ${TUTORIAL.length} · Relics`, RELIC_COACH);
     window.clearTimeout(overlayTimer);
     overlayTimer = window.setTimeout(showChoice, 280);
     return;
   }
   tutorial.busy = true;
   tutorial.step++;
+  placeMoveHint();
   noteRun('tutorial', 'quit', tutorial.step);
   renderer.banner('NICELY DONE!', '#7ee081');
   window.setTimeout(() => sfx.relic(), 150);
   window.setTimeout(stageTutorial, 1100);
 }
 
+// A pointer over the tile to step onto, for the tutorial's first step: half of those who
+// started it never made a move at all.
+const moveHint = document.createElement('div');
+moveHint.id = 'move-hint';
+moveHint.hidden = true;
+moveHint.innerHTML = '<i></i><span></span>';
+document.body.appendChild(moveHint);
+function placeMoveHint() {
+  const foe = tutorial && tutorial.step === 0 && game.phase === 'play' ? game.enemies[0] : null;
+  if (!foe) {
+    moveHint.hidden = true;
+    return;
+  }
+  const dx = foe.x - game.player.x;
+  const dy = foe.y - game.player.y;
+  const step = Math.abs(dy) >= Math.abs(dx) ? { x: 0, y: Math.sign(dy) } : { x: Math.sign(dx), y: 0 };
+  const r = canvas.getBoundingClientRect();
+  const ts = r.width / W;
+  moveHint.style.cssText = `left:${r.left + (game.player.x + step.x) * ts}px;top:${r.top + (game.player.y + step.y) * ts}px;width:${ts}px;height:${ts}px`;
+  moveHint.querySelector('span')!.textContent = matchMedia('(pointer: coarse)').matches ? '👆' : step.y < 0 ? '▲' : step.y > 0 ? '▼' : step.x < 0 ? '◀' : '▶';
+  moveHint.hidden = false;
+}
+window.addEventListener('resize', () => placeMoveHint());
+
+let tutorialTouched = false;
 function endTutorial() {
+  moveHint.hidden = true;
   tutorial = null;
   document.body.classList.remove('tutorial');
   $('coach').hidden = true;
@@ -236,7 +266,8 @@ function finishTutorial() {
 function skipTutorial() {
   if (!tutorial) return;
   const { then } = tutorial;
-  noteRun('tutorial', 'quit', tutorial.step);
+  // Skips are told apart from walking away: 100 + the step it was skipped on.
+  noteRun('tutorial', 'quit', 100 + tutorial.step);
   endTutorial();
   then();
 }
@@ -590,6 +621,11 @@ function act(dx: number, dy: number) {
   unlockAudio();
   if (!game || game.phase !== 'play' || !overlay.hidden || tutorial?.busy || fusionPlaying) return;
   clockInput();
+  // The first input of the tutorial, to tell "never touched it" from "tried and left".
+  if (tutorial && !tutorialTouched) {
+    tutorialTouched = true;
+    noteRun('tutorial', 'tap');
+  }
   if (game.act(dx, dy)) processEvents();
   else {
     sfx.bump();
@@ -1844,7 +1880,7 @@ function showChoice() {
     <h2>${surge ? '⚡ Power surge!' : game.mode === 'horde' ? `Wave ${game.horde.wave} held` : `Floor ${game.floor} cleared`}</h2>
     <p class="sub">${surge ? 'The souls of the slain gather. Claim a relic' : 'Claim a relic from the dead'}<span class="keys-hint"> · ↑↓ to choose, Enter to take, 1-${offer.relics.length + offer.boons.length} to pick, R to rest${canForge ? ', F for the forge' : ''}, Y for your relics</span></p>
     <p class="choice-hp ${low ? 'low' : ''}">❤ ${game.player.hp}/${game.player.maxHp} HP${low ? ' · Low on health. Resting may be the smart pick.' : ''}</p>
-    ${tutorial ? `<div class="coach-inline"><span>5 / 5 · Relics</span>${RELIC_COACH}</div>` : ''}
+    ${tutorial ? `<div class="coach-inline"><span>${TUTORIAL.length} / ${TUTORIAL.length} · Relics</span>${RELIC_COACH}</div>` : ''}
     <div class="offer">${cards}</div>
     ${canForge ? '<button class="btn forge-pick" id="to-forge">🔥 Soul Forge instead<small>Fuse two relics you hold into something greater</small></button>' : ''}
     <button class="btn ${low ? 'rest-urge' : ''}" id="rest">🔥 Rest instead<small>${restLabel(offer.restHeal)}</small></button>
@@ -2205,9 +2241,9 @@ function showDeath(r: RunResult, best: boolean) {
       <div><b>${r.turns}</b>TURNS</div>
       ${r.seconds ? `<div><b>${playTime(r.seconds)}</b>TIME</div>` : ''}
     </div>
-    <button class="btn share-btn" id="copy">📋 Copy result<small>Paste it in Discord, a group chat, anywhere</small></button>
+    ${first ? `${welcomeTrackHtml()}${reminderPromptHtml()}` : '<button class="btn share-btn" id="copy">📋 Copy result<small>Paste it in Discord, a group chat, anywhere</small></button>'}
     ${daily ? keepGoingHtml() : ch ? '<button class="btn primary retry-btn" id="retry-challenge">↻ Retry<small>Same crypt, same hero</small></button>' : `<button class="btn primary retry-btn" id="again">↻ Retry<small>Straight back in as the ${esc(HERO_BY_ID[game.hero].name)}<span class="keys-hint"> · Enter or R</span></small></button>`}
-    ${first ? `${welcomeTrackHtml()}${reminderPromptHtml()}` : ''}
+    ${first ? '<button class="btn share-btn" id="copy">📋 Copy result<small>Paste it in Discord, a group chat, anywhere</small></button>' : ''}
     ${ONLINE && !ch ? `<p class="rank-line ${daily ? 'daily-rank' : ''}" id="rank">${signedIn() ? 'Carving your name into the crypt…' : daily ? 'Counting the fallen…' : ''}</p>` : ''}
     ${ONLINE && (!signedIn() || unclaimed()) ? claimInlineHtml(ch ? 'Pick a name to post your run to the challenge board. No email needed.' : `You're on ${daily ? "today's" : 'the'} board as ${unclaimed() ? esc(playerName()) : 'a guest'}. Type a name and your runs show under it. No email needed.`) : ''}
     ${keepNameHtml()}

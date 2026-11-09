@@ -1,31 +1,21 @@
-// A short guided first run on hand-made floors: move, strike, dodge, clear the floor,
-// claim a relic. It plays on the real rules but never touches saves or progress.
+// A short guided first run on hand-made floors: strike, dodge, clear the floor and claim a
+// relic (three steps: every extra one lost new players). It plays on the real rules but never touches saves or progress.
 
 import type { Game, GameEvent } from './game';
 
 export interface TutorialStep {
   title: string;
-  coach: string;
+  /** What the coach says (it may differ on a phone). */
+  coach: string | ((touch: boolean) => string);
   scene: Parameters<Game['stage']>[0];
   done: (g: Game, events: GameEvent[]) => boolean;
 }
 
 export const TUTORIAL: TutorialStep[] = [
   {
-    title: 'Move',
-    coach: 'Walk to the <b>potion</b>. Use the <b>arrow keys</b> or <b>WASD</b>. On a phone, <b>swipe</b> or <b>tap a tile</b>.',
-    scene: {
-      player: { x: 3, y: 6 },
-      potion: { x: 3, y: 2 },
-      enemies: [],
-      walls: [{ x: 1, y: 1 }, { x: 5, y: 1 }, { x: 0, y: 4 }, { x: 6, y: 4 }],
-      hp: 10,
-    },
-    done: (g) => g.potion === null,
-  },
-  {
+    // Moving and striking in one: the first thing you do is the thing the whole game is.
     title: 'Strike',
-    coach: 'A ghoul! <b>Walk into it to strike.</b> Every move you make, it makes one too.',
+    coach: (touch) => `A ghoul! <b>Walk into it to strike.</b> ${touch ? '<b>Swipe</b>, or <b>tap the tile</b> next to your hero.' : 'Use the <b>arrow keys</b> or <b>WASD</b>.'} Every move you make, it makes one too.`,
     scene: {
       player: { x: 3, y: 5 },
       enemies: [{ kind: 'ghoul', x: 3, y: 1, hp: 3 }],

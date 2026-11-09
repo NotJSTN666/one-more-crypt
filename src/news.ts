@@ -23,6 +23,14 @@ export interface NewsDay {
 
 export const NEWS: NewsDay[] = [
   {
+    date: '2026-11-09',
+    title: 'A quicker start for new players',
+    notes: [
+      '👆 The tutorial is now three short steps, and a pointer shows your very first move.',
+      '🎁 After your first run, tomorrow\'s gift is the first thing you see.',
+    ],
+  },
+  {
     date: '2026-11-07',
     title: 'Night Shift: choose your hero, ultimates, Night Ranks, and a tighter night',
     notes: [
