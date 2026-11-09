@@ -1,11 +1,14 @@
 // The Soul Forge's fusion, played full screen for about three seconds. A magic circle of
-// runes draws itself and turns; the two relics orbit inward on ribbons of light while motes
-// spiral in and lightning starts to leap; they meet in a bloom of light, the circle bursts
-// outward with the shockwaves, and the new relic hangs in turning rays among twinkling stars.
+// runes draws itself and turns; the two relics orbit inward, each sweeping its own colour
+// across the whole screen in a great turning spiral, inside rings that tumble round them;
+// they meet in a bloom of light, the circle bursts outward with the shockwaves, and the new
+// relic hangs in turning rays among twinkling stars with both colours still circling it.
 
 import { calmChosen } from './ui';
 
 const DURATION = 3.1;
+/** How far the relics' orbit is tipped toward the viewer: 1 would be a circle seen from above. */
+const TILT = 0.62;
 /** When the two relics collide, in seconds (matches fusionSound). */
 export const IMPACT = 1.9;
 
@@ -269,6 +272,47 @@ export function playFusion(opts: { a: string; b: string; out: string; name: stri
 
     ctx.globalCompositeOperation = 'lighter';
 
+    // Where the two relics are on their way in: opposite each other on a tilted orbit that
+    // tightens and quickens until they meet.
+    const ang = t * 2.2 + k * 13;
+    const orbit = R * 0.9 * (1 - k);
+    // Both relics' colours take the whole screen. Each sweeps a half of it like a beam,
+    // brightest at the relic and fading behind it...
+    const swirl = t < IMPACT ? clamp(t / 0.4) : Math.max(0, 1 - after / 1.1);
+    if (swirl > 0) {
+      if (ctx.createConicGradient) {
+        const al = (0.1 + 0.2 * k) * swirl * fadeOut;
+        const sweep = ctx.createConicGradient(ang, cx, cy);
+        sweep.addColorStop(0, `rgba(${rgbA},${al})`);
+        sweep.addColorStop(0.03, `rgba(${accentRGB},0)`);
+        sweep.addColorStop(0.5, `rgba(${accentRGB},${al})`);
+        sweep.addColorStop(0.53, `rgba(${rgbA},0)`);
+        sweep.addColorStop(1, `rgba(${rgbA},${al})`);
+        ctx.fillStyle = sweep;
+        ctx.fillRect(-20, -20, w + 40, h + 40);
+      }
+      // ...and trails a spiral arm of it out to the edges, winding tighter as they close.
+      const reach = Math.max(w, h) * 0.8;
+      const twist = 0.45 + 0.75 * k;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      for (const [off, rgb] of [[0, rgbA], [Math.PI, accentRGB]] as const) {
+        ctx.beginPath();
+        for (let r = orbit; r <= reach; r += 10) {
+          const a = ang + off - ((r - orbit) / R) * twist;
+          const x = cx + Math.cos(a) * r;
+          const y = cy + Math.sin(a) * r * TILT;
+          if (r === orbit) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        for (const [width, alpha] of [[R * 0.55, 0.06], [R * 0.22, 0.1], [R * 0.05, 0.3]] as const) {
+          ctx.strokeStyle = `rgba(${rgb},${alpha * (0.6 + 0.6 * k) * swirl * fadeOut})`;
+          ctx.lineWidth = width;
+          ctx.stroke();
+        }
+      }
+    }
+
     // The core, gathering light through the charge and blooming after.
     const core = t < IMPACT ? 24 + k * R * 0.75 : R * (1.1 - Math.min(0.6, after * 0.4));
     const cg = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(1, core));
@@ -333,25 +377,53 @@ export function playFusion(opts: { a: string; b: string; out: string; name: stri
     ctx.globalAlpha = 1;
 
     if (t < IMPACT + 0.03) {
-      // The two relics orbit inward on ribbons of light.
-      const ang = t * 2.2 + k * 13;
-      const orbit = R * 0.9 * (1 - k);
+      // The two relics orbit inward on ribbons of light. The one on the near side of the
+      // orbit is drawn larger and on top, so they pass in front of and behind each other.
       const em = 92 - 44 * k;
-      const pa = { x: cx + Math.cos(ang) * orbit, y: cy + Math.sin(ang) * orbit * 0.8 };
-      const pb = { x: cx - Math.cos(ang) * orbit, y: cy - Math.sin(ang) * orbit * 0.8 };
+      const near = Math.sin(ang);
+      const emA = em * (1 + 0.24 * near);
+      const emB = em * (1 - 0.24 * near);
+      const at = (a: number) => ({ x: cx + Math.cos(a) * orbit, y: cy + Math.sin(a) * orbit * TILT });
+      const pa = at(ang);
+      const pb = at(ang + Math.PI);
+      // Rings tumbling round the pair like a gyroscope, closing in with them.
+      for (let i = 0; i < 3; i++) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate((i % 2 ? -1 : 1) * t * (1.3 + i * 0.6) * (1 + k * 2) + i * 1.05);
+        const rr = orbit + em * 0.75;
+        ctx.strokeStyle = i === 0 ? colA : i === 1 ? colB : '#ffffff';
+        ctx.globalAlpha = (i === 2 ? 0.3 : 0.55) * clamp(t / 0.4);
+        ctx.lineWidth = i === 2 ? 1 : 2;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, rr, rr * (0.22 + 0.14 * i), 0, 0, Math.PI * 2);
+        ctx.stroke();
+        // a bright bead running round each ring
+        const b = t * (4 + i) * (i % 2 ? 1 : -1);
+        ctx.fillStyle = '#ffffff';
+        ctx.globalAlpha = 0.9 * clamp(t / 0.4);
+        ctx.beginPath();
+        ctx.arc(Math.cos(b) * rr, Math.sin(b) * rr * (0.22 + 0.14 * i), 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
       trailA.push(pa);
       trailB.push(pb);
-      if (trailA.length > 22) trailA.shift();
-      if (trailB.length > 22) trailB.shift();
+      if (trailA.length > 34) trailA.shift();
+      if (trailB.length > 34) trailB.shift();
       for (const [trail, rgb] of [[trailA, rgbA], [trailB, accentRGB]] as const) {
+        ctx.lineCap = 'round';
         for (let i = 1; i < trail.length; i++) {
           const f = i / trail.length;
-          ctx.strokeStyle = `rgba(${rgb},${0.55 * f})`;
-          ctx.lineWidth = em * 0.42 * f;
-          ctx.lineCap = 'round';
           ctx.beginPath();
           ctx.moveTo(trail[i - 1].x, trail[i - 1].y);
           ctx.lineTo(trail[i].x, trail[i].y);
+          ctx.strokeStyle = `rgba(${rgb},${0.55 * f})`;
+          ctx.lineWidth = em * 0.42 * f;
+          ctx.stroke();
+          // a white-hot thread down the middle of each ribbon
+          ctx.strokeStyle = `rgba(255,255,255,${0.5 * f * f})`;
+          ctx.lineWidth = em * 0.1 * f;
           ctx.stroke();
         }
       }
@@ -376,25 +448,38 @@ export function playFusion(opts: { a: string; b: string; out: string; name: stri
         ctx.globalAlpha = 1;
       }
       // a halo behind each relic, then the relic itself
-      for (const [p, rgb] of [[pa, rgbA], [pb, accentRGB]] as const) {
-        const hg = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, em * 0.9);
+      for (const [p, rgb, e] of [[pa, rgbA, emA], [pb, accentRGB, emB]] as const) {
+        const hg = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, e * 0.9);
         hg.addColorStop(0, `rgba(${rgb},0.55)`);
         hg.addColorStop(1, `rgba(${rgb},0)`);
         ctx.fillStyle = hg;
-        ctx.fillRect(p.x - em, p.y - em, em * 2, em * 2);
+        ctx.fillRect(p.x - e, p.y - e, e * 2, e * 2);
       }
       ctx.save();
       ctx.globalCompositeOperation = 'source-over';
-      ctx.font = emojiFont(em);
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.globalAlpha = clamp(t / 0.25);
       // the new pixel icons when there are some, else the emoji
       ctx.imageSmoothingEnabled = false;
-      if (opts.aImg) ctx.drawImage(opts.aImg, pa.x - em / 2, pa.y - em / 2, em, em);
-      else ctx.fillText(opts.a, pa.x, pa.y);
-      if (opts.bImg) ctx.drawImage(opts.bImg, pb.x - em / 2, pb.y - em / 2, em, em);
-      else ctx.fillText(opts.b, pb.x, pb.y);
+      const appear = clamp(t / 0.25);
+      const draw = (img: CanvasImageSource | null | undefined, emoji: string, p: { x: number; y: number }, e: number, alpha: number) => {
+        ctx.globalAlpha = alpha;
+        if (img) ctx.drawImage(img, p.x - e / 2, p.y - e / 2, e, e);
+        else {
+          ctx.font = emojiFont(e);
+          ctx.fillText(emoji, p.x, p.y);
+        }
+      };
+      // How fast they're turning; the faster, the longer the string of after-images behind.
+      const speed = 2.2 + (39 * charge * charge) / IMPACT;
+      const relics = [
+        { img: opts.aImg, emoji: opts.a, off: 0, e: emA, z: near },
+        { img: opts.bImg, emoji: opts.b, off: Math.PI, e: emB, z: -near },
+      ].sort((p, q) => p.z - q.z);
+      for (const r of relics) {
+        for (let j = 3; j >= 1; j--) draw(r.img, r.emoji, at(ang + r.off - j * 0.014 * speed), r.e, (0.3 / j) * appear);
+        draw(r.img, r.emoji, at(ang + r.off), r.e, appear);
+      }
       ctx.restore();
     }
 
@@ -473,11 +558,27 @@ export function playFusion(opts: { a: string; b: string; out: string; name: stri
       // A halo ring that settles round the new relic.
       const settle = easeOut(clamp(after / 0.5));
       const halo = Math.min(w, h) * 0.2 * (1.5 - 0.5 * settle);
-      ctx.strokeStyle = `rgba(${glowRGB},${0.6 * settle * fadeOut})`;
+      ctx.strokeStyle = `rgba(${glowRGB},${0.35 * settle * fadeOut})`;
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(cx, cy, halo, 0, Math.PI * 2);
       ctx.stroke();
+      // The two relics' colours go on circling the new one: an arc each, chasing round the ring.
+      ctx.lineCap = 'round';
+      for (const [off, rgb] of [[0, rgbA], [Math.PI, accentRGB]] as const) {
+        const head = after * 3.2 + off;
+        for (let s = 0; s < 12; s++) {
+          ctx.strokeStyle = `rgba(${rgb},${(1 - s / 12) * 0.9 * settle * fadeOut})`;
+          ctx.lineWidth = 4 * (1 - s / 14);
+          ctx.beginPath();
+          ctx.arc(cx, cy, halo, head - (s + 1) * 0.11, head - s * 0.11);
+          ctx.stroke();
+        }
+        ctx.fillStyle = `rgba(255,255,255,${settle * fadeOut})`;
+        ctx.beginPath();
+        ctx.arc(cx + Math.cos(head) * halo, cy + Math.sin(head) * halo, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
 
       // Stars twinkling around it.
       for (const st of stars) {
