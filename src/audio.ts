@@ -875,7 +875,8 @@ export function fusionSound(ascended: boolean, impactAt = 1.9, into?: BaseAudioC
   }
   // Heartbeat thumps that speed up toward the collision.
   let at = 0;
-  for (let gap = 0.42; at < impactAt - 0.12; gap *= 0.8) {
+  // They stop where the hammer takes over the beat.
+  for (let gap = 0.42; at < impactAt - 1.0; gap *= 0.8) {
     const k = ctx.createOscillator();
     const kg = ctx.createGain();
     k.frequency.setValueAtTime(140, t0 + at);
@@ -887,6 +888,43 @@ export function fusionSound(ascended: boolean, impactAt = 1.9, into?: BaseAudioC
     k.stop(t0 + at + 0.18);
     at += Math.max(0.06, gap);
   }
+
+  // The hammer on the anvil, twice before the blow that makes the relic: a ring of steel
+  // (partials that don't line up, as a struck bar's don't), a click and a thud under it.
+  [impactAt - 0.9, impactAt - 0.45].forEach((when, n) => {
+    const s0 = t0 + when;
+    if (when < 0) return;
+    [1, 1.51, 2.42, 3.27, 4.6].forEach((m, i) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = i ? 'sine' : 'triangle';
+      o.frequency.value = (n ? 930 : 830) * m;
+      g.gain.setValueAtTime(0.16 / (1 + i * 0.6), s0);
+      g.gain.exponentialRampToValueAtTime(0.001, s0 + 0.42 - i * 0.05);
+      o.connect(g).connect(out);
+      o.start(s0);
+      o.stop(s0 + 0.45);
+    });
+    const click = ctx.createBufferSource();
+    click.buffer = noiseBuf(0.06);
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 2500;
+    const cg = ctx.createGain();
+    cg.gain.setValueAtTime(0.5, s0);
+    cg.gain.exponentialRampToValueAtTime(0.001, s0 + 0.05);
+    click.connect(hp).connect(cg).connect(out);
+    click.start(s0);
+    const thud = ctx.createOscillator();
+    const tg = ctx.createGain();
+    thud.frequency.setValueAtTime(150, s0);
+    thud.frequency.exponentialRampToValueAtTime(50, s0 + 0.12);
+    tg.gain.setValueAtTime(0.5, s0);
+    tg.gain.exponentialRampToValueAtTime(0.001, s0 + 0.16);
+    thud.connect(tg).connect(out);
+    thud.start(s0);
+    thud.stop(s0 + 0.18);
+  });
 
   // 2. The impact: a deep drop, a burst and a long crash.
   const boom = ctx.createOscillator();
