@@ -7,7 +7,7 @@ import { liveNews, unreadNews, type NewsGo } from './news';
 import { TRIAL_SOULS, trialProgressText, weekTrial } from './trials';
 import { ACHIEVEMENT_BY_ID, DAILY_TOTALS, ELITES, FEATURES, HERO_BY_ID, dailyHero, hordeHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait, heroSprite } from './hero';
-import { BOON_BY_ID, ENEMY_INFO, W, MIST_BITE, REAPER_FLOOR, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode } from './game';
+import { BOON_BY_ID, ENEMY_INFO, W, MIST_BITE, REAPER_FLOOR, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode, type EnemyKind } from './game';
 import { acceptQuest, checkRun, grantFeats, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, finishHordeMeta, receiveGift, equipTitle, FAIR_DAILY, LEAN_DAILY, MISSILE_DAILY, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
@@ -15,7 +15,7 @@ import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } f
 import { hallFromLink, onVisitIsle, showHall, showPublicHall, soulRankHtml, titleName } from './hall';
 import { AURA_BY_ID, BESTIARY_KINDS, COMMUNITY_GOAL, MASTERY_SOULS, soulSurge, beastPlural, bestiaryTiers, featCosmetics, marketPiece, masteryRank, GIFT_BY_ID, TITLE_BY_ID, HEAD_BY_ID, LOOK_BY_ID, PODIUM, RAID_DECOR_BY_ID, RAID_KIND_LABEL, RAID_REWARDS, STORY_ALL, STREAK_HELMS, WEEKLY, WELCOME, rankFor, titleFxClass, welcomeLabel, type WelcomeReward } from './progression';
 import { Renderer } from './render';
-import { resetCanvases, sprites } from './sprites';
+import { enemyFrames, resetCanvases, sprites } from './sprites';
 import { RAID_JOIN_MIN, RAID_SUBMIT_MIN, RAID_TURNS, currentRaid, nextRaid, raidBossName, raidConfig, raidJoinable, raidTimeLabel, type RaidSlot } from './raid';
 import { hashSeed } from './rng';
 import { ONLINE, loadCloudRuns, saveCloudRuns, type CloudRuns, communityKills, loadHall, submitHorde, hordeBoard, claimInvite, myInvites, raidHit, raidPlayer, raidState, type RaidState, challengeBoard, emailReminderOff, sendFeedback, setEmailReminder, type FeedbackKind, challengeNews, createChallenge, dailyBoard, endlessBoard, getChallenge, mySummons, noteRun, noteSummon, pingActivity, setPresenceSource, startActivityPings, waitingGifts, claimGift, submitChallengeRun, type Challenge, type ChallengeRow } from './online';
@@ -1216,6 +1216,7 @@ function updateHud(reset = false) {
     });
     // A new relic scrolls into view at the end of the row.
     if (!reset && unique.length > knownRelics) bar.scrollLeft = bar.scrollWidth;
+    if (!reset) bar.querySelectorAll<HTMLElement>('.relic-chip.new').forEach((chip, k) => flyRelic(chip, k));
     knownRelics = unique.length;
     knownSet = unique.join();
     bar.classList.toggle('overflowing', bar.scrollWidth > bar.clientWidth + 1);
@@ -1348,6 +1349,173 @@ function zoneTip(g: Game): string {
 
 // ---------- overlays ----------
 
+/**
+ * A little scene under the logo: your hero, in their own look, holding a stretch of crypt
+ * while the dead shamble in from either side and are cut down, over and over.
+ */
+function titleScene() {
+  const c = overlay.querySelector<HTMLCanvasElement>('#title-scene');
+  const ctx = c?.getContext('2d');
+  if (!c || !ctx) return;
+  const fit = outfitFor(meta.hero);
+  const hero = heroSprite(meta.hero, {}, [], fit.look, fit.head);
+  const kinds: EnemyKind[] = ['ghoul', 'bat', 'wraith', 'archer', 'brute'];
+  type Foe = { kind: EnemyKind; x: number; side: number; hp: number; dead: number };
+  let foes: Foe[] = [];
+  let bits: { x: number; y: number; vx: number; vy: number; life: number }[] = [];
+  let spawnIn = 0.6;
+  let swing = 0;
+  let face = 1;
+  let n = 0;
+  let last = performance.now();
+  const HX = 60;
+  const still = calmMotion();
+  const frame = (now: number) => {
+    if (!c.isConnected) return;
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    const t = now / 1000;
+    spawnIn -= dt;
+    if (spawnIn <= 0 && foes.length < 3) {
+      const side = n % 2 ? -1 : 1;
+      foes.push({ kind: kinds[n % kinds.length], x: side > 0 ? 134 : -14, side, hp: 1, dead: 0 });
+      n++;
+      spawnIn = 1.3 + Math.random() * 1.2;
+    }
+    swing = Math.max(0, swing - dt);
+    for (const f of foes) {
+      if (f.dead) {
+        f.dead += dt;
+        continue;
+      }
+      const reach = HX + f.side * 13;
+      if ((f.side > 0 && f.x > reach) || (f.side < 0 && f.x < reach)) f.x -= f.side * (f.kind === 'bat' ? 26 : 15) * dt;
+      else if (swing <= 0) {
+        // in reach: the hero turns and strikes
+        swing = 0.3;
+        face = f.side;
+        f.dead = 0.001;
+        for (let k = 0; k < 9; k++) bits.push({ x: f.x + 6, y: 12, vx: f.side * (10 + Math.random() * 30), vy: -20 - Math.random() * 30, life: 0.5 });
+      }
+    }
+    foes = foes.filter((f) => f.dead < 0.3);
+    ctx.clearRect(0, 0, c.width, c.height);
+    // the floor, and a pool of torchlight round the hero
+    ctx.fillStyle = 'rgba(255, 190, 110, 0.10)';
+    ctx.beginPath();
+    ctx.ellipse(HX + 6, 19, 30 + Math.sin(t * 7) * 1.5, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    for (const f of foes) ctx.fillRect(Math.round(f.x) + 2, 20, 8, 1);
+    ctx.fillRect(HX + 2, 20, 8, 1);
+    for (const f of foes) {
+      const fr = enemyFrames(f.kind);
+      const img = f.dead ? fr.idle[0].white : fr.idle[Math.abs(Math.floor(t * 3 + f.x)) % 2].normal;
+      const bob = f.kind === 'bat' || f.kind === 'wraith' ? Math.round(Math.sin(t * 5 + f.x) * 1.5) - 2 : 0;
+      ctx.globalAlpha = f.dead ? 1 - f.dead / 0.3 : 1;
+      ctx.save();
+      ctx.translate(Math.round(f.x) + (f.side > 0 ? 12 : 0), 8 + bob);
+      ctx.scale(f.side > 0 ? -1 : 1, 1);
+      ctx.drawImage(img, 0, 0);
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+    // the hero: breathing, and leaning into each strike
+    const p = swing > 0 ? Math.sin((1 - swing / 0.3) * Math.PI) : 0;
+    const breath = swing <= 0 && Math.sin(t * 2.6) > 0.55 ? 1 : 0;
+    ctx.save();
+    ctx.translate(HX + 6 + face * p * 5, 14);
+    ctx.rotate(face * p * 0.3);
+    ctx.scale(face, 1);
+    ctx.drawImage(hero.normal, -6, -6 + breath, 12, 12 - breath);
+    ctx.restore();
+    if (p > 0.2) {
+      ctx.strokeStyle = `rgba(255, 245, 220, ${p})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(HX + 6 + face * 6, 14, 9, face > 0 ? -1.1 : Math.PI - 1.1, face > 0 ? 1.1 : Math.PI + 1.1);
+      ctx.stroke();
+    }
+    for (const b of bits) {
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      b.vy += 120 * dt;
+      b.life -= dt;
+      ctx.fillStyle = `rgba(232, 220, 196, ${Math.max(0, b.life * 2)})`;
+      ctx.fillRect(Math.round(b.x), Math.round(b.y), 1, 1);
+    }
+    bits = bits.filter((b) => b.life > 0);
+    if (!still) requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+}
+
+/** A claimed relic flies from the hero to its place in the relic row. */
+function flyRelic(chip: HTMLElement, k: number) {
+  if (calmMotion() || !chip.animate || tutorial) return;
+  const board = canvas.getBoundingClientRect();
+  const to = chip.getBoundingClientRect();
+  if (!board.width || !to.width) return;
+  const ts = board.width / W;
+  const from = { x: board.left + (game.player.x + 0.5) * ts, y: board.top + (game.player.y + 0.5) * ts };
+  const fly = document.createElement('div');
+  fly.className = 'relic-fly';
+  fly.innerHTML = chip.querySelector('.ri')?.outerHTML ?? chip.innerHTML;
+  document.body.appendChild(fly);
+  chip.style.visibility = 'hidden';
+  const dx = to.left + to.width / 2 - from.x;
+  const dy = to.top + to.height / 2 - from.y;
+  const done = () => {
+    fly.remove();
+    chip.style.visibility = '';
+    chip.classList.remove('new');
+    void chip.offsetWidth;
+    chip.classList.add('new');
+  };
+  fly.style.left = `${from.x}px`;
+  fly.style.top = `${from.y}px`;
+  const anim = fly.animate(
+    [
+      { transform: 'translate(-50%, -50%) scale(0.6)', opacity: 0 },
+      { transform: 'translate(-50%, -150%) scale(2.2)', opacity: 1, offset: 0.3 },
+      { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(1)`, opacity: 1 },
+    ],
+    { duration: 650, delay: 150 + k * 180, easing: 'cubic-bezier(0.5, 0, 0.3, 1)', fill: 'both' },
+  );
+  anim.onfinish = done;
+  anim.oncancel = done;
+  window.setTimeout(done, 1600 + k * 180);
+}
+
+/** Results: the numbers count up, and the descent fills in floor by floor. */
+function animateResults() {
+  if (calmMotion()) return;
+  overlay.querySelectorAll<HTMLElement>('.big-stats b[data-n]').forEach((el, i) => {
+    const target = Number(el.dataset.n);
+    if (!Number.isFinite(target) || target <= 0) return;
+    const t0 = performance.now() + 250 + i * 140;
+    const dur = Math.min(900, 300 + target * 12);
+    el.textContent = '0';
+    const tick = (now: number) => {
+      if (!el.isConnected) return;
+      const p = Math.max(0, Math.min(1, (now - t0) / dur));
+      el.textContent = String(Math.round(target * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) requestAnimationFrame(tick);
+      else el.classList.add('landed');
+    };
+    requestAnimationFrame(tick);
+  });
+}
+
+/** The descent strip, each floor its own cell so they can drop in one by one. */
+function stripCells(floor: number): string {
+  type Seg = { segment(t: string): Iterable<{ segment: string }> };
+  const Segmenter = (Intl as unknown as { Segmenter?: new (l: undefined, o: { granularity: string }) => Seg }).Segmenter;
+  const text = descentStrip(floor);
+  const cells = Segmenter ? [...new Segmenter(undefined, { granularity: 'grapheme' }).segment(text)].map((x) => x.segment) : [...text];
+  return cells.map((c, i) => `<i style="--i:${i}">${c}</i>`).join('');
+}
+
 const DRAWER_KEY = 'omc:title-more';
 function drawerOpen(): boolean {
   try {
@@ -1433,6 +1601,7 @@ function showTitle() {
   showOverlay('title', `
     ${accountChip()}
     <h1 class="logo">One More Crypt</h1>
+    <canvas class="title-scene" id="title-scene" width="132" height="22" aria-hidden="true"></canvas>
     <p class="tagline">One crypt. One try a day. How deep can you go?</p>
     ${onlineCountHtml()}
     <div class="title-play">
@@ -1469,6 +1638,7 @@ function showTitle() {
   `);
   overlay.querySelector('#title-drawer')?.addEventListener('toggle', (e) => setDrawerOpen((e.currentTarget as HTMLDetailsElement).open));
   on('#delve', () => showDelve());
+  titleScene();
   on('#copy-daily', async () => {
     if (!done) return;
     const label = `Daily #${today}`;
@@ -2234,11 +2404,11 @@ function showDeath(r: RunResult, best: boolean) {
     <img class="hero-portrait ${auraClass(outfitFor(game.hero).aura).cls}" style="${auraClass(outfitFor(game.hero).aura).style}" src="${heroPortrait(game.hero, game.relics, game.relicLog, 8, outfitFor(game.hero).look, outfitFor(game.hero).head)}" alt="Your hero's final form" width="96" height="96" />
     <h2 class="dead">You have fallen</h2>
     <p class="sub">${lastLabel} · slain by ${r.killedBy}</p>
-    <div class="strip">${descentStrip(r.floor)}</div>
+    <div class="strip fill-in">${stripCells(r.floor)}</div>
     <div class="big-stats">
-      <div><b>${r.floor}</b>FLOOR</div>
-      <div><b>${r.kills}</b>KILLS</div>
-      <div><b>${r.turns}</b>TURNS</div>
+      <div><b data-n="${r.floor}">${r.floor}</b>FLOOR</div>
+      <div><b data-n="${r.kills}">${r.kills}</b>KILLS</div>
+      <div><b data-n="${r.turns}">${r.turns}</b>TURNS</div>
       ${r.seconds ? `<div><b>${playTime(r.seconds)}</b>TIME</div>` : ''}
     </div>
     ${first ? `${welcomeTrackHtml()}${reminderPromptHtml()}` : '<button class="btn share-btn" id="copy">📋 Copy result<small>Paste it in Discord, a group chat, anywhere</small></button>'}
@@ -2307,6 +2477,7 @@ function showDeath(r: RunResult, best: boolean) {
   on('#retry-challenge', () => ch && startChallenge(ch));
   on('#pass-challenge', () => ch && showChallengeShare(ch.code, `${ch.name} reached floor ${ch.floor}`, backHere, true));
   if (ch) void fillChallengeBoard(ch);
+  animateResults();
   on('#copy', async () => toast((await copyText(shareText(r, lastLabel, beat()) + (PORTAL ? '' : '\n' + siteUrl()))) ? 'Copied!' : 'Copy failed'));
   // After the Daily, Endless is a new choice (pick a hero); after Endless, Retry is straight back in.
   on('#again', () => (daily ? showHeroSelect(() => startRun('endless'), backHere) : quickRestart()));

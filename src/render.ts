@@ -706,6 +706,8 @@ export class Renderer {
     let ox = 0;
     let oy = 0;
     const lunge = this.lunges.get(id);
+    // Leaning into a strike: the whole body tips toward the blow, and back.
+    let tilt = 0;
     if (lunge) {
       lunge.t += dt;
       const p = lunge.t / 0.14;
@@ -714,6 +716,7 @@ export class Renderer {
         const amt = Math.sin(p * Math.PI) * 5;
         ox = lunge.dx * amt;
         oy = lunge.dy * amt;
+        tilt = Math.sin(p * Math.PI) * 0.32 * (lunge.dx || (this.facing.get(id) ?? 1));
       }
     }
     // A little hop while stepping between tiles, a squash on landing, and slow breathing at rest.
@@ -745,7 +748,14 @@ export class Renderer {
     const dx = x - (w - SPRITE_SIZE) / 2;
     const dy = y + squash;
     const put = (image: HTMLCanvasElement, ox2 = 0, oy2 = 0) => {
-      if (face < 0) {
+      if (tilt) {
+        ctx.save();
+        ctx.translate(dx + w / 2 + ox2, dy + h + oy2);
+        ctx.rotate(tilt);
+        ctx.scale(face < 0 ? -1 : 1, 1);
+        ctx.drawImage(image, -w / 2, -h, w, h);
+        ctx.restore();
+      } else if (face < 0) {
         ctx.save();
         ctx.translate(dx + w + ox2, dy + oy2);
         ctx.scale(-1, 1);
@@ -758,6 +768,12 @@ export class Renderer {
       for (const [ox2, oy2] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) put(sprite.white, ox2, oy2);
     }
     put(img);
+    // The hero blinks now and then (a hooded face with two bright eyes: they close for a moment).
+    if (id === PLAYER_ID && !tilt && !hop && w === SPRITE_SIZE && img === sprite.normal && (this.time + 0.4) % 3.7 < 0.13) {
+      ctx.fillStyle = '#0d0812';
+      const ey = dy + (squash ? 3 : 4);
+      for (const ex of [5, 7]) ctx.fillRect(dx + (face < 0 ? SPRITE_SIZE - 1 - ex : ex), ey, 1, 1);
+    }
     ctx.globalAlpha = 1;
     return { x, y };
   }

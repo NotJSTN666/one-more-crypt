@@ -5965,3 +5965,25 @@ body.tutorial #relic-bar {
 @keyframes move-hint-bob { 50% { transform: translateY(-5px); } }
 @media (prefers-reduced-motion: reduce) { #move-hint i, #move-hint span { animation: none; } }
 #move-hint[hidden] { display: none; }
+
+/* A claimed relic, flying from the hero to the relic row. */
+.relic-fly {
+  position: fixed;
+  z-index: 30;
+  pointer-events: none;
+  font-size: 22px;
+  filter: drop-shadow(0 0 8px rgba(242, 193, 78, 0.9));
+}
+/* Results: floors drop in one by one, and each number lands with a little pop. */
+.strip.fill-in i { display: inline-block; font-style: normal; animation: strip-in 0.3s cubic-bezier(0.2, 1.4, 0.4, 1) both; animation-delay: calc(0.15s + var(--i) * 0.07s); }
+@keyframes strip-in { from { opacity: 0; transform: translateY(-10px) scale(0.4); } }
+.big-stats b.landed { animation: stat-land 0.3s ease-out; }
+@keyframes stat-land { 40% { transform: scale(1.25); color: #fff3b0; } }
+/* The little fight under the logo. */
+.title-scene {
+  display: block;
+  width: min(100%, 396px);
+  margin: 2px auto 0;
+  image-rendering: pixelated;
+}
+@media (prefers-reduced-motion: reduce) { .strip.fill-in i, .big-stats b.landed { animation: none; } }

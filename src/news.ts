@@ -24,10 +24,11 @@ export interface NewsDay {
 export const NEWS: NewsDay[] = [
   {
     date: '2026-11-09',
-    title: 'A quicker start for new players',
+    title: 'A quicker start for new players, and more life on screen',
     notes: [
       '👆 The tutorial is now three short steps, and a pointer shows your very first move.',
       '🎁 After your first run, tomorrow\'s gift is the first thing you see.',
+      '✨ More life on screen: your hero fights off the dead under the title, relics fly to your relic row when you claim them, heroes and foes lean into every strike, your hero blinks, and your results count up as the floors drop in.',
     ],
   },
   {
