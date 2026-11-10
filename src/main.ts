@@ -1392,7 +1392,9 @@ function titleScene() {
   let hero = spriteOf(order[0]);
   let last = performance.now();
   const HX = 60;
-  const still = calmMotion();
+  // Only the in-game Calm motion setting stills it: many computers ask for reduced motion
+  // without anyone choosing it, and the scene would freeze on its first frame.
+  const still = calmChosen();
   const name = () => {
     if (label) label.textContent = `The ${HERO_BY_ID[order[at]].name}`;
   };
