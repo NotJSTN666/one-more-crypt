@@ -3,6 +3,7 @@
 //   x-header.png       1500x500, the X header
 //   discord-banner.png 960x540, the Discord server banner
 //   itch-cover.png     630x500, the itch.io cover image
+//   facebook-cover.png 1640x856, the Facebook group cover
 // Usage: npx vite --port 5199 &  then  node scripts/make-x-brand.mjs
 import { mkdirSync } from 'node:fs';
 import { chromium } from 'playwright';
@@ -12,8 +13,8 @@ const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1600, height: 2600 } });
 await page.goto('http://localhost:5199/scripts/x-brand.html');
 await page.waitForFunction(() => window.brandReady === true);
-for (const [id, file] of [['avatar', 'profile'], ['header', 'x-header'], ['discord', 'discord-banner'], ['itch', 'itch-cover']]) {
+for (const [id, file] of [['avatar', 'profile'], ['header', 'x-header'], ['discord', 'discord-banner'], ['itch', 'itch-cover'], ['facebook', 'facebook-cover']]) {
   await page.locator(`#${id}`).screenshot({ path: `brand/${file}.png` });
 }
 await browser.close();
-console.log('wrote brand/profile.png, x-header.png, discord-banner.png and itch-cover.png');
+console.log('wrote brand/profile.png, x-header.png, discord-banner.png, itch-cover.png and facebook-cover.png');

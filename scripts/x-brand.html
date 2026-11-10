@@ -13,6 +13,7 @@
     <canvas id="header" width="1500" height="500"></canvas>
     <canvas id="discord" width="960" height="540"></canvas>
     <canvas id="itch" width="630" height="500"></canvas>
+    <canvas id="facebook" width="1640" height="856"></canvas>
     <script type="module">
       // Profile picture and cover images for X, Discord, itch.io and Instagram.
       // Regenerate with: node scripts/make-x-brand.mjs
@@ -125,8 +126,7 @@
       }
 
       /** Four little mode tags in a row. */
-      function modes(ctx, cx, y, size, gap) {
-        const list = [['DAILY', '#d23a46'], ['ENDLESS', '#b07cff'], ['HORDE', '#ff8a2a'], ['STORY', '#5fe3ff']];
+      function modes(ctx, cx, y, size, gap, list = [['DAILY', '#d23a46'], ['ENDLESS', '#b07cff'], ['HORDE', '#ff8a2a'], ['STORY', '#5fe3ff']]) {
         ctx.font = `${size}px Silkscreen`;
         const widths = list.map(([n]) => ctx.measureText(n).width + size * 1.6);
         let x = cx - (widths.reduce((a, b) => a + b, 0) + gap * (list.length - 1)) / 2;
@@ -559,6 +559,53 @@
         flourish(ctx, 315, 114, 200);
         caption(ctx, 'ONE CRYPT. ONE TRY A DAY.', 315, 150, 18, '#e8dcc4');
         caption(ctx, 'HOW DEEP CAN YOU GO?', 315, 176, 18, '#f2c14e');
+      }
+      // ---------- Facebook group cover (1640x856; phones crop the sides, so it all sits in the middle) ----------
+      {
+        const ctx = document.getElementById('facebook').getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+        const { c, px } = grid(410, 214);
+        bricks(px, 0, 0, 410, 214, 31);
+        for (let x = 8; x < 410; x += 50) {
+          px(x, 0, 7, 172, '#2f2838');
+          px(x, 0, 1, 172, '#40374b');
+          px(x + 6, 0, 1, 172, '#16111c');
+          px(x - 1, 14, 9, 2, '#3a3245');
+        }
+        banner(px, 22, 0, 12, 40);
+        banner(px, 376, 0, 12, 40);
+        chain(px, 120, 0, 20);
+        chain(px, 290, 0, 26);
+        torch(px, 70, 74);
+        torch(px, 336, 74);
+        flags(px, 0, 172, 410, 42, 8);
+        ctx.drawImage(c, 0, 0, 1640, 856);
+        light(ctx, 286, 300, 230, 'rgba(255,150,60,A)', 0.32);
+        light(ctx, 1350, 300, 230, 'rgba(255,150,60,A)', 0.32);
+        light(ctx, 1380, 620, 320, 'rgba(120,200,80,A)', 0.18);
+        light(ctx, 820, 560, 420, 'rgba(210,40,60,A)', 0.16);
+        mist(ctx, 1050, 1640, 640, 140, 31, 0.16);
+        // the dead on the right, Death behind them
+        stand(ctx, reaper, 1190, 790, 320, { flip: true, shade: 'rgba(14,6,24,0.72)' });
+        light(ctx, 1350, 540, 130, 'rgba(176,124,255,A)', 0.18);
+        stand(ctx, foe('ghoul'), 1010, 800, 100, { flip: true });
+        stand(ctx, foe('monk'), 1100, 790, 104, { flip: true });
+        stand(ctx, foe('wraith'), 1160, 760, 100, { flip: true });
+        stand(ctx, foe('bat'), 1290, 470, 70, { flip: true });
+        stand(ctx, foe('abbot'), 1330, 820, 180, { flip: true, glow: 'rgba(155,227,106,0.7)' });
+        // all seven heroes on the left, the crowned knight out front
+        cast.forEach((h, i) => {
+          const lead = h.lead;
+          stand(ctx, heroImg(h), 250 + i * 92, lead ? 826 : 792 + (i % 2) * 16, lead ? 136 : 106, { aura: h.aura, glow: lead ? 'rgba(255,60,80,0.9)' : null, t: 0.4 + i * 0.37 });
+        });
+        embers(ctx, 0, 1640, 640, 60, 13, 0.25);
+        vignette(ctx, 1640, 856, 820, 330, 340, 1050, 0.7);
+        bigTitle(ctx, 820, 250, 150);
+        flourish(ctx, 820, 280, 380);
+        caption(ctx, 'COMMUNITY', 820, 340, 30, '#f2c14e');
+        caption(ctx, 'ONE CRYPT A DAY. HOW DEEP CAN YOU GO?', 820, 392, 24, '#e8dcc4');
+        modes(ctx, 820, 418, 17, 14, [['DAILY', '#d23a46'], ['ENDLESS', '#b07cff'], ['HORDE', '#ff8a2a'], ['NIGHT SHIFT', '#7fb4ff'], ['STORY', '#5fe3ff']]);
+        caption(ctx, 'FREE IN YOUR BROWSER · ONEMORECRYPT.COM', 820, 506, 20, '#e8dcc4');
       }
       window.brandReady = true;
     </script>
