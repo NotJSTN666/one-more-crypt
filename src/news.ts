@@ -31,6 +31,7 @@ export const NEWS: NewsDay[] = [
       '✨ More life on screen: every hero takes a turn fighting off the dead under the title, each with their own attack, relics fly to your relic row when you claim them, heroes and foes lean into every strike, your hero blinks, and your results count up as the floors drop in.',
       '🌀 Soul Forge fusions look grander: each relic sweeps its own colour across the whole screen as the pair spin together.',
     ],
+    fixes: ['🎬 The heroes under the title now keep taking turns on computers set to reduce motion, instead of standing still.'],
   },
   {
     date: '2026-11-07',
