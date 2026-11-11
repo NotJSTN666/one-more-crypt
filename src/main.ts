@@ -4761,6 +4761,11 @@ const challengeCode = challengeFromLink();
 inviteFromLink();
 if (challengeCode && ONLINE) openChallenge(challengeCode, showTitle);
 // The unsubscribe link in a reminder email: ?unsub=<token>.
+// onemorecrypt.com/?testers shows the Android tester card straight away, to see what players get.
+if (new URLSearchParams(location.search).has('testers')) {
+  history.replaceState(null, '', location.pathname + location.hash);
+  window.setTimeout(() => showTesterAsk(() => true), 1500);
+}
 const unsub = new URLSearchParams(location.search).get('unsub');
 if (unsub && ONLINE) {
   const url = new URL(location.href);
