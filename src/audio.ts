@@ -631,6 +631,22 @@ export async function renderMenu(seconds: number): Promise<AudioBuffer> {
 }
 if (import.meta.env.DEV) (window as unknown as { renderMenu?: typeof renderMenu }).renderMenu = renderMenu;
 
+// Local development only: the sound effects, reachable from outside, so a recording can note which play and when.
+if (import.meta.env.DEV) window.addEventListener('load', () => ((window as unknown as { omcSfx?: typeof sfx }).omcSfx = sfx));
+
+/** Local development only: one sound effect rendered offline on its own, for laying under trailers. */
+export async function renderSfx(name: string, args: unknown[] = [], seconds = 3): Promise<AudioBuffer> {
+  const saved = ctx;
+  const off = new OfflineAudioContext(2, Math.ceil(44100 * seconds), 44100);
+  ctx = off as unknown as AudioContext;
+  try {
+    (sfx as unknown as Record<string, (...a: unknown[]) => void>)[name]?.(...args);
+  } finally {
+    ctx = saved;
+  }
+  return off.startRendering();
+}
+
 /**
  * Keep the melody in tune with the chord under it: a held or on-beat note moves to the nearest
  * note of the chord; a quick passing note to the nearest note in the key (E minor, with D sharp

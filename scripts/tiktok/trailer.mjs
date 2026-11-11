@@ -5,8 +5,8 @@
 //   node scripts/tiktok/trailer.mjs wide|tall <out dir>
 //
 // wide is 1920x1080 (the desktop layout), tall is 1080x1920 (the phone layout). Writes
-// <out>/frames/*.jpg at 60 a second and <out>/marks.json (when the fusion starts, and how
-// long it all is) for the sound. Needs the dev server: npx vite --port 5199
+// <out>/frames/*.jpg at 60 a second and <out>/marks.json (when the fusion starts, how long
+// it all is, and every sound effect with its time) for trailer-sound.mjs. Needs the dev server: npx vite --port 5199
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 
@@ -194,6 +194,22 @@ if (shape === 'tall') {
 }
 
 // ---- record: one take ----
+// Every sound effect the game asks for is noted with its time, so the sound can be laid
+// under the video afterwards (the page itself is silent while it's recorded).
+await p.evaluate(async () => {
+  // (the game's own copy of them, which the dev build leaves on window.omcSfx)
+  const sfx = window.omcSfx;
+  window.__sfx = [];
+  for (const name of Object.keys(sfx)) {
+    const real = sfx[name];
+    if (typeof real !== 'function' || name === 'fuse') continue;
+    sfx[name] = (...args) => {
+      window.__sfx.push({ name, args, t: performance.now() });
+      return real(...args);
+    };
+  }
+  window.__t0 = performance.now();
+});
 let frame = 0;
 const marks = {};
 const GAP = Math.round(0.36 * FPS);
@@ -267,6 +283,7 @@ for (let i = 0; i < Math.round(3 * FPS); i++) {
   await shot();
 }
 marks.total = frame / FPS;
+marks.sfx = await p.evaluate(() => window.__sfx.map((e) => ({ name: e.name, args: e.args, t: (e.t - window.__t0) / 1000 })));
 writeFileSync(`${OUT}/marks.json`, JSON.stringify(marks));
-console.log(JSON.stringify({ shape, frames: frame, ...marks }), errs.length ? `errors: ${errs.join(' | ')}` : '');
+console.log(JSON.stringify({ shape, frames: frame, fuse: marks.fuse, end: marks.end, total: marks.total, sounds: marks.sfx.length }), errs.length ? `errors: ${errs.join(' | ')}` : '');
 await b.close();
