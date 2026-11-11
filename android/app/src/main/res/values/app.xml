@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">One More Crypt</string>
+    <color name="crypt">#07040B</color>
+    <style name="Crypt" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/crypt</item>
+        <item name="android:statusBarColor">@color/crypt</item>
+        <item name="android:navigationBarColor">@color/crypt</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>
