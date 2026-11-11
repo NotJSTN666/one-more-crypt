@@ -31,10 +31,12 @@ execFileSync('node', [new URL('./record.mjs', import.meta.url).pathname, `${out}
 const seconds = (idea.seconds ?? 11) + 2.2;
 const browser = await chromium.launch();
 const page = await browser.newPage();
-await page.goto('http://localhost:5199/');
-await page.waitForFunction(() => typeof window.renderNight === 'function', null, { timeout: 30000 });
+// On a page with no game running (only the audio module is loaded), so nothing else the game
+// plays while it starts up can leak into the render.
+await page.goto('http://localhost:5199/privacy.html');
 const wav = await page.evaluate(async ({ seconds, boss }) => {
-  const buf = await window.renderNight(seconds + 0.5, () => ({ heat: 3, boss }));
+  const { renderNight } = await import('/src/audio.ts');
+  const buf = await renderNight(seconds + 0.5, () => ({ heat: 3, boss }));
   const n = buf.length, ch = buf.numberOfChannels;
   const data = new DataView(new ArrayBuffer(44 + n * ch * 2));
   const str = (o, s) => [...s].forEach((c, i) => data.setUint8(o + i, c.charCodeAt(0)));
