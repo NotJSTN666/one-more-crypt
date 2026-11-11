@@ -611,6 +611,26 @@ export async function renderNight(seconds: number, plan: (t: number) => { heat: 
 }
 if (import.meta.env.DEV) (window as unknown as { renderNight?: typeof renderNight }).renderNight = renderNight;
 
+/** Local development only: render the title menu's music offline (the crypt's score at rest), for trailers. */
+export async function renderMenu(seconds: number): Promise<AudioBuffer> {
+  const saved = { ctx, bus, mood, level, stepIndex };
+  const off = new OfflineAudioContext(2, Math.ceil(44100 * seconds), 44100);
+  ctx = off as unknown as AudioContext;
+  makeBus();
+  bus!.out.gain.value = MUSIC_VOLUME;
+  mood = 'crypt';
+  level = 0;
+  let t = 0.05;
+  for (let i = 0; t < seconds - 0.3; i++) {
+    playStep(i, t);
+    t += 60 / tempo() / 4;
+  }
+  const out = await off.startRendering();
+  ({ ctx, bus, mood, level, stepIndex } = saved);
+  return out;
+}
+if (import.meta.env.DEV) (window as unknown as { renderMenu?: typeof renderMenu }).renderMenu = renderMenu;
+
 /**
  * Keep the melody in tune with the chord under it: a held or on-beat note moves to the nearest
  * note of the chord; a quick passing note to the nearest note in the key (E minor, with D sharp
