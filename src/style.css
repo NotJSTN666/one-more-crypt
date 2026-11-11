@@ -6028,3 +6028,7 @@ body.tutorial #relic-bar {
 .tester-link { background: none; border: 0; color: var(--muted); font-size: 12px; padding: 6px 4px; cursor: pointer; text-decoration: underline; }
 .tester-x { position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; padding: 0; background: none; border: 0; color: var(--muted); font-size: 14px; cursor: pointer; }
 .tester-link:focus-visible, .tester-x:focus-visible { outline: 2px solid #f2c14e; outline-offset: 2px; }
+
+/* The title page's "Android testers needed" link, under the other links. */
+.testers-link { display: block; margin: 10px auto 0; background: none; border: 0; border-bottom: 1px dashed currentColor; color: #f2c14e; cursor: pointer; padding: 4px 0; }
+.testers-link:focus-visible { outline: 2px solid #f2c14e; outline-offset: 3px; }

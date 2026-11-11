@@ -26,7 +26,7 @@ export const NEWS: NewsDay[] = [
     date: '2026-11-11',
     title: 'One More Crypt is coming to Android',
     notes: [
-      '📱 One More Crypt is coming to the Google Play Store. Got an Android phone? After a daily you may be asked to help test the app for 14 days. Same game, and your progress carries over.',
+      '📱 One More Crypt is coming to the Google Play Store. Got an Android phone? Help test the app for 14 days: tap Android testers needed at the bottom of the title screen. Same game, and your progress carries over.',
     ],
   },
   {

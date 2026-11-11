@@ -2,7 +2,9 @@
 // the Google Play app. Two steps, as Google needs them: join the testers' Google Group, then opt
 // in to the test and install. Shown only where it makes sense (not on iPhones, not inside the
 // app itself, not on game portals, not on a new player's first dailies) and only until the test
-// is done. "Not now" asks again in three days; "No thanks" or taking part ends it.
+// is done. Declining (No thanks, the ✕ or Escape) ends it for good, as does taking part; a
+// player who only joins the group is asked again in three days to finish. The title page keeps
+// a small "testers needed" link, for anyone who wants to join later.
 
 import { calmMotion } from './ui';
 
@@ -39,9 +41,14 @@ function onApple(): boolean {
   return /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
 }
 
-/** Whether to ask now. `dailiesPlayed` keeps it off a new player's first two dailies. */
-export function testerAskDue(dailiesPlayed: number, portal: boolean, now = Date.now()): boolean {
-  if (portal || now >= ASK_UNTIL || dailiesPlayed < 3 || inAndroidApp() || onApple()) return false;
+/** Where the test can be joined from at all: not on portals, iPhones or inside the app, and only while it runs. */
+export function testerOffer(portal: boolean, now = Date.now()): boolean {
+  return !portal && now < ASK_UNTIL && !inAndroidApp() && !onApple();
+}
+
+/** Whether to ask after this Daily (the first one included). */
+export function testerAskDue(portal: boolean, now = Date.now()): boolean {
+  if (!testerOffer(portal, now)) return false;
   const s = stored();
   if (s === 'no' || s === 'joined') return false;
   const later = Number(s);
@@ -57,14 +64,13 @@ export function showTesterAsk(stillHere: () => boolean) {
   card.setAttribute('role', 'dialog');
   card.setAttribute('aria-labelledby', 'tester-ask-title');
   card.innerHTML = `
-    <button type="button" class="tester-x" data-act="later" aria-label="Not now">✕</button>
+    <button type="button" class="tester-x" data-act="no" aria-label="No thanks">✕</button>
     <p class="tester-eyebrow">📱 One More Crypt for Android</p>
     <h3 id="tester-ask-title">Help test the Play Store app</h3>
     <p class="tester-why">Got an Android phone? Google needs 12 players to test the app for 14 days before it can launch. Same game, your progress carries over.</p>
     <a class="btn tester-step" href="${TESTER_GROUP_URL}" target="_blank" rel="noopener" data-act="group"><span class="tester-n">1</span><span>Join the testers' group<small>With the Google account you use for the Play Store</small></span></a>
     <a class="btn primary tester-step" href="${TESTER_OPTIN_URL}" target="_blank" rel="noopener" data-act="optin"><span class="tester-n">2</span><span>Become a tester and install<small>Tap "Become a tester", then install from the Play Store</small></span></a>
     <div class="tester-row">
-      <button type="button" class="tester-link" data-act="later">Not now</button>
       <button type="button" class="tester-link" data-act="no">No thanks</button>
     </div>`;
   const close = () => {
@@ -74,17 +80,14 @@ export function showTesterAsk(stillHere: () => boolean) {
   };
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'Escape') {
-      remember(String(Date.now() + LATER_DAYS * 86400000));
+      remember('no');
       close();
     }
   };
   card.addEventListener('click', (e) => {
     const act = (e.target as HTMLElement).closest<HTMLElement>('[data-act]')?.dataset.act;
     if (!act) return;
-    if (act === 'later') {
-      remember(String(Date.now() + LATER_DAYS * 86400000));
-      close();
-    } else if (act === 'no') {
+    if (act === 'no') {
       remember('no');
       close();
     } else if (act === 'group') {

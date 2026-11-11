@@ -41,7 +41,7 @@ import { onAccountSynced, claimPodiums, claimWeekly, clearBeat, lastBeat, type P
 import { claimInlineHtml, wireClaimInline, keepNameHtml, wireKeepName, endlessRecord, ensureGuest, initSocial, needsName, unclaimed, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
 import { currentStreak, loadSave, recordDaily, streakStats, WARD_EVERY, writeSave, type RunResult } from './storage';
 import { $, calmChosen, calmMotion, esc, formStatus, hideOverlay, on, onSubmit, overlay, overlayShownAt, screen, setCalm, showOverlay, toast } from './ui';
-import { showTesterAsk, testerAskDue } from './testers';
+import { showTesterAsk, testerAskDue, testerOffer } from './testers';
 
 const canvas = $<HTMLCanvasElement>('board');
 const renderer = new Renderer(canvas);
@@ -1762,7 +1762,9 @@ function showTitle() {
       </div>
     </details>
     <div class="foot-links">${followXHtml}${discordHtml}${kofiHtml}<a class="follow-x privacy" href="${PRIVACY_URL}" target="_blank" rel="noopener">🔒 Privacy</a></div>
+    ${testerOffer(PORTAL) ? '<button type="button" class="follow-x testers-link" id="title-testers">📱 Android testers needed</button>' : ''}
   `);
+  on('#title-testers', () => showTesterAsk(() => screen === 'title' && !overlay.hidden));
   overlay.querySelector('#title-drawer')?.addEventListener('toggle', (e) => setDrawerOpen((e.currentTarget as HTMLDetailsElement).open));
   on('#delve', () => showDelve());
   titleScene();
@@ -2613,7 +2615,7 @@ function showDeath(r: RunResult, best: boolean) {
   on('#delve-skip', () => document.getElementById('delve-clip')?.remove());
   if (daily) showEndlessRecord();
   // A moment after the Daily's results land: help test the Android app (where that makes sense).
-  if (daily && !first && testerAskDue(Object.keys(save.daily).length, PORTAL)) {
+  if (daily && testerAskDue(PORTAL)) {
     const shownAt = overlayShownAt;
     window.setTimeout(() => {
       if (screen === 'death' && overlayShownAt === shownAt) showTesterAsk(() => screen === 'death' && !overlay.hidden);
