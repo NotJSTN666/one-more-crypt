@@ -41,6 +41,7 @@ import { onAccountSynced, claimPodiums, claimWeekly, clearBeat, lastBeat, type P
 import { claimInlineHtml, wireClaimInline, keepNameHtml, wireKeepName, endlessRecord, ensureGuest, initSocial, needsName, unclaimed, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
 import { currentStreak, loadSave, recordDaily, streakStats, WARD_EVERY, writeSave, type RunResult } from './storage';
 import { $, calmChosen, calmMotion, esc, formStatus, hideOverlay, on, onSubmit, overlay, overlayShownAt, screen, setCalm, showOverlay, toast } from './ui';
+import { showTesterAsk, testerAskDue } from './testers';
 
 const canvas = $<HTMLCanvasElement>('board');
 const renderer = new Renderer(canvas);
@@ -2611,6 +2612,13 @@ function showDeath(r: RunResult, best: boolean) {
   on('#keep-night', () => (nightIntroSeen() ? showNightShift(showTitle) : showNightIntro()));
   on('#delve-skip', () => document.getElementById('delve-clip')?.remove());
   if (daily) showEndlessRecord();
+  // A moment after the Daily's results land: help test the Android app (where that makes sense).
+  if (daily && !first && testerAskDue(Object.keys(save.daily).length, PORTAL)) {
+    const shownAt = overlayShownAt;
+    window.setTimeout(() => {
+      if (screen === 'death' && overlayShownAt === shownAt) showTesterAsk(() => screen === 'death' && !overlay.hidden);
+    }, 1800);
+  }
   on('#ossuary', () => showOssuary(backHere));
   on('#hall', () => openHall(backHere));
   on('#invite', () => showInvite(backHere));
