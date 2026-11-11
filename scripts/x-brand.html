@@ -14,6 +14,7 @@
     <canvas id="discord" width="960" height="540"></canvas>
     <canvas id="itch" width="630" height="500"></canvas>
     <canvas id="facebook" width="1640" height="856"></canvas>
+    <canvas id="play" width="1024" height="500"></canvas>
     <script type="module">
       // Profile picture and cover images for X, Discord, itch.io and Instagram.
       // Regenerate with: node scripts/make-x-brand.mjs
@@ -560,9 +561,10 @@
         caption(ctx, 'ONE CRYPT. ONE TRY A DAY.', 315, 150, 18, '#e8dcc4');
         caption(ctx, 'HOW DEEP CAN YOU GO?', 315, 176, 18, '#f2c14e');
       }
-      // ---------- Facebook group cover (1640x856; phones crop the sides, so it all sits in the middle) ----------
-      {
-        const ctx = document.getElementById('facebook').getContext('2d');
+      // ---------- the big wide scene: heroes left, the dead right, the title in the middle ----------
+      /** Paints the 1640x856 scene on ctx; `lines` writes the words under the title. */
+      function wideScene(ctx, lines) {
+        
         ctx.imageSmoothingEnabled = false;
         const { c, px } = grid(410, 214);
         bricks(px, 0, 0, 410, 214, 31);
@@ -602,10 +604,31 @@
         vignette(ctx, 1640, 856, 820, 330, 340, 1050, 0.7);
         bigTitle(ctx, 820, 250, 150);
         flourish(ctx, 820, 280, 380);
+        lines(ctx);
+      }
+      const MODES5 = [['DAILY', '#d23a46'], ['ENDLESS', '#b07cff'], ['HORDE', '#ff8a2a'], ['NIGHT SHIFT', '#7fb4ff'], ['STORY', '#5fe3ff']];
+
+      // Facebook group cover (1640x856; phones crop the sides, so it all sits in the middle)
+      wideScene(document.getElementById('facebook').getContext('2d'), (ctx) => {
         caption(ctx, 'COMMUNITY', 820, 340, 30, '#f2c14e');
         caption(ctx, 'ONE CRYPT A DAY. HOW DEEP CAN YOU GO?', 820, 392, 24, '#e8dcc4');
-        modes(ctx, 820, 418, 17, 14, [['DAILY', '#d23a46'], ['ENDLESS', '#b07cff'], ['HORDE', '#ff8a2a'], ['NIGHT SHIFT', '#7fb4ff'], ['STORY', '#5fe3ff']]);
+        modes(ctx, 820, 418, 17, 14, MODES5);
         caption(ctx, 'FREE IN YOUR BROWSER · ONEMORECRYPT.COM', 820, 506, 20, '#e8dcc4');
+      });
+
+      // Google Play feature graphic (1024x500): the same scene, its middle band scaled down
+      {
+        const big = document.createElement('canvas');
+        big.width = 1640;
+        big.height = 856;
+        wideScene(big.getContext('2d'), (ctx) => {
+          caption(ctx, 'ONE CRYPT A DAY. HOW DEEP CAN YOU GO?', 820, 350, 30, '#e8dcc4');
+          modes(ctx, 820, 384, 20, 16, MODES5);
+          caption(ctx, '8 HEROES · 80+ RELICS · A NEW CRYPT EVERY DAY', 820, 488, 24, '#f2c14e');
+        });
+        const ctx = document.getElementById('play').getContext('2d');
+        const crop = Math.round((1640 * 500) / 1024);
+        ctx.drawImage(big, 0, (856 - crop) / 2, 1640, crop, 0, 0, 1024, 500);
       }
       window.brandReady = true;
     </script>

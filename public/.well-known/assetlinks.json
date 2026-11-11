@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.onemorecrypt.app",
+      "sha256_cert_fingerprints": [
+        "53:6E:B4:A4:BB:EB:BA:60:38:2D:27:00:59:F2:92:E8:85:D1:80:D9:31:7E:49:6B:45:1F:2E:A1:FA:6F:58:07"
+      ]
+    }
+  }
+]
