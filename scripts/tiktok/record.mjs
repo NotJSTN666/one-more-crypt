@@ -6,7 +6,8 @@
 //
 // The idea (see ideas.mjs) says which scene to play: 'night' (the Night Shift, with a hero,
 // companion and relics, optionally firing the ultimate or bringing in a boss), 'crypt' (deep in
-// Endless), 'horde' or 'daily'. Needs the dev server: npx vite --port 5199
+// Endless), 'horde' or 'daily'. `fuse: { a, b, out, name, at }` plays a Soul Forge fusion of
+// those relics `at` seconds in; `end: false` leaves off the end card. Needs the dev server: npx vite --port 5199
 import { mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { chromium } from 'playwright';
 
@@ -247,8 +248,20 @@ await centre();
 await placeHook();
 await hideHook(false);
 const total = Math.round(SECONDS * FPS);
+const fuseAt = idea.fuse ? Math.round((idea.fuse.at ?? 1) * FPS) : -1;
+let fusing = 0;
 for (let i = 0; i < total; i++) {
-  await drive();
+  // The Soul Forge: two relics become one, played over the run (the run waits while it plays).
+  if (i === fuseAt) {
+    await p.evaluate(async (f) => {
+      const fx = await import('/src/fusefx.ts');
+      const ic = await import('/src/relic-icons.ts');
+      fx.playFusion({ a: '', b: '', out: '', name: f.name, ascended: Boolean(f.ascended), aImg: ic.iconCanvas(`m:${f.a}`), bImg: ic.iconCanvas(`m:${f.b}`), outImg: ic.iconCanvas(`m:${f.out}`), onDone: () => {} });
+    }, idea.fuse);
+    fusing = Math.round(3.2 * FPS);
+  }
+  if (fusing > 0) fusing--;
+  else await drive();
   if (idea.scene === 'night' && idea.ultAt !== undefined && i === Math.round(idea.ultAt * FPS)) {
     await p.evaluate(() => { window.night.ult = 1; });
     await p.keyboard.press('e');
@@ -257,7 +270,8 @@ for (let i = 0; i < total; i++) {
   await shot();
 }
 await p.evaluate(() => { document.getElementById('tt-hook').style.display = 'none'; document.getElementById('tt-end').style.display = 'flex'; });
-for (let i = 0; i < Math.round(END * FPS); i++) {
+// (end: false leaves the end card off, for a clip that's one part of a longer video)
+for (let i = 0; i < (idea.end === false ? 0 : Math.round(END * FPS)); i++) {
   await tick();
   await shot();
 }
