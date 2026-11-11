@@ -12,6 +12,7 @@ import android.view.View;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
+import android.window.OnBackInvokedDispatcher;
 import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -84,6 +85,12 @@ public class MainActivity extends Activity {
             }
         });
 
+        // Back: a page back in the game if there is one, else leave. From Android 13 this goes through
+        // the back dispatcher (Android 16 no longer calls onBackPressed for apps that target it).
+        if (Build.VERSION.SDK_INT >= 33) {
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::back);
+        }
+
         Uri link = getIntent() != null ? getIntent().getData() : null;
         if (state != null) web.restoreState(state);
         else web.loadUrl(link != null && stayInApp(link) ? link.toString() : HOME);
@@ -134,10 +141,16 @@ public class MainActivity extends Activity {
         }
     }
 
-    @Override
-    public void onBackPressed() {
+    private void back() {
         if (web.canGoBack()) web.goBack();
-        else super.onBackPressed();
+        else finish();
+    }
+
+    @Override
+    @SuppressWarnings("deprecation")
+    public void onBackPressed() {
+        // (Android 12 and older)
+        back();
     }
 
     @Override
