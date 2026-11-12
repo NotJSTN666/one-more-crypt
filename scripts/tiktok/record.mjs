@@ -162,7 +162,16 @@ const botDir = () => p.evaluate(() => {
   return null;
 });
 const KEY = { '0,-1': 'ArrowUp', '1,0': 'ArrowRight', '0,1': 'ArrowDown', '-1,0': 'ArrowLeft' };
-const keepAlive = () => p.evaluate(() => { const g = window.cryptfall?.game; if (g) g.player.hp = Math.max(g.player.hp, Math.ceil(g.player.maxHp * 0.6)); });
+// Nothing ends the clip early: health topped up, every blow turned aside (a single hit deep down
+// can be thousands), and Death left waiting in his corner.
+const keepAlive = () => p.evaluate(() => {
+  const g = window.cryptfall?.game;
+  if (!g) return;
+  g.player.hp = Math.max(g.player.hp, Math.ceil(g.player.maxHp * 0.6));
+  g.shieldCharges = 40;
+  if (g.reaperIn < 60) g.reaperIn = 99;
+  if (g.reaper && !g.reaper.waiting) g.reaper = null;
+});
 const cryptStep = async (i, gap = 9) => {
   if (i % gap) return;
   if (await p.evaluate(() => !!document.querySelector('.offer button'))) {

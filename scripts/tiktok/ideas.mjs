@@ -27,8 +27,8 @@ export const IDEAS = [
     tags: ['#survivorslike', '#roguelite', '#pixelart', '#indiegame', '#freegames'],
   },
   {
-    scene: 'crypt', hero: 'knight', floor: 44, seconds: 10,
-    hook: 'Floor 44 of the crypt.<br>How deep can <b>you</b> go?',
+    scene: 'crypt', hero: 'knight', floor: 47, seconds: 10,
+    hook: 'Floor 48 of the crypt.<br>How deep can <b>you</b> go?',
     caption: 'One crypt, no limit, no saves. How far do you get? ⚔️ Free in your browser: onemorecrypt.com',
     tags: ['#roguelike', '#dungeoncrawler', '#pixelart', '#indiegame', '#browsergame'],
   },
