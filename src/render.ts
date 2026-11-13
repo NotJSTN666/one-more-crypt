@@ -986,11 +986,15 @@ export class Renderer {
       ctx.font = '10px Silkscreen, monospace';
       ctx.textAlign = 'center';
       ctx.globalAlpha = a;
-      ctx.fillStyle = '#000';
-      const ty = cy < BOARD_H / 2 ? cy + TILE * 1.9 : cy - TILE * 1.5;
-      for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1]]) ctx.fillText('REAPED', BOARD_W / 2 + ox, ty + oy);
-      ctx.fillStyle = '#d3b0ff';
-      ctx.fillText('REAPED', BOARD_W / 2, ty);
+      // two lines, clear of where the hero stood
+      const ty = cy < BOARD_H / 2 ? cy + TILE * 1.9 : cy - TILE * 2.1;
+      ['DEATH', 'CLAIMS YOU'].forEach((line, i) => {
+        const y = ty + i * 11;
+        ctx.fillStyle = '#000';
+        for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1]]) ctx.fillText(line, BOARD_W / 2 + ox, y + oy);
+        ctx.fillStyle = '#d3b0ff';
+        ctx.fillText(line, BOARD_W / 2, y);
+      });
       ctx.globalAlpha = 1;
       ctx.textAlign = 'left';
     }
