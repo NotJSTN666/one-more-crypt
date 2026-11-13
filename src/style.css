@@ -80,7 +80,7 @@ button {
 
 .hp-bar {
   flex: 1;
-  height: 12px;
+  height: 14px;
   background: #2a1820;
   border: 2px solid #000;
   box-shadow: 0 0 0 1px var(--line);
@@ -107,17 +107,99 @@ button {
 
 #hp-text {
   min-width: 44px;
+  font-size: 13px;
+}
+
+/* What a hit just took: a pale sliver that lingers a moment, then drains. */
+.hp-ghost {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 100%;
+  background: #ffe2c4;
+  opacity: 0.85;
+  transition: width 0.5s 0.3s ease-in;
+}
+
+.hp-fill {
+  position: relative;
+}
+
+/* Hurt: the bar jolts and flares. Healed: it glows green for a moment. */
+.hp.hit .hp-bar {
+  animation: hp-jolt 0.32s;
+}
+
+.hp.hit #hp-text {
+  animation: hp-red 0.5s;
+}
+
+.hp.mend .hp-bar {
+  animation: hp-mend 0.6s;
+}
+
+@keyframes hp-jolt {
+  0% { transform: translateX(0); box-shadow: 0 0 0 1px #ff8a94, 0 0 12px rgba(255, 77, 90, 0.9); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(2px); }
+  100% { transform: translateX(0); }
+}
+
+@keyframes hp-red {
+  0%, 40% { color: #ff6b78; }
+}
+
+@keyframes hp-mend {
+  0%, 30% { box-shadow: 0 0 0 1px var(--heal), 0 0 12px rgba(126, 224, 129, 0.8); }
 }
 
 .stats {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   color: var(--muted);
+  font-size: 13px;
 }
+
+.stats span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stats i {
+  font-style: normal;
+}
+
+#floor-stat i { color: var(--gold); }
+#atk-stat i { color: #c9d1e0; }
+#kills-stat i { color: #e8dcc4; }
 
 .stats b {
   color: var(--text);
   font-weight: normal;
+  font-size: 15px;
+  display: inline-block;
+}
+
+/* A number that just changed jumps. */
+.stats b.bump {
+  animation: stat-bump 0.35s;
+}
+
+@keyframes stat-bump {
+  0% { transform: scale(1.7); color: var(--gold); }
+  100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hp.hit .hp-bar, .stats b.bump { animation: none; }
+  .hp-ghost { transition: none; }
+}
+
+/* The foes left on this floor: a computer-only panel under the health bar. */
+#foes {
+  display: none;
 }
 
 .hud-buttons {
@@ -5093,10 +5175,10 @@ body.tutorial #relic-bar {
       'hud stage relics'
       'surge stage tip'
       'boss stage coach'
-      '. stage wait'
-      '. stage bow'
-      '. stage dpad'
-      '. stage .';
+      'foes stage wait'
+      'foes stage bow'
+      'foes stage dpad'
+      'foes stage .';
     column-gap: 32px;
     row-gap: 12px;
     align-content: start;
@@ -5137,6 +5219,68 @@ body.tutorial #relic-bar {
 
   #surge-bar { grid-area: surge; }
   #boss-bar { grid-area: boss; }
+
+  #foes:not([hidden]) {
+    grid-area: foes;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 14px;
+    background: rgba(14, 9, 20, 0.72);
+    border: 1px solid var(--line);
+    font-size: 12px;
+    max-height: 46vh;
+    overflow: hidden;
+    align-self: start;
+  }
+
+  #foes h4 {
+    margin: 0 0 2px;
+    font-size: 10px;
+    font-weight: normal;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+  }
+
+  .foe-row {
+    display: grid;
+    grid-template-columns: 28px 1fr auto;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .foe-row canvas {
+    width: 28px;
+    height: 28px;
+    image-rendering: pixelated;
+  }
+
+  .foe-row .foe-name {
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .foe-row .foe-name small {
+    color: var(--muted);
+    font-size: 10px;
+  }
+
+  .foe-row .foe-num {
+    font-size: 13px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .foe-row .foe-num b {
+    font-weight: normal;
+    color: #ff8a94;
+  }
+
+  .foe-row.elite .foe-name { color: var(--gold); }
+  .foe-row.boss .foe-name { color: #ff6b78; }
+  .foes-clear { color: var(--heal); margin: 0; }
 
   #stage {
     grid-area: stage;

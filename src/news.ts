@@ -24,8 +24,15 @@ export interface NewsDay {
 export const NEWS: NewsDay[] = [
   {
     date: '2026-11-13',
-    title: 'A fix for Daily champions',
-    notes: ['🥇 The reward screen for finishing 1st in a Daily now mentions the gold glow your Crypt Champion title gets. Thanks to Seabastin for the report!'],
+    title: 'Heavier hits and a livelier crypt',
+    notes: [
+      '💥 Hits land harder in the crypt: struck foes are knocked back, every kill holds the world still for a blink, and so does a blow that hurts you.',
+      '🔢 Damage numbers are bigger than words like BLOCK and RISE, and pop-ups that used to land on top of each other now stack in a tidy column.',
+      '🪜 Your hero walks down into the stairs when you descend.',
+      '❤️ The health bar jolts when you are hurt and shows what the hit took before it drains. Floor, attack and kills are larger and jump when they change.',
+      '🖥️ On a computer, a new panel under your health lists the foes left on the floor, with their health and how hard they hit.',
+      '🥇 The reward screen for finishing 1st in a Daily now mentions the gold glow your Crypt Champion title gets. Thanks to Seabastin for the report!',
+    ],
   },
   {
     date: '2026-11-11',

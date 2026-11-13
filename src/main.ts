@@ -1128,14 +1128,97 @@ function toggleBow() {
   saveRun();
 }
 
+/** What the HUD last showed, so a change can be animated: a jolt when hurt, a jump when a number moves. */
+let hudWas = { hp: 0, floor: 0, atk: 0, kills: 0 };
+
+/** Replay a one-shot CSS animation on an element. */
+function replay(el: HTMLElement, cls: string) {
+  el.classList.remove(cls);
+  void el.offsetWidth;
+  el.classList.add(cls);
+}
+
+/** On a computer: the foes still standing on this floor, by kind, with their health and how hard they hit. */
+function updateFoes() {
+  const box = $('foes');
+  const desk = matchMedia(DESKTOP).matches;
+  box.hidden = !desk;
+  if (!desk) return;
+  const foes = game.enemies.filter((e) => !e.dead && !e.ally && !e.ghost && !(game.inMist(e.x, e.y) && Math.max(Math.abs(e.x - game.player.x), Math.abs(e.y - game.player.y)) > 1));
+  const groups = new Map<string, { kind: EnemyKind; n: number; hp: number; dmg: number; elite: string; boss: boolean }>();
+  for (const e of foes) {
+    const key = `${e.kind}:${e.elite ?? ''}`;
+    const g = groups.get(key) ?? { kind: e.kind, n: 0, hp: 0, dmg: 0, elite: e.elite ? ELITES[e.elite].name : '', boss: isBoss(e) };
+    g.n++;
+    g.hp += e.hp;
+    g.dmg = Math.max(g.dmg, e.dmg);
+    groups.set(key, g);
+  }
+  const rows = [...groups.values()].sort((a, b) => Number(b.boss) - Number(a.boss) || Number(Boolean(b.elite)) - Number(Boolean(a.elite)) || b.dmg - a.dmg).slice(0, 7);
+  const sig = rows.map((r) => `${r.kind}${r.elite}${r.n}:${r.hp}:${r.dmg}`).join('|') + `/${foes.length}`;
+  if (box.dataset.sig === sig) return;
+  box.dataset.sig = sig;
+  box.innerHTML = '<h4>ON THIS FLOOR</h4>';
+  if (!rows.length) {
+    const p = document.createElement('p');
+    p.className = 'foes-clear';
+    p.textContent = game.mode === 'horde' ? 'A lull.' : 'Floor cleared.';
+    box.appendChild(p);
+    return;
+  }
+  for (const r of rows) {
+    const row = document.createElement('div');
+    row.className = `foe-row${r.elite ? ' elite' : ''}${r.boss ? ' boss' : ''}`;
+    const c = document.createElement('canvas');
+    const img = enemyFrames(r.kind).idle[0].normal;
+    c.width = img.width;
+    c.height = img.height;
+    c.getContext('2d')!.drawImage(img, 0, 0);
+    const name = document.createElement('span');
+    name.className = 'foe-name';
+    name.textContent = `${r.elite ? `${r.elite} ` : ''}${ENEMY_INFO[r.kind].name}`;
+    if (r.n > 1) {
+      const x = document.createElement('small');
+      x.textContent = ` ×${r.n}`;
+      name.appendChild(x);
+    }
+    const num = document.createElement('span');
+    num.className = 'foe-num';
+    num.innerHTML = `♥ ${r.hp} · ⚔ <b>${r.dmg}</b>`;
+    num.title = `${r.hp} health left${r.n > 1 ? ' between them' : ''}, hits for ${r.dmg}`;
+    row.append(c, name, num);
+    box.appendChild(row);
+  }
+}
+
 function updateHud(reset = false) {
   updateBow();
   const p = game.player;
   const pct = Math.max(0, (p.hp / p.maxHp) * 100);
   const fill = $('hp-fill');
+  const ghost = $('hp-ghost');
   fill.style.width = `${pct}%`;
   fill.classList.toggle('low', p.hp <= 3);
   $('hp-text').textContent = `${p.hp}/${p.maxHp}`;
+  const hpBox = fill.closest<HTMLElement>('.hp')!;
+  if (reset) {
+    // A fresh run or a restored one: nothing to animate.
+    ghost.style.transition = 'none';
+    ghost.style.width = `${pct}%`;
+    void ghost.offsetWidth;
+    ghost.style.transition = '';
+    hpBox.classList.remove('hit', 'mend');
+  } else {
+    ghost.style.width = `${pct}%`;
+    if (p.hp < hudWas.hp) replay(hpBox, 'hit');
+    else if (p.hp > hudWas.hp) replay(hpBox, 'mend');
+    if (p.hp !== hudWas.hp) hpBox.classList.remove(p.hp < hudWas.hp ? 'mend' : 'hit');
+    if (game.floor !== hudWas.floor) replay($('floor'), 'bump');
+    if (game.atk !== hudWas.atk) replay($('atk'), 'bump');
+    if (game.kills !== hudWas.kills) replay($('kills'), 'bump');
+  }
+  hudWas = { hp: p.hp, floor: game.floor, atk: game.atk, kills: game.kills };
+  updateFoes();
   // Horde: kills fill the surge bar toward the next relic.
   const surge = game.mode === 'horde' && Boolean(game.config.surge);
   $('surge-bar').hidden = !surge;

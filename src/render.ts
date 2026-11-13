@@ -81,6 +81,10 @@ export class Renderer {
   private disp = new Map<number, Pos>();
   private flashes = new Map<number, number>();
   private lunges = new Map<number, Lunge>();
+  /** Knock-back: a struck body is shoved away from the blow and springs back. */
+  private recoils = new Map<number, Lunge>();
+  /** 0..1 as the hero goes down the stairs. */
+  private sink = 0;
   /** How long each foe holds its attack pose. */
   private strikes = new Map<number, number>();
   private floaters: Floater[] = [];
@@ -159,6 +163,8 @@ export class Renderer {
     this.facing.clear();
     this.remain.clear();
     this.landing.clear();
+    this.recoils.clear();
+    this.sink = 0;
     this.enter = 0;
     this.floaters = [];
     this.bannerQueue = [];
@@ -180,7 +186,8 @@ export class Renderer {
   consume(events: GameEvent[]) {
     const g = this.game;
     if (!g) return;
-    let stack = 0;
+    // Which way the last foe to strike was swinging, so the hero is knocked that way.
+    let struck: Pos | null = null;
     const claimed: RelicId[] = [];
     // Pickups the Grave Magnet pulled this turn pop when they land, not where they lay.
     let pulled = false;
@@ -201,7 +208,7 @@ export class Renderer {
             const boss = g.enemies.find((e) => isBoss(e));
             const title = boss ? ENEMY_INFO[boss.kind].name.replace(/^The /, '').toUpperCase() : `FLOOR ${ev.floor}`;
             // The Horde has its own title card and wave banners.
-            if (g.mode !== 'horde') this.floaters.push(this.floater(3, 3, title, '#f2c14e', 1.6));
+            if (g.mode !== 'horde') this.say(this.floater(3, 3, title, '#f2c14e', 1.6));
             // Crossing into a new depth zone gets its name across the board.
             const zone = zoneAt(ev.floor);
             if (zone.start === ev.floor && ev.floor > 1) {
@@ -215,7 +222,7 @@ export class Renderer {
         case 'crumble':
           this.shake = Math.max(this.shake, ev.open ? 6 : 3);
           this.burstParticles(ev.x, ev.y, ev.what === 'bones' ? '#e8dcc4' : '#8a7f9a', ev.open ? 22 : 10, 1.2);
-          if (ev.what === 'crack' && !ev.open) this.floaters.push(this.floater(ev.x, ev.y, 'CRACK', '#c9b99a', 0.8));
+          if (ev.what === 'crack' && !ev.open) this.say(this.floater(ev.x, ev.y, 'CRACK', '#c9b99a', 0.8));
           if (ev.open) {
             this.banner('SECRET VAULT!', '#f2c14e');
             this.burstParticles(ev.x, ev.y, '#f2c14e', 16, 1.4);
@@ -232,9 +239,15 @@ export class Renderer {
         case 'eattack':
           this.lunges.set(ev.id, { dx: ev.dir.x, dy: ev.dir.y, t: 0 });
           this.strikes.set(ev.id, 0.3);
+          struck = ev.dir;
           break;
         case 'hit': {
           this.flashes.set(ev.id, 0.12);
+          {
+            const kx = Math.sign(ev.x - g.player.x);
+            const ky = Math.sign(ev.y - g.player.y);
+            if (kx || ky) this.recoils.set(ev.id, { dx: kx, dy: ky, t: 0 });
+          }
           const colors: Record<string, string> = {
             melee: '#ffffff', burn: '#ff8a2a', thorns: '#7f9a52', bolt: '#9fe8ff',
             burst: '#d23a46', pierce: '#ffffff', whirl: '#c9d1e0', hellfire: '#ff5a2a',
@@ -248,8 +261,7 @@ export class Renderer {
           }
           this.impacts.push({ x: ev.x, y: ev.y, t: 0, life: ev.crit ? 0.32 : 0.2, color: ev.crit ? '#f2c14e' : colors[ev.kind] ?? '#ffffff', r: ev.crit ? 13 : 8 });
           const f = this.floater(ev.x, ev.y, `${ev.amount}${ev.crit ? '!' : ''}`, ev.crit ? '#f2c14e' : colors[ev.kind], 0.8);
-          f.y -= (stack++ % 3) * 4;
-          this.floaters.push(f);
+          this.say(f);
           if (ev.crit) {
             this.shake = Math.max(this.shake, 4);
             this.hitStop = Math.max(this.hitStop, 0.08);
@@ -263,6 +275,8 @@ export class Renderer {
           this.corpses.push({ kind: ev.kind, x: d.x, y: d.y, t: 0 });
           this.shatter(ev.kind, d, this.facing.get(ev.id) ?? 1, isBoss(ev) ? 1.6 : 1);
           this.burstParticles(ev.x, ev.y, ev.ally ? '#7ee081' : ev.kind === 'wraith' ? '#9fe8ff' : '#e8dcc4', 6);
+          // Every kill lands with a blink of stillness; a boss gets a long one.
+          if (!ev.ally && !this.quiet) this.hitStop = Math.max(this.hitStop, 0.045);
           if (isBoss(ev)) {
             this.hitStop = Math.max(this.hitStop, 0.18);
             this.critFlash = Math.max(this.critFlash, 0.8);
@@ -281,12 +295,12 @@ export class Renderer {
           break;
         }
         case 'eblock':
-          this.floaters.push(this.floater(ev.x, ev.y, 'BLOCK', '#9fe8ff', 0.8));
+          this.say(this.floater(ev.x, ev.y, 'BLOCK', '#9fe8ff', 0.8));
           this.burstParticles(ev.x, ev.y, '#9fe8ff', 8);
           break;
         case 'raise':
           this.burstParticles(ev.x, ev.y, '#7ee081', 16, 1.2);
-          this.floaters.push(this.floater(ev.x, ev.y, 'RISE', '#7ee081', 1));
+          this.say(this.floater(ev.x, ev.y, 'RISE', '#7ee081', 1));
           break;
         case 'teleport':
           this.burstParticles(ev.from.x, ev.from.y, '#9b6bd6', 14);
@@ -297,31 +311,34 @@ export class Renderer {
           this.burstParticles(ev.x, ev.y, '#c9d1e0', 6);
           break;
         case 'shadow':
-          this.floaters.push(this.floater(g.player.x, g.player.y, 'UNSEEN', '#9aa3b5', 0.7));
+          this.say(this.floater(g.player.x, g.player.y, 'UNSEEN', '#9aa3b5', 0.7));
           break;
         case 'hurt':
           this.flashes.set(PLAYER_ID, 0.15);
           this.hurtFlash = 1;
+          if (struck) this.recoils.set(PLAYER_ID, { dx: struck.x, dy: struck.y, t: 0 });
+          // The world holds for a blink when you're hit, so you feel it.
+          if (!this.quiet) this.hitStop = Math.max(this.hitStop, 0.05);
           // Bigger hits shake harder, up to a limit, so a huge late hit never blinds the board.
           this.shake = Math.max(this.shake, Math.min(SHAKE_MAX, 2 + ev.amount * 0.5));
-          this.floaters.push(this.floater(g.player.x, g.player.y, `-${ev.amount}`, '#ff4d5a', 0.9));
+          this.say(this.floater(g.player.x, g.player.y, `-${ev.amount}`, '#ff4d5a', 0.9));
           break;
         case 'heal':
           this.healFlash = 0.6;
-          this.floaters.push(this.floater(g.player.x, g.player.y, `+${ev.amount}`, '#7ee081', 0.9));
+          this.say(this.floater(g.player.x, g.player.y, `+${ev.amount}`, '#7ee081', 0.9));
           break;
         case 'maxhp':
-          this.floaters.push(this.floater(g.player.x, g.player.y - 0.4, `+${ev.amount} MAX`, '#7ee081', 1.1));
+          this.say(this.floater(g.player.x, g.player.y - 0.4, `+${ev.amount} MAX`, '#7ee081', 1.1));
           break;
         case 'dodge':
-          this.floaters.push(this.floater(g.player.x, g.player.y, 'DODGE', '#c9d1e0', 0.8));
+          this.say(this.floater(g.player.x, g.player.y, 'DODGE', '#c9d1e0', 0.8));
           break;
         case 'block':
-          this.floaters.push(this.floater(g.player.x, g.player.y, 'BLOCK', '#9fe8ff', 0.8));
+          this.say(this.floater(g.player.x, g.player.y, 'BLOCK', '#9fe8ff', 0.8));
           this.burstParticles(g.player.x, g.player.y, '#9fe8ff', 8);
           break;
         case 'revive':
-          this.floaters.push(this.floater(g.player.x, g.player.y, 'DEATH DENIED', '#f2c14e', 1.4));
+          this.say(this.floater(g.player.x, g.player.y, 'DEATH DENIED', '#f2c14e', 1.4));
           this.burstParticles(g.player.x, g.player.y, '#f2c14e', 20);
           break;
         case 'bolt':
@@ -347,7 +364,7 @@ export class Renderer {
           break;
         case 'stairs':
           this.burstParticles(g.stairs.x, g.stairs.y, '#f2c14e', 18);
-          this.floaters.push(this.floater(g.stairs.x, g.stairs.y, 'DESCEND', '#f2c14e', 1.2));
+          this.say(this.floater(g.stairs.x, g.stairs.y, 'DESCEND', '#f2c14e', 1.2));
           break;
         case 'potion':
           if (pulled) break;
@@ -364,11 +381,11 @@ export class Renderer {
         case 'spark':
           if (pulled) break;
           this.burstParticles(ev.x, ev.y, '#5fe3ff', 14);
-          this.floaters.push(this.floater(ev.x, ev.y, `+${HORDE_SPARK} SURGE`, '#5fe3ff', 0.9));
+          this.say(this.floater(ev.x, ev.y, `+${HORDE_SPARK} SURGE`, '#5fe3ff', 0.9));
           break;
         case 'timestop':
           // It comes round every few turns: a word over the hero, not a banner across the board.
-          this.floaters.push(this.floater(g.player.x, g.player.y - 0.6, 'TIME STOPS', '#9fe8ff', 1));
+          this.say(this.floater(g.player.x, g.player.y - 0.6, 'TIME STOPS', '#9fe8ff', 1));
           break;
         case 'reaperrise':
           this.banner('DEATH HAS COME FOR YOU', '#d3b0ff');
@@ -383,10 +400,10 @@ export class Renderer {
           if (!this.quiet) this.shake = Math.max(this.shake, 2);
           break;
         case 'wake':
-          this.floaters.push(this.floater(ev.x, ev.y - 0.4, ev.alarm ? '!' : 'AWAKE', '#ff8a5a', 0.8));
+          this.say(this.floater(ev.x, ev.y - 0.4, ev.alarm ? '!' : 'AWAKE', '#ff8a5a', 0.8));
           break;
         case 'toll':
-          this.floaters.push(this.floater(g.player.x, g.player.y - 0.6, 'THE BELL TOLLS', '#f2c14e', 1));
+          this.say(this.floater(g.player.x, g.player.y - 0.6, 'THE BELL TOLLS', '#f2c14e', 1));
           if (!this.quiet) this.shake = Math.max(this.shake, 3);
           break;
         case 'death': {
@@ -410,7 +427,7 @@ export class Renderer {
   /** A short word floating up over the hero, for things that don't need a banner. */
   heroNote(text: string, color: string) {
     const g = this.game;
-    if (g) this.floaters.push(this.floater(g.player.x, g.player.y - 0.4, text, color, 0.9));
+    if (g) this.say(this.floater(g.player.x, g.player.y - 0.4, text, color, 0.9));
   }
 
   banner(text: string, color: string) {
@@ -464,7 +481,7 @@ export class Renderer {
     // A second relic at once (the skeleton key's) follows a beat later, below the hero, so both names read.
     const f = this.floater(g.player.x, g.player.y + (i % 2 ? 0.7 : -0.6), RELIC_BY_ID[id].name.toUpperCase(), relicColor(id), 1.6);
     f.t = -0.45 * i;
-    this.floaters.push(f);
+    this.say(f);
   }
 
   /** Ambient effects from the hero's relics, drawn around the player each frame. */
@@ -535,6 +552,20 @@ export class Renderer {
       const v = (5 + Math.random() * 7) * power;
       this.particles.push({ x, y, vx: dx * v, vy: dy * v - 25 * power, color: p.c, t: 0, life: 0.5 + Math.random() * 0.45, size: 1, grav: 2.2 });
     }
+  }
+
+  /** Add a floating word or number. One landing on top of another waits a beat and takes the next line up (or down, at the top edge). */
+  private say(f: Floater) {
+    const LINE = 9;
+    let dir = -1;
+    for (let tries = 0; tries < 6; tries++) {
+      const hit = this.floaters.some((o) => o.t < 0.4 && Math.abs(o.y - f.y) < LINE - 1 && Math.abs(o.x - f.x) < (o.text.length + f.text.length) * 3.2);
+      if (!hit) break;
+      if (f.y + dir * LINE < 9) dir = 1;
+      f.y += dir * LINE;
+      f.t -= 0.07;
+    }
+    this.floaters.push(f);
   }
 
   private floater(x: number, y: number, text: string, color: string, life: number): Floater {
@@ -632,7 +663,18 @@ export class Renderer {
       const ax = pd.x * TILE + PAD + SPRITE_SIZE / 2;
       const ay = pd.y * TILE + PAD + SPRITE_SIZE;
       drawAuraFx(this.ctx, this.outfit.aura, ax, ay, SPRITE_SIZE, this.time, 'back');
-      this.drawSprite(PLAYER_ID, heroSprite(g.hero, g.relics, g.relicLog, this.outfit.look, this.outfit.head, g.bowDown), pd, dt, g.shadowReady ? 0.55 : 1);
+      // Taking the stairs: the hero walks down into them and out of sight.
+      const down = (g.phase === 'choose' || g.phase === 'won') && g.player.x === g.stairs.x && g.player.y === g.stairs.y && pd.x === g.player.x && pd.y === g.player.y;
+      this.sink = down ? Math.min(1, this.sink + dt / 0.32) : 0;
+      if (this.sink > 0) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(g.stairs.x * TILE, g.stairs.y * TILE - TILE, TILE, TILE * 2 - 2);
+        ctx.clip();
+        ctx.translate(0, Math.round(this.sink * (SPRITE_SIZE + 2)));
+      }
+      if (this.sink < 1) this.drawSprite(PLAYER_ID, heroSprite(g.hero, g.relics, g.relicLog, this.outfit.look, this.outfit.head, g.bowDown), pd, dt, (g.shadowReady ? 0.55 : 1) * (1 - this.sink * 0.5));
+      if (this.sink > 0) ctx.restore();
       drawAuraFx(this.ctx, this.outfit.aura, ax, ay, SPRITE_SIZE, this.time, 'front');
       this.drawAura(g, pd);
       if (g.phase === 'play' && g.missileReady) this.drawMissileReady(g, pd);
@@ -717,6 +759,18 @@ export class Renderer {
         ox = lunge.dx * amt;
         oy = lunge.dy * amt;
         tilt = Math.sin(p * Math.PI) * 0.32 * (lunge.dx || (this.facing.get(id) ?? 1));
+      }
+    }
+    const recoil = this.recoils.get(id);
+    if (recoil) {
+      recoil.t += dt;
+      const p = recoil.t / 0.2;
+      if (p >= 1) this.recoils.delete(id);
+      else {
+        // out fast, back slow
+        const amt = (p < 0.25 ? p / 0.25 : 1 - (p - 0.25) / 0.75) * 3;
+        ox += recoil.dx * amt;
+        oy += recoil.dy * amt;
       }
     }
     // A little hop while stepping between tiles, a squash on landing, and slow breathing at rest.
@@ -1115,7 +1169,7 @@ export class Renderer {
       }
       if (f.t >= 1) {
         this.burstParticles(f.x1, f.y1, color, 14, 1.2);
-        if (f.kind === 'spark') this.floaters.push(this.floater(f.x1, f.y1, `+${HORDE_SPARK} SURGE`, '#5fe3ff', 0.9));
+        if (f.kind === 'spark') this.say(this.floater(f.x1, f.y1, `+${HORDE_SPARK} SURGE`, '#5fe3ff', 0.9));
         if (f.kind === 'potion') this.healFlash = Math.max(this.healFlash, 0.5);
       }
     }
@@ -1331,9 +1385,11 @@ export class Renderer {
       if (f.t < 0) continue;
       const p = f.t / f.life;
       // Numbers pop in big and settle; crits ("4!") stay larger.
+      // Damage and healing read first: numbers are drawn larger than words.
       const big = f.text.endsWith('!');
+      const num = /^[+-]?\d+!?$/.test(f.text);
       const pop = f.t < 0.1 ? 1 + (1 - f.t / 0.1) * 0.7 : 1;
-      const size = Math.round((big ? 10 : 8) * pop);
+      const size = Math.round((num ? (big ? 13 : 11) : big ? 10 : 8) * pop);
       ctx.font = `${size}px Silkscreen, monospace`;
       const y = Math.round(f.y - p * 8 - (pop - 1) * 3);
       const half = ctx.measureText(f.text).width / 2;
