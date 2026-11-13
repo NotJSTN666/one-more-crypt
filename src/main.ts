@@ -1842,7 +1842,7 @@ function showPodium(won: PodiumFinish[], back: () => void) {
     <img class="hero-portrait" src="${heroPortrait(meta.hero, {}, [], 8, outfitFor(meta.hero).look, prize.head)}" alt="Your hero wearing the ${esc(head.name)}" width="96" height="96" />
     <ul class="podium-rewards">
       <li>🎩 <b>${esc(head.name)}</b>: exclusive headwear for any hero, in the Wardrobe</li>
-      ${best.place === 1 ? '<li>📜 <b>Crypt Champion</b>: a new title for your name</li><li>👑 A crown by your name on the boards today</li>' : ''}
+      ${best.place === 1 ? '<li>📜 <b>Crypt Champion</b>: a new title for your name, with a gold glow wherever it shows</li><li>👑 A crown by your name on the boards today</li>' : ''}
       <li>💀 <b>+${souls} Souls</b></li>
       ${others.map((w) => `<li>${PODIUM.find((p) => p.place === w.place)!.medal} Also ${ORDINAL[w.place]} in Daily #${w.dailyNo}</li>`).join('')}
     </ul>
