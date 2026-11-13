@@ -608,7 +608,8 @@ function finishRun(abandoned = false) {
       .then((ok) => (ok || (mode === 'daily' && !signedIn()) ? rankLine(mode, dailyNo, result.floor) : ''))
       .then((line) => setRank(line))
       .catch(() => setRank('Saved. It will upload when you are back online.'));
-  }, abandoned ? 0 : 1100);
+  // Death's touch gets a longer beat on the board: his scythe sweeps and the colour drains before the results.
+  }, abandoned ? 0 : game.killedBy === 'Death' ? 2400 : 1100);
 }
 
 function setRank(text: string) {

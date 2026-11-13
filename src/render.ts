@@ -3,7 +3,7 @@
 
 import { drawAura as drawAuraFx } from './aura';
 import { ELITES, type HeroId } from './content';
-import { ENEMY_INFO, Game, H, HORDE_SPARK, ORBIT_RING, W, isBoss, type EnemyKind, type GameEvent, type MagnetPull, type Pos } from './game';
+import { ENEMY_INFO, Game, H, HORDE_SPARK, ORBIT_RING, REAPER_FLOOR, W, isBoss, type EnemyKind, type GameEvent, type MagnetPull, type Pos } from './game';
 import { hashSeed, mulberry32 } from './rng';
 import { heroSprite, relicColor } from './hero';
 import { LOOK_BY_ID, seasonDress, type Outfit } from './progression';
@@ -83,6 +83,8 @@ export class Renderer {
   private lunges = new Map<number, Lunge>();
   /** Knock-back: a struck body is shoved away from the blow and springs back. */
   private recoils = new Map<number, Lunge>();
+  /** Seconds since Death's touch ended the run (-1 when it hasn't): his scythe sweeps and the colour drains away. */
+  private reaped = -1;
   /** 0..1 as the hero goes down the stairs. */
   private sink = 0;
   /** How long each foe holds its attack pose. */
@@ -165,6 +167,7 @@ export class Renderer {
     this.landing.clear();
     this.recoils.clear();
     this.sink = 0;
+    this.reaped = -1;
     this.enter = 0;
     this.floaters = [];
     this.bannerQueue = [];
@@ -409,6 +412,7 @@ export class Renderer {
         case 'death': {
           this.shake = 8;
           this.hitStop = 0.25;
+          if (g.killedBy === 'Death') this.reaped = 0;
           const d = this.disp.get(PLAYER_ID) ?? g.player;
           this.shatter(heroSprite(g.hero, g.relics, g.relicLog, this.outfit.look, this.outfit.head).normal, d, this.facing.get(PLAYER_ID) ?? 1, 1.3);
           this.burstParticles(g.player.x, g.player.y, '#d23a46', 30, 2);
@@ -559,7 +563,7 @@ export class Renderer {
     const LINE = 9;
     let dir = -1;
     for (let tries = 0; tries < 6; tries++) {
-      const hit = this.floaters.some((o) => o.t < 0.4 && Math.abs(o.y - f.y) < LINE - 1 && Math.abs(o.x - f.x) < (o.text.length + f.text.length) * 3.2);
+      const hit = this.floaters.some((o) => o.t < 0.4 && Math.abs(o.y - f.y) < LINE - 1 && Math.abs(o.x - f.x) < (o.text.length + f.text.length) * 4);
       if (!hit) break;
       if (f.y + dir * LINE < 9) dir = 1;
       f.y += dir * LINE;
@@ -679,10 +683,7 @@ export class Renderer {
       this.drawAura(g, pd);
       if (g.phase === 'play' && g.missileReady) this.drawMissileReady(g, pd);
     }
-    if (g.reaper) {
-      seen.add(REAPER_ID);
-      this.drawReaper(g.reaper, this.smooth(REAPER_ID, g.reaper, k * 0.5), dt, g.reaperIn);
-    }
+    if (g.reaper) seen.add(REAPER_ID);
     for (const id of [...this.disp.keys()]) if (!seen.has(id)) this.disp.delete(id);
 
     this.drawLines(dt);
@@ -698,9 +699,13 @@ export class Renderer {
     this.drawLighting(g);
     // The plague mist goes over the dark, so you can see it anywhere on the board.
     this.drawMist(g);
+    // Death is drawn over the dark: nothing dims him, and he dims everything near him.
+    if (g.reaper) this.drawReaper(g, g.reaper, this.smooth(REAPER_ID, g.reaper, k * 0.5), dt, g.reaperIn);
+    this.drawDread(g);
     this.drawWeather(g, dt);
     this.drawFloaters(dt);
     this.drawBanner(dt);
+    this.drawReaped(g, realDt);
     this.drawEnter(g, realDt);
 
     this.hurtFlash = Math.max(0, this.hurtFlash - dt * 4);
@@ -834,32 +839,159 @@ export class Renderer {
 
   /** Outside the story, an earned companion trots one step behind the hero. Looks only. */
   /** Death: drifting, dark-haloed, scythe in hand; pale while held still by a toll or stopped time. */
-  private drawReaper(r: { frozen: number; waiting?: boolean }, d: Pos, dt: number, turnsLeft: number) {
+  private drawReaper(g: Game, r: { frozen: number; waiting?: boolean }, d: Pos, dt: number, turnsLeft: number) {
     const ctx = this.ctx;
     const cx = d.x * TILE + TILE / 2;
     const cy = d.y * TILE + TILE / 2;
     const pulse = 0.5 + 0.5 * Math.sin(this.time * 3);
-    const halo = ctx.createRadialGradient(cx, cy, 2, cx, cy, TILE * 0.95);
+    const awake = !r.waiting;
+    // A pool of shadow spreads from him and swallows the candlelight around: the darkest thing on the board.
+    if (!this.contrast) {
+      const reach = TILE * (awake ? 2.7 + 0.15 * pulse : 1.5);
+      const pool = ctx.createRadialGradient(cx, cy, 3, cx, cy, reach);
+      pool.addColorStop(0, `rgba(3, 1, 8, ${awake ? 0.82 : 0.6})`);
+      pool.addColorStop(0.55, `rgba(8, 3, 18, ${awake ? 0.5 : 0.3})`);
+      pool.addColorStop(1, 'rgba(8, 3, 18, 0)');
+      ctx.fillStyle = pool;
+      ctx.fillRect(cx - reach, cy - reach, reach * 2, reach * 2);
+    }
+    const halo = ctx.createRadialGradient(cx, cy, 2, cx, cy, TILE * 1.1);
     halo.addColorStop(0, `rgba(10, 4, 20, ${0.75 + 0.15 * pulse})`);
-    halo.addColorStop(0.6, `rgba(120, 70, 190, ${0.22 + 0.12 * pulse})`);
-    halo.addColorStop(1, 'rgba(120, 70, 190, 0)');
+    halo.addColorStop(0.6, `rgba(140, 80, 220, ${0.26 + 0.16 * pulse})`);
+    halo.addColorStop(1, 'rgba(140, 80, 220, 0)');
     ctx.fillStyle = halo;
-    ctx.fillRect(cx - TILE, cy - TILE, TILE * 2, TILE * 2);
-    if (Math.random() < dt * 8) {
-      this.particles.push({ x: cx - 5 + Math.random() * 10, y: cy + 4, vx: (Math.random() - 0.5) * 6, vy: -8 - Math.random() * 8, color: Math.random() < 0.5 ? '#3a1d55' : '#d3b0ff', t: 0, life: 0.9, size: 1 });
+    ctx.fillRect(cx - TILE * 1.2, cy - TILE * 1.2, TILE * 2.4, TILE * 2.4);
+    if (Math.random() < dt * (awake ? 16 : 8)) {
+      this.particles.push({ x: cx - 6 + Math.random() * 12, y: cy + 5, vx: (Math.random() - 0.5) * 6, vy: -8 - Math.random() * 10, color: Math.random() < 0.5 ? '#3a1d55' : '#d3b0ff', t: 0, life: 0.9, size: 1 });
     }
     const bob = r.waiting ? 0 : Math.sin(this.time * 2) * 1.5;
-    this.drawSprite(REAPER_ID, sprites().reaper, d, dt, r.waiting ? 0.5 + 0.1 * pulse : r.frozen > 0 ? 0.55 : 0.95, bob);
+    // Walking, he looms: drawn a third larger than anything else down here, standing on the same spot.
+    const big = awake ? 1.35 : 1;
+    const footX = d.x * TILE + TILE / 2;
+    const footY = d.y * TILE + PAD + SPRITE_SIZE;
+    ctx.save();
+    ctx.translate(footX, footY);
+    ctx.scale(big, big);
+    ctx.translate(-footX, -footY);
+    this.drawSprite(REAPER_ID, sprites().reaper, d, dt, r.waiting ? 0.5 + 0.1 * pulse : r.frozen > 0 ? 0.55 : 1, bob);
+    ctx.restore();
     // Waiting: how many turns until he walks, over his head.
     if (r.waiting && turnsLeft > 0) {
-      ctx.font = '7px Silkscreen, monospace';
+      ctx.font = `${turnsLeft <= 3 ? 10 : 8}px Silkscreen, monospace`;
       ctx.textAlign = 'center';
       // Over his head, or under his feet when he waits on the top row.
-      const ty = cy < TILE ? cy + 14 : cy - 8;
+      const ty = cy < TILE ? cy + 15 : cy - 8;
       ctx.fillStyle = '#000';
-      ctx.fillText(String(turnsLeft), cx + 0.5, ty + 0.5);
+      for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) ctx.fillText(String(turnsLeft), cx + ox, ty + oy);
       ctx.fillStyle = turnsLeft <= 3 ? '#ff4d5a' : '#d3b0ff';
       ctx.fillText(String(turnsLeft), cx, ty);
+      ctx.textAlign = 'left';
+    }
+    // The way out calls to you while he walks: a column of gold light over the open stairs.
+    if (awake && g.stairsOpen && g.phase === 'play') {
+      const sx = g.stairs.x * TILE;
+      const sy = g.stairs.y * TILE;
+      const beat = 0.5 + 0.5 * Math.sin(this.time * 9);
+      ctx.globalCompositeOperation = 'lighter';
+      const beam = ctx.createLinearGradient(0, sy + TILE, 0, sy - TILE * 2);
+      beam.addColorStop(0, `rgba(255, 214, 110, ${0.3 + 0.25 * beat})`);
+      beam.addColorStop(1, 'rgba(255, 214, 110, 0)');
+      ctx.fillStyle = beam;
+      ctx.fillRect(sx + 2, sy - TILE * 2, TILE - 4, TILE * 3);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = `rgba(255, 226, 140, ${0.5 + 0.5 * beat})`;
+      ctx.lineWidth = 1;
+      const grow = 1 + beat * 2;
+      ctx.strokeRect(sx + 0.5 - grow, sy + 0.5 - grow, TILE - 1 + grow * 2, TILE - 1 + grow * 2);
+    }
+  }
+
+  /**
+   * The dread of the deep. On the floors Death walks, a countdown to his rising sits at the top of
+   * the board; once he walks, the dark closes in from the edges the nearer he gets, in time with a heartbeat.
+   */
+  private drawDread(g: Game) {
+    if (this.quiet || g.phase === 'dead') return;
+    const ctx = this.ctx;
+    const r = g.reaper;
+    if ((!r || r.waiting) && g.reaperIn > 0 && g.mode !== 'horde') {
+      const urgent = g.reaperIn <= 3;
+      const text = `DEATH IN ${g.reaperIn}`;
+      const beat = urgent ? 0.6 + 0.4 * Math.sin(this.time * 10) : 0.85;
+      ctx.font = `${urgent ? 10 : 8}px Silkscreen, monospace`;
+      ctx.textAlign = 'center';
+      ctx.globalAlpha = beat;
+      ctx.fillStyle = '#000';
+      for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1]]) ctx.fillText(text, BOARD_W / 2 + ox, 10 + oy);
+      ctx.fillStyle = urgent ? '#ff4d5a' : '#d3b0ff';
+      ctx.fillText(text, BOARD_W / 2, 10);
+      ctx.globalAlpha = 1;
+      ctx.textAlign = 'left';
+    }
+    if (!r || r.waiting || this.contrast) return;
+    const d = this.disp.get(REAPER_ID) ?? r;
+    const pd = this.disp.get(PLAYER_ID) ?? g.player;
+    const dist = Math.abs(d.x - pd.x) + Math.abs(d.y - pd.y);
+    const near = Math.max(0, Math.min(1, (7 - dist) / 6));
+    if (near <= 0) return;
+    // a double thump, quicker as he closes
+    const ph = (this.time * (1 + near * 1.2)) % 1;
+    const thump = Math.max(0, 1 - ph / 0.14) + Math.max(0, 1 - Math.abs(ph - 0.24) / 0.12) * 0.6;
+    const s = near * (0.75 + 0.25 * Math.min(1, thump));
+    const edge = ctx.createRadialGradient(BOARD_W / 2, BOARD_H / 2, BOARD_W * (0.6 - 0.32 * near), BOARD_W / 2, BOARD_H / 2, BOARD_W * 0.8);
+    edge.addColorStop(0, 'rgba(18, 4, 34, 0)');
+    edge.addColorStop(1, `rgba(18, 4, 34, ${0.85 * s})`);
+    ctx.fillStyle = edge;
+    ctx.fillRect(-10, -10, BOARD_W + 20, BOARD_H + 20);
+  }
+
+  /** Death's touch: his scythe sweeps through where the hero stood, and the colour drains out of the world. */
+  private drawReaped(g: Game, dt: number) {
+    if (this.reaped < 0) return;
+    this.reaped += dt;
+    const t = this.reaped;
+    const ctx = this.ctx;
+    // the colour goes, then the light
+    const drain = Math.min(1, t / 0.9);
+    ctx.globalCompositeOperation = 'saturation';
+    ctx.fillStyle = `rgba(128, 128, 128, ${drain})`;
+    ctx.fillRect(-10, -10, BOARD_W + 20, BOARD_H + 20);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = `rgba(6, 2, 12, ${0.45 * Math.min(1, t / 1.6)})`;
+    ctx.fillRect(-10, -10, BOARD_W + 20, BOARD_H + 20);
+    if (this.quiet) return;
+    // the sweep: a wide pale crescent, bright at its leading edge
+    const cx = g.player.x * TILE + TILE / 2;
+    const cy = g.player.y * TILE + TILE / 2;
+    const p = Math.min(1, t / 0.38);
+    if (t < 0.75) {
+      const fade = t < 0.38 ? 1 : 1 - (t - 0.38) / 0.37;
+      const from = -Math.PI * 0.95;
+      const to = from + Math.PI * 1.25 * (1 - Math.pow(1 - p, 3));
+      ctx.lineCap = 'round';
+      for (const [w, a, c] of [[7, 0.25, '#b48cff'], [4, 0.6, '#e6d6ff'], [1.5, 1, '#ffffff']] as [number, number, string][]) {
+        ctx.globalAlpha = a * fade;
+        ctx.strokeStyle = c;
+        ctx.lineWidth = w;
+        ctx.beginPath();
+        ctx.arc(cx, cy + 2, TILE * 1.25, Math.max(from, to - 1.5), to);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      ctx.lineCap = 'butt';
+    }
+    // and one word for it
+    if (t > 0.5) {
+      const a = Math.min(1, (t - 0.5) / 0.4);
+      ctx.font = '10px Silkscreen, monospace';
+      ctx.textAlign = 'center';
+      ctx.globalAlpha = a;
+      ctx.fillStyle = '#000';
+      const ty = cy < BOARD_H / 2 ? cy + TILE * 1.9 : cy - TILE * 1.5;
+      for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1]]) ctx.fillText('REAPED', BOARD_W / 2 + ox, ty + oy);
+      ctx.fillStyle = '#d3b0ff';
+      ctx.fillText('REAPED', BOARD_W / 2, ty);
+      ctx.globalAlpha = 1;
       ctx.textAlign = 'left';
     }
   }
@@ -1611,8 +1743,17 @@ export class Renderer {
     const outer = dark ? 40 + light * 12 + flicker * 2 : 95 + light * 14 + flicker * 2;
     // The Abyss's darkness is part of its challenge, so it stays even in high contrast;
     // elsewhere the dark is softer, and gone in high contrast.
-    if (dark || !this.contrast) this.drawLightMap(g, cx, cy, inner, outer, dark, zone.light);
+    // Where Death walks (floor 150 and down) the light reaches less far, so depth reads at a glance.
+    const deathly = !dark && Boolean(g.config.reaper) && g.floor >= REAPER_FLOOR && g.mode !== 'horde';
+    if (dark || !this.contrast) this.drawLightMap(g, cx, cy, deathly ? inner * 0.8 : inner, deathly ? outer * 0.62 : outer, dark, zone.light);
     if (this.contrast) return;
+    if (deathly) {
+      // and what light there is runs cold
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.fillStyle = '#b9bfe6';
+      ctx.fillRect(-10, -10, BOARD_W + 20, BOARD_H + 20);
+      ctx.globalCompositeOperation = 'source-over';
+    }
     // A soft vignette, so the board sinks into the dark at its edges.
     const edge = 10;
     for (const [x0, y0, x1, y1, rx, ry, rw, rh] of [
