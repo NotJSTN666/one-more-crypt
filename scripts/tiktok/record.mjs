@@ -21,7 +21,9 @@ rmSync(`${OUT}/frames`, { recursive: true, force: true });
 mkdirSync(`${OUT}/frames`, { recursive: true });
 
 const b = await chromium.launch();
-const p = await b.newPage({ viewport: { width: 360, height: 640 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
+// SHAPE=wide records the desktop layout at 1920x1080 instead of the phone's 1080x1920.
+const WIDE = process.env.SHAPE === 'wide';
+const p = await b.newPage(WIDE ? { viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1.5 } : { viewport: { width: 360, height: 640 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
 const errs = [];
 p.on('pageerror', (e) => errs.push(String(e)));
 await p.addInitScript({ path: new URL('./shim.js', import.meta.url).pathname });
@@ -120,7 +122,7 @@ const placeHook = () => p.evaluate(() => {
   h.style.top = 'auto';
   h.style.bottom = `${innerHeight - bar + 10}px`;
 });
-await p.addStyleTag({ content: '.ns-pad, .touch-pad, .dpad, #pad { visibility: hidden !important; }' });
+if (!WIDE) await p.addStyleTag({ content: '.ns-pad, .touch-pad, .dpad, #pad { visibility: hidden !important; }' });
 // The play area sits high on a phone with the controls below it. With the controls hidden, move
 // everything down so the action is in the middle of the frame, clear of TikTok's buttons.
 const centre = () => p.evaluate(() => {
@@ -253,7 +255,7 @@ if (idea.scene === 'night') {
 }
 
 // ---- record ----
-await centre();
+if (!WIDE) await centre();
 await placeHook();
 await hideHook(false);
 const total = Math.round(SECONDS * FPS);

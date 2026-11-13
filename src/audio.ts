@@ -631,6 +631,26 @@ export async function renderMenu(seconds: number): Promise<AudioBuffer> {
 }
 if (import.meta.env.DEV) (window as unknown as { renderMenu?: typeof renderMenu }).renderMenu = renderMenu;
 
+/** Local development only: the crypt's score at a set intensity (0-4; 4 is the Abyss, full drums), rendered offline for trailers. */
+export async function renderCrypt(seconds: number, intensity: number): Promise<AudioBuffer> {
+  const saved = { ctx, bus, mood, level, stepIndex };
+  const off = new OfflineAudioContext(2, Math.ceil(44100 * seconds), 44100);
+  ctx = off as unknown as AudioContext;
+  makeBus();
+  bus!.out.gain.value = MUSIC_VOLUME;
+  mood = 'crypt';
+  level = Math.max(0, Math.min(4, Math.round(intensity)));
+  let t = 0.05;
+  for (let i = 0; t < seconds - 0.3; i++) {
+    if (i === 0 && level > 0) crash(t);
+    playStep(i, t);
+    t += 60 / tempo() / 4;
+  }
+  const out = await off.startRendering();
+  ({ ctx, bus, mood, level, stepIndex } = saved);
+  return out;
+}
+
 // Local development only: the sound effects, reachable from outside, so a recording can note which play and when.
 if (import.meta.env.DEV) window.addEventListener('load', () => ((window as unknown as { omcSfx?: typeof sfx }).omcSfx = sfx));
 
