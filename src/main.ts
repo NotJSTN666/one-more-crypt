@@ -122,6 +122,46 @@ function showGame(g: Game) {
   updateHud(true);
 }
 
+/**
+ * A try-out run (onemorecrypt.com/?deathtest): Endless from floor 151, where Death walks, with a
+ * strong build and a shield nothing but Death gets through. Nothing about it is saved, counted or sent
+ * to a leaderboard, and a saved Endless run is left as it was.
+ */
+let deathTestGame: Game | null = null;
+/** Whether the run on screen is the try-out (tied to that one game, so a real run after it saves as usual). */
+const deathTest = () => Boolean(game) && game === deathTestGame;
+
+function startDeathTest() {
+  unlockAudio();
+  challenge = null;
+  newGame('endless');
+  deathTestGame = game;
+  game.relics = { ember: 3, storm: 3, frost: 2, fang: 3, whetstone: 4, thorns: 2, whirl: 2, heart: 3 };
+  game.relicLog = Object.keys(game.relics) as typeof game.relicLog;
+  (game as unknown as { enterFloor(floor: number): void }).enterFloor(151);
+  deathTestTurn();
+  showGame(game);
+  startClock();
+  setMusicDepth(game.floor, game.zone.def.key);
+  setMusicMood('crypt');
+  hideOverlay();
+  sfx.stairs();
+  toast('Death test: floor 151. Nothing here is saved or counted.');
+}
+
+/**
+ * Each turn of the try-out: the hero's shield is topped up (this deep a single blow kills, by
+ * design) and the foes are cut down to size, so only Death can end it.
+ */
+function deathTestTurn() {
+  if (game.phase === 'dead') return;
+  (game as unknown as { shieldCharges: number }).shieldCharges = 99;
+  game.player.hp = game.player.maxHp;
+  for (const e of game.enemies) if (!e.ally) e.hp = Math.min(e.hp, 40);
+  // He rises soon after you arrive, rather than after the floor's usual wait.
+  if (game.reaper?.waiting && game.reaperIn > 6) game.reaperIn = 6;
+}
+
 function startRun(mode: Mode) {
   challenge = null;
   unlockAudio();
@@ -402,7 +442,7 @@ onAccountSynced(() => {
 
 function saveRun() {
   // Story chapters are short, and start over rather than resume.
-  if (!game || game.phase === 'dead' || game.mode === 'story') return;
+  if (!game || game.phase === 'dead' || game.mode === 'story' || deathTest()) return;
   // A Horde run keeps its own slot, so it never overwrites a saved Endless or Daily run.
   if (game.mode === 'horde') {
     try {
@@ -515,6 +555,16 @@ function killedByPhrase(name: string): string {
 }
 
 function finishRun(abandoned = false) {
+  if (deathTest()) {
+    // The try-out: watch the ending on the board, then back to the title with nothing recorded.
+    deathTestGame = null;
+    window.clearTimeout(overlayTimer);
+    overlayTimer = window.setTimeout(() => {
+      showTitle();
+      toast('Death test over. Nothing was saved. Open the link again for another go.');
+    }, abandoned ? 0 : game.killedBy === 'Death' ? 3200 : 1100);
+    return;
+  }
   const result: RunResult = {
     floor: game.floor,
     kills: game.kills,
@@ -679,7 +729,7 @@ function processEvents() {
       renderer.banner(`${def.name.toUpperCase()}!`, def.rarity === 'ascended' ? '#fff2c0' : '#7fb4ff');
       fusedReveal = { id: ev.id, first: noteFusion(ev.id) };
     }
-    if (ev.t !== 'relic') continue;
+    if (ev.t !== 'relic' || deathTest()) continue;
     const { achievements, combos } = noteRelic(game, ev.id);
     for (const c of combos) {
       runCombos.push(c);
@@ -688,7 +738,8 @@ function processEvents() {
     celebrate(achievements, combos);
   }
   // (The Horde's depth isn't a floor reached, so floor feats don't count there.)
-  if (game.phase !== 'dead' && game.mode !== 'horde') celebrate(checkRun(game));
+  if (deathTest()) deathTestTurn();
+  if (game.phase !== 'dead' && game.mode !== 'horde' && !deathTest()) celebrate(checkRun(game));
   updateHud();
   if (raidRun && (game.phase === 'dead' || game.phase === 'won' || game.turns >= RAID_TURNS)) {
     if (game.phase === 'dead') setMusicMood('silent');
@@ -4851,6 +4902,11 @@ if (challengeCode && ONLINE) openChallenge(challengeCode, showTitle);
 if (new URLSearchParams(location.search).has('testers')) {
   history.replaceState(null, '', location.pathname + location.hash);
   window.setTimeout(() => showTesterAsk(() => true), 1500);
+}
+// onemorecrypt.com/?deathtest drops you into Endless on floor 151 to see Death, with nothing saved.
+if (new URLSearchParams(location.search).has('deathtest')) {
+  history.replaceState(null, '', location.pathname + location.hash);
+  window.setTimeout(startDeathTest, 1200);
 }
 const unsub = new URLSearchParams(location.search).get('unsub');
 if (unsub && ONLINE) {
