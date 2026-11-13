@@ -25,8 +25,7 @@ export const NEWS: NewsDay[] = [
   {
     date: '2026-11-13',
     title: 'A fix for Daily champions',
-    notes: [],
-    fixes: ['🥇 The reward screen for finishing 1st in a Daily now mentions the gold glow your Crypt Champion title gets. Thanks to Seabastin for the report!'],
+    notes: ['🥇 The reward screen for finishing 1st in a Daily now mentions the gold glow your Crypt Champion title gets. Thanks to Seabastin for the report!'],
   },
   {
     date: '2026-11-11',
