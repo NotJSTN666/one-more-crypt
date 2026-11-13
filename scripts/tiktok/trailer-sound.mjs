@@ -9,10 +9,14 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
+import { existsSync } from 'node:fs';
+// On the cloud machines Chromium is preinstalled at a fixed path, whatever Playwright version the
+// project pins; elsewhere Playwright finds its own.
+const BROWSER = existsSync('/opt/pw-browsers/chromium') ? { executablePath: '/opt/pw-browsers/chromium' } : {};
 
 const [, , dir, out] = process.argv;
 const marks = JSON.parse(readFileSync(`${dir}/marks.json`, 'utf8'));
-const browser = await chromium.launch();
+const browser = await chromium.launch(BROWSER);
 const page = await browser.newPage();
 await page.goto('http://localhost:5199/privacy.html');
 const tracks = await page.evaluate(async ({ total, events }) => {

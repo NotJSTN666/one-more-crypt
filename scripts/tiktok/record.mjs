@@ -10,6 +10,10 @@
 // those relics `at` seconds in; `end: false` leaves off the end card. Needs the dev server: npx vite --port 5199
 import { mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { chromium } from 'playwright';
+import { existsSync } from 'node:fs';
+// On the cloud machines Chromium is preinstalled at a fixed path, whatever Playwright version the
+// project pins; elsewhere Playwright finds its own.
+const BROWSER = existsSync('/opt/pw-browsers/chromium') ? { executablePath: '/opt/pw-browsers/chromium' } : {};
 
 const idea = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 const OUT = process.argv[3];
@@ -20,7 +24,7 @@ const PAGE = 'http://localhost:5199/';
 rmSync(`${OUT}/frames`, { recursive: true, force: true });
 mkdirSync(`${OUT}/frames`, { recursive: true });
 
-const b = await chromium.launch();
+const b = await chromium.launch(BROWSER);
 // SHAPE=wide records the desktop layout at 1920x1080 instead of the phone's 1080x1920.
 const WIDE = process.env.SHAPE === 'wide';
 const p = await b.newPage(WIDE ? { viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1.5 } : { viewport: { width: 360, height: 640 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });

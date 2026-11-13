@@ -10,6 +10,10 @@
 // it all is, and every sound effect with its time) for trailer-sound.mjs. Needs the dev server: npx vite --port 5199
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
+import { existsSync } from 'node:fs';
+// On the cloud machines Chromium is preinstalled at a fixed path, whatever Playwright version the
+// project pins; elsewhere Playwright finds its own.
+const BROWSER = existsSync('/opt/pw-browsers/chromium') ? { executablePath: '/opt/pw-browsers/chromium' } : {};
 
 const shape = process.argv[2] === 'tall' ? 'tall' : 'wide';
 const OUT = process.argv[3];
@@ -20,7 +24,7 @@ const DEEP = 152;
 rmSync(`${OUT}/frames`, { recursive: true, force: true });
 mkdirSync(`${OUT}/frames`, { recursive: true });
 
-const b = await chromium.launch();
+const b = await chromium.launch(BROWSER);
 const p = await b.newPage(shape === 'tall'
   ? { viewport: { width: 360, height: 640 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true }
   : { viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1.5 });
