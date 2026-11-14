@@ -37,6 +37,8 @@ export const NEWS: NewsDay[] = [
       '⚰️ If Death catches you, his scythe sweeps, the colour drains from the crypt, and the board holds a moment before your results.',
       '⚒️ The Soul Forge finishes better: the new relic glides out of the light onto its card, which now arrives whole, glows in the relic\'s own colour and shows the relic twice as large.',
       '🏷️ A fused relic\'s name is easier to read in the burst, and what it counts as is shown as tidy chips. Feat banners wait until you close the card.',
+      '👥 Bring a friend pays more: when a friend you invite finishes their first run, you both get 500 Souls, a random companion and the Kindred Cloak. Every friend pays again.',
+      '🦇 Four new companions to find by bringing friends: the Belfry Bat, Cinder Imp, Lost Wisp and Watchful Eye. Choose who follows you in the Wardrobe.',
       '🥇 The reward screen for finishing 1st in a Daily now mentions the gold glow your Crypt Champion title gets. Thanks to Seabastin for the report!',
     ],
   },

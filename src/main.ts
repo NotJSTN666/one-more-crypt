@@ -8,7 +8,7 @@ import { TRIAL_SOULS, trialProgressText, weekTrial } from './trials';
 import { ACHIEVEMENT_BY_ID, DAILY_TOTALS, ELITES, FEATURES, HERO_BY_ID, HEROES, dailyHero, hordeHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait, heroSprite } from './hero';
 import { BOON_BY_ID, ENEMY_INFO, W, MIST_BITE, REAPER_FLOOR, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode, type EnemyKind } from './game';
-import { acceptQuest, checkRun, grantFeats, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, finishHordeMeta, receiveGift, equipTitle, FAIR_DAILY, LEAN_DAILY, MISSILE_DAILY, type RunReward } from './meta';
+import { acceptQuest, checkRun, grantFeats, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, INVITE_SOULS, INVITE_PETS, type InviteGain, finishHordeMeta, receiveGift, equipTitle, FAIR_DAILY, LEAN_DAILY, MISSILE_DAILY, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, holdCelebrations, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
@@ -42,6 +42,7 @@ import { claimInlineHtml, wireClaimInline, keepNameHtml, wireKeepName, endlessRe
 import { currentStreak, loadSave, recordDaily, streakStats, WARD_EVERY, writeSave, type RunResult } from './storage';
 import { $, calmChosen, calmMotion, esc, formStatus, hideOverlay, on, onSubmit, overlay, overlayShownAt, screen, setCalm, showOverlay, toast } from './ui';
 import { showTesterAsk, testerAskDue, testerOffer } from './testers';
+import { inviteAskDue, noteDailyForInvite, showInviteAsk } from './invite-ask';
 
 const canvas = $<HTMLCanvasElement>('board');
 const renderer = new Renderer(canvas);
@@ -1890,7 +1891,7 @@ function showTitle() {
         ${titleTile('ossuary', '🏛️', 'Ossuary', `💀 ${ns(meta.souls)} Souls${meta.bought.includes(marketPiece(today).id) ? '' : ` · 🕯️ Today: ${esc(marketPiece(today).name)}`}`)}
         ${titleTile('grimoire', '📖', 'Grimoire', 'Relics & combos')}
         ${ONLINE ? titleTile('leaderboard', '🏆', 'Leaderboards', 'Daily & Endless') : ''}
-        ${ONLINE ? titleTile('invite', '👥', 'Bring a friend', meta.invite.friends ? `${meta.invite.friends} brought` : 'You both get a cloak') : ''}
+        ${ONLINE ? titleTile('invite', '👥', 'Bring a friend', meta.invite.friends ? `${meta.invite.friends} brought` : `You both get ${INVITE_SOULS} Souls`) : ''}
         ${titleTile('feedback', '💬', 'Feedback', 'Bugs & ideas')}
         ${titleTile('help', '❔', 'How to play', 'The basics')}
       </div>
@@ -2765,8 +2766,15 @@ function showDeath(r: RunResult, best: boolean) {
   on('#keep-night', () => (nightIntroSeen() ? showNightShift(showTitle) : showNightIntro()));
   on('#delve-skip', () => document.getElementById('delve-clip')?.remove());
   if (daily) showEndlessRecord();
-  // A moment after the Daily's results land: help test the Android app (where that makes sense).
-  if (daily && testerAskDue(PORTAL)) {
+  // A moment after the Daily's results land, one ask at most: bring a friend (every third Daily),
+  // or else help test the Android app (where that makes sense).
+  if (daily) noteDailyForInvite(dailyNumber());
+  if (daily && ONLINE && inviteAskDue(PORTAL, dailyNumber()) && !testerAskDue(PORTAL)) {
+    const shownAt = overlayShownAt;
+    window.setTimeout(() => {
+      if (screen === 'death' && overlayShownAt === shownAt) openInviteAsk(r.floor, () => screen === 'death' && !overlay.hidden, dailyNumber());
+    }, 1800);
+  } else if (daily && testerAskDue(PORTAL)) {
     const shownAt = overlayShownAt;
     window.setTimeout(() => {
       if (screen === 'death' && overlayShownAt === shownAt) showTesterAsk(() => screen === 'death' && !overlay.hidden);
@@ -3941,7 +3949,7 @@ async function loadHordeBoard(g: Game, best: boolean) {
 
 // ---------- Bring a friend ----------
 // Each named player has a link (?invite=NAME). A new player who arrives through it and finishes a
-// run counts for them: both get the Kindred Cloak, and more friends bring more.
+// run counts for them: both get Souls, a random companion and the Kindred Cloak, and more friends bring more.
 
 const INVITE_LADDER: { n: number; what: string }[] = [
   { n: 1, what: '🎨 Kindred Cloak (your friend gets one too)' },
@@ -3955,7 +3963,7 @@ const inviteUrl = (name: string) => `${siteUrl()}?invite=${encodeURIComponent(na
 function inviteButtonHtml(): string {
   if (PORTAL) return '';
   const n = meta.invite.friends;
-  return `<button class="btn invite-btn" id="invite">👥 Bring a friend<small>${n ? `${n} friend${n === 1 ? '' : 's'} brought · ` : ''}You both get the Kindred Cloak</small></button>`;
+  return `<button class="btn invite-btn" id="invite">👥 Bring a friend<small>${n ? `${n} friend${n === 1 ? '' : 's'} brought · ` : ''}You both get ${INVITE_SOULS} Souls, a companion and a cloak</small></button>`;
 }
 
 /** ?invite=NAME: a friend sent you. Counted once you finish a run (new players only). */
@@ -3969,7 +3977,7 @@ function inviteFromLink() {
     if (!name || name.toLowerCase() === playerName().toLowerCase()) return;
     if (save.totals.runs > 2 || meta.invite.claimed || meta.invite.from) return;
     noteInvitedBy(name);
-    window.setTimeout(() => toast(`👥 ${name} invited you! Finish a run: you both get a cloak.`), 1500);
+    window.setTimeout(() => toast(`👥 ${name} invited you! Finish a run: you both get ${INVITE_SOULS} Souls, a companion and a cloak.`), 1500);
   } catch {
     // A broken link: nothing to remember.
   }
@@ -3981,14 +3989,21 @@ async function claimInviteIfDue() {
   if (!ONLINE || !from || meta.invite.claimed) return;
   try {
     const name = await claimInvite(from);
-    settleInvite(Boolean(name));
+    const gain = settleInvite(Boolean(name));
     if (name) {
       sfx.relic();
-      toast(`👥 You and ${name} both earned the Kindred Cloak! Wear it from the Wardrobe.`);
+      toast(`👥 You and ${name} both earned ${gainText(gain)} and the Kindred Cloak! Find them in the Wardrobe.`);
+      if (screen === 'death') document.querySelectorAll('.souls-earned span:last-child').forEach((el) => (el.textContent = `💀 ${meta.souls} to spend in the Ossuary`));
     }
   } catch {
     // Offline: try again after the next run.
   }
+}
+
+/** What an invite paid, in words: "500 Souls and the Belfry Bat". */
+function gainText(g: InviteGain): string {
+  const pets = g.pets.map((p) => `the ${p.name}`);
+  return [g.souls ? `${g.souls} Souls` : '', ...pets].filter(Boolean).join(' and ') || 'a place by the fire';
 }
 
 /** Friends who've played since last time: say so, and what it unlocked. */
@@ -3996,11 +4011,51 @@ async function checkFriends() {
   const n = await myInvites().catch(() => null);
   if (n === null) return;
   const before = meta.invite.friends;
-  const fresh = noteFriends(n);
+  const { fresh, gain } = noteFriends(n);
   if (!fresh) return;
-  const reward = INVITE_LADDER.filter((r) => r.n > before && r.n <= n).map((r) => r.what.replace(/ \(.*\)$/, ''));
-  toast(`👥 ${fresh === 1 ? 'A friend you invited' : `${fresh} friends you invited`} just played!${reward.length ? ` Unlocked: ${reward.join(', ')}.` : ''}`);
+  sfx.relic();
+  const reward = [gainText(gain), ...INVITE_LADDER.filter((r) => r.n > before && r.n <= n).map((r) => r.what.replace(/ \(.*\)$/, ''))];
+  toast(`👥 ${fresh === 1 ? 'A friend you invited' : `${fresh} friends you invited`} just played!${reward.length ? ` You got: ${reward.join(', ')}.` : ''}`);
   if (screen === 'title') showTitle();
+}
+
+/** The message a shared invite carries. With a floor, it's a dare. */
+const inviteText = (floor = 0) =>
+  floor > 1
+    ? `I reached floor ${floor} in today's One More Crypt. One crypt, one try a day, free in your browser. Beat me:`
+    : `I've been playing One More Crypt: a free daily roguelike in your browser. One crypt, one try a day. Come down with me:`;
+
+/** Share (or copy) the player's invite link. False if they have no name yet to put on one. */
+async function shareInvite(floor = 0): Promise<boolean> {
+  const name = signedIn() && !unclaimed() ? playerName() : '';
+  if (!name) return false;
+  const url = inviteUrl(name);
+  const text = inviteText(floor);
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: 'One More Crypt', text, url });
+      return true;
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') return true;
+    }
+  }
+  toast((await copyText(`${text} ${url}`)) ? 'Invite copied! Paste it to a friend.' : 'Copy failed');
+  return true;
+}
+
+/** The card over the Daily's results: what bringing a friend pays, and one button to send the link. */
+function openInviteAsk(floor: number, stillHere: () => boolean, dailyNo = 0) {
+  showInviteAsk({
+    souls: INVITE_SOULS,
+    floor,
+    dailyNo,
+    portrait: heroPortrait(meta.hero, {}, [], 6, 'kindred', outfitFor(meta.hero).head),
+    pets: INVITE_PETS.map((p) => p.emoji).join(' '),
+    stillHere,
+    share: async () => {
+      if (!(await shareInvite(floor))) showInvite(() => (lastResult ? showDeath(lastResult, false) : showTitle()));
+    },
+  });
 }
 
 /** Your link, what it earns, and how many friends it has brought. */
@@ -4012,7 +4067,8 @@ function showInvite(back: () => void) {
   const text = `I've been playing One More Crypt: a free daily roguelike in your browser. One crypt, one try a day. Come down with me:`;
   showOverlay('invite', `
     <h2>👥 Bring a friend</h2>
-    <p class="sub">Send a friend your link. When they finish their first run, you <b>both</b> get the Kindred Cloak, and every friend you bring counts toward more.</p>
+    <p class="sub">Send a friend your link. When they finish their first run, you <b>both</b> get <b>${INVITE_SOULS} Souls</b>, a <b>random companion</b> to follow your hero, and the Kindred Cloak. Every friend you bring pays again and counts toward more.</p>
+    <p class="invite-pets" aria-label="Companions you can find">${INVITE_PETS.map((p) => `<span class="${meta.pets.includes(p.id) ? 'got' : ''}" title="${esc(p.name)}">${p.emoji}</span>`).join('')}<small>${meta.pets.length}/${INVITE_PETS.length} companions found</small></p>
     <img class="hero-portrait aura-glow" style="--aura:#ffb35a" src="${heroPortrait(meta.hero, {}, [], 8, 'kindred', outfitFor(meta.hero).head)}" alt="Your hero in the Kindred Cloak" width="96" height="96" />
     <ul class="invite-ladder">
       ${INVITE_LADDER.map((r) => `<li class="${n >= r.n ? 'got' : ''}"><span>${n >= r.n ? '✓' : `${Math.min(n, r.n)}/${r.n}`}</span>${esc(r.what)}</li>`).join('')}
@@ -4918,6 +4974,11 @@ if (challengeCode && ONLINE) openChallenge(challengeCode, showTitle);
 if (new URLSearchParams(location.search).has('testers')) {
   history.replaceState(null, '', location.pathname + location.hash);
   window.setTimeout(() => showTesterAsk(() => true), 1500);
+}
+// onemorecrypt.com/?invitecard shows the Bring-a-friend card straight away, to see what players get.
+if (new URLSearchParams(location.search).has('invitecard')) {
+  history.replaceState(null, '', location.pathname + location.hash);
+  window.setTimeout(() => openInviteAsk(7, () => true), 1500);
 }
 // onemorecrypt.com/?deathtest drops you into Endless on floor 151 to see Death, with nothing saved.
 if (new URLSearchParams(location.search).has('deathtest')) {

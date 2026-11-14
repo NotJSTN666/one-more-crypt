@@ -72,6 +72,8 @@ export interface Meta {
   story: StoryProgress;
   /** The companion that trails your hero outside the story ('' for none). Looks only. */
   pet: string;
+  /** Companions earned by bringing friends (the story's hound is separate). */
+  pets: string[];
   /** When your ghost's summons were last counted. */
   summonsSeen: string;
   /** Summons your ghost has answered in all. */
@@ -175,11 +177,23 @@ function empty(): Meta {
     podiums: {}, podiumChecked: 0, bought: [], streak: { best: 0, count: 0, last: 0 },
     bounties: { day: 0, ids: [], progress: [], done: [] },
     weekly: {}, weeklyChecked: '',
-    story: emptyStory(), pet: '', summonsSeen: '', summonsTotal: 0, patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null, raid: { joined: [], won: [], lost: [] }, invite: { from: '', claimed: false, friends: 0 }, horde: { day: 0, best: 0, wave: 0 }, gifts: [], hallHidden: [], nightShrine: { vigor: 0, reroll: 0, banish: 0, arsenal: false, start: '' }, dailyTotal: 0, runsToday: { day: 0, n: 0 }, trialsDone: 0, rival: '', playedMonths: [],
+    story: emptyStory(), pet: '', pets: [], summonsSeen: '', summonsTotal: 0, patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null, raid: { joined: [], won: [], lost: [] }, invite: { from: '', claimed: false, friends: 0 }, horde: { day: 0, best: 0, wave: 0 }, gifts: [], hallHidden: [], nightShrine: { vigor: 0, reroll: 0, banish: 0, arsenal: false, start: '' }, dailyTotal: 0, runsToday: { day: 0, n: 0 }, trialsDone: 0, rival: '', playedMonths: [],
   };
 }
 
 const ids = (v: unknown) => (Array.isArray(v) ? [...new Set(v.map(String))] : []);
+
+/** Souls each of you gets when a friend you invited finishes their first run. */
+export const INVITE_SOULS = 500;
+
+/** The companions a counted invite can bring: one at random that you don't have yet. Looks only. */
+export const INVITE_PETS: { id: string; emoji: string; name: string; desc: string }[] = [
+  { id: 'bat', emoji: '🦇', name: 'Belfry Bat', desc: 'Flits along at your shoulder.' },
+  { id: 'imp', emoji: '😈', name: 'Cinder Imp', desc: 'Small, smug, and on your side for once.' },
+  { id: 'wraith', emoji: '👻', name: 'Lost Wisp', desc: 'A little ghost that took a liking to you.' },
+  { id: 'voideye', emoji: '👁️', name: 'Watchful Eye', desc: 'It blinks. It follows. It means well.' },
+];
+
 function cleanRaid(r: unknown): RaidProgress {
   const o = r && typeof r === 'object' ? (r as Record<string, unknown>) : {};
   return { joined: ids(o.joined).slice(-40), won: ids(o.won), lost: ids(o.lost).slice(-40) };
@@ -206,6 +220,7 @@ function load(): Meta {
     m.raid = cleanRaid(m.raid);
     m.invite = cleanInvite(m.invite);
     m.gifts = ids(m.gifts);
+    m.pets = ids(m.pets).filter((p) => INVITE_PETS.some((d) => d.id === p));
     m.hallHidden = ids(m.hallHidden);
     m.nightShrine = cleanShrine(m.nightShrine);
     m.grave = m.grave ? cleanGraveState(m.grave, Date.now()) : null;
@@ -270,6 +285,7 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   meta.raid = cleanRaid({ joined: [...meta.raid.joined, ...or.joined], won: [...meta.raid.won, ...or.won], lost: [...meta.raid.lost, ...or.lost] });
   meta.shame = { ...(other.shame ?? {}), ...meta.shame };
   meta.gifts = [...new Set([...meta.gifts, ...ids(other.gifts)])];
+  meta.pets = [...new Set([...meta.pets, ...ids(other.pets)])].filter((p) => INVITE_PETS.some((d) => d.id === p));
   // How the Hall is decorated is a choice: keep this device's, unless it hasn't made one.
   if (!meta.hallHidden.length) meta.hallHidden = ids(other.hallHidden);
   const shr = cleanShrine(other.nightShrine);
@@ -1364,21 +1380,51 @@ export function noteInvitedBy(name: string) {
   saveMeta();
 }
 
-/** The invite was settled: it counted (claimed), or it can't (cleared). */
-export function settleInvite(counted: boolean) {
-  if (counted) meta.invite.claimed = true;
-  else meta.invite.from = '';
-  saveMeta();
+/** A random companion you don't own yet (null once you have them all); the first one walks with you at once. */
+function grantPet(): (typeof INVITE_PETS)[number] | null {
+  const left = INVITE_PETS.filter((p) => !meta.pets.includes(p.id));
+  if (!left.length) return null;
+  const pet = left[Math.floor(Math.random() * left.length)];
+  meta.pets.push(pet.id);
+  if (!meta.pet) meta.pet = pet.id;
+  return pet;
 }
 
-/** The server's count of friends you've brought. Returns how many are new since last time. */
-export function noteFriends(n: number): number {
+/** What one counted invite paid out. */
+export interface InviteGain { souls: number; pets: (typeof INVITE_PETS)[number][] }
+
+/** The invite was settled: it counted (claimed: Souls and a companion for you too), or it can't (cleared). */
+export function settleInvite(counted: boolean): InviteGain {
+  const gain: InviteGain = { souls: 0, pets: [] };
+  if (counted && !meta.invite.claimed) {
+    meta.invite.claimed = true;
+    meta.souls += INVITE_SOULS;
+    meta.earned += INVITE_SOULS;
+    gain.souls = INVITE_SOULS;
+    const pet = grantPet();
+    if (pet) gain.pets.push(pet);
+  } else if (!counted) meta.invite.from = '';
+  saveMeta();
+  return gain;
+}
+
+/** The server's count of friends you've brought: each new one pays Souls and a companion. Returns how many are new, and what they brought. */
+export function noteFriends(n: number): { fresh: number; gain: InviteGain } {
   const fresh = Math.max(0, n - meta.invite.friends);
+  const gain: InviteGain = { souls: 0, pets: [] };
   if (fresh) {
     meta.invite.friends = n;
+    // (capped, so a wrong count from anywhere can't mint a fortune)
+    gain.souls = Math.min(fresh, 10) * INVITE_SOULS;
+    meta.souls += gain.souls;
+    meta.earned += gain.souls;
+    for (let i = 0; i < fresh; i++) {
+      const pet = grantPet();
+      if (pet) gain.pets.push(pet);
+    }
     saveMeta();
   }
-  return fresh;
+  return { fresh, gain };
 }
 
 // ---------- Horde ----------
