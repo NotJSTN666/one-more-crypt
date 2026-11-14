@@ -6224,3 +6224,33 @@ body.tutorial #relic-bar {
 .pyre-top li { display: flex; justify-content: space-between; padding: 5px 8px; border-bottom: 1px solid var(--line); }
 .pyre-top b { font-weight: normal; color: #ff8a2a; }
 @media (prefers-reduced-motion: reduce) { .pyre-bar.full .pyre-fill { animation: none; } }
+
+/* ---------- the results screen, tidied: one screen on a phone, the rest folded away ---------- */
+.death-head { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 0 0 6px; padding-top: 26px; text-align: left; }
+.death-head .hero-portrait { width: 64px; height: 64px; margin: 0; flex: none; }
+.death-head h2.dead { margin: 0; font-size: 34px; line-height: 1.05; }
+.death-head .sub { margin: 2px 0 0; }
+.earned-line { display: flex; align-items: baseline; justify-content: center; gap: 10px; margin: 8px 0 4px; font-family: var(--pixel); }
+.earned-line b { font-weight: normal; font-size: 16px; color: var(--gold); }
+.earned-line span { font-size: 11px; color: var(--muted); }
+.earned-feats { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; margin: 0 0 8px; }
+.earned-feats span { padding: 3px 8px; border: 1px solid #6b5426; background: rgba(242, 193, 78, 0.08); font-family: var(--read); font-size: 12px; color: var(--text); }
+.tomorrow { margin: 10px 0 8px; border: 1px solid #2f5f6b; background: linear-gradient(rgba(159, 232, 255, 0.07), transparent), var(--panel); }
+.tomorrow .tomorrow-streak { margin-top: 3px; color: var(--gold); font-size: 12px; }
+.share-row, .nav-row { margin-top: 8px; }
+.share-row .btn, .nav-row .btn { margin: 0; padding-top: 10px; padding-bottom: 10px; font-size: 11px; }
+.more-run { margin-top: 12px; border-top: 1px solid var(--line); }
+.more-run summary { padding: 12px 0 10px; font-family: var(--pixel); font-size: 11px; letter-spacing: 0.08em; color: var(--muted); cursor: pointer; list-style: none; text-align: center; }
+.more-run summary::-webkit-details-marker { display: none; }
+.more-run summary::after { content: ' ▾'; }
+.more-run[open] summary::after { content: ' ▴'; }
+.more-run summary:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+/* Feat banners keep clear of a result: at the foot of the screen there, not over its heading. */
+#overlay[data-screen='death']:not([hidden]) ~ #feat { top: auto; bottom: max(12px, env(safe-area-inset-bottom)); transform: translate(-50%, 140%); }
+#overlay[data-screen='death']:not([hidden]) ~ #feat.show { animation-name: feat-in-low; }
+@keyframes feat-in-low {
+  0% { transform: translate(-50%, 140%); }
+  12%, 85% { transform: translate(-50%, 0); }
+  100% { transform: translate(-50%, 140%); }
+}

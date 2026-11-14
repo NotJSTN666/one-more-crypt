@@ -73,6 +73,9 @@ let lastReward: RunReward | null = null;
 /** The Seven Nights gift claimed by the run that just ended, if any. */
 let lastWelcome: { day: number; reward: WelcomeReward } | null = null;
 let lastLabel = '';
+/** Whether the run just finished was a personal best (a guest is asked for a name then), and whether the results' extra section is open. */
+let lastPersonalBest = false;
+let moreRunOpen = false;
 let overlayTimer = 0;
 /** A newer version of the game is out (see checkForUpdate); it loads at the title screen. */
 let updateReady = false;
@@ -613,6 +616,9 @@ function finishRun(abandoned = false) {
     if (won.feat) lastReward.achievements.push(won.feat);
   }
   let best = false;
+  // (a first Daily is a best too: that's the moment to offer a guest a name)
+  lastPersonalBest = game.mode === 'daily' ? result.floor > save.totals.bestDaily : !ch && result.floor > save.bestEndless;
+  moreRunOpen = false;
   if (game.mode === 'daily') {
     lastLabel = `Daily #${game.dailyNo}`;
   } else if (ch) {
@@ -630,8 +636,7 @@ function finishRun(abandoned = false) {
   if (game.mode === 'daily') save.totals.bestDaily = Math.max(save.totals.bestDaily, result.floor);
   writeSave(save);
   lastResult = result;
-  celebrate(lastReward.achievements);
-  celebrateNotes(lastReward.unlocks);
+  // (what the run earned is listed on the results themselves, not in banners over them)
 
   // Story chapters end in finishStory, so only daily and Endless runs get here.
   const mode = game.mode === 'daily' ? 'daily' : 'endless';
@@ -2693,15 +2698,28 @@ function showDeath(r: RunResult, best: boolean) {
   portalPlaying(false);
   if (best) portalHappy();
   const daily = game.mode === 'daily';
-  // A first run: tomorrow's gift and the reminder go to the top, where they're seen.
-  const first = runsPlayed() <= 1;
   const ch = daily ? null : lastChallenge;
   setMusicDepth(0);
   setMusicMood('fallen');
+  // Guests are asked for a name when it means something: a personal best, or a challenge board.
+  const guest = ONLINE && (!signedIn() || unclaimed());
+  const askName = guest && (Boolean(ch) || lastPersonalBest);
+  const claimText = ch ? 'Pick a name to post your run to the challenge board. No email needed.' : `${lastPersonalBest ? 'A new best! ' : ''}You're on ${daily ? "today's" : 'the'} board as ${unclaimed() ? esc(playerName()) : 'a guest'}. Type a name and your runs show under it. No email needed.`;
+  // What this run earned, said once here instead of in banners over the result.
+  const earned = lastReward
+    ? [...lastReward.achievements.map((f) => `🏅 ${esc(f.name)}`), ...lastReward.unlocks.map((u) => `${u.icon} ${esc(u.title)}`)]
+    : [];
+  const seven = welcomeTrackHtml();
+  // The page, top to bottom: how it went, what it earned, the one thing to do next, then the
+  // doors out. Everything else about the run folds away under "More from this run".
   showOverlay('death', `
-    <img class="hero-portrait ${auraClass(outfitFor(game.hero).aura).cls}" style="${auraClass(outfitFor(game.hero).aura).style}" src="${heroPortrait(game.hero, game.relics, game.relicLog, 8, outfitFor(game.hero).look, outfitFor(game.hero).head)}" alt="Your hero's final form" width="96" height="96" />
-    <h2 class="dead">You have fallen</h2>
-    <p class="sub">${lastLabel} · slain by ${r.killedBy}</p>
+    <div class="death-head">
+      <img class="hero-portrait ${auraClass(outfitFor(game.hero).aura).cls}" style="${auraClass(outfitFor(game.hero).aura).style}" src="${heroPortrait(game.hero, game.relics, game.relicLog, 8, outfitFor(game.hero).look, outfitFor(game.hero).head)}" alt="Your hero's final form" width="64" height="64" />
+      <div>
+        <h2 class="dead">You have fallen</h2>
+        <p class="sub">${lastLabel} · slain by ${r.killedBy}</p>
+      </div>
+    </div>
     <div class="strip fill-in">${stripCells(r.floor)}</div>
     <div class="big-stats">
       <div><b data-n="${r.floor}">${r.floor}</b>FLOOR</div>
@@ -2709,49 +2727,52 @@ function showDeath(r: RunResult, best: boolean) {
       <div><b data-n="${r.turns}">${r.turns}</b>TURNS</div>
       ${r.seconds ? `<div><b>${playTime(r.seconds)}</b>TIME</div>` : ''}
     </div>
-    ${first ? `${welcomeTrackHtml()}${reminderPromptHtml()}` : '<button class="btn share-btn" id="copy">📋 Copy result<small>Paste it in Discord, a group chat, anywhere</small></button>'}
-    ${daily ? keepGoingHtml() : ch ? '<button class="btn primary retry-btn" id="retry-challenge">↻ Retry<small>Same crypt, same hero</small></button>' : `<button class="btn primary retry-btn" id="again">↻ Retry<small>Straight back in as the ${esc(HERO_BY_ID[game.hero].name)}<span class="keys-hint"> · Enter or R</span></small></button>`}
-    ${first ? '<button class="btn share-btn" id="copy">📋 Copy result<small>Paste it in Discord, a group chat, anywhere</small></button>' : ''}
-    ${ONLINE && !ch ? `<p class="rank-line ${daily ? 'daily-rank' : ''}" id="rank">${signedIn() ? 'Carving your name into the crypt…' : daily ? 'Counting the fallen…' : ''}</p>` : ''}
-    ${ONLINE && (!signedIn() || unclaimed()) ? claimInlineHtml(ch ? 'Pick a name to post your run to the challenge board. No email needed.' : `You're on ${daily ? "today's" : 'the'} board as ${unclaimed() ? esc(playerName()) : 'a guest'}. Type a name and your runs show under it. No email needed.`) : ''}
-    ${keepNameHtml()}
-    ${r.relics ? `<div class="strip relic-strip" style="font-size:18px">${game.relicLog.length ? [...new Set(game.relicLog)].map((id) => relicIcon(id, RELIC_BY_ID[id].emoji)).join('') : iconsFromEmoji(r.relics)}</div>` : ''}
-    ${r.combos ? `<p class="combo-line">${esc(r.combos)}</p>` : ''}
-    ${boonLine()}
     ${best ? '<p class="streak">New deepest descent!</p>' : ''}
-    ${
-      lastReward
-        ? `<div class="souls-earned"><b>+${lastReward.souls} Souls</b><span>${lastReward.lines.map(([k, v]) => `${esc(k)} +${v}`).join(' · ')}</span><span>💀 ${meta.souls} to spend in the Ossuary</span></div>`
-        : ''
-    }
-    ${first ? '' : welcomeTrackHtml()}
-    ${nextGoalHtml()}
-    ${trialHtml()}
+    ${ONLINE && !ch ? `<p class="rank-line ${daily ? 'daily-rank' : ''}" id="rank">${signedIn() ? 'Carving your name into the crypt…' : daily ? 'Counting the fallen…' : ''}</p>` : ''}
+    ${lastReward ? `<p class="earned-line"><b>+${lastReward.souls.toLocaleString()} Souls</b><span>💀 ${meta.souls.toLocaleString()} to spend</span></p>` : ''}
+    ${earned.length ? `<p class="earned-feats">${earned.slice(0, 3).map((e) => `<span>${e}</span>`).join('')}${earned.length > 3 ? `<span>+${earned.length - 3} more</span>` : ''}</p>` : ''}
+    ${lastWelcome ? seven : ''}
     ${ch ? challengeResultHtml(r, ch) : ''}
-    ${soulRankHtml()}
-    ${
-      daily
-        ? `${streakTeaseHtml()}${tomorrowHtml()}${first ? '' : reminderPromptHtml()}${installNudgeHtml()}${ONLINE ? '<p class="podium-tease">🥇 Finish in the top 3 when the day ends to win exclusive headwear and Souls.</p>' : ''}
-    ${ONLINE && !PORTAL ? `<button class="btn challenge-btn" id="challenge">⚔️ Challenge a friend<small>Today's crypt, your hero. Can they beat floor ${r.floor}?</small></button>` : ''}
-    ${discordBtn}`
-        : ch
-          ? `${PORTAL ? '' : `<button class="btn" id="pass-challenge">📨 Pass the challenge on<small>Send ${esc(ch.name)}'s crypt to a friend</small></button>`}
-    ${discordBtn}`
-          : `${first ? '' : reminderPromptHtml()}${installNudgeHtml()}
-    ${ONLINE && !PORTAL ? `<button class="btn challenge-btn" id="challenge">⚔️ Challenge a friend<small>Same crypt, same hero. Can they beat floor ${r.floor}?</small></button>` : ''}
-    ${discordBtn}`
-    }
-    <div class="row grid2">
+    ${daily ? `${tomorrowHtml()}${reminderPromptHtml()}${keepGoingHtml()}` : ch ? '<button class="btn primary retry-btn" id="retry-challenge">↻ Retry<small>Same crypt, same hero</small></button>' : `<button class="btn primary retry-btn" id="again">↻ Retry<small>Straight back in as the ${esc(HERO_BY_ID[game.hero].name)}<span class="keys-hint"> · Enter or R</span></small></button>`}
+    ${askName ? claimInlineHtml(claimText) : ''}
+    ${keepNameHtml()}
+    <div class="row grid2 share-row">
+      <button class="btn share-btn" id="copy">📋 Copy result</button>
+      ${ch ? (PORTAL ? '' : '<button class="btn" id="pass-challenge">📨 Pass it on</button>') : ONLINE && !PORTAL ? '<button class="btn challenge-btn" id="challenge">⚔️ Challenge a friend</button>' : ''}
+    </div>
+    <div class="row grid2 nav-row">
       ${ONLINE ? '<button class="btn" id="leaderboard">🏆 Leaderboard</button>' : ''}
       <button class="btn" id="hall">🏰 Hall</button>
       <button class="btn" id="ossuary">🏛️ Ossuary</button>
       <button class="btn" id="title">Title</button>
     </div>
-    ${ONLINE ? inviteButtonHtml() : ''}
-    ${onlineCountHtml()}
-    ${tipNoteHtml()}
-    ${followXHtml}
+    <details class="more-run" id="more-run">
+      <summary>More from this run</summary>
+      ${r.relics ? `<div class="strip relic-strip" style="font-size:18px">${game.relicLog.length ? [...new Set(game.relicLog)].map((id) => relicIcon(id, RELIC_BY_ID[id].emoji)).join('') : iconsFromEmoji(r.relics)}</div>` : ''}
+      ${r.combos ? `<p class="combo-line">${esc(r.combos)}</p>` : ''}
+      ${boonLine()}
+      ${lastReward ? `<div class="souls-earned"><b>+${lastReward.souls} Souls</b><span>${lastReward.lines.map(([k, v]) => `${esc(k)} +${v}`).join(' · ')}</span></div>` : ''}
+      ${earned.length > 3 ? `<p class="earned-feats">${earned.map((e) => `<span>${e}</span>`).join('')}</p>` : ''}
+      ${lastWelcome ? '' : seven}
+      ${nextGoalHtml()}
+      ${trialHtml()}
+      ${soulRankHtml()}
+      ${daily ? `${ONLINE ? '<p class="podium-tease">🥇 Finish in the top 3 when the day ends to win exclusive headwear and Souls.</p>' : ''}` : reminderPromptHtml()}
+      ${installNudgeHtml()}
+      ${guest && !askName ? claimInlineHtml(claimText) : ''}
+      ${discordBtn}
+      ${ONLINE ? inviteButtonHtml() : ''}
+      ${onlineCountHtml()}
+      ${tipNoteHtml()}
+      ${followXHtml}
+    </details>
   `);
+  // (opened once, it stays open when the screen is drawn again, as when coming back from the Hall)
+  const more = overlay.querySelector<HTMLDetailsElement>('#more-run');
+  if (more) {
+    more.open = moreRunOpen;
+    more.addEventListener('toggle', () => (moreRunOpen = more.open));
+  }
   const backHere = () => showDeath(r, best);
   on('#leaderboard', () => showLeaderboard(backHere, daily ? 'today' : 'endless'));
   const afterJoin = () => {
@@ -2781,7 +2802,6 @@ function showDeath(r: RunResult, best: boolean) {
   on('#again', () => (daily ? showHeroSelect(() => startRun('endless'), backHere) : quickRestart()));
   if (daily) wireHordeButton();
   on('#keep-night', () => (nightIntroSeen() ? showNightShift(showTitle) : showNightIntro()));
-  on('#delve-skip', () => document.getElementById('delve-clip')?.remove());
   if (daily) showEndlessRecord();
   // A moment after the Daily's results land, one ask at most: bring a friend (every third Daily),
   // or else help test the Android app (where that makes sense).
@@ -3105,8 +3125,16 @@ function tomorrowHtml(): string {
   const o = outfitFor(hero);
   return `<div class="tomorrow">
       <img src="${heroPortrait(hero, {}, [], 4, o.look, o.head)}" alt="" width="48" height="48" />
-      <div><b>Tomorrow: Daily #${next}</b><span>The ${esc(HERO_BY_ID[hero].name)} descends. A new crypt for everyone.</span><span>Opens in <span class="countdown">--:--:--</span></span></div>
+      <div><b>Tomorrow: Daily #${next}</b><span>The ${esc(HERO_BY_ID[hero].name)} descends. Opens in <span class="countdown">--:--:--</span></span>${streakShortHtml()}</div>
     </div>`;
+}
+
+/** The streak in one line, for the Tomorrow card: where it stands and what coming back earns. */
+function streakShortHtml(): string {
+  const { current } = streakStats(save, dailyNumber());
+  const next = STREAK_HELMS.find(([n]) => n > meta.streak.best);
+  const goal = next ? `${next[0] - current} more for the ${esc(next[2])}` : current < WARD_EVERY ? `${WARD_EVERY - current} more for a Grave Ward` : 'keep it burning';
+  return `<span class="tomorrow-streak">🕯️ ${current <= 1 ? 'Day 1 of your streak' : `${current}-day streak`} · ${goal}</span>`;
 }
 
 /** After the daily: the streak, and how far off the next streak helm is. */
@@ -3196,18 +3224,6 @@ function welcomeTitleHtml(): string {
   const next = welcomeNext();
   if (next && meta.welcome.claimed > 0) return `<div class="welcome-title quiet">🎁 Tomorrow: day ${next.day} of Seven Nights, ${esc(welcomeLabel(next.reward).name)}</div>`;
   return '';
-}
-
-function streakTeaseHtml(): string {
-  const { current, wards } = streakStats(save, dailyNumber());
-  const next = STREAK_HELMS.find(([n]) => n > meta.streak.best);
-  // Grave Wards: one for every 7 days in a row, each covering one missed day.
-  const ward = wards ? ` 🛡️ ${wards === 1 ? 'A Grave Ward covers' : `${wards} Grave Wards cover`} a missed day.` : current >= 1 && current < WARD_EVERY ? ` Reach ${WARD_EVERY} days for a 🛡️ Grave Ward, which covers a missed day.` : '';
-  const days = (current === 1 ? 'Day 1 of your streak.' : `🕯️ ${current}-day streak.`) + ward;
-  if (!next) return `<p class="streak">${days} Every streak helm is yours.</p>`;
-  const [n, , name] = next;
-  const left = n - current;
-  return `<p class="streak">${days} ${left} more day${left === 1 ? '' : 's'} in a row for the <b>${esc(name)}</b>.</p>`;
 }
 
 /** After a run: offer a reminder for tomorrow's crypt (anyone; reminders need an account, made on the way). */
@@ -3810,32 +3826,6 @@ const HORDE_NEW_UNTIL = Date.UTC(2026, 10, 17);
 /** After the Daily: the three ways to keep playing, right under the run's stats. */
 // ---------- the "Delve deeper" clip ----------
 // A ten-second, silent look at Endless, Horde, the Night Shift and Story, shown once on the
-// results of a new player's first dailies, above the buttons that start them.
-const DELVE_CLIP_KEY = 'omc:delve-clip';
-function delveClipDue(): boolean {
-  if (PORTAL || Object.keys(save.daily).length > 2) return false;
-  try {
-    return localStorage.getItem(DELVE_CLIP_KEY) !== '1';
-  } catch {
-    return false;
-  }
-}
-function delveClipHtml(): string {
-  if (!delveClipDue()) return '';
-  try {
-    localStorage.setItem(DELVE_CLIP_KEY, '1');
-  } catch {
-    // shown again next time, which is fine
-  }
-  return `<div class="delve-clip" id="delve-clip">
-      <video poster="./media/delve-deeper.jpg" muted playsinline autoplay preload="auto" aria-label="Endless, Horde, the Night Shift and Story, in ten seconds">
-        <source src="./media/delve-deeper.mp4" type="video/mp4" />
-        <source src="./media/delve-deeper.webm" type="video/webm" />
-      </video>
-      <button type="button" class="delve-skip" id="delve-skip" aria-label="Close">✕</button>
-    </div>`;
-}
-
 function keepGoingHtml(): string {
   const n = dailyNumber();
   const saved = savedHorde();
@@ -3844,7 +3834,6 @@ function keepGoingHtml(): string {
     ? `Continue: wave ${saved.game.horde.wave}`
     : h ? `Best today: wave ${h.wave}` : `As the ${HERO_BY_ID[hordeHero(n)].name}`;
   return `<div class="keep-going">
-      ${delveClipHtml()}
       <p class="endless-tease">Daily done. Keep going?${save.bestEndless ? ` Your Endless best: <b>floor ${save.bestEndless}</b>` : ''}<span class="endless-record"></span></p>
       <div class="keep-row">
         <button class="btn primary keep-btn" id="again">♾️ Endless<small>No limit<span class="keys-hint"> · Enter</span></small></button>

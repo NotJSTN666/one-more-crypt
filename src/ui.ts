@@ -113,6 +113,7 @@ export function showOverlay(name: string, html: string) {
     else overlay.classList.add('again');
   } else overlay.classList.remove('again');
   const keepScroll = fresh ? 0 : overlay.scrollTop;
+  overlay.dataset.screen = name;
   overlay.innerHTML = `<div class="panel">${html}</div>`;
   const exit = menu && !OWN_EXIT.includes(name) && !overlay.querySelector('.back-top') ? exitButton() : null;
   if (exit) {
