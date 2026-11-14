@@ -2,7 +2,7 @@
 // a ghost hero playing the crypt on its own. Purely decoration: they never touch
 // saves, Souls or achievements.
 
-import { HEROES } from './content';
+import { HEROES, HERO_BY_ID } from './content';
 import { Game, fullPool } from './game';
 import { RELICS } from './relics';
 import { Renderer } from './render';
@@ -135,6 +135,23 @@ function layout() {
       top: `${Math.floor(i / cols) * size}px`,
     });
   });
+}
+
+/**
+ * What the ghost board behind the title's logo (top of the page, middle) is playing right now,
+ * for the title screen's "live" line: "The Mage · Endless, floor 31".
+ */
+export function watching(): string {
+  const x = window.innerWidth / 2 - 1;
+  const behind = ghosts.find((gh) => {
+    const left = parseFloat(gh.canvas.style.left) || 0;
+    const top = parseFloat(gh.canvas.style.top) || 0;
+    return top === 0 && x >= left && x < left + (parseFloat(gh.canvas.style.width) || 0);
+  });
+  const g = (behind ?? ghosts[0])?.game;
+  if (!g || g.phase === 'dead') return '';
+  const where = g.mode === 'horde' ? `Horde, wave ${g.horde.wave}` : g.config.story?.look === 'cloister' ? `Act II, floor ${g.floor}` : `Endless, floor ${g.floor}`;
+  return `The ${HERO_BY_ID[g.hero].name} · ${where}`;
 }
 
 /** Slower ghosts for players who ask their system for less motion. */

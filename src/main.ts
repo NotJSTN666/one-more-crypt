@@ -9,7 +9,7 @@ import { ACHIEVEMENT_BY_ID, DAILY_TOTALS, ELITES, FEATURES, HERO_BY_ID, HEROES, 
 import { heroPortrait, heroSprite } from './hero';
 import { BOON_BY_ID, ENEMY_INFO, W, MIST_BITE, REAPER_FLOOR, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode, type EnemyKind } from './game';
 import { acceptQuest, checkRun, grantFeats, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, rerollCost, spendSouls, acceptPlayerGift, INVITE_SOULS, INVITE_PETS, type InviteGain, finishHordeMeta, receiveGift, equipTitle, FAIR_DAILY, LEAN_DAILY, MISSILE_DAILY, type RunReward } from './meta';
-import { drawGhosts, startGhosts } from './ghosts';
+import { drawGhosts, startGhosts, watching } from './ghosts';
 import { celebrate, celebrateNotes, holdCelebrations, setHallOpener, setOssuaryHost, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
 import { hallFromLink, onVisitIsle, showHall, showPublicHall, soulRankHtml, titleName } from './hall';
@@ -1900,6 +1900,7 @@ function showTitle() {
     <canvas class="title-scene" id="title-scene" width="132" height="22" aria-hidden="true"></canvas>
     <div class="title-scene-name" id="title-scene-name" aria-hidden="true"></div>
     <p class="tagline">One crypt. One try a day. How deep can you go?</p>
+    <p class="title-live" id="title-live" aria-hidden="true"><i></i><span></span></p>
     ${onlineCountHtml()}
     <div class="title-play">
     ${continueBlock}
@@ -1938,6 +1939,16 @@ function showTitle() {
   overlay.querySelector('#title-drawer')?.addEventListener('toggle', (e) => setDrawerOpen((e.currentTarget as HTMLDetailsElement).open));
   on('#delve', () => showDelve());
   titleScene();
+  // The runs playing behind the title are live: say what the one behind the logo is doing.
+  const live = overlay.querySelector<HTMLElement>('#title-live');
+  const tellLive = () => {
+    if (!live?.isConnected) return window.clearInterval(liveTimer);
+    const text = watching();
+    live.querySelector('span')!.textContent = text ? `Live: ${text}` : '';
+    live.style.visibility = text ? '' : 'hidden';
+  };
+  const liveTimer = window.setInterval(tellLive, 700);
+  tellLive();
   on('#copy-daily', async () => {
     if (!done) return;
     const label = `Daily #${today}`;

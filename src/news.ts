@@ -32,6 +32,7 @@ export const NEWS: NewsDay[] = [
       '✨ Your hero now has a thin pale rim, so they are easier to pick out on dark stone, and the Harvest leaves on the floor are quieter.',
       '🔤 Tips, sub-headings and the captions under buttons use the easier-to-read lettering.',
       '🎨 Every death now takes the whole screen with it: black and white when Death claims you, blood red for a blade, burning orange in lava, sick green in the plague, a white-out for a blast, a trap snapping shut on spikes, the dark closing round an arrow, and a red throb for a boss.',
+      '📺 The title screen shows the game being played: the runs behind it are brighter, and a Live line says which hero you are watching and how deep they are.',
       '👆 The tutorial\'s first ghoul stands closer, and if you wait, your hero takes the first step for you.',
     ],
   },

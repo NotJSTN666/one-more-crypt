@@ -6275,3 +6275,18 @@ body[data-dying='blast'] #app { filter: grayscale(1) brightness(1.25) contrast(0
 body[data-dying='plague'] #app { filter: sepia(1) saturate(4) hue-rotate(55deg) brightness(0.9); }
 body[data-dying='boss'] #app { filter: sepia(1) saturate(7) hue-rotate(-52deg) brightness(0.65) contrast(1.3); }
 @media (prefers-reduced-motion: reduce) { #app { transition: none; } }
+
+/* ---------- the title screen: the runs playing behind it are the show ----------
+   On the title (and only there) the ghost boards come up to nearly full strength and the
+   darkening over them thins, so the first thing anyone sees is the game being played. */
+body.menu:has(#overlay[data-screen='title']:not([hidden])) #ghosts { opacity: 0.72; }
+#overlay.menu[data-screen='title'] { background: radial-gradient(ellipse at 50% 26%, rgba(5, 2, 9, 0.1) 0%, rgba(5, 2, 9, 0.3) 45%, rgba(5, 2, 9, 0.72) 100%); }
+#overlay.menu[data-screen='title'] .logo { text-shadow: 0 2px 0 #000, 0 0 18px rgba(0, 0, 0, 0.95), 0 0 34px rgba(210, 58, 70, 0.7); }
+#overlay.menu[data-screen='title'] .tagline { display: table; margin-left: auto; margin-right: auto; padding: 4px 10px; background: rgba(5, 2, 9, 0.66); }
+#overlay.menu[data-screen='title'] .title-scene-name,
+#overlay.menu[data-screen='title'] .foot-links a,
+#overlay.menu[data-screen='title'] .follow-x { text-shadow: 0 1px 2px #000, 0 0 6px #000, 0 0 12px #000; }
+.title-live { display: inline-flex; align-items: center; gap: 7px; margin: 0 auto 8px; padding: 3px 10px; background: rgba(5, 2, 9, 0.72); border: 1px solid var(--line); font-family: var(--read); font-size: 12px; color: var(--text); }
+.title-live i { width: 7px; height: 7px; border-radius: 50%; background: #ff4d5a; box-shadow: 0 0 8px #ff4d5a; animation: live-dot 1.4s ease-in-out infinite; }
+@keyframes live-dot { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .title-live i { animation: none; } }
