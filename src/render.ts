@@ -891,6 +891,12 @@ export class Renderer {
     if (outline && this.contrast) {
       for (const [ox2, oy2] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) put(sprite.white, ox2, oy2);
     }
+    // The hero always carries a thin pale rim, so the eye finds them first on dark stone.
+    if (id === PLAYER_ID && !this.contrast && !this.quiet) {
+      ctx.globalAlpha = 0.42 * alpha;
+      for (const [ox2, oy2] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) put(sprite.white, ox2, oy2);
+      ctx.globalAlpha = alpha;
+    }
     put(img);
     // The hero blinks now and then (a hooded face with two bright eyes: they close for a moment).
     if (id === PLAYER_ID && !tilt && !hop && w === SPRITE_SIZE && img === sprite.normal && (this.time + 0.4) % 3.7 < 0.13) {
@@ -1984,7 +1990,7 @@ export class Renderer {
     if (!this.quiet) {
       ctx.globalCompositeOperation = 'lighter';
       const warm = ctx.createRadialGradient(cx, cy - 2, 1, cx, cy - 2, 30 + flicker);
-      warm.addColorStop(0, 'rgba(255, 170, 90, 0.13)');
+      warm.addColorStop(0, 'rgba(255, 180, 110, 0.2)');
       warm.addColorStop(1, 'rgba(255, 140, 60, 0)');
       ctx.fillStyle = warm;
       ctx.fillRect(cx - 40, cy - 40, 80, 80);
@@ -2386,7 +2392,8 @@ export class Renderer {
   private harvestDetail(ctx: CanvasRenderingContext2D, g: Game, wallAt: (x: number, y: number) => boolean) {
     // Its own random stream, so the rest of the decoration stays as it was.
     const rng = mulberry32(hashSeed(g.seed, 'harvest', g.lookFloor));
-    const LEAVES = ['#c0392b', '#d9822b', '#e0a030', '#a8581f', '#8a3b12', '#e67e22'];
+    // (muted, so candlelight, the stairs and the hero stay the brightest things on the board)
+    const LEAVES = ['#7a2f26', '#8a5a2a', '#8f6d2c', '#6e3f1c', '#5c2d14', '#93582a'];
     const leaf = (x: number, y: number) => {
       const c = LEAVES[Math.floor(rng() * LEAVES.length)];
       ctx.fillStyle = c;
@@ -2453,7 +2460,7 @@ export class Renderer {
         const onStairs = stairs && stairs.x === x && stairs.y === y;
         // leaves banked up against the wall behind
         if (y > 0 && wallAt(x, y - 1)) {
-          for (let k = 0; k < 4; k++) leaf(px + 1 + Math.floor(rng() * 12), py + 1 + Math.floor(rng() * 2));
+          for (let k = 0; k < 2; k++) leaf(px + 1 + Math.floor(rng() * 12), py + 1 + Math.floor(rng() * 2));
           // and now and then a pumpkin, a gourd or a sheaf leant on it
           const r = rng();
           if (!onStairs && r < 0.12) {
@@ -2464,8 +2471,8 @@ export class Renderer {
           }
         }
         // a few leaves blown across the floor
-        if (!onStairs && rng() < 0.35) {
-          const n = 1 + Math.floor(rng() * 2);
+        if (!onStairs && rng() < 0.14) {
+          const n = 1;
           for (let k = 0; k < n; k++) leaf(px + 1 + Math.floor(rng() * 12), py + 2 + Math.floor(rng() * 11));
         }
       }
@@ -2600,7 +2607,7 @@ export class Renderer {
       this.weatherKind = kind;
     }
     const ctx = this.ctx;
-    const cap = { spores: 18, snow: 34, rain: 26, stars: 22, sparks: 16, leaves: 14 }[kind];
+    const cap = { spores: 18, snow: 34, rain: 26, stars: 22, sparks: 16, leaves: 8 }[kind];
     const rate = { spores: 4, snow: 12, rain: 30, stars: 6, sparks: 5, leaves: 4 }[kind];
     if (this.weather.length < cap && Math.random() < dt * rate) {
       const r = Math.random;
@@ -2623,7 +2630,7 @@ export class Renderer {
       const fade = Math.sin(Math.min(1, p.t / p.life) * Math.PI);
       if (kind === 'leaves') {
         // a two-pixel leaf in autumn colours (its size picks the colour), flipping as it falls
-        ctx.globalAlpha = 0.85;
+        ctx.globalAlpha = 0.55;
         ctx.fillStyle = ['#c0662a', '#a8391f', '#d9a03a', '#8a5a28'][p.size];
         const flip = Math.sin(this.time * 4 + p.vx * 3) > 0;
         ctx.fillRect(Math.round(p.x), Math.round(p.y), flip ? 2 : 1, flip ? 1 : 2);

@@ -17,9 +17,11 @@ export const TUTORIAL: TutorialStep[] = [
     title: 'Strike',
     coach: (touch) => `A ghoul! <b>Walk into it to strike.</b> ${touch ? '<b>Swipe</b>, or <b>tap the tile</b> next to your hero.' : 'Use the <b>arrow keys</b> or <b>WASD</b>.'} Every move you make, it makes one too.`,
     scene: {
-      player: { x: 3, y: 5 },
-      enemies: [{ kind: 'ghoul', x: 3, y: 1, hp: 3 }],
-      walls: [{ x: 1, y: 2 }, { x: 5, y: 2 }, { x: 1, y: 4 }, { x: 5, y: 4 }],
+      // The ghoul stands two tiles off: one step and the next tap is a hit. (Over half of those
+      // who started the tutorial never made a move when it stood four tiles away.)
+      player: { x: 3, y: 4 },
+      enemies: [{ kind: 'ghoul', x: 3, y: 2, hp: 2 }],
+      walls: [{ x: 1, y: 1 }, { x: 5, y: 1 }, { x: 1, y: 5 }, { x: 5, y: 5 }],
       hp: 10,
     },
     done: (_g, events) => events.some((e) => e.t === 'kill'),

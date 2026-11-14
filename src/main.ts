@@ -213,6 +213,30 @@ function stageTutorial() {
   coach(`${tutorial.step + 1} / ${TUTORIAL.length} · ${step.title}`, says + legal);
   tutorial.busy = false;
   placeMoveHint();
+  armTutorialDemo();
+}
+
+// Nobody has touched anything yet: after a few seconds the hero takes the first step alone, so
+// the board moves, the ghoul closes in, and the pointer lands on it. Then it's the player's turn.
+let demoTimer = 0;
+function armTutorialDemo() {
+  window.clearTimeout(demoTimer);
+  if (!tutorial || tutorial.step !== 0 || tutorialTouched) return;
+  demoTimer = window.setTimeout(() => {
+    if (!tutorial || tutorial.step !== 0 || tutorialTouched || tutorial.busy || game.phase !== 'play' || !overlay.hidden) return;
+    const foe = game.enemies[0];
+    if (!foe) return;
+    const dx = foe.x - game.player.x;
+    const dy = foe.y - game.player.y;
+    // (only ever a step toward it, never the blow itself: that one is theirs)
+    if (Math.abs(dx) + Math.abs(dy) <= 1) return;
+    const step = Math.abs(dy) >= Math.abs(dx) ? { x: 0, y: Math.sign(dy) } : { x: Math.sign(dx), y: 0 };
+    if (game.act(step.x, step.y)) {
+      processEvents();
+      coach(`1 / ${TUTORIAL.length} · ${TUTORIAL[0].title}`, `Your turn! <b>${matchMedia('(pointer: coarse)').matches ? 'Tap the ghoul' : 'Walk into the ghoul'}</b> to strike it.`);
+    }
+    armTutorialDemo();
+  }, 4500);
 }
 
 function coach(head: string, text: string) {

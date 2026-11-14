@@ -23,6 +23,18 @@ export interface NewsDay {
 
 export const NEWS: NewsDay[] = [
   {
+    date: '2026-11-14',
+    title: 'A tidier results screen and an easier first step',
+    go: ['daily'],
+    notes: [
+      '🧹 The results screen is much shorter: your run, what it earned, tomorrow\'s Daily and your streak, and where to go next all fit on one screen. The rest is folded under "More from this run".',
+      '🏅 Feats and unlocks from a run are listed on the results instead of popping up over them.',
+      '✨ Your hero now has a thin pale rim, so they are easier to pick out on dark stone, and the Harvest leaves on the floor are quieter.',
+      '🔤 Tips, sub-headings and the captions under buttons use the easier-to-read lettering.',
+      '👆 The tutorial\'s first ghoul stands closer, and if you wait, your hero takes the first step for you.',
+    ],
+  },
+  {
     date: '2026-11-13',
     title: 'Heavier hits, companions, gifts and the Soul Pyre',
     go: ['endless', 'wardrobe'],

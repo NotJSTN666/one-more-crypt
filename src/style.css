@@ -6254,3 +6254,10 @@ body.tutorial #relic-bar {
   12%, 85% { transform: translate(-50%, 0); }
   100% { transform: translate(-50%, 140%); }
 }
+
+/* Small print in the readable face: the pixel caps stay for headings and buttons, but tips,
+   sub-headings and the captions under buttons are sentences, and read better as such. */
+#tip { font-family: var(--read); font-size: 14px; line-height: 1.35; }
+.sub { font-family: var(--read); font-size: 14px; line-height: 1.4; }
+.btn small { font-family: var(--read); font-size: 12px; line-height: 1.3; letter-spacing: 0; }
+.death-head .sub { font-size: 13px; }
