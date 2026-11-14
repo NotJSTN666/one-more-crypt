@@ -175,7 +175,7 @@ const keepAlive = () => p.evaluate(() => {
   if (!g) return;
   g.player.hp = Math.max(g.player.hp, Math.ceil(g.player.maxHp * 0.6));
   g.shieldCharges = 40;
-  if (g.reaperIn < 60) g.reaperIn = 99;
+  if (g.reaperIn > 0 && g.reaperIn < 60) g.reaperIn = 99;
   if (g.reaper && !g.reaper.waiting) g.reaper = null;
 });
 const cryptStep = async (i, gap = 9) => {

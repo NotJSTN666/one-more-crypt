@@ -979,7 +979,7 @@ export class Renderer {
     if (this.quiet || g.phase === 'dead') return;
     const ctx = this.ctx;
     const r = g.reaper;
-    if ((!r || r.waiting) && g.reaperIn > 0 && g.mode !== 'horde') {
+    if ((!r || r.waiting) && g.reaperIn > 0 && g.mode !== 'horde' && g.config.reaper && g.floor >= REAPER_FLOOR) {
       const urgent = g.reaperIn <= 3;
       const text = `DEATH IN ${g.reaperIn}`;
       const beat = urgent ? 0.6 + 0.4 * Math.sin(this.time * 10) : 0.85;
