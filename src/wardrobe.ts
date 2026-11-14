@@ -6,16 +6,17 @@ import { sfx } from './audio';
 import { HEROES, HERO_BY_ID, type HeroId } from './content';
 import { heroPortrait } from './hero';
 import { auraClass, drawAura } from './aura';
-import { INVITE_PETS, auraUnlocked, equipOutfit, headUnlocked, heroUnlocked, lookUnlocked, meta, outfitFor, setPet } from './meta';
+import { auraUnlocked, equipOutfit, headUnlocked, heroUnlocked, lookUnlocked, meta, outfitFor, setPet } from './meta';
 import { petName } from './story';
 import { AURAS, AURA_BY_ID, HEADS, HERO_CLOAKS, LOOKS, LOOK_BY_ID, HEAD_BY_ID } from './progression';
 import { esc, on, overlay, screen, showOverlay } from './ui';
+import { COMPANIONS } from './companions';
 
 /** The story's Crypt Hound, once met: it trots behind your hero in every crypt. Looks only. */
 function companionHtml(): string {
   const hound = meta.story.done.includes(2);
   if (!hound && !meta.pets.length) {
-    return `<h3 class="shop-head">Companion</h3><p class="fine">🔒 Something is howling in the old kennels, in the story. And every friend you bring to the crypt brings a companion with them.</p>`;
+    return `<h3 class="shop-head">Companion</h3><p class="fine">🔒 Something is howling in the old kennels, in the story. Every friend you bring to the crypt brings a companion with them, and the Ossuary sells more.</p>`;
   }
   const name = petName(meta.story.choices.hound);
   const card = (id: string, label: string, desc: string) => `<button class="look-card ${meta.pet === id ? 'equipped' : ''}" data-pet="${id}">
@@ -24,10 +25,10 @@ function companionHtml(): string {
       <span class="desc">${desc}</span>
     </button>`;
   return `<h3 class="shop-head">Companion</h3>
-    <p class="fine">Follows your hero in the daily and Endless. Looks only: the hound fights only in the story. Bring a friend to the crypt for another (${meta.pets.length}/${INVITE_PETS.length} found).</p>
+    <p class="fine">Follows your hero in the daily and Endless. Looks only: the hound fights only in the story. Find more by bringing friends, or buy them in the Ossuary (${meta.pets.length}/${COMPANIONS.length} found).</p>
     <div class="looks">
       ${hound ? card('hound', `🐕 ${esc(name)}`, 'The Crypt Hound. A good dog, all things considered.') : ''}
-      ${INVITE_PETS.filter((p) => meta.pets.includes(p.id)).map((p) => card(p.id, `${p.emoji} ${esc(p.name)}`, esc(p.desc))).join('')}
+      ${COMPANIONS.filter((p) => meta.pets.includes(p.id)).map((p) => card(p.id, `${p.emoji} ${esc(p.name)}`, esc(p.desc))).join('')}
       ${card('', 'None', 'Go down alone.')}
     </div>`;
 }

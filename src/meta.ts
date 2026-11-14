@@ -1,6 +1,7 @@
 // Progress that carries between runs: Souls, unlocks, achievements, the relic codex
 // and discovered combos. Saved locally and, when signed in, to the player's account.
 
+import { COMPANION_BY_ID, INVITE_COMPANIONS } from './companions';
 import { ACHIEVEMENT_BY_ID, COMBOS, DAILY_TOTALS, HEROES, HERO_BY_ID, dailyHero, type AchievementDef, type ComboDef, type HeroId } from './content';
 import { Game, REAPER_FLOOR, TITHE_SOULS, UNDEAD, basePool, fullPool, type Mode, type RunConfig } from './game';
 import { cleanGraveState, newGraveState, type GraveState } from './graveshift';
@@ -187,12 +188,7 @@ const ids = (v: unknown) => (Array.isArray(v) ? [...new Set(v.map(String))] : []
 export const INVITE_SOULS = 500;
 
 /** The companions a counted invite can bring: one at random that you don't have yet. Looks only. */
-export const INVITE_PETS: { id: string; emoji: string; name: string; desc: string }[] = [
-  { id: 'bat', emoji: '🦇', name: 'Belfry Bat', desc: 'Flits along at your shoulder.' },
-  { id: 'imp', emoji: '😈', name: 'Cinder Imp', desc: 'Small, smug, and on your side for once.' },
-  { id: 'wraith', emoji: '👻', name: 'Lost Wisp', desc: 'A little ghost that took a liking to you.' },
-  { id: 'voideye', emoji: '👁️', name: 'Watchful Eye', desc: 'It blinks. It follows. It means well.' },
-];
+export const INVITE_PETS = INVITE_COMPANIONS;
 
 function cleanRaid(r: unknown): RaidProgress {
   const o = r && typeof r === 'object' ? (r as Record<string, unknown>) : {};
@@ -220,7 +216,7 @@ function load(): Meta {
     m.raid = cleanRaid(m.raid);
     m.invite = cleanInvite(m.invite);
     m.gifts = ids(m.gifts);
-    m.pets = ids(m.pets).filter((p) => INVITE_PETS.some((d) => d.id === p));
+    m.pets = ids(m.pets).filter((p) => Boolean(COMPANION_BY_ID[p]));
     m.hallHidden = ids(m.hallHidden);
     m.nightShrine = cleanShrine(m.nightShrine);
     m.grave = m.grave ? cleanGraveState(m.grave, Date.now()) : null;
@@ -285,7 +281,7 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   meta.raid = cleanRaid({ joined: [...meta.raid.joined, ...or.joined], won: [...meta.raid.won, ...or.won], lost: [...meta.raid.lost, ...or.lost] });
   meta.shame = { ...(other.shame ?? {}), ...meta.shame };
   meta.gifts = [...new Set([...meta.gifts, ...ids(other.gifts)])];
-  meta.pets = [...new Set([...meta.pets, ...ids(other.pets)])].filter((p) => INVITE_PETS.some((d) => d.id === p));
+  meta.pets = [...new Set([...meta.pets, ...ids(other.pets)])].filter((p) => Boolean(COMPANION_BY_ID[p]));
   // How the Hall is decorated is a choice: keep this device's, unless it hasn't made one.
   if (!meta.hallHidden.length) meta.hallHidden = ids(other.hallHidden);
   const shr = cleanShrine(other.nightShrine);
@@ -383,6 +379,17 @@ export function buyHero(id: HeroId): boolean {
   if (heroUnlocked(id) || meta.souls < hero.cost) return false;
   meta.souls -= hero.cost;
   meta.heroes.push(id);
+  saveMeta();
+  return true;
+}
+
+/** Buy a companion in the Ossuary. The first one you own walks with you at once. */
+export function buyPet(id: string): boolean {
+  const def = COMPANION_BY_ID[id];
+  if (!def?.cost || meta.pets.includes(id) || meta.souls < def.cost) return false;
+  meta.souls -= def.cost;
+  meta.pets.push(id);
+  if (!meta.pet) meta.pet = id;
   saveMeta();
   return true;
 }

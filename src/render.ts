@@ -2,6 +2,7 @@
 // short-lived effects (damage numbers, particles, screen shake).
 
 import { drawAura as drawAuraFx } from './aura';
+import { companionFrames } from './companion-art';
 import { ELITES, type HeroId } from './content';
 import { ENEMY_INFO, Game, H, HORDE_SPARK, ORBIT_RING, REAPER_FLOOR, W, isBoss, type EnemyKind, type GameEvent, type MagnetPull, type Pos } from './game';
 import { hashSeed, mulberry32 } from './rng';
@@ -1237,10 +1238,11 @@ export class Renderer {
     // Never stand on a foe, a wall or the hero: just stay out of sight that turn.
     if (!g.inBounds(at.x, at.y) || g.isWall(at.x, at.y) || g.unitAt(at.x, at.y) || (at.x === here.x && at.y === here.y)) return;
     if (at.x !== here.x) this.facing.set(PET_ID, here.x > at.x ? 1 : -1);
-    const kind = (this.pet in ENEMY_INFO ? this.pet : 'hound') as EnemyKind;
-    const frames = enemyFrames(kind);
-    const flying = kind !== 'hound';
-    const bob = flying ? Math.round(Math.sin(this.time * 5) * 1.5) : 0;
+    const { frames, kind, plainHound } = companionFrames(this.pet);
+    // (every companion but the story's own hound is drawn small, with a heart, so it never passes for a foe)
+    const flying = !plainHound;
+    const floats = kind === 'bat' || kind === 'imp' || kind === 'wraith' || kind === 'voideye';
+    const bob = floats ? Math.round(Math.sin(this.time * 5) * 1.5) : 0;
     const d = this.smooth(PET_ID, at, k);
     // Drawn a little small, so it never passes for one of the foes it's modelled on.
     const fx = d.x * TILE + TILE / 2;
@@ -1252,7 +1254,7 @@ export class Renderer {
       ctx.scale(0.8, 0.8);
       ctx.translate(-fx, -fy);
     }
-    const { x, y } = this.drawSprite(PET_ID, frames.idle[Math.floor(this.time * (kind === 'bat' || kind === 'imp' ? 7 : 2)) % 2], d, dt, 0.95, bob);
+    const { x, y } = this.drawSprite(PET_ID, frames[Math.floor(this.time * (kind === 'bat' || kind === 'imp' ? 7 : 2)) % 2], d, dt, 0.95, bob);
     ctx.restore();
     if (flying) {
       // and a tiny gold heart over it: yours

@@ -6197,3 +6197,6 @@ body.tutorial #relic-bar {
 .invite-pets span { filter: grayscale(1) brightness(0.55); }
 .invite-pets span.got { filter: none; }
 .invite-pets small { font-family: var(--pixel); font-size: 10px; color: var(--muted); margin-left: 4px; }
+
+/* A companion's art in a shop row. */
+.pet-art { image-rendering: pixelated; object-fit: contain; }

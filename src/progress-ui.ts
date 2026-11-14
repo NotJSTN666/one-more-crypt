@@ -5,13 +5,15 @@ import { relicIcon } from './relic-icons';
 import { sfx } from './audio';
 import { ACHIEVEMENTS, COMBOS, HEROES, HERO_BY_ID, type AchievementDef, type ComboDef, type HeroId } from './content';
 import { heroPortrait } from './hero';
-import { RELIC_COSTS, type UnlockNote, buyHero, buyItem, lookUnlocked, openSeasons, outfitFor, buyRelic, heroUnlocked, meta, relicDiscovered, saveMeta } from './meta';
+import { RELIC_COSTS, type UnlockNote, buyHero, buyItem, buyPet, lookUnlocked, openSeasons, outfitFor, buyRelic, heroUnlocked, meta, relicDiscovered, saveMeta } from './meta';
 import { AURAS, DECOR, DUNCE_AT, HEADS, LEGENDARY, LOOKS, MASTERY_SOULS, SEASONS, SHAME, isMarket, masteryRank, marketPiece, seasonOf, shopPrice, type AuraDef } from './progression';
 import { dailyNumber } from './daily';
 import { auraClass } from './aura';
 import { ASCEND_FLOOR, ENDLESS_RELICS, FUSIONS, RELICS, RELIC_BY_ID, UNLOCKABLE_RELICS, type RelicId } from './relics';
 import { $, esc, on, overlay, showOverlay } from './ui';
 import { showWardrobe } from './wardrobe';
+import { SHOP_COMPANIONS } from './companions';
+import { companionPortrait } from './companion-art';
 
 const soulsChip = () => `<div class="souls-chip" title="Souls">💀 <b>${meta.souls}</b> Souls</div>`;
 
@@ -157,6 +159,16 @@ export function showOssuary(back: () => void, tab: OssuaryTab = 'unlocks') {
     body = `
       <p class="fine">Looks only, never power. Shown on your ${esc(HERO_BY_ID[hero].name)}; wear them on any hero in the Wardrobe.</p>
       ${seasonal}
+      <h3 class="shop-head">Companions <small>${SHOP_COMPANIONS.filter((c) => meta.pets.includes(c.id)).length}/${SHOP_COMPANIONS.length}</small></h3>
+      <p class="fine">A small creature that follows your hero in the Daily and Endless. Choose who comes along in the Wardrobe. (Four more can only be found by bringing friends.)</p>
+      <div class="shop">${SHOP_COMPANIONS.map((c) => {
+        const owned = meta.pets.includes(c.id);
+        return `<div class="shop-item ${owned ? 'owned' : ''}">
+          <img class="pet-art" src="${companionPortrait(c.id)}" alt="" width="40" height="40" />
+          <span class="shop-info"><span class="name">${esc(c.name)} <em class="legend-tag">Companion</em></span><span class="desc">${esc(c.desc)}</span></span>
+          ${owned ? '<span class="owned-tag">Owned</span>' : buy(`data-pet="${c.id}"`, c.cost!)}
+        </div>`;
+      }).join('')}</div>
       <h3 class="shop-head">Auras</h3>
       <p class="fine">Most auras are earned: by going deep, winning Dailies, long streaks and Soul Ranks. These three are for sale.</p>
       <div class="shop">${soldAuras().map(auraItem).join('')}</div>
@@ -207,7 +219,9 @@ export function showOssuary(back: () => void, tab: OssuaryTab = 'unlocks') {
   overlay.querySelectorAll<HTMLButtonElement>('.tabs button').forEach((b) => b.addEventListener('click', () => showOssuary(back, b.dataset.tab as OssuaryTab)));
   overlay.querySelectorAll<HTMLButtonElement>('.buy').forEach((b) =>
     b.addEventListener('click', () => {
-      const ok = b.dataset.hero
+      const ok = b.dataset.pet
+        ? buyPet(b.dataset.pet)
+        : b.dataset.hero
         ? buyHero(b.dataset.hero as HeroId)
         : b.dataset.relic
           ? buyRelic(b.dataset.relic as RelicId)

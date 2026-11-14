@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { INVITE_PETS, INVITE_SOULS, auraUnlocked, headUnlocked, lookUnlocked, meta, noteFriends, noteInvitedBy, settleInvite, titleUnlocked } from './meta';
+import { INVITE_PETS, INVITE_SOULS, buyPet, auraUnlocked, headUnlocked, lookUnlocked, meta, noteFriends, noteInvitedBy, settleInvite, titleUnlocked } from './meta';
 import { AURA_BY_ID, HEAD_BY_ID, LOOK_BY_ID } from './progression';
 
 describe('bring a friend', () => {
@@ -47,6 +47,19 @@ describe('bring a friend', () => {
     noteFriends(6);
     expect(meta.pets.slice().sort()).toEqual(INVITE_PETS.map((p) => p.id).sort());
     expect(noteFriends(6).gain).toEqual({ souls: 0, pets: [] });
+  });
+
+  it('sells companions for Souls, once each, and never the ones friends bring', () => {
+    meta.pets = [];
+    meta.pet = '';
+    meta.souls = 2000;
+    expect(buyPet('bat')).toBe(false);
+    expect(buyPet('lich')).toBe(false);
+    expect(buyPet('ghoulpup')).toBe(true);
+    expect(meta.souls).toBe(500);
+    expect(meta.pet).toBe('ghoulpup');
+    expect(buyPet('ghoulpup')).toBe(false);
+    expect(meta.pets).toEqual(['ghoulpup']);
   });
 
   it('forgets an invite that cannot count', () => {
