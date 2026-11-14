@@ -337,6 +337,13 @@ export function showGrimoire(back: () => void, tab: GrimoireTab = 'relics') {
 
 const queue: string[] = [];
 let showing = false;
+let held = false;
+
+/** Keep banners back while something fills the screen (the Soul Forge's fusion and its card), and let them out after. */
+export function holdCelebrations(on: boolean) {
+  held = on;
+  if (!on && !showing && queue.length) next();
+}
 
 /** Slide in a banner for each new achievement or combo, one at a time. */
 export function celebrate(achievements: AchievementDef[], combos: ComboDef[] = []) {
@@ -353,6 +360,11 @@ export function celebrateNotes(notes: UnlockNote[]) {
 
 function next() {
   const el = $('feat');
+  if (held) {
+    showing = false;
+    el.hidden = true;
+    return;
+  }
   const item = queue.shift();
   if (!item) {
     showing = false;

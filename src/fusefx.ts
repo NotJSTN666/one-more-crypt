@@ -6,7 +6,9 @@
 
 import { calmChosen } from './ui';
 
-const DURATION = 3.1;
+const DURATION = 3.5;
+/** The last stretch: the light fades while the new relic glides to its place on the card underneath. */
+const HAND = 0.45;
 /** How far the relics' orbit is tipped toward the viewer: 1 would be a circle seen from above. */
 const TILT = 0.62;
 /** When the two relics collide, in seconds (matches fusionSound). */
@@ -189,7 +191,17 @@ function twinkle(ctx: CanvasRenderingContext2D, x: number, y: number, s: number)
   ctx.fill();
 }
 
-export function playFusion(opts: { a: string; b: string; out: string; name: string; ascended: boolean; onDone: () => void; aImg?: CanvasImageSource | null; bImg?: CanvasImageSource | null; outImg?: CanvasImageSource | null }) {
+/** The colour a relic's art leans toward, as "r,g,b" (for tinting the card that shows it). */
+export function tintOf(img: CanvasImageSource | null | undefined, fallback: string): string {
+  return rgbOf(emojiColor('', fallback, img));
+}
+
+/**
+ * `onHandoff` is called once as the light starts to fade, so the caller can put the relic's card
+ * up underneath; `target` then says where the relic sits on that card, and the one drawn here
+ * glides onto it, so the card seems to form round the relic the forge just made.
+ */
+export function playFusion(opts: { a: string; b: string; out: string; name: string; ascended: boolean; onDone: () => void; onHandoff?: () => void; target?: () => DOMRect | null; aImg?: CanvasImageSource | null; bImg?: CanvasImageSource | null; outImg?: CanvasImageSource | null }) {
   if (calmChosen()) return opts.onDone();
   // The forge's own colour (blue, or gold when ascended) lights the new relic; the two relics
   // going in each bring their own colour to the circle, their trails, the sparks and the waves.
@@ -229,6 +241,7 @@ export function playFusion(opts: { a: string; b: string; out: string; name: stri
   const stars = Array.from({ length: 14 }, (_, i) => ({ a: (i / 14) * Math.PI * 2 + i, d: 0.45 + ((i * 37) % 10) / 22, s: 4 + (i % 4) * 2, ph: i * 0.7 }));
   let burst = false;
   let done = false;
+  let handed = false;
   const start = performance.now();
   let last = start;
   const emojiFont = (px: number) => `${px}px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif`;
@@ -262,7 +275,11 @@ export function playFusion(opts: { a: string; b: string; out: string; name: stri
     ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
 
     // Darkness closes in, tinted with the forge's colour toward the middle.
-    const fadeOut = clamp((DURATION - t) / 0.35);
+    const fadeOut = clamp((DURATION - t) / HAND);
+    if (fadeOut < 1 && !handed) {
+      handed = true;
+      opts.onHandoff?.();
+    }
     const dark = clamp(t / 0.3) * fadeOut;
     const bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(w, h) * 0.75);
     bg.addColorStop(0, `rgba(18, 10, 34, ${0.86 * dark})`);
@@ -611,20 +628,28 @@ export function playFusion(opts: { a: string; b: string; out: string; name: stri
       const p = clamp(after / 0.45);
       const pop = p < 1 ? (1.3 * Math.sin(p * Math.PI * 0.75)) / Math.sin(Math.PI * 0.75) : 1 + 0.03 * Math.sin(after * 5);
       const em = Math.min(w, h) * 0.28 * Math.max(0, Math.min(1.3, pop));
+      // As the light fades it glides to its place on the card beneath, and stays solid all the way.
+      const spot = handed ? opts.target?.() : null;
+      const m0 = 1 - fadeOut;
+      const m = spot ? m0 * m0 * (3 - 2 * m0) : 0;
+      const rx = spot ? cx + (spot.left + spot.width / 2 - cx) * m : cx;
+      const ry = (spot ? cy + (spot.top + spot.height / 2 - cy) * m : cy) - Math.sin(after * 3) * 4 * (1 - m);
+      const rs = spot ? em + (spot.width - em) * m : em;
       ctx.save();
-      ctx.globalAlpha = fadeOut;
-      ctx.font = emojiFont(Math.max(1, em));
+      ctx.globalAlpha = spot ? 1 : fadeOut;
+      ctx.font = emojiFont(Math.max(1, rs));
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.shadowColor = color;
-      ctx.shadowBlur = 40;
+      ctx.shadowBlur = 40 - 28 * m;
       ctx.imageSmoothingEnabled = false;
-      if (opts.outImg) ctx.drawImage(opts.outImg, cx - em / 2, cy - em / 2 - Math.sin(after * 3) * 4, em, em);
-      else ctx.fillText(opts.out, cx, cy - Math.sin(after * 3) * 4);
+      if (opts.outImg) ctx.drawImage(opts.outImg, rx - rs / 2, ry - rs / 2, rs, rs);
+      else ctx.fillText(opts.out, rx, ry);
       ctx.restore();
 
       // Its name slams in underneath, in light that runs from white to the forge's colour.
-      const q = clamp((after - 0.3) / 0.25);
+      // (a beat after the flash, on a band of shadow and with a dark edge, so it reads over the rays)
+      const q = clamp((after - 0.42) / 0.25);
       if (q > 0) {
         const scale = 1 + (1 - easeOut(q)) * 1.2;
         const nameSize = Math.min(64, w * 0.12);
@@ -633,10 +658,23 @@ export function playFusion(opts: { a: string; b: string; out: string; name: stri
         ctx.translate(cx, cy + Math.min(w, h) * 0.3);
         ctx.scale(scale, scale);
         ctx.textAlign = 'center';
+        ctx.font = `${nameSize}px "Pirata One", Georgia, serif`;
+        const bw = Math.min(w / scale, ctx.measureText(opts.name).width + nameSize * 3);
+        const band = ctx.createLinearGradient(-bw / 2, 0, bw / 2, 0);
+        band.addColorStop(0, 'rgba(6,3,12,0)');
+        band.addColorStop(0.25, 'rgba(6,3,12,0.72)');
+        band.addColorStop(0.75, 'rgba(6,3,12,0.72)');
+        band.addColorStop(1, 'rgba(6,3,12,0)');
+        ctx.fillStyle = band;
+        ctx.fillRect(-bw / 2, -nameSize * 1.55, bw, nameSize * 2.05);
         ctx.fillStyle = color;
         ctx.font = `${Math.min(16, w * 0.036)}px Silkscreen, monospace`;
         ctx.fillText(opts.ascended ? '· ASCENDED ·' : '· FUSED ·', 0, -Math.min(52, w * 0.1));
         ctx.font = `${nameSize}px "Pirata One", Georgia, serif`;
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = Math.max(3, nameSize * 0.14);
+        ctx.strokeStyle = '#0a0612';
+        ctx.strokeText(opts.name, 0, 0);
         const ng = ctx.createLinearGradient(0, -nameSize * 0.8, 0, nameSize * 0.1);
         ng.addColorStop(0, '#ffffff');
         ng.addColorStop(1, color);
@@ -656,10 +694,10 @@ export function playFusion(opts: { a: string; b: string; out: string; name: stri
  * Behind the new relic on its reveal card: slow light rays turning, a ring that pulses out
  * now and then, and embers rising, in the forge's colour. Stops when the card closes.
  */
-export function animateReveal(canvas: HTMLCanvasElement, ascended: boolean) {
+export function animateReveal(canvas: HTMLCanvasElement, ascended: boolean, tint = '') {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
-  const rgb = ascended ? '242,193,78' : '127,180,255';
+  const rgb = tint || (ascended ? '242,193,78' : '127,180,255');
   const W = canvas.width;
   const H = canvas.height;
   const cx = W / 2;

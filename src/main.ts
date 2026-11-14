@@ -10,7 +10,7 @@ import { heroPortrait, heroSprite } from './hero';
 import { BOON_BY_ID, ENEMY_INFO, W, MIST_BITE, REAPER_FLOOR, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode, type EnemyKind } from './game';
 import { acceptQuest, checkRun, grantFeats, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, finishHordeMeta, receiveGift, equipTitle, FAIR_DAILY, LEAN_DAILY, MISSILE_DAILY, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
-import { celebrate, celebrateNotes, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
+import { celebrate, celebrateNotes, holdCelebrations, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
 import { hallFromLink, onVisitIsle, showHall, showPublicHall, soulRankHtml, titleName } from './hall';
 import { AURA_BY_ID, BESTIARY_KINDS, COMMUNITY_GOAL, MASTERY_SOULS, soulSurge, beastPlural, bestiaryTiers, featCosmetics, marketPiece, masteryRank, GIFT_BY_ID, TITLE_BY_ID, HEAD_BY_ID, LOOK_BY_ID, PODIUM, RAID_DECOR_BY_ID, RAID_KIND_LABEL, RAID_REWARDS, STORY_ALL, STREAK_HELMS, WEEKLY, WELCOME, rankFor, titleFxClass, welcomeLabel, type WelcomeReward } from './progression';
@@ -30,7 +30,7 @@ import { FARM_SPAWN } from './graveshift';
 import { showGraveRequests, showGraveShop } from './graveshift-ui';
 import { dmgNumbers, nightPresence, setDmgNumbers, showNightShift } from './nightshift-ui';
 import { showWardrobe } from './wardrobe';
-import { IMPACT, animateReveal, playFusion } from './fusefx';
+import { IMPACT, animateReveal, playFusion, tintOf } from './fusefx';
 import { howToHtml, startHowTo } from './howto';
 import { RELIC_COACH, TUTORIAL } from './tutorial';
 import { DISCORD_URL, KOFI_URL, copyText, descentStrip, discordHtml, followXHtml, kofiHtml, playTime, shareText, siteUrl } from './share';
@@ -2460,10 +2460,13 @@ function forgePick(i: number) {
   game.forge(i);
   hideOverlay();
   fusedReveal = null;
+  // Any banner this earns (a feat, a combo) waits until the fusion and its card are done.
+  holdCelebrations(true);
   processEvents();
   // (Set by processEvents; TypeScript can't see that through the call.)
   const reveal = fusedReveal as { id: FusedId; first: boolean } | null;
   if (reveal) showFused(reveal.id, reveal.first);
+  else holdCelebrations(false);
 }
 
 /** True while the full-screen fusion plays; the hero can't move under it. */
@@ -2477,52 +2480,65 @@ function showFused(id: FusedId, first: boolean) {
   const def = RELIC_BY_ID[id];
   const f = FUSION_BY_ID[id];
   const [a, b] = f.from.map((r) => RELIC_BY_ID[r]);
+  // What it counts as, one chip each, so a name never wraps away from its icon.
   const grants = Object.entries(f.grants)
-    .map(([gid, n]) => `${relicIcon(gid, RELIC_BY_ID[gid as RelicId].emoji)} ${esc(RELIC_BY_ID[gid as RelicId].name)}${(n ?? 0) > 1 ? ` ×${n}` : ''}`)
-    .join(' · ');
+    .map(([gid, n]) => `<span class="grant-chip">${relicIcon(gid, RELIC_BY_ID[gid as RelicId].emoji)} ${esc(RELIC_BY_ID[gid as RelicId].name)}${(n ?? 0) > 1 ? ` <b>×${n}</b>` : ''}</span>`)
+    .join('');
   const ascended = def.rarity === 'ascended';
-  // Hide the forge screen while the fusion plays over the whole page, then reveal the details.
+  // Hide the forge screen while the fusion plays over the whole page. As its light fades the
+  // card comes up underneath and the new relic glides onto it.
   hideOverlay();
   fusionSound(ascended, IMPACT);
   fusionPlaying = true;
+  let carded = false;
+  const card = (fromFx: boolean) => {
+    if (carded) return;
+    carded = true;
+    fusedCard(id, first, grants, fromFx);
+  };
   playFusion({
     a: a.emoji, b: b.emoji, out: def.emoji, name: def.name, ascended,
     aImg: iconCanvas(`m:${a.id}`), bImg: iconCanvas(`m:${b.id}`), outImg: iconCanvas(`m:${id}`),
+    onHandoff: () => card(true),
+    target: () => (overlay.querySelector('.fused-emoji .ri') ?? overlay.querySelector('.fused-emoji'))?.getBoundingClientRect() ?? null,
     onDone: () => {
       fusionPlaying = false;
-      fusedCard(id, first, grants);
+      // (skipped with a tap, or no animation at all: the card simply appears)
+      card(false);
+      overlay.querySelector('.fused-reveal')?.classList.remove('handoff');
     },
   });
 }
 
-function fusedCard(id: FusedId, first: boolean, grants: string) {
+function fusedCard(id: FusedId, first: boolean, grants: string, fromFx = false) {
   const def = RELIC_BY_ID[id];
   const [a, b] = FUSION_BY_ID[id].from.map((r) => RELIC_BY_ID[r]);
   const ascended = def.rarity === 'ascended';
-  // The name lands letter by letter.
-  const letters = [...def.name].map((ch, i) => `<span style="--i:${i}">${ch === ' ' ? '&nbsp;' : esc(ch)}</span>`).join('');
+  // The card glows in the relic's own colour, so each fusion looks like itself.
+  const tint = tintOf(iconCanvas(`m:${id}`), ascended ? '#f2c14e' : '#7fb4ff');
   showOverlay('fused', `
-    <div class="fused-reveal ${ascended ? 'ascended' : ''}">
+    <div class="fused-reveal ${ascended ? 'ascended' : ''} ${fromFx ? 'from-fx handoff' : ''}" style="--fx:${tint}">
       <div class="fused-stage">
         <canvas class="fused-glow" width="240" height="160" aria-hidden="true"></canvas>
         <div class="fused-emoji">${relicIcon(id, def.emoji)}</div>
       </div>
       ${first ? '<p class="fused-new">✨ New discovery</p>' : ''}
       <p class="fused-kind">${ascended ? 'Ascended relic' : 'Fused relic'}</p>
-      <h2 class="fused-name" aria-label="${esc(def.name)}">${letters}</h2>
-      <div class="fused-recipe" aria-label="Forged from ${esc(a.name)} and ${esc(b.name)}">
+      <h2 class="fused-name">${esc(def.name)}</h2>
+      <div class="fused-recipe" role="img" aria-label="Forged from ${esc(a.name)} and ${esc(b.name)}">
         <span class="fr-a" title="${esc(a.name)}">${relicIcon(a.id, a.emoji)}</span><span class="fr-op">+</span><span class="fr-b" title="${esc(b.name)}">${relicIcon(b.id, b.emoji)}</span><span class="fr-op">=</span><span class="fr-out">${relicIcon(id, def.emoji)}</span>
       </div>
       <p class="fused-desc">${esc(relicText(def.desc(1)))}</p>
-      <p class="fine fused-from">Forged from ${esc(a.name)} + ${esc(b.name)}</p>
-      <p class="fine fused-grants">Counts as: ${grants}</p>
+      <p class="fused-counts">Counts as</p>
+      <div class="fused-grants">${grants}</div>
       <button class="btn primary" id="fused-ok">Continue</button>
     </div>`);
   const glow = overlay.querySelector<HTMLCanvasElement>('.fused-glow');
-  if (glow) animateReveal(glow, ascended);
+  if (glow) animateReveal(glow, ascended, tint);
   on('#fused-ok', () => {
     hideOverlay();
     updateHud();
+    holdCelebrations(false);
   });
   overlay.querySelector<HTMLElement>('#fused-ok')?.focus();
 }

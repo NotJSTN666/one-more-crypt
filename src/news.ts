@@ -35,6 +35,8 @@ export const NEWS: NewsDay[] = [
       '⏳ A countdown at the top of the board shows how long until Death rises, and the open stairs blaze gold while he walks.',
       '🌑 The floors where Death walks are darker and colder, so the deep feels deep.',
       '⚰️ If Death catches you, his scythe sweeps, the colour drains from the crypt, and the board holds a moment before your results.',
+      '⚒️ The Soul Forge finishes better: the new relic glides out of the light onto its card, which now arrives whole, glows in the relic\'s own colour and shows the relic twice as large.',
+      '🏷️ A fused relic\'s name is easier to read in the burst, and what it counts as is shown as tidy chips. Feat banners wait until you close the card.',
       '🥇 The reward screen for finishing 1st in a Daily now mentions the gold glow your Crypt Champion title gets. Thanks to Seabastin for the report!',
     ],
   },
