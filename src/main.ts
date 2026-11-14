@@ -8,7 +8,7 @@ import { TRIAL_SOULS, trialProgressText, weekTrial } from './trials';
 import { ACHIEVEMENT_BY_ID, DAILY_TOTALS, ELITES, FEATURES, HERO_BY_ID, HEROES, dailyHero, hordeHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait, heroSprite } from './hero';
 import { BOON_BY_ID, ENEMY_INFO, W, MIST_BITE, REAPER_FLOOR, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode, type EnemyKind } from './game';
-import { acceptQuest, checkRun, grantFeats, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, INVITE_SOULS, INVITE_PETS, type InviteGain, finishHordeMeta, receiveGift, equipTitle, FAIR_DAILY, LEAN_DAILY, MISSILE_DAILY, type RunReward } from './meta';
+import { acceptQuest, checkRun, grantFeats, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, rerollCost, spendSouls, INVITE_SOULS, INVITE_PETS, type InviteGain, finishHordeMeta, receiveGift, equipTitle, FAIR_DAILY, LEAN_DAILY, MISSILE_DAILY, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
 import { celebrate, celebrateNotes, holdCelebrations, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
@@ -2312,17 +2312,33 @@ function showChoice() {
     .join('');
   const surge = game.mode === 'horde' && game.config.surge;
   const canForge = surge && game.forgeOptions().length > 0;
+  // Endless (not a challenge or a world-boss fight, which must stay even): pay Souls for a fresh set.
+  const rerollable = game.canReroll() && !challenge && !raidRun && !tutorial;
+  const price = rerollCost(game.rerolls);
+  const rerollBtn = rerollable
+    ? `<button class="btn reroll-btn" id="reroll" ${meta.souls >= price || deathTest() ? '' : 'disabled'}>🎲 Reroll these relics<small>💀 ${price.toLocaleString()} Souls · you have ${meta.souls.toLocaleString()} · the price doubles each time this run</small></button>`
+    : '';
   showOverlay('choose', `
     <h2>${surge ? '⚡ Power surge!' : game.mode === 'horde' ? `Wave ${game.horde.wave} held` : `Floor ${game.floor} cleared`}</h2>
     <p class="sub">${surge ? 'The souls of the slain gather. Claim a relic' : 'Claim a relic from the dead'}<span class="keys-hint"> · ↑↓ to choose, Enter to take, 1-${offer.relics.length + offer.boons.length} to pick, R to rest${canForge ? ', F for the forge' : ''}, Y for your relics</span></p>
     <p class="choice-hp ${low ? 'low' : ''}">❤ ${game.player.hp}/${game.player.maxHp} HP${low ? ' · Low on health. Resting may be the smart pick.' : ''}</p>
     ${tutorial ? `<div class="coach-inline"><span>${TUTORIAL.length} / ${TUTORIAL.length} · Relics</span>${RELIC_COACH}</div>` : ''}
     <div class="offer">${cards}</div>
+    ${rerollBtn}
     ${canForge ? '<button class="btn forge-pick" id="to-forge">🔥 Soul Forge instead<small>Fuse two relics you hold into something greater</small></button>' : ''}
     <button class="btn ${low ? 'rest-urge' : ''}" id="rest">🔥 Rest instead<small>${restLabel(offer.restHeal)}</small></button>
     ${yourRelicsBtn()}
   `);
   on('#see-build', () => showBuild('build', showChoice));
+  overlay.querySelector<HTMLButtonElement>('#reroll')?.addEventListener('click', (e) => {
+    if (strayTap(e) || !game.canReroll()) return;
+    // (the Death try-out is never saved, so it rerolls for free)
+    if (!deathTest() && !spendSouls(price)) return;
+    clockInput();
+    game.reroll();
+    saveRun();
+    showChoice();
+  });
   overlay.querySelectorAll<HTMLButtonElement>('.offer button').forEach((b) => {
     b.addEventListener('click', (e) => !strayTap(e) && pickRelic(Number(b.dataset.i)));
   });

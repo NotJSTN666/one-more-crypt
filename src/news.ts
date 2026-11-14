@@ -41,6 +41,7 @@ export const NEWS: NewsDay[] = [
       '🦇 Four new companions to find by bringing friends: the Belfry Bat, Cinder Imp, Lost Wisp and Watchful Eye. Choose who follows you in the Wardrobe.',
       '☠️ Every way to die now has its own ending on the board: run through, shot, burned in lava, impaled on spikes, blown apart, taken by the plague, or broken by a boss.',
       '🛒 Companions are for sale in the Ossuary, under Cosmetics: eight to collect for Souls, from the Tame Ghoul to the Pocket Lich. Pick who follows you in the Wardrobe.',
+      '🎲 In Endless you can now pay Souls to reroll the relics on offer: 100 Souls the first time, doubling with each reroll in that run.',
       '🥇 The reward screen for finishing 1st in a Daily now mentions the gold glow your Crypt Champion title gets. Thanks to Seabastin for the report!',
     ],
   },

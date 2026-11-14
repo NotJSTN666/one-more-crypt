@@ -383,6 +383,17 @@ export function buyHero(id: HeroId): boolean {
   return true;
 }
 
+/** What the next reroll of a relic offer costs in Endless: 100 Souls, doubling with each one this run. */
+export const rerollCost = (used: number) => 100 * 2 ** Math.min(used, 20);
+
+/** Pay Souls for something that isn't kept (a reroll). False if you can't afford it. */
+export function spendSouls(n: number): boolean {
+  if (n <= 0 || meta.souls < n) return false;
+  meta.souls -= n;
+  saveMeta();
+  return true;
+}
+
 /** Buy a companion in the Ossuary. The first one you own walks with you at once. */
 export function buyPet(id: string): boolean {
   const def = COMPANION_BY_ID[id];

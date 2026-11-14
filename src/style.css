@@ -6200,3 +6200,7 @@ body.tutorial #relic-bar {
 
 /* A companion's art in a shop row. */
 .pet-art { image-rendering: pixelated; object-fit: contain; }
+
+/* Endless: pay Souls for a fresh set of relics. */
+.reroll-btn { border-color: #6b5426; }
+.reroll-btn:disabled { opacity: 0.5; }

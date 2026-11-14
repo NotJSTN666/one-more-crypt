@@ -519,6 +519,9 @@ export class Game {
    * a/x accept or leave a floor event. With `header()` it replays the run exactly.
    */
   log = '';
+  /** Relic offers rerolled this run (each costs more Souls than the last), and how often the offer on screen has been. */
+  rerolls = 0;
+  private offerRolls = 0;
   /** The Ranger's bow is lowered: moving toward a foe steps instead of shooting. */
   bowDown = false;
   events: GameEvent[] = [];
@@ -1466,7 +1469,11 @@ export class Game {
   }
 
   private makeOffer(): Offer {
-    const rng = mulberry32(this.config.surge ? hashSeed(this.seed, 'surge', this.horde.level) : hashSeed(this.seed, 'relic', this.floor));
+    const rng = mulberry32(
+      this.config.surge ? hashSeed(this.seed, 'surge', this.horde.level)
+      : this.offerRolls ? hashSeed(this.seed, 'relic', this.floor, 'reroll', this.offerRolls)
+      : hashSeed(this.seed, 'relic', this.floor),
+    );
     let pool = RELICS.filter((r) => this.inPool(r));
     if (this.r('heretic')) {
       const dark = pool.filter((r) => r.rarity !== 'common');
@@ -1488,6 +1495,21 @@ export class Game {
     return { relics: picks, boons, restHeal: this.r('grail') ? this.player.maxHp : REST_HEAL + 2 * this.r('chalice') };
   }
 
+  /** Endless only: whether the relics on offer can be swapped for a fresh set. */
+  canReroll(): boolean {
+    return this.mode === 'endless' && this.phase === 'choose' && Boolean(this.offer?.relics.length);
+  }
+
+  /** Swap the offer for a fresh one (the caller charges the Souls). Logged, so the run replays the same. */
+  reroll(): boolean {
+    if (!this.canReroll()) return false;
+    this.offerRolls++;
+    this.rerolls++;
+    this.offer = this.makeOffer();
+    this.log += 'q';
+    return true;
+  }
+
   /** Take a relic from the offer (index), or rest when index is -1. */
   choose(index: number) {
     if (this.phase !== 'choose' || !this.offer) return;
@@ -1503,6 +1525,7 @@ export class Game {
       this.log += String(index);
     }
     this.offer = null;
+    this.offerRolls = 0;
     this.phase = 'play';
     if (this.mode !== 'horde') this.enterFloor(this.floor + 1);
   }
@@ -2771,6 +2794,7 @@ export class Game {
       else if (FORGE_KEYS.includes(ch)) g.forge(FORGE_KEYS.indexOf(ch));
       else if (ch === 'z') g.hordeForge();
       else if (ch === 'o') g.toggleBow();
+      else if (ch === 'q') g.reroll();
       else g.choose(Number(ch));
     }
     g.events.length = 0;

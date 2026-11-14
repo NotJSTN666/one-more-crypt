@@ -408,4 +408,28 @@ describe('Endless-only forbidden relics', () => {
       expect([again.floor, again.kills, again.player.hp]).toEqual([g.floor, g.kills, g.player.hp]);
     }
   });
+
+  it('rerolls a relic offer in Endless only, and replays it the same', () => {
+    const play = (mode: 'endless' | 'daily') => {
+      const g = new Game(mode, 4242, mode === 'daily' ? 9 : 0);
+      (g as unknown as { enemies: unknown[] }).enemies = [];
+      (g as unknown as { checkCleared(): void }).checkCleared();
+      (g as unknown as { descend(): void }).descend();
+      return g;
+    };
+    const d = play('daily');
+    expect(d.canReroll()).toBe(false);
+    expect(d.reroll()).toBe(false);
+    const g = play('endless');
+    const first = g.offer!.relics.map((r) => r.id).join();
+    expect(g.reroll()).toBe(true);
+    const second = g.offer!.relics.map((r) => r.id).join();
+    expect(g.reroll()).toBe(true);
+    const third = g.offer!.relics.map((r) => r.id).join();
+    expect(new Set([first, second, third]).size).toBeGreaterThan(1);
+    expect(g.rerolls).toBe(2);
+    expect(g.log.endsWith('qq')).toBe(true);
+    g.choose(0);
+    expect(g.floor).toBe(2);
+  });
 });
