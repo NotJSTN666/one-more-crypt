@@ -85,6 +85,11 @@ export class Renderer {
   private recoils = new Map<number, Lunge>();
   /** Seconds since Death's touch ended the run (-1 when it hasn't): his scythe sweeps and the colour drains away. */
   private reaped = -1;
+  /**
+   * How the hero is dying, when it isn't Death's doing: each cause has its own second on the board
+   * (run through, shot, burned, impaled, blown apart, taken by the plague, broken by a boss).
+   */
+  private dying: { kind: 'slain' | 'arrow' | 'lava' | 'spikes' | 'blast' | 'plague' | 'boss'; t: number; x: number; y: number; face: number; dir: Pos; img: HTMLCanvasElement; tint: HTMLCanvasElement | null; cracks: number[][]; broke: boolean } | null = null;
   /** 0..1 as the hero goes down the stairs. */
   private sink = 0;
   /** How long each foe holds its attack pose. */
@@ -168,6 +173,7 @@ export class Renderer {
     this.recoils.clear();
     this.sink = 0;
     this.reaped = -1;
+    this.dying = null;
     this.enter = 0;
     this.floaters = [];
     this.bannerQueue = [];
@@ -191,6 +197,8 @@ export class Renderer {
     if (!g) return;
     // Which way the last foe to strike was swinging, so the hero is knocked that way.
     let struck: Pos | null = null;
+    // Where the last shot to land came from, for a hero felled by an arrow.
+    let shotFrom: Pos | null = null;
     const claimed: RelicId[] = [];
     // Pickups the Grave Magnet pulled this turn pop when they land, not where they lay.
     let pulled = false;
@@ -351,6 +359,7 @@ export class Renderer {
           this.darts.push({ x0: ev.from.x, y0: ev.from.y, x1: ev.to.x, y1: ev.to.y, t: 0, hit: ev.hit });
           break;
         case 'shot':
+          if (ev.hit) shotFrom = ev.from;
           this.lines.push({ from: ev.from, to: ev.to, t: 0, life: 0.18, color: '#e8dcc4' });
           break;
         case 'missile':
@@ -412,10 +421,64 @@ export class Renderer {
         case 'death': {
           this.shake = 8;
           this.hitStop = 0.25;
-          if (g.killedBy === 'Death') this.reaped = 0;
           const d = this.disp.get(PLAYER_ID) ?? g.player;
-          this.shatter(heroSprite(g.hero, g.relics, g.relicLog, this.outfit.look, this.outfit.head).normal, d, this.facing.get(PLAYER_ID) ?? 1, 1.3);
-          this.burstParticles(g.player.x, g.player.y, '#d23a46', 30, 2);
+          const img = heroSprite(g.hero, g.relics, g.relicLog, this.outfit.look, this.outfit.head).normal;
+          const face = this.facing.get(PLAYER_ID) ?? 1;
+          if (g.killedBy === 'Death' || this.quiet) {
+            // Death's own ending (and the quiet boards behind the menus): the hero simply breaks apart.
+            if (g.killedBy === 'Death') this.reaped = 0;
+            this.shatter(img, d, face, 1.3);
+            this.burstParticles(g.player.x, g.player.y, '#d23a46', 30, 2);
+            break;
+          }
+          const info = g.deathInfo;
+          const cause = info?.cause ?? '';
+          const kind = cause === 'the lava' ? 'lava'
+            : cause === 'the spikes' ? 'spikes'
+            : cause === 'an exploding foe' ? 'blast'
+            : cause === 'the plague mist' ? 'plague'
+            : info?.kind && isBoss({ kind: info.kind }) ? 'boss'
+            : shotFrom || info?.telegraphed ? 'arrow'
+            : 'slain';
+          // Which way the blow came from (toward the hero).
+          const from: Pos | null = shotFrom ?? null;
+          const dir: Pos = from ? { x: Math.sign(g.player.x - from.x), y: Math.sign(g.player.y - from.y) } : struck ? { x: Math.sign(struck.x), y: Math.sign(struck.y) } : { x: -face, y: 0 };
+          let tint: HTMLCanvasElement | null = null;
+          if (kind === 'lava' || kind === 'plague' || kind === 'spikes') {
+            tint = document.createElement('canvas');
+            tint.width = img.width;
+            tint.height = img.height;
+            const tc = tint.getContext('2d')!;
+            tc.drawImage(img, 0, 0);
+            tc.globalCompositeOperation = 'source-atop';
+            tc.fillStyle = kind === 'lava' ? 'rgba(255, 120, 30, 0.7)' : kind === 'plague' ? 'rgba(110, 210, 80, 0.65)' : 'rgba(120, 120, 135, 0.7)';
+            tc.fillRect(0, 0, img.width, img.height);
+          }
+          // A boss's blow cracks the whole board: jagged lines running out from the hero.
+          const cracks: number[][] = [];
+          if (kind === 'boss') {
+            const cx = d.x * TILE + TILE / 2;
+            const cy = d.y * TILE + TILE / 2;
+            for (let i = 0; i < 8; i++) {
+              let a = (i / 8) * Math.PI * 2 + Math.random() * 0.5;
+              const line = [cx, cy];
+              let x = cx;
+              let y = cy;
+              for (let j = 0; j < 7; j++) {
+                a += (Math.random() - 0.5) * 0.9;
+                x += Math.cos(a) * (8 + Math.random() * 8);
+                y += Math.sin(a) * (8 + Math.random() * 8);
+                line.push(x, y);
+              }
+              cracks.push(line);
+            }
+          }
+          this.dying = { kind, t: 0, x: d.x, y: d.y, face, dir, img, tint, cracks, broke: false };
+          if (kind === 'blast') {
+            this.critFlash = 1;
+            this.impacts.push({ x: g.player.x, y: g.player.y, t: 0, life: 0.5, color: '#fff2c0', r: 30 });
+          } else if (kind === 'slain' || kind === 'arrow' || kind === 'spikes') this.burstParticles(g.player.x, g.player.y, '#d23a46', kind === 'slain' ? 30 : 14, 2);
+          else if (kind === 'boss') this.critFlash = 0.9;
           break;
         }
         case 'relic':
@@ -661,6 +724,7 @@ export class Renderer {
       this.drawEnemy(g, e, d, dt);
     }
     if (g.phase !== 'dead') this.drawPet(g, k, dt);
+    if (g.phase === 'dead') this.drawDying(dt);
     if (g.phase !== 'dead') {
       const pd = this.smooth(PLAYER_ID, g.player, k);
       // The rogue fades when the next step will go unseen.
@@ -943,6 +1007,165 @@ export class Renderer {
     edge.addColorStop(1, `rgba(18, 4, 34, ${0.85 * s})`);
     ctx.fillStyle = edge;
     ctx.fillRect(-10, -10, BOARD_W + 20, BOARD_H + 20);
+  }
+
+  /** The hero's last second, by what killed them. */
+  private drawDying(dt: number) {
+    const D = this.dying;
+    if (!D) return;
+    D.t += dt;
+    const t = D.t;
+    const ctx = this.ctx;
+    const S = SPRITE_SIZE;
+    const px = D.x * TILE + PAD;
+    const py = D.y * TILE + PAD;
+    const cx = px + S / 2;
+    const feet = py + S;
+    const flip = D.face < 0;
+    /** The hero's sprite, feet on (x, y): squashed, turned, faded, or cut off below a line. */
+    const body = (img: HTMLCanvasElement, x: number, y: number, o: { sy?: number; rot?: number; alpha?: number } = {}) => {
+      ctx.save();
+      ctx.globalAlpha = o.alpha ?? 1;
+      ctx.translate(Math.round(x), Math.round(y));
+      if (o.rot) ctx.rotate(o.rot);
+      ctx.scale(flip ? -1 : 1, o.sy ?? 1);
+      ctx.drawImage(img, -S / 2, -S, S, S);
+      ctx.restore();
+    };
+    const mote = (color: string, up: number, spread = S) =>
+      this.particles.push({ x: cx - spread / 2 + Math.random() * spread, y: feet - Math.random() * S, vx: (Math.random() - 0.5) * 8, vy: -up - Math.random() * up, color, t: 0, life: 0.5 + Math.random() * 0.5, size: 1, grav: -0.1 });
+    const breakUp = (power: number) => {
+      if (D.broke) return;
+      D.broke = true;
+      this.shatter(D.img, { x: D.x, y: D.y }, D.face, power);
+    };
+    switch (D.kind) {
+      case 'slain': {
+        // Run through: a red cut across the hero, who folds to the floor and lies there.
+        if (t < 0.22) {
+          const p = t / 0.22;
+          const a0 = Math.atan2(D.dir.y, D.dir.x) - 1.1;
+          ctx.strokeStyle = '#ff4d5a';
+          ctx.lineCap = 'round';
+          ctx.lineWidth = 2.5 * (1 - p) + 0.5;
+          ctx.beginPath();
+          ctx.arc(cx - D.dir.x * 6, py + S / 2 - D.dir.y * 6, 9, a0, a0 + 2.2 * p);
+          ctx.stroke();
+          ctx.lineCap = 'butt';
+        }
+        const fold = Math.min(1, Math.max(0, (t - 0.12) / 0.3));
+        const sy = 1 - 0.72 * fold * fold;
+        body(D.img, cx + D.dir.x * 2 * fold, feet, { sy, alpha: t > 0.9 ? Math.max(0.45, 1 - (t - 0.9) * 2) : 1 });
+        break;
+      }
+      case 'arrow': {
+        // Shot: knocked a step back by the arrow, then down on their side.
+        const back = Math.min(1, t / 0.14);
+        const fall = Math.min(1, Math.max(0, (t - 0.22) / 0.3));
+        const x = cx + D.dir.x * 4 * back;
+        const y = feet + D.dir.y * 3 * back;
+        const lean = (D.dir.x || -D.face) * (Math.PI / 2) * fall * fall;
+        body(D.img, x, y, { rot: lean, alpha: t > 0.95 ? Math.max(0.4, 1 - (t - 0.95) * 2) : 1 });
+        // the shaft, still in them
+        ctx.save();
+        ctx.translate(Math.round(x), Math.round(y - S * 0.45));
+        ctx.rotate(lean);
+        ctx.fillStyle = '#e8dcc4';
+        ctx.fillRect(-D.dir.x * 6 - (D.dir.x ? 0 : 0.5), -D.dir.y * 6 - (D.dir.y ? 0 : 0.5), D.dir.x ? D.dir.x * 6 : 1, D.dir.y ? D.dir.y * 6 : 1);
+        ctx.fillStyle = '#d23a46';
+        ctx.fillRect(-D.dir.x * 7 - 1, -D.dir.y * 7 - 1, 2, 2);
+        ctx.restore();
+        break;
+      }
+      case 'lava': {
+        // Burned: glowing, the hero goes down into the lava and comes up as embers.
+        const p = Math.min(1, t / 0.85);
+        ctx.globalCompositeOperation = 'lighter';
+        const glow = ctx.createRadialGradient(cx, feet - 4, 1, cx, feet - 4, TILE * 1.4);
+        glow.addColorStop(0, `rgba(255, 150, 50, ${0.55 * (1 - p * 0.6)})`);
+        glow.addColorStop(1, 'rgba(255, 120, 30, 0)');
+        ctx.fillStyle = glow;
+        ctx.fillRect(cx - TILE * 1.5, feet - TILE * 1.6, TILE * 3, TILE * 3);
+        ctx.globalCompositeOperation = 'source-over';
+        if (p < 1) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(D.x * TILE - 2, D.y * TILE - TILE, TILE + 4, TILE * 2 - 2);
+          ctx.clip();
+          body(D.tint ?? D.img, cx + Math.sin(t * 40) * 0.6, feet + p * (S + 1));
+          ctx.restore();
+          if (Math.random() < dt * 60) mote(Math.random() < 0.5 ? '#ff8a2a' : '#ffd27a', 16);
+        }
+        break;
+      }
+      case 'spikes': {
+        // Impaled: the spikes punch up, the hero is lifted on them and goes grey.
+        const up = Math.min(1, t / 0.1);
+        const grey = Math.min(1, Math.max(0, (t - 0.3) / 0.4));
+        body(D.img, cx, feet - 4 * up, { alpha: 1 - grey });
+        if (D.tint && grey > 0) body(D.tint, cx, feet - 4 * up, { alpha: grey * (t > 1 ? Math.max(0.5, 1 - (t - 1)) : 1) });
+        ctx.fillStyle = '#c9d1e0';
+        for (const ox of [-4, 0, 4]) {
+          const h = Math.round((9 + (ox ? 0 : 3)) * up);
+          for (let i = 0; i < h; i++) ctx.fillRect(Math.round(cx + ox - (i < h * 0.5 ? 1 : 0.5)), feet + 1 - i, i < h * 0.5 ? 2 : 1, 1);
+        }
+        if (t > 0.15 && t < 0.9 && Math.random() < dt * 14) this.particles.push({ x: cx - 3 + Math.random() * 6, y: feet - 5, vx: 0, vy: 6, color: '#d23a46', t: 0, life: 0.4, size: 1, grav: 1.5 });
+        break;
+      }
+      case 'blast':
+        // Blown apart: a white flash, and what's left is thrown clear as ash.
+        if (!D.broke) {
+          breakUp(2.6);
+          for (let i = 0; i < 26; i++) {
+            const a = Math.random() * Math.PI * 2;
+            const v = 30 + Math.random() * 70;
+            this.particles.push({ x: cx, y: py + S / 2, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 20, color: Math.random() < 0.6 ? '#8a8494' : '#3a3442', t: 0, life: 0.6 + Math.random() * 0.6, size: Math.random() < 0.3 ? 2 : 1, grav: 1.2 });
+          }
+        }
+        break;
+      case 'plague': {
+        // Taken by the plague: sick green, shaking, and gone from the head down into the mist.
+        const p = Math.min(1, Math.max(0, (t - 0.25) / 0.7));
+        if (p < 1) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(px - 3, py + S * p, S + 6, S * (1 - p) + 1);
+          ctx.clip();
+          body(D.tint ?? D.img, cx + (Math.random() - 0.5) * (t < 0.25 ? 2 : 1), feet);
+          ctx.restore();
+          if (Math.random() < dt * 50) this.particles.push({ x: px + Math.random() * S, y: py + S * p, vx: (Math.random() - 0.5) * 10, vy: -6 - Math.random() * 10, color: Math.random() < 0.5 ? '#7ee081' : '#3f8a3a', t: 0, life: 0.8, size: 1, grav: -0.15 });
+        }
+        break;
+      }
+      case 'boss': {
+        // Broken by a boss: the hero hangs white for a beat while the board cracks, then bursts.
+        const grow = Math.min(1, t / 0.25);
+        const fade = t > 0.8 ? Math.max(0, 1 - (t - 0.8) / 0.5) : 1;
+        ctx.lineJoin = 'round';
+        for (const [w, c] of [[2.5, `rgba(20, 4, 10, ${0.8 * fade})`], [1, `rgba(255, 77, 90, ${fade})`]] as [number, string][]) {
+          ctx.strokeStyle = c;
+          ctx.lineWidth = w;
+          for (const line of D.cracks) {
+            const n = Math.max(1, Math.floor(((line.length - 2) / 2) * grow));
+            ctx.beginPath();
+            ctx.moveTo(line[0], line[1]);
+            for (let j = 1; j <= n; j++) ctx.lineTo(line[j * 2], line[j * 2 + 1]);
+            ctx.stroke();
+          }
+        }
+        if (t < 0.3) {
+          ctx.globalCompositeOperation = 'lighter';
+          body(D.img, cx + (Math.random() - 0.5) * 2, feet);
+          ctx.globalCompositeOperation = 'source-over';
+          body(D.img, cx + (Math.random() - 0.5) * 2, feet);
+        } else if (!D.broke) {
+          breakUp(2);
+          this.burstParticles(Math.round(D.x), Math.round(D.y), '#d23a46', 30, 2.2);
+          this.shake = SHAKE_MAX;
+        }
+        break;
+      }
+    }
   }
 
   /** Death's touch: his scythe sweeps through where the hero stood, and the colour drains out of the world. */

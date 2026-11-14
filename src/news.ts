@@ -39,6 +39,7 @@ export const NEWS: NewsDay[] = [
       '🏷️ A fused relic\'s name is easier to read in the burst, and what it counts as is shown as tidy chips. Feat banners wait until you close the card.',
       '👥 Bring a friend pays more: when a friend you invite finishes their first run, you both get 500 Souls, a random companion and the Kindred Cloak. Every friend pays again.',
       '🦇 Four new companions to find by bringing friends: the Belfry Bat, Cinder Imp, Lost Wisp and Watchful Eye. Choose who follows you in the Wardrobe.',
+      '☠️ Every way to die now has its own ending on the board: run through, shot, burned in lava, impaled on spikes, blown apart, taken by the plague, or broken by a boss.',
       '🥇 The reward screen for finishing 1st in a Daily now mentions the gold glow your Crypt Champion title gets. Thanks to Seabastin for the report!',
     ],
   },
