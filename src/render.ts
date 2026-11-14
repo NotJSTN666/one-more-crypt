@@ -770,6 +770,7 @@ export class Renderer {
     this.drawWeather(g, dt);
     this.drawFloaters(dt);
     this.drawBanner(dt);
+    this.drawDeathWash();
     this.drawReaped(g, realDt);
     this.drawEnter(g, realDt);
 
@@ -1014,6 +1015,113 @@ export class Renderer {
     edge.addColorStop(1, `rgba(18, 4, 34, ${0.85 * s})`);
     ctx.fillStyle = edge;
     ctx.fillRect(-10, -10, BOARD_W + 20, BOARD_H + 20);
+  }
+
+  /** How the hero is dying ('death' for Death's own touch), or '' while they live: the page tints itself to match. */
+  dyingKind(): string {
+    return this.reaped >= 0 ? 'death' : this.dying?.kind ?? '';
+  }
+
+  /**
+   * Each death takes the whole board with it, the way Death's drains it of colour: blood closes
+   * in from the edges, the dark irises shut round a shot hero, heat rises, the plague creeps in,
+   * ash falls. (The colour itself is washed over the whole page, HUD and all, by the stylesheet.)
+   */
+  private drawDeathWash() {
+    const D = this.dying;
+    if (!D || this.quiet) return;
+    const ctx = this.ctx;
+    const t = D.t;
+    const cx = D.x * TILE + TILE / 2;
+    const cy = D.y * TILE + TILE / 2;
+    const far = Math.hypot(BOARD_W, BOARD_H);
+    const all = () => ctx.fillRect(-10, -10, BOARD_W + 20, BOARD_H + 20);
+    const p = Math.min(1, t / 1.1);
+    const ease = 1 - Math.pow(1 - p, 2);
+    switch (D.kind) {
+      case 'slain': {
+        // blood closes in from the edges until only the fallen hero is left in the light
+        const r = far * (1 - 0.82 * ease);
+        const g = ctx.createRadialGradient(cx, cy, Math.max(4, r * 0.45), cx, cy, Math.max(8, r));
+        g.addColorStop(0, 'rgba(90, 4, 12, 0)');
+        g.addColorStop(1, `rgba(90, 4, 12, ${0.85 * ease})`);
+        ctx.fillStyle = g;
+        all();
+        break;
+      }
+      case 'arrow': {
+        // the dark irises shut around them
+        const r = Math.max(13, far * (1 - ease));
+        ctx.fillStyle = `rgba(5, 3, 9, ${0.9 * Math.min(1, t / 0.25)})`;
+        ctx.beginPath();
+        ctx.rect(-10, -10, BOARD_W + 20, BOARD_H + 20);
+        ctx.arc(cx, cy, r, 0, Math.PI * 2, true);
+        ctx.fill('evenodd');
+        ctx.strokeStyle = `rgba(232, 220, 196, ${0.35 * (1 - ease)})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.stroke();
+        break;
+      }
+      case 'lava': {
+        // heat rises through the whole floor, and embers lift off every tile
+        ctx.globalCompositeOperation = 'lighter';
+        const g = ctx.createLinearGradient(0, BOARD_H, 0, BOARD_H * (1 - 1.3 * ease));
+        g.addColorStop(0, `rgba(255, 110, 20, ${0.55 * ease})`);
+        g.addColorStop(1, 'rgba(255, 110, 20, 0)');
+        ctx.fillStyle = g;
+        all();
+        ctx.globalCompositeOperation = 'source-over';
+        if (t < 1.3 && Math.random() < 0.6) this.particles.push({ x: Math.random() * BOARD_W, y: BOARD_H - Math.random() * BOARD_H * ease, vx: (Math.random() - 0.5) * 6, vy: -14 - Math.random() * 14, color: Math.random() < 0.5 ? '#ff8a2a' : '#ffd27a', t: 0, life: 0.7 + Math.random() * 0.6, size: 1, grav: -0.1 });
+        break;
+      }
+      case 'spikes': {
+        // the board is shut like a trap: steel-dark bars close from above and below
+        const h = BOARD_H * 0.3 * ease;
+        ctx.fillStyle = 'rgba(8, 9, 14, 0.92)';
+        ctx.fillRect(-10, -10, BOARD_W + 20, h + 10);
+        ctx.fillRect(-10, BOARD_H - h, BOARD_W + 20, h + 10);
+        ctx.fillStyle = '#c9d1e0';
+        // teeth along both bars
+        for (let x = 0; x < BOARD_W; x += 8) {
+          for (let i = 0; i < 4; i++) {
+            ctx.fillRect(x + i, Math.round(h) + i - 1, 8 - i * 2, 1);
+            ctx.fillRect(x + i, Math.round(BOARD_H - h) - i, 8 - i * 2, 1);
+          }
+        }
+        break;
+      }
+      case 'blast': {
+        // white-out, then ash settling over everything
+        const white = Math.max(0, 1 - t / 0.5);
+        ctx.fillStyle = `rgba(255, 250, 240, ${0.8 * white})`;
+        all();
+        ctx.fillStyle = `rgba(20, 18, 24, ${0.45 * ease})`;
+        all();
+        if (t < 1.4 && Math.random() < 0.7) this.particles.push({ x: Math.random() * BOARD_W, y: -2, vx: (Math.random() - 0.5) * 8, vy: 22 + Math.random() * 26, color: Math.random() < 0.5 ? '#8a8494' : '#c9c4d0', t: 0, life: 1.6, size: Math.random() < 0.25 ? 2 : 1 });
+        break;
+      }
+      case 'plague': {
+        // the sickness creeps in from every edge, and spores rise across the board
+        const g = ctx.createRadialGradient(BOARD_W / 2, BOARD_H / 2, BOARD_W * (0.75 - 0.7 * ease), BOARD_W / 2, BOARD_H / 2, BOARD_W * 0.8);
+        g.addColorStop(0, 'rgba(40, 110, 30, 0)');
+        g.addColorStop(1, `rgba(40, 110, 30, ${0.8 * ease})`);
+        ctx.fillStyle = g;
+        all();
+        if (t < 1.3 && Math.random() < 0.6) this.particles.push({ x: Math.random() * BOARD_W, y: Math.random() * BOARD_H, vx: (Math.random() - 0.5) * 6, vy: -5 - Math.random() * 8, color: Math.random() < 0.5 ? '#7ee081' : '#3f8a3a', t: 0, life: 0.9, size: 1, grav: -0.1 });
+        break;
+      }
+      case 'boss': {
+        // the board throbs red with the blow, darker each beat
+        const beat = 0.5 + 0.5 * Math.sin(t * 16);
+        ctx.fillStyle = `rgba(150, 10, 20, ${0.28 * beat * (1 - p * 0.5) + 0.25 * ease})`;
+        all();
+        ctx.fillStyle = `rgba(5, 2, 8, ${0.4 * ease})`;
+        all();
+        break;
+      }
+    }
   }
 
   /** The hero's last second, by what killed them. */

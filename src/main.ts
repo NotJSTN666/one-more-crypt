@@ -115,6 +115,7 @@ function newGame(mode: Mode) {
 }
 
 function showGame(g: Game) {
+  delete document.body.dataset.dying;
   game = g;
   portalPlaying(true);
   runCombos = [];
@@ -734,6 +735,8 @@ function waitHint() {
 function processEvents() {
   const events = game.events.splice(0);
   renderer.consume(events);
+  // A death tints the whole page its own colour (see body[data-dying] in the stylesheet).
+  if (events.some((e) => e.t === 'death')) document.body.dataset.dying = renderer.dyingKind();
   noteTurn(events);
   playSounds(events);
   if (tutorial) return tutorialEvents(events);
@@ -1847,6 +1850,7 @@ function showDelve() {
 }
 
 function showTitle() {
+  delete document.body.dataset.dying;
   portalPlaying(false);
   // A newer version came out while the app sat open: load it now, between runs.
   if (updateReady && reloadForUpdate()) return;
@@ -4871,6 +4875,8 @@ let last = performance.now();
 function loop(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
+  // (the death tint never outlives the death: any game that isn't over clears it)
+  if (document.body.dataset.dying && game && game.phase !== 'dead') delete document.body.dataset.dying;
   renderer.frame(dt);
   drawGhosts(dt);
   requestAnimationFrame(loop);
