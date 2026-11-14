@@ -525,6 +525,8 @@ export async function pingActivity(played = false): Promise<void> {
 export interface Gift {
   id: number;
   item: string;
+  /** Who sent it, for a gift from another player ('' for the Crypt Keeper's). */
+  from: string;
 }
 
 /** Gifts waiting for this player (their account, or this device if they play as a guest). */
@@ -534,7 +536,7 @@ export async function waitingGifts(): Promise<Gift[]> {
     const sb = await client();
     const { data, error } = await sb.rpc('my_gifts', { p_device: deviceId() });
     if (error || !Array.isArray(data)) return [];
-    return (data as { id: unknown; item: unknown }[]).map((g) => ({ id: Number(g.id), item: String(g.item) })).filter((g) => g.id > 0 && g.item);
+    return (data as { id: unknown; item: unknown; from?: unknown }[]).map((g) => ({ id: Number(g.id), item: String(g.item), from: typeof g.from === 'string' ? g.from.slice(0, 24) : '' })).filter((g) => g.id > 0 && g.item);
   } catch {
     return [];
   }
@@ -549,6 +551,53 @@ export async function claimGift(id: number): Promise<void> {
   } catch {
     // It stays waiting and is offered again next time; receiving it twice is harmless.
   }
+}
+
+/** Send a cosmetic to another player by name. Returns their name as the server has it; throws with the reason if it can't be sent. */
+export async function sendGift(to: string, item: string): Promise<string> {
+  const sb = await client();
+  const { data, error } = await sb.rpc('send_gift', { p_to: to, p_item: item });
+  if (error) throw friendly(/function .*send_gift|schema cache/i.test(error.message ?? '') ? null : error, 'Gifts are not open yet. Try again later.');
+  return typeof data === 'string' && data ? data : to;
+}
+
+// ---------- the Soul Pyre ----------
+
+export interface PyreState {
+  total: number;
+  givers: number;
+  mine: number;
+  top: { name: string; souls: number }[];
+}
+
+function cleanPyre(data: unknown): PyreState | null {
+  if (!data || typeof data !== 'object') return null;
+  const o = data as Record<string, unknown>;
+  const n = (v: unknown) => Math.max(0, Math.floor(Number(v) || 0));
+  const top = Array.isArray(o.top) ? (o.top as Record<string, unknown>[]).map((t) => ({ name: String(t?.name ?? '').slice(0, 24), souls: n(t?.souls) })).slice(0, 5) : [];
+  return { total: n(o.total), givers: n(o.givers), mine: n(o.mine), top };
+}
+
+/** This month's pyre: what everyone has given, and what you have. Null if the server isn't set up for it. */
+export async function pyreState(event: string, player: string): Promise<PyreState | null> {
+  if (!ONLINE) return null;
+  try {
+    const sb = await client();
+    const { data, error } = await sb.rpc('pyre_state', { p_event: event, p_player: player });
+    return error ? null : cleanPyre(data);
+  } catch {
+    return null;
+  }
+}
+
+/** Pour Souls on the pyre. Returns the new state; throws with the reason if the server refuses. */
+export async function pyreGive(event: string, player: string, name: string, souls: number): Promise<PyreState> {
+  const sb = await client();
+  const { data, error } = await sb.rpc('pyre_give', { p_event: event, p_player: player, p_name: name, p_souls: souls });
+  if (error) throw friendly(/function .*pyre_give|schema cache/i.test(error.message ?? '') ? null : error, 'The pyre is not lit yet. Try again later.');
+  const st = cleanPyre(data);
+  if (!st) throw new OnlineError('The pyre did not answer. Try again in a moment.');
+  return st;
 }
 
 /** Opened from the home screen as the installed app, rather than in a browser tab. */

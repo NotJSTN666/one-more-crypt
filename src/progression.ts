@@ -143,6 +143,10 @@ export const TITLES: TitleDef[] = [
   })),
   ...SOUL_RANKS.slice(1).map((r) => ({ id: `rank:${r.name}`, name: r.name, how: `Earn ${r.souls.toLocaleString()} Souls in total.` })),
   { id: 'podium:1', name: 'Crypt Champion', how: 'Finish 1st in a Daily Descent.' },
+  // The Soul Pyre: Souls given to it, all told.
+  { id: 'pyre:1000', name: 'Kindler', how: 'Give 1,000 Souls to the Soul Pyre.' },
+  { id: 'pyre:10000', name: 'Pyre-Keeper', how: 'Give 10,000 Souls to the Soul Pyre.' },
+  { id: 'pyre:50000', name: 'Soulburner', how: 'Give 50,000 Souls to the Soul Pyre.' },
   // Gifted by hand by the Crypt Keeper.
   { id: 'gift:exterminator', name: 'Bug Exterminator', how: 'A gift from the Crypt Keeper, for hunting down bugs and reporting them.' },
   { id: 'gift:plotkeeper', name: 'Keeper of the Old Plot', how: 'Put 25 graves back to rest in Grave Shift.' },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { INVITE_PETS, INVITE_SOULS, buyPet, auraUnlocked, headUnlocked, lookUnlocked, meta, noteFriends, noteInvitedBy, settleInvite, titleUnlocked } from './meta';
+import { INVITE_PETS, INVITE_SOULS, PYRE_GOAL, acceptPlayerGift, buyPet, claimPyreHound, giftables, notePyre, pyreEvent, auraUnlocked, headUnlocked, lookUnlocked, meta, noteFriends, noteInvitedBy, settleInvite, titleUnlocked } from './meta';
 import { AURA_BY_ID, HEAD_BY_ID, LOOK_BY_ID } from './progression';
 
 describe('bring a friend', () => {
@@ -60,6 +60,47 @@ describe('bring a friend', () => {
     expect(meta.pet).toBe('ghoulpup');
     expect(buyPet('ghoulpup')).toBe(false);
     expect(meta.pets).toEqual(['ghoulpup']);
+  });
+
+  it('takes a gift from another player as if bought, or as Souls when already owned', () => {
+    meta.vault = false;
+    const all = giftables();
+    expect(all.length).toBeGreaterThan(10);
+    // every item is one the server will accept
+    for (const g of all) expect(g.item).toMatch(/^p:(look|head|aura|pet):[a-z0-9]{1,24}$/);
+    const cloak = all.find((g) => g.kind === 'look')!;
+    meta.bought = meta.bought.filter((id) => id !== cloak.id);
+    const souls = meta.souls;
+    expect(acceptPlayerGift(cloak.item)).toEqual({ gift: cloak, refund: 0 });
+    expect(meta.bought).toContain(cloak.id);
+    expect(acceptPlayerGift(cloak.item)!.refund).toBe(Math.floor(cloak.cost / 2));
+    expect(meta.souls).toBe(souls + Math.floor(cloak.cost / 2));
+    const pet = all.find((g) => g.kind === 'pet')!;
+    meta.pets = [];
+    acceptPlayerGift(pet.item);
+    expect(meta.pets).toEqual([pet.id]);
+    expect(acceptPlayerGift('p:look:nosuchthing')).toBeNull();
+    expect(acceptPlayerGift('exterminator')).toBeNull();
+  });
+
+  it('gives the Pyre Hound to those who fed a pyre that filled, and titles for giving', () => {
+    meta.vault = false;
+    meta.pyre = {};
+    meta.pets = [];
+    const event = pyreEvent(Date.UTC(2026, 10, 14));
+    expect(event).toBe('2026-11');
+    notePyre(event, 1200);
+    notePyre(event, 800);
+    expect(meta.pyre[event]).toBe(1200);
+    expect(titleUnlocked('pyre:1000')).toBe(true);
+    expect(titleUnlocked('pyre:10000')).toBe(false);
+    expect(claimPyreHound(PYRE_GOAL - 1, 1200)).toBe(false);
+    expect(claimPyreHound(PYRE_GOAL, 500)).toBe(false);
+    expect(claimPyreHound(PYRE_GOAL, 1200)).toBe(true);
+    expect(claimPyreHound(PYRE_GOAL, 1200)).toBe(false);
+    expect(meta.pets).toEqual(['pyrehound']);
+    // the hound is never one of the companions a friend brings
+    expect(INVITE_PETS.some((p) => p.id === 'pyrehound')).toBe(false);
   });
 
   it('forgets an invite that cannot count', () => {

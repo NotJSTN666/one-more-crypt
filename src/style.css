@@ -6204,3 +6204,23 @@ body.tutorial #relic-bar {
 /* Endless: pay Souls for a fresh set of relics. */
 .reroll-btn { border-color: #6b5426; }
 .reroll-btn:disabled { opacity: 0.5; }
+
+/* The Ossuary's Gifts tab. */
+.gift-to { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; font-family: var(--pixel); font-size: 11px; color: var(--muted); }
+.gift-to input { flex: 1; min-width: 0; padding: 10px; background: #0d0812; border: 1px solid var(--line); color: var(--text); font: inherit; font-size: 13px; }
+.gift-send.confirm { background: #2a5a2e; border-color: var(--heal); font-size: 10px; }
+
+/* The Soul Pyre. */
+.pyre { text-align: center; margin: 4px 0 10px; }
+.pyre-hound { filter: drop-shadow(0 0 12px rgba(255, 138, 42, 0.8)); }
+.pyre-bar { height: 18px; margin: 8px 0; background: #1c0f0a; border: 2px solid #000; box-shadow: 0 0 0 1px #6b3a1a; overflow: hidden; }
+.pyre-fill { height: 100%; min-width: 2px; background: linear-gradient(90deg, #a8321e, #ff8a2a 70%, #ffd27a); box-shadow: 0 0 14px rgba(255, 138, 42, 0.8); transition: width 0.6s; }
+.pyre-bar.full .pyre-fill { animation: pulse 0.8s infinite alternate; }
+.pyre-count, .pyre-mine { margin: 4px 0; font-family: var(--read); font-size: 13px; color: var(--text); }
+.pyre-mine { color: var(--muted); }
+.pyre-give { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 0 0 12px; }
+.pyre-give .buy { width: 100%; padding: 10px 2px; font-size: 11px; }
+.pyre-top { list-style: none; margin: 0 0 12px; padding: 0; font-family: var(--read); font-size: 13px; }
+.pyre-top li { display: flex; justify-content: space-between; padding: 5px 8px; border-bottom: 1px solid var(--line); }
+.pyre-top b { font-weight: normal; color: #ff8a2a; }
+@media (prefers-reduced-motion: reduce) { .pyre-bar.full .pyre-fill { animation: none; } }

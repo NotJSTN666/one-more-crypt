@@ -16,6 +16,8 @@ export interface Companion {
   cost?: number;
   /** A colour washed over the art, for a variant. */
   tint?: string;
+  /** Earned at the Soul Pyre: for everyone who fed it, once the month's goal is met. */
+  pyre?: true;
 }
 
 export const COMPANIONS: Companion[] = [
@@ -31,10 +33,11 @@ export const COMPANIONS: Companion[] = [
   { id: 'ghosthound', kind: 'hound', emoji: '🐕', name: 'Ghost Hound', desc: 'A good dog from the other side.', cost: 5000, tint: '#7fd8ff' },
   { id: 'goldbat', kind: 'bat', emoji: '🦇', name: 'Gilded Bat', desc: 'Dipped in gold. Insufferable about it.', cost: 8000, tint: '#f2c14e' },
   { id: 'lich', kind: 'lich', emoji: '🧙', name: 'Pocket Lich', desc: 'An ancient evil, travel size.', cost: 12000 },
+  { id: 'pyrehound', kind: 'hound', emoji: '🔥', name: 'Pyre Hound', desc: 'Born in the Soul Pyre. Warm to the touch.', tint: '#ff8a2a', pyre: true },
 ];
 
 export const COMPANION_BY_ID: Record<string, Companion> = Object.fromEntries(COMPANIONS.map((c) => [c.id, c]));
 /** The ones a counted invite can bring. */
-export const INVITE_COMPANIONS = COMPANIONS.filter((c) => !c.cost);
+export const INVITE_COMPANIONS = COMPANIONS.filter((c) => !c.cost && !c.pyre);
 /** The ones sold in the Ossuary, cheapest first. */
 export const SHOP_COMPANIONS = COMPANIONS.filter((c) => c.cost).sort((a, b) => a.cost! - b.cost!);

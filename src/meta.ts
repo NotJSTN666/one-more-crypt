@@ -1,7 +1,7 @@
 // Progress that carries between runs: Souls, unlocks, achievements, the relic codex
 // and discovered combos. Saved locally and, when signed in, to the player's account.
 
-import { COMPANION_BY_ID, INVITE_COMPANIONS } from './companions';
+import { COMPANION_BY_ID, INVITE_COMPANIONS, SHOP_COMPANIONS } from './companions';
 import { ACHIEVEMENT_BY_ID, COMBOS, DAILY_TOTALS, HEROES, HERO_BY_ID, dailyHero, type AchievementDef, type ComboDef, type HeroId } from './content';
 import { Game, REAPER_FLOOR, TITHE_SOULS, UNDEAD, basePool, fullPool, type Mode, type RunConfig } from './game';
 import { cleanGraveState, newGraveState, type GraveState } from './graveshift';
@@ -12,7 +12,7 @@ import { ACT1_QUESTS } from './story';
 import { FUSIONS, RELICS, UNLOCKABLE_RELICS, type FusedId, type RelicId } from './relics';
 import {
   AURAS, AURA_BY_ID, DUNCE_AT, SHAME, BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, beastPlural, HEADS, HEAD_BY_ID, HERO_CLOAKS, HERO_COSTUMES, LOOKS, LOOK_BY_ID, SEASONS, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_BY_ID, TITLE_TIER, WELCOME, STORY_ALL, RAID_REWARDS,
-  betterRun, bestiaryTiers, marketPiece, marketPieces, masteryRank, MASTERY_SOULS, soulSurge, rankIndex, seasonOf, seasonOpen, type AuraDef, type BestRuns, type SeasonId, type HeadDef, type LookDef, type Outfit, type RunGoal, type Unlock, type WelcomeReward,
+  betterRun, bestiaryTiers, isMarket, shopPrice, marketPiece, marketPieces, masteryRank, MASTERY_SOULS, soulSurge, rankIndex, seasonOf, seasonOpen, type AuraDef, type BestRuns, type SeasonId, type HeadDef, type LookDef, type Outfit, type RunGoal, type Unlock, type WelcomeReward,
 } from './progression';
 import type { EnemyKind } from './game';
 
@@ -104,6 +104,8 @@ export interface Meta {
   horde: { day: number; best: number; wave: number };
   /** Bring a friend: who invited you (and whether your first run counted for them), and friends you've brought. */
   invite: { from: string; claimed: boolean; friends: number };
+  /** Souls given to the Soul Pyre, by month ('2026-11'). */
+  pyre: Record<string, number>;
   /** Rare items the Crypt Keeper (the developer) gifted this player by hand. */
   gifts: string[];
   /** Hall decorations you own but took down. Still yours; put them back up any time. */
@@ -178,7 +180,7 @@ function empty(): Meta {
     podiums: {}, podiumChecked: 0, bought: [], streak: { best: 0, count: 0, last: 0 },
     bounties: { day: 0, ids: [], progress: [], done: [] },
     weekly: {}, weeklyChecked: '',
-    story: emptyStory(), pet: '', pets: [], summonsSeen: '', summonsTotal: 0, patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null, raid: { joined: [], won: [], lost: [] }, invite: { from: '', claimed: false, friends: 0 }, horde: { day: 0, best: 0, wave: 0 }, gifts: [], hallHidden: [], nightShrine: { vigor: 0, reroll: 0, banish: 0, arsenal: false, start: '' }, dailyTotal: 0, runsToday: { day: 0, n: 0 }, trialsDone: 0, rival: '', playedMonths: [],
+    story: emptyStory(), pet: '', pets: [], summonsSeen: '', summonsTotal: 0, patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null, raid: { joined: [], won: [], lost: [] }, invite: { from: '', claimed: false, friends: 0 }, pyre: {}, horde: { day: 0, best: 0, wave: 0 }, gifts: [], hallHidden: [], nightShrine: { vigor: 0, reroll: 0, banish: 0, arsenal: false, start: '' }, dailyTotal: 0, runsToday: { day: 0, n: 0 }, trialsDone: 0, rival: '', playedMonths: [],
   };
 }
 
@@ -193,6 +195,12 @@ export const INVITE_PETS = INVITE_COMPANIONS;
 function cleanRaid(r: unknown): RaidProgress {
   const o = r && typeof r === 'object' ? (r as Record<string, unknown>) : {};
   return { joined: ids(o.joined).slice(-40), won: ids(o.won), lost: ids(o.lost).slice(-40) };
+}
+
+function cleanPyre(v: unknown): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (v && typeof v === 'object') for (const [k, n] of Object.entries(v as Record<string, unknown>)) if (/^\d{4}-\d{2}$/.test(k)) out[k] = Math.max(0, Math.floor(Number(n) || 0));
+  return out;
 }
 
 function cleanInvite(v: unknown): Meta['invite'] {
@@ -216,6 +224,7 @@ function load(): Meta {
     m.raid = cleanRaid(m.raid);
     m.invite = cleanInvite(m.invite);
     m.gifts = ids(m.gifts);
+    m.pyre = cleanPyre(m.pyre);
     m.pets = ids(m.pets).filter((p) => Boolean(COMPANION_BY_ID[p]));
     m.hallHidden = ids(m.hallHidden);
     m.nightShrine = cleanShrine(m.nightShrine);
@@ -277,6 +286,7 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   meta.deepest = Math.max(meta.deepest, Number(other.deepest) || 0);
   const oi = cleanInvite(other.invite);
   meta.invite = { from: meta.invite.from || oi.from, claimed: meta.invite.claimed || oi.claimed, friends: Math.max(meta.invite.friends, oi.friends) };
+  for (const [k, v] of Object.entries(cleanPyre(other.pyre))) meta.pyre[k] = Math.max(meta.pyre[k] ?? 0, v);
   const or = cleanRaid(other.raid);
   meta.raid = cleanRaid({ joined: [...meta.raid.joined, ...or.joined], won: [...meta.raid.won, ...or.won], lost: [...meta.raid.lost, ...or.lost] });
   meta.shame = { ...(other.shame ?? {}), ...meta.shame };
@@ -381,6 +391,75 @@ export function buyHero(id: HeroId): boolean {
   meta.heroes.push(id);
   saveMeta();
   return true;
+}
+
+// ---------- the Soul Pyre ----------
+
+/** The Souls everyone is asked to give between them each month. */
+export const PYRE_GOAL = 500_000;
+/** Give at least this in a month to share in what the pyre brings when it's full. */
+export const PYRE_SHARE = 1000;
+/** This month's pyre (UTC), as the server names it. */
+export const pyreEvent = (now = Date.now()) => new Date(now).toISOString().slice(0, 7);
+/** Every Soul you've ever given it. */
+export const pyreGiven = () => Object.values(meta.pyre).reduce((a, b) => a + b, 0);
+
+/** The server's word on what you've given this month (it never goes down). */
+export function notePyre(event: string, mine: number) {
+  if (mine > (meta.pyre[event] ?? 0)) {
+    meta.pyre[event] = mine;
+    saveMeta();
+  }
+}
+
+/** The month's goal is met and you fed the pyre: the Pyre Hound is yours. True the first time. */
+export function claimPyreHound(total: number, mine: number): boolean {
+  if (total < PYRE_GOAL || mine < PYRE_SHARE || meta.pets.includes('pyrehound')) return false;
+  meta.pets.push('pyrehound');
+  if (!meta.pet) meta.pet = 'pyrehound';
+  saveMeta();
+  return true;
+}
+
+// ---------- gifts between players ----------
+
+export interface Giftable { item: string; kind: 'look' | 'head' | 'aura' | 'pet'; id: string; name: string; cost: number }
+
+/** Everything that can be sent to another player: what the Ossuary sells all year for Souls. */
+export function giftables(): Giftable[] {
+  const sold = (u: Parameters<typeof shopPrice>[0]) => shopPrice(u) > 0 && !isMarket(u) && !seasonOf(u);
+  return [
+    ...SHOP_COMPANIONS.map((c) => ({ item: `p:pet:${c.id}`, kind: 'pet' as const, id: c.id, name: c.name, cost: c.cost! })),
+    ...AURAS.filter((a) => 'cost' in a.unlock && !isMarket(a.unlock) && !a.unlock.season).map((a) => ({ item: `p:aura:${a.id}`, kind: 'aura' as const, id: a.id, name: a.name, cost: 'cost' in a.unlock ? a.unlock.cost : 0 })),
+    ...LOOKS.filter((l) => sold(l.unlock)).map((l) => ({ item: `p:look:${l.id}`, kind: 'look' as const, id: l.id, name: l.name, cost: shopPrice(l.unlock) })),
+    ...HEADS.filter((h) => sold(h.unlock)).map((h) => ({ item: `p:head:${h.id}`, kind: 'head' as const, id: h.id, name: h.name, cost: shopPrice(h.unlock) })),
+  ].filter((g) => /^p:(look|head|aura|pet):[a-z0-9]{1,24}$/.test(g.item));
+}
+
+/**
+ * A gift from another player arrived: it's yours as if bought. One you already own comes as half
+ * its price in Souls instead. Null if this game doesn't know the item.
+ */
+export function acceptPlayerGift(item: string): { gift: Giftable; refund: number } | null {
+  const gift = giftables().find((g) => g.item === item);
+  if (!gift) return null;
+  const have = gift.kind === 'pet' ? meta.pets.includes(gift.id) : meta.bought.includes(gift.id);
+  let refund = 0;
+  if (have) {
+    refund = Math.floor(gift.cost / 2);
+    meta.souls += refund;
+  } else if (gift.kind === 'pet') {
+    meta.pets.push(gift.id);
+    if (!meta.pet) meta.pet = gift.id;
+  } else {
+    meta.bought.push(gift.id);
+    // (it's announced by its own card, so not again after the next run)
+    if (!meta.looksSeen.includes(gift.id)) meta.looksSeen.push(gift.id);
+    if (!meta.headsSeen.includes(gift.id)) meta.headsSeen.push(gift.id);
+    if (gift.kind === 'aura' && !meta.looksSeen.includes(`aura:${gift.id}`)) meta.looksSeen.push(`aura:${gift.id}`);
+  }
+  saveMeta();
+  return { gift, refund };
 }
 
 /** What the next reroll of a relic offer costs in Endless: 100 Souls, doubling with each one this run. */
@@ -1063,6 +1142,7 @@ export function titleUnlocked(id: string): boolean {
   if (kind === 'patron') return meta.patron;
   if (kind === 'welcome') return meta.welcome.claimed >= Number(key);
   if (kind === 'invite') return inviteMet(Number(key));
+  if (kind === 'pyre') return pyreGiven() >= Number(key);
   if (kind === 'story') return storyDone(key === 'all' || key === 'bell' ? STORY_ALL : Number(key));
   if (kind === 'shame') return Boolean(meta.shame[key]);
   if (kind === 'feat') return Boolean(meta.achievements[key]);

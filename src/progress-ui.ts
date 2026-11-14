@@ -5,14 +5,15 @@ import { relicIcon } from './relic-icons';
 import { sfx } from './audio';
 import { ACHIEVEMENTS, COMBOS, HEROES, HERO_BY_ID, type AchievementDef, type ComboDef, type HeroId } from './content';
 import { heroPortrait } from './hero';
-import { RELIC_COSTS, type UnlockNote, buyHero, buyItem, buyPet, lookUnlocked, openSeasons, outfitFor, buyRelic, heroUnlocked, meta, relicDiscovered, saveMeta } from './meta';
+import { PYRE_GOAL, PYRE_SHARE, RELIC_COSTS, type UnlockNote, buyHero, buyItem, buyPet, claimPyreHound, giftables, notePyre, pyreEvent, pyreGiven, spendSouls, lookUnlocked, openSeasons, outfitFor, buyRelic, heroUnlocked, meta, relicDiscovered, saveMeta } from './meta';
 import { AURAS, DECOR, DUNCE_AT, HEADS, LEGENDARY, LOOKS, MASTERY_SOULS, SEASONS, SHAME, isMarket, masteryRank, marketPiece, seasonOf, shopPrice, type AuraDef } from './progression';
 import { dailyNumber } from './daily';
 import { auraClass } from './aura';
 import { ASCEND_FLOOR, ENDLESS_RELICS, FUSIONS, RELICS, RELIC_BY_ID, UNLOCKABLE_RELICS, type RelicId } from './relics';
-import { $, esc, on, overlay, showOverlay } from './ui';
+import { $, esc, on, overlay, screen, showOverlay, toast } from './ui';
 import { showWardrobe } from './wardrobe';
 import { SHOP_COMPANIONS } from './companions';
+import { ONLINE, pyreGive, pyreState, sendGift, type PyreState } from './online';
 import { companionPortrait } from './companion-art';
 
 const soulsChip = () => `<div class="souls-chip" title="Souls">💀 <b>${meta.souls}</b> Souls</div>`;
@@ -78,7 +79,25 @@ export function showHeroSelect(onPick: (hero: HeroId) => void, back: () => void,
 
 // ---------- the Ossuary ----------
 
-type OssuaryTab = 'unlocks' | 'wardrobe' | 'hall';
+type OssuaryTab = 'unlocks' | 'wardrobe' | 'hall' | 'gift' | 'pyre';
+
+/** Who is playing, as the online parts of the Ossuary need to know it (main registers this). */
+let host: { signedIn: () => boolean; name: () => string; player: () => string; signIn: (then: () => void) => void } | null = null;
+export function setOssuaryHost(h: NonNullable<typeof host>) {
+  host = h;
+}
+
+/**
+ * Whether the server has gifts and the pyre set up (both arrive in one piece of SQL). Asked once,
+ * the first time the Ossuary opens; until it says yes, neither tab is shown.
+ */
+let onlineShop: boolean | null = null;
+/** True right after the server answered, so redrawing the tab with that answer doesn't ask again. */
+let pyreFresh = false;
+/** The last word from the server on this month's pyre, kept so the tab draws at once. */
+let pyreSeen: { event: string; st: PyreState } | null = null;
+/** Who the last gift went to, so the name is there for the next one. */
+let giftTo = '';
 
 export function showOssuary(back: () => void, tab: OssuaryTab = 'unlocks') {
   const buy = (attrs: string, cost: number) => `<button class="buy" ${attrs} ${meta.souls >= cost ? '' : 'disabled'}>💀 ${cost.toLocaleString()}</button>`;
@@ -177,6 +196,49 @@ export function showOssuary(back: () => void, tab: OssuaryTab = 'unlocks') {
       <h3 class="shop-head">Headwear</h3>
       <div class="shop">${heads.map((h) => item('head', h.id, h.name, shopPrice(h.unlock))).join('')}</div>
       <button class="btn" id="wardrobe">🎨 Open the Wardrobe</button>`;
+  } else if (tab === 'gift') {
+    const ready = Boolean(host?.signedIn());
+    const art = (g: ReturnType<typeof giftables>[number]) =>
+      g.kind === 'pet'
+        ? `<img class="pet-art" src="${companionPortrait(g.id)}" alt="" width="40" height="40" />`
+        : g.kind === 'aura'
+          ? `<img class="${auraClass(g.id).cls}" style="${auraClass(g.id).style}" src="${heroPortrait(meta.hero, {}, [], 4, outfitFor(meta.hero).look, outfitFor(meta.hero).head)}" alt="" width="40" height="40" />`
+          : `<img src="${heroPortrait(meta.hero, {}, [], 4, g.kind === 'look' ? g.id : outfitFor(meta.hero).look, g.kind === 'head' ? g.id : outfitFor(meta.hero).head)}" alt="" width="40" height="40" />`;
+    const label = { pet: 'Companion', aura: 'Aura', look: 'Cloak', head: 'Headwear' };
+    body = `
+      <p class="fine">Send a friend something to wear. You pay its price in Souls and it's waiting for them the next time they open the game. If they already own it, they get half its price in Souls instead. Up to five gifts a day.</p>
+      ${ready
+        ? `<label class="gift-to"><span>Send to</span><input id="gift-to" type="text" maxlength="24" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Their player name" value="${esc(giftTo)}" /></label>
+      <div class="shop">${giftables().sort((a, b) => a.cost - b.cost).map((g) => `<div class="shop-item">
+          ${art(g)}
+          <span class="shop-info"><span class="name">${esc(g.name)}</span><span class="desc">${label[g.kind]}</span></span>
+          <button class="buy gift-send" data-gift="${g.item}" data-cost="${g.cost}" data-name="${esc(g.name)}" ${meta.souls >= g.cost ? '' : 'disabled'}>🎁 ${g.cost.toLocaleString()}</button>
+        </div>`).join('')}</div>`
+        : `<p class="fine">Gifts go from one named player to another, so sign in and pick a name first.</p><button class="btn primary" id="gift-signin">Sign in to send gifts</button>`}`;
+  } else if (tab === 'pyre') {
+    const event = pyreEvent();
+    const st = pyreSeen?.event === event ? pyreSeen.st : null;
+    const mine = Math.max(st?.mine ?? 0, meta.pyre[event] ?? 0);
+    const total = st?.total ?? 0;
+    const pct = Math.min(100, (total / PYRE_GOAL) * 100);
+    const full = total >= PYRE_GOAL;
+    const month = new Date(`${event}-15T00:00:00Z`).toLocaleDateString([], { month: 'long', timeZone: 'UTC' });
+    const tiers: [number, string][] = [[1000, 'Kindler'], [10000, 'Pyre-Keeper'], [50000, 'Soulburner']];
+    const given = pyreGiven();
+    body = `
+      <p class="fine">Everyone in the crypt feeds one fire. Fill it with <b>${PYRE_GOAL.toLocaleString()} Souls</b> before ${esc(month)} ends, and everyone who gave at least ${PYRE_SHARE.toLocaleString()} this month gets the <b>Pyre Hound</b>, a companion you can't buy. A new pyre is lit each month.</p>
+      <div class="pyre">
+        <img class="pet-art pyre-hound" src="${companionPortrait('pyrehound', 5)}" alt="The Pyre Hound" width="70" height="70" />
+        <div class="pyre-bar ${full ? 'full' : ''}"><div class="pyre-fill" style="width:${pct.toFixed(1)}%"></div></div>
+        <p class="pyre-count">${st ? `<b>${total.toLocaleString()}</b> / ${PYRE_GOAL.toLocaleString()} Souls · ${st.givers.toLocaleString()} ${st.givers === 1 ? 'player has' : 'players have'} given${full ? ' · 🔥 The pyre is full!' : ''}` : ONLINE ? 'Asking the pyre…' : 'The pyre needs a connection.'}</p>
+        <p class="pyre-mine">You've given <b>${mine.toLocaleString()}</b> this month${mine >= PYRE_SHARE ? ' · ✓ you share in the Pyre Hound' : ` · ${(PYRE_SHARE - mine).toLocaleString()} more to share in the Pyre Hound`}</p>
+      </div>
+      <div class="pyre-give">
+        ${[500, 1000, 5000, 25000].map((n) => `<button class="buy" data-pyre="${n}" ${meta.souls >= n && st ? '' : 'disabled'}>🔥 ${n.toLocaleString()}</button>`).join('')}
+      </div>
+      <h3 class="shop-head">Titles for giving</h3>
+      <ul class="invite-ladder">${tiers.map(([n, name]) => `<li class="${given >= n ? 'got' : ''}"><span>${given >= n ? '✓' : `${Math.min(given, n).toLocaleString()}/${n.toLocaleString()}`}</span>📜 ${name}</li>`).join('')}</ul>
+      ${st?.top.length ? `<h3 class="shop-head">This month's fire-feeders</h3><ol class="pyre-top">${st.top.map((t) => `<li><span>${esc(t.name || 'A guest')}</span><b>${t.souls.toLocaleString()}</b></li>`).join('')}</ol>` : ''}`;
   } else {
     const decorItem = (d: (typeof DECOR)[number]) => {
       const owned = meta.bought.includes(d.id);
@@ -207,7 +269,20 @@ export function showOssuary(back: () => void, tab: OssuaryTab = 'unlocks') {
     ['unlocks', 'Heroes & relics'],
     ['wardrobe', 'Cosmetics'],
     ['hall', 'Hall decor'],
+    ...(ONLINE && onlineShop ? ([['gift', '🎁 Gifts'], ['pyre', '🔥 Pyre']] as [OssuaryTab, string][]) : []),
   ];
+  if (ONLINE && host && onlineShop === null) {
+    onlineShop = false;
+    const event = pyreEvent();
+    void pyreState(event, host.player()).then((st) => {
+      if (!st) return;
+      onlineShop = true;
+      pyreSeen = { event, st };
+      notePyre(event, st.mine);
+      // (only add the tabs if the player is still looking at the same screen, and hasn't scrolled away)
+      if (screen === 'ossuary' && !overlay.hidden && overlay.scrollTop < 40) showOssuary(back, tab);
+    });
+  }
   showOverlay('ossuary', `
     <h2>The Ossuary</h2>
     <p class="sub">Trade the Souls of the fallen for heroes, relics and finery.</p>
@@ -217,7 +292,83 @@ export function showOssuary(back: () => void, tab: OssuaryTab = 'unlocks') {
     ${body}
     <button class="btn primary" id="back">Back</button>`);
   overlay.querySelectorAll<HTMLButtonElement>('.tabs button').forEach((b) => b.addEventListener('click', () => showOssuary(back, b.dataset.tab as OssuaryTab)));
-  overlay.querySelectorAll<HTMLButtonElement>('.buy').forEach((b) =>
+  // ---- gifts: pick a name, tap an item, tap again to send ----
+  on('#gift-signin', () => host?.signIn(() => showOssuary(back, 'gift')));
+  overlay.querySelector<HTMLInputElement>('#gift-to')?.addEventListener('input', (e) => (giftTo = (e.currentTarget as HTMLInputElement).value));
+  overlay.querySelectorAll<HTMLButtonElement>('.gift-send').forEach((b) =>
+    b.addEventListener('click', async () => {
+      const to = giftTo.trim();
+      const cost = Number(b.dataset.cost);
+      if (!to) {
+        toast('Type the name of the player to send it to.');
+        overlay.querySelector<HTMLInputElement>('#gift-to')?.focus();
+        return;
+      }
+      if (!b.classList.contains('confirm')) {
+        overlay.querySelectorAll('.gift-send.confirm').forEach((o) => o.classList.remove('confirm'));
+        b.classList.add('confirm');
+        b.textContent = `Send to ${to}?`;
+        return;
+      }
+      if (meta.souls < cost) return;
+      b.disabled = true;
+      try {
+        const name = await sendGift(to, b.dataset.gift!);
+        spendSouls(cost);
+        sfx.relic();
+        toast(`🎁 ${b.dataset.name} is on its way to ${name}.`);
+      } catch (e) {
+        toast((e as Error).message || 'The gift could not be sent.');
+      }
+      if (screen === 'ossuary') {
+        const top = overlay.scrollTop;
+        showOssuary(back, 'gift');
+        overlay.scrollTop = top;
+      }
+    }),
+  );
+  // ---- the pyre: ask the server how it burns, and pour Souls on ----
+  const pyreHeard = (event: string, st: PyreState) => {
+    pyreSeen = { event, st };
+    notePyre(event, st.mine);
+    if (claimPyreHound(st.total, Math.max(st.mine, meta.pyre[event] ?? 0))) {
+      sfx.relic();
+      toast('🔥 The pyre is full! The Pyre Hound is yours. Find it in the Wardrobe.');
+    }
+  };
+  if (tab === 'pyre' && ONLINE && host) {
+    const event = pyreEvent();
+    const stale = !pyreSeen || pyreSeen.event !== event || !pyreFresh;
+    pyreFresh = false;
+    if (stale) {
+      void pyreState(event, host.player()).then((st) => {
+        if (!st) return;
+        pyreHeard(event, st);
+        pyreFresh = true;
+        if (screen === 'ossuary' && overlay.querySelector('.pyre')) showOssuary(back, 'pyre');
+      });
+    }
+  }
+  overlay.querySelectorAll<HTMLButtonElement>('[data-pyre]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      const n = Number(b.dataset.pyre);
+      if (!host || meta.souls < n) return;
+      overlay.querySelectorAll<HTMLButtonElement>('[data-pyre]').forEach((o) => (o.disabled = true));
+      const event = pyreEvent();
+      try {
+        const st = await pyreGive(event, host.player(), host.name(), n);
+        spendSouls(n);
+        pyreHeard(event, st);
+        sfx.relic();
+        toast(`🔥 ${n.toLocaleString()} Souls on the pyre.`);
+      } catch (e) {
+        toast((e as Error).message || 'The pyre would not take them.');
+      }
+      pyreFresh = true;
+      if (screen === 'ossuary') showOssuary(back, 'pyre');
+    }),
+  );
+  overlay.querySelectorAll<HTMLButtonElement>('.buy:not(.gift-send):not([data-pyre])').forEach((b) =>
     b.addEventListener('click', () => {
       const ok = b.dataset.pet
         ? buyPet(b.dataset.pet)

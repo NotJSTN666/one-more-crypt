@@ -8,9 +8,9 @@ import { TRIAL_SOULS, trialProgressText, weekTrial } from './trials';
 import { ACHIEVEMENT_BY_ID, DAILY_TOTALS, ELITES, FEATURES, HERO_BY_ID, HEROES, dailyHero, hordeHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait, heroSprite } from './hero';
 import { BOON_BY_ID, ENEMY_INFO, W, MIST_BITE, REAPER_FLOOR, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode, type EnemyKind } from './game';
-import { acceptQuest, checkRun, grantFeats, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, rerollCost, spendSouls, INVITE_SOULS, INVITE_PETS, type InviteGain, finishHordeMeta, receiveGift, equipTitle, FAIR_DAILY, LEAN_DAILY, MISSILE_DAILY, type RunReward } from './meta';
+import { acceptQuest, checkRun, grantFeats, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, rerollCost, spendSouls, acceptPlayerGift, INVITE_SOULS, INVITE_PETS, type InviteGain, finishHordeMeta, receiveGift, equipTitle, FAIR_DAILY, LEAN_DAILY, MISSILE_DAILY, type RunReward } from './meta';
 import { drawGhosts, startGhosts } from './ghosts';
-import { celebrate, celebrateNotes, holdCelebrations, setHallOpener, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
+import { celebrate, celebrateNotes, holdCelebrations, setHallOpener, setOssuaryHost, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
 import { hallFromLink, onVisitIsle, showHall, showPublicHall, soulRankHtml, titleName } from './hall';
 import { AURA_BY_ID, BESTIARY_KINDS, COMMUNITY_GOAL, MASTERY_SOULS, soulSurge, beastPlural, bestiaryTiers, featCosmetics, marketPiece, masteryRank, GIFT_BY_ID, TITLE_BY_ID, HEAD_BY_ID, LOOK_BY_ID, PODIUM, RAID_DECOR_BY_ID, RAID_KIND_LABEL, RAID_REWARDS, STORY_ALL, STREAK_HELMS, WEEKLY, WELCOME, rankFor, titleFxClass, welcomeLabel, type WelcomeReward } from './progression';
@@ -3595,7 +3595,18 @@ async function checkGifts() {
   lastGiftCheck = Date.now();
   giftChecking = true;
   try {
-    const gifts = (await waitingGifts()).filter((g) => GIFT_BY_ID[g.item]);
+    const waiting = await waitingGifts();
+    // A gift from another player: yours as if bought (or Souls, if you already had it).
+    const sent = waiting.find((g) => g.item.startsWith('p:'));
+    if (sent && screen === 'title') {
+      const got = acceptPlayerGift(sent.item);
+      if (got) {
+        void claimGift(sent.id);
+        showPlayerGift(sent.from, got.gift.name, got.gift.kind, got.refund);
+        return;
+      }
+    }
+    const gifts = waiting.filter((g) => GIFT_BY_ID[g.item]);
     if (!gifts.length || screen !== 'title') return;
     const item = gifts[0].item;
     receiveGift(item);
@@ -3605,6 +3616,20 @@ async function checkGifts() {
   } finally {
     giftChecking = false;
   }
+}
+
+/** A gift from another player: who sent it, what it is, and where to find it. */
+function showPlayerGift(from: string, name: string, kind: 'look' | 'head' | 'aura' | 'pet', refund: number) {
+  const what = { look: 'a cloak', head: 'headwear', aura: 'an aura', pet: 'a companion' }[kind];
+  sfx.relic();
+  showOverlay('gift', `
+    <h2>🎁 A gift from ${esc(from || 'a friend')}</h2>
+    <p class="sub">${esc(from || 'A friend')} sent you <b>${esc(name)}</b>, ${what}.</p>
+    <p class="fine">${refund ? `You already own it, so it came as <b>${refund.toLocaleString()} Souls</b> instead.` : 'It is in your Wardrobe now.'}</p>
+    ${refund ? '' : '<button class="btn primary" id="gift-wear">🎨 Open the Wardrobe</button>'}
+    <button class="btn ${refund ? 'primary' : ''}" id="gift-ok">${refund ? 'Thank you' : 'Later'}</button>`);
+  on('#gift-wear', () => showWardrobe(showTitle));
+  on('#gift-ok', showTitle);
 }
 
 /** The surprise: your hero, wearing the gift, turning in its light. */
@@ -4921,6 +4946,12 @@ document.addEventListener('visibilitychange', () => {
 
 setupInstall();
 setHallOpener((back) => openHall(back));
+setOssuaryHost({
+  signedIn: () => signedIn() && !unclaimed(),
+  name: () => (signedIn() && !unclaimed() ? playerName() : ''),
+  player: () => raidPlayer(session.account?.id),
+  signIn: (then) => showLogin(then, 'claim'),
+});
 onInstallChange(() => {
   if (screen === 'title') showTitle();
 });
