@@ -42,6 +42,8 @@ export const NEWS: NewsDay[] = [
       '☠️ Every way to die now has its own ending on the board: run through, shot, burned in lava, impaled on spikes, blown apart, taken by the plague, or broken by a boss.',
       '🛒 Companions are for sale in the Ossuary, under Cosmetics: eight to collect for Souls, from the Tame Ghoul to the Pocket Lich. Pick who follows you in the Wardrobe.',
       '🎲 In Endless you can now pay Souls to reroll the relics on offer: 100 Souls the first time, doubling with each reroll in that run.',
+      '🎁 Send a friend a gift: in the Ossuary\'s new Gifts tab, pick any cloak, headwear, aura or companion it sells and send it to another player by name. If they already own it, they get half its price in Souls.',
+      '🔥 The Soul Pyre is lit: everyone feeds one fire in the Ossuary. Fill it with 500,000 Souls before the month ends and everyone who gave 1,000 or more gets the Pyre Hound. New titles for giving: Kindler, Pyre-Keeper and Soulburner.',
       '🥇 The reward screen for finishing 1st in a Daily now mentions the gold glow your Crypt Champion title gets. Thanks to Seabastin for the report!',
     ],
   },
