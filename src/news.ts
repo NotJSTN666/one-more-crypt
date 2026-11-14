@@ -24,7 +24,8 @@ export interface NewsDay {
 export const NEWS: NewsDay[] = [
   {
     date: '2026-11-13',
-    title: 'Heavier hits and a livelier crypt',
+    title: 'Heavier hits, companions, gifts and the Soul Pyre',
+    go: ['endless', 'wardrobe'],
     notes: [
       '💥 Hits land harder in the crypt: struck foes are knocked back, every kill holds the world still for a blink, and so does a blow that hurts you.',
       '🔢 Damage numbers are bigger than words like BLOCK and RISE, and pop-ups that used to land on top of each other now stack in a tidy column.',
