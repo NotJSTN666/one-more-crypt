@@ -2508,6 +2508,8 @@ body.tutorial #relic-bar {
 /* The forge's own relic is still gliding in over the card: ours waits, then takes its place without a jump. */
 .fused-reveal.from-fx .fused-emoji { animation: fused-float 2.4s ease-in-out 0.9s infinite; }
 .fused-reveal.handoff .fused-emoji { visibility: hidden; }
+/* (the same for the name: the forge's own glides up onto this line, then this one takes over) */
+.fused-reveal.handoff .fused-name span { visibility: hidden; }
 
 @keyframes fused-land {
   0% { transform: scale(1.8); opacity: 0; filter: brightness(3) drop-shadow(0 0 20px #fff); }

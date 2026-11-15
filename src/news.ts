@@ -30,6 +30,7 @@ export const NEWS: NewsDay[] = [
       '🌿 Crypt Race has prizes: racing earns Laurels (3 for a win against players, 1 for finishing a race, 1 for beating a ghost), and Laurels unlock two new kinds of cosmetic found nowhere else.',
       '💨 Trails follow your hero as they walk: Dust Kick, Ember Step, Lightning Stride and Starfall. Finishers change how the foes you slay burst apart: Gold Burst, Bat Swarm, Soul-Fire and Victory Lap. Wear them from the Wardrobe; they show in every mode.',
       '📜 Two race titles to earn: Quickfoot at 10 Laurels and The Unoutrun at 100. The full prize ladder is on the Crypt Race screen.',
+      '⚒️ In the Soul Forge, a fused relic\'s name now glides up onto its card along with the relic, instead of fading out and popping back in.',
     ],
   },
   {

@@ -199,9 +199,10 @@ export function tintOf(img: CanvasImageSource | null | undefined, fallback: stri
 /**
  * `onHandoff` is called once as the light starts to fade, so the caller can put the relic's card
  * up underneath; `target` then says where the relic sits on that card, and the one drawn here
- * glides onto it, so the card seems to form round the relic the forge just made.
+ * glides onto it, so the card seems to form round the relic the forge just made. `nameTarget`
+ * does the same for the name: where it sits on the card, how big, and in what colour.
  */
-export function playFusion(opts: { a: string; b: string; out: string; name: string; ascended: boolean; onDone: () => void; onHandoff?: () => void; target?: () => DOMRect | null; aImg?: CanvasImageSource | null; bImg?: CanvasImageSource | null; outImg?: CanvasImageSource | null }) {
+export function playFusion(opts: { a: string; b: string; out: string; name: string; ascended: boolean; onDone: () => void; onHandoff?: () => void; target?: () => DOMRect | null; nameTarget?: () => { rect: DOMRect; size: number; color: string } | null; aImg?: CanvasImageSource | null; bImg?: CanvasImageSource | null; outImg?: CanvasImageSource | null }) {
   if (calmChosen()) return opts.onDone();
   // The forge's own colour (blue, or gold when ascended) lights the new relic; the two relics
   // going in each bring their own colour to the circle, their trails, the sparks and the waves.
@@ -652,10 +653,23 @@ export function playFusion(opts: { a: string; b: string; out: string; name: stri
       const q = clamp((after - 0.42) / 0.25);
       if (q > 0) {
         const scale = 1 + (1 - easeOut(q)) * 1.2;
-        const nameSize = Math.min(64, w * 0.12);
+        const burstSize = Math.min(64, w * 0.12);
+        // As the light fades the name glides up to its line on the card beneath, shrinking to
+        // the card's lettering and taking its colour, so it never blinks out and back.
+        const spotN = handed ? opts.nameTarget?.() : null;
+        // (a name long enough to wrap on the card can't be followed as one line: that one fades as before)
+        const to = spotN && spotN.rect.height < spotN.size * 1.9 ? spotN : null;
+        const n0 = 1 - fadeOut;
+        const nm = to ? n0 * n0 * (3 - 2 * n0) : 0;
+        const nameSize = to ? burstSize + (to.size - burstSize) * nm : burstSize;
+        const fromY = cy + Math.min(w, h) * 0.3;
+        const nx = to ? cx + (to.rect.left + to.rect.width / 2 - cx) * nm : cx;
+        const ny = to ? fromY + (to.rect.top + to.rect.height / 2 + to.size * 0.34 - fromY) * nm : fromY;
+        // everything round the name (its band, the FUSED line, its dark edge) fades with the light
+        const around = to ? fadeOut : 1;
         ctx.save();
         ctx.globalAlpha = q * fadeOut;
-        ctx.translate(cx, cy + Math.min(w, h) * 0.3);
+        ctx.translate(nx, ny);
         ctx.scale(scale, scale);
         ctx.textAlign = 'center';
         ctx.font = `${nameSize}px "Pirata One", Georgia, serif`;
@@ -675,13 +689,22 @@ export function playFusion(opts: { a: string; b: string; out: string; name: stri
         ctx.lineWidth = Math.max(3, nameSize * 0.14);
         ctx.strokeStyle = '#0a0612';
         ctx.strokeText(opts.name, 0, 0);
+        // the name itself stays solid all the way when it has somewhere to go
+        ctx.globalAlpha = to ? q : q * fadeOut;
         const ng = ctx.createLinearGradient(0, -nameSize * 0.8, 0, nameSize * 0.1);
         ng.addColorStop(0, '#ffffff');
         ng.addColorStop(1, color);
         ctx.fillStyle = ng;
         ctx.shadowColor = color;
-        ctx.shadowBlur = 24;
+        ctx.shadowBlur = 24 * around + 14 * (1 - around);
         ctx.fillText(opts.name, 0, 0);
+        if (to && nm > 0) {
+          // its colour turns to the card's as it arrives
+          ctx.globalAlpha = q * nm;
+          ctx.fillStyle = to.color;
+          ctx.shadowBlur = 0;
+          ctx.fillText(opts.name, 0, 0);
+        }
         ctx.restore();
       }
     }

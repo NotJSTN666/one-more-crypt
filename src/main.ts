@@ -2596,6 +2596,13 @@ function showFused(id: FusedId, first: boolean) {
     aImg: iconCanvas(`m:${a.id}`), bImg: iconCanvas(`m:${b.id}`), outImg: iconCanvas(`m:${id}`),
     onHandoff: () => card(true),
     target: () => (overlay.querySelector('.fused-emoji .ri') ?? overlay.querySelector('.fused-emoji'))?.getBoundingClientRect() ?? null,
+    nameTarget: () => {
+      // the name's own letters on the card, not the full-width line they sit in
+      const el = overlay.querySelector<HTMLElement>('.fused-name span');
+      if (!el) return null;
+      const cs = getComputedStyle(el);
+      return { rect: el.getBoundingClientRect(), size: parseFloat(cs.fontSize) || 28, color: cs.color };
+    },
     onDone: () => {
       fusionPlaying = false;
       // (skipped with a tap, or no animation at all: the card simply appears)
@@ -2619,7 +2626,7 @@ function fusedCard(id: FusedId, first: boolean, grants: string, fromFx = false) 
       </div>
       ${first ? '<p class="fused-new">✨ New discovery</p>' : ''}
       <p class="fused-kind">${ascended ? 'Ascended relic' : 'Fused relic'}</p>
-      <h2 class="fused-name">${esc(def.name)}</h2>
+      <h2 class="fused-name"><span>${esc(def.name)}</span></h2>
       <div class="fused-recipe" role="img" aria-label="Forged from ${esc(a.name)} and ${esc(b.name)}">
         <span class="fr-a" title="${esc(a.name)}">${relicIcon(a.id, a.emoji)}</span><span class="fr-op">+</span><span class="fr-b" title="${esc(b.name)}">${relicIcon(b.id, b.emoji)}</span><span class="fr-op">=</span><span class="fr-out">${relicIcon(id, def.emoji)}</span>
       </div>
