@@ -6320,7 +6320,9 @@ body.menu:has(#overlay[data-screen='title']:not([hidden])) #ghosts { opacity: 0.
 #race-rivals .race-boards { display: flex; gap: 6px; }
 .race-rival canvas { display: block; image-rendering: pixelated; }
 .race-rival.down canvas { filter: grayscale(1) brightness(0.6); }
-.race-rival .race-name { display: flex; justify-content: space-between; gap: 6px; margin: 0 0 4px; font-family: var(--read); font-size: 11px; color: var(--muted); }
+.race-rival .race-name { display: flex; flex-wrap: wrap; justify-content: space-between; column-gap: 6px; margin: 0 0 4px; font-family: var(--read); font-size: 11px; line-height: 1.25; color: var(--muted); }
+/* (a small board puts the name on its own line, so it isn't cut short) */
+#race-rivals:not([data-n='1']) .race-rival .race-name b { flex: 1 1 100%; }
 .race-rival .race-name b { font-weight: normal; color: var(--gold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .race-rival .race-name span { white-space: nowrap; }
 #race-rivals[data-n='3'] .race-name span { display: none; }
@@ -6328,8 +6330,10 @@ body.menu:has(#overlay[data-screen='title']:not([hidden])) #ghosts { opacity: 0.
 #race-rivals .race-clock.late { color: #ff4d5a; animation: live-dot 0.8s ease-in-out infinite; }
 #overlay:not([hidden]) ~ #race-rivals { display: none; }
 @media (min-width: 1000px) and (min-height: 560px) {
-  #race-rivals { left: 32px; bottom: 32px; }
+  /* bottom right, under the controls, where nothing else sits: the left column has the HUD and the foes */
+  #race-rivals:not(.big) { left: auto; right: 32px; bottom: 32px; }
   #race-rivals:not(.big) .race-boards { flex-direction: column; }
+  #race-rivals[data-n='3']:not(.big) .race-boards { flex-direction: row; flex-wrap: wrap; max-width: 260px; }
   #race-rivals[data-n='3'] .race-name span { display: inline; }
   .race-rival .race-name { font-size: 12px; }
 }

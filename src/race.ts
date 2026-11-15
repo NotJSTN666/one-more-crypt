@@ -575,7 +575,7 @@ function sizeRivals() {
   const desk = matchMedia('(min-width: 1000px) and (min-height: 560px)').matches;
   const big = rack.classList.contains('big');
   const n = r.rivals.length;
-  const size = n === 1 ? (desk || big ? 224 : 112) : n === 2 || desk || big ? 112 : 80;
+  const size = n === 1 ? (desk || big ? 224 : 112) : desk && !big ? (n === 2 ? 150 : 112) : n === 2 || big ? 112 : 80;
   for (const v of r.rivals) {
     v.renderer?.resize(size);
     // (the board fits to whole pixels, so the name above it takes the board's real width)
