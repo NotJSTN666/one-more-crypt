@@ -791,3 +791,10 @@ create or replace function public.send_chat(p_body text) returns json language p
 revoke all on function public.send_chat(text) from public;
 grant execute on function public.send_chat(text) to authenticated;
 alter publication supabase_realtime add table public.chat;
+
+-- How many are in the crypt right now, for a phone widget or any outside display: counts only,
+-- from the Census's presence rows (a game checks in about once a minute while it's open).
+-- GET <project>/rest/v1/rpc/players_now?apikey=<publishable key> answers {"online", "playing", "at"}.
+create or replace function public.players_now() returns json language sql stable security definer set search_path = public as $$ select json_build_object('online', count(*) filter (where updated_at > now() - interval '2 minutes'), 'playing', count(*) filter (where updated_at > now() - interval '2 minutes' and doing not in ('', 'title')), 'at', now()) from public.presence $$;
+revoke all on function public.players_now() from public;
+grant execute on function public.players_now() to anon, authenticated;
