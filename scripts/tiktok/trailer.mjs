@@ -379,8 +379,8 @@ if (process.env.RACE === '1') {
     return { user_id: 'rival', seed, floor: again.floor, kills: again.kills, turns: again.turns, log: full, seconds: Math.round(g.log.length * 0.4) };
   })];
   await hookSfx();
-  // (the rival's board, twice its size: on a video it has to be seen)
-  await p.addStyleTag({ content: '#race-rivals:not(.big) { transform: scale(1.9); transform-origin: bottom right; }' });
+  // (the rival's board, a size up: on a video it has to be seen, without covering the hero's own)
+  await p.addStyleTag({ content: '#race-rivals:not(.big) { transform: scale(1.3); transform-origin: bottom right; }' });
   await press('#race'); await tick(30);
   await press('#race-ghost');
   await sure(() => !!document.querySelector('.race-count'), 'the race countdown');
