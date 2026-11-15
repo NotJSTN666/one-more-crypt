@@ -5135,9 +5135,13 @@ setRaceHost({
     const id = raidPlayer(session.account?.id);
     return { id, name: signedIn() ? playerName() : `Guest ${id.replace(/[^a-z0-9]/gi, '').slice(-4).toUpperCase()}` };
   },
+  // Every race deals a fresh crypt and a random hero, with every relic in play and no isle
+  // bonus, so the matchup is even and nobody's own unlocks decide it.
   newCrypt: () => {
     const seed = (Math.random() * 2 ** 32) >>> 0;
-    return { seed, head: new Game('endless', seed, 0, runConfig('endless', 0)).header() };
+    const hero = HEROES[Math.floor(Math.random() * HEROES.length)].id;
+    const { vigor: _vigor, ...rules } = runConfig('endless', 0);
+    return { seed, head: new Game('endless', seed, 0, { ...rules, hero, pool: fullPool() }).header() };
   },
   start: (seed, head) => {
     unlockAudio();

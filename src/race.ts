@@ -15,6 +15,7 @@
 // A race run is its own thing: never saved, never on a leaderboard, no feats. It pays a few
 // Souls at the end. Nothing here needs a table: it's all one live channel per room.
 
+import { HERO_BY_ID } from './content';
 import { Game } from './game';
 import { ONLINE, raceGhosts, raceLink, type RaceLink } from './online';
 import { Renderer } from './render';
@@ -153,7 +154,7 @@ export function showRaceMenu() {
   showOverlay('race', `
     <button class="btn back-top" id="back">← Back</button>
     <h2>⚔️ Crypt Race</h2>
-    <p class="sub">Up to four players, the same crypt, the same hero, at the same time. You see each other play. Deepest floor in five minutes wins.</p>
+    <p class="sub">Up to four players, the same crypt, the same random hero, at the same time. You see each other play. Deepest floor in five minutes wins.</p>
     <button class="btn primary" id="race-join-open">⚔️ Join a race<small>Jump in with whoever is waiting. It starts when everyone is ready, or when four are in.</small></button>
     <button class="btn" id="race-ghost">👻 Race a ghost<small>A real player's run, played back beside you. Always ready.</small></button>
     <details class="race-private">
@@ -529,10 +530,16 @@ function countdown(ms: number) {
     showOverlay('race', `
       <h2>⚔️ You <small>vs</small> ${esc(names(r))}</h2>
       <p class="sub">${r.kind === 'ghost' ? 'A recorded run by a real player. ' : ''}Same crypt, same hero. Deepest floor in five minutes wins.</p>
+      <p class="race-hero">${r.kind === 'ghost' ? 'Their hero' : 'This race\'s hero'}: <b>${esc(raceHero(r.head))}</b></p>
       <p class="race-count">${n > 3 ? 'Ready' : n}</p>`);
     window.setTimeout(tick, 200);
   };
   tick();
+}
+
+/** The hero a race was dealt, by name. */
+function raceHero(head: string): string {
+  return HERO_BY_ID[Game.parseLog(head).config.hero]?.name ?? 'Knight';
 }
 
 function resetRival(r: Race, v: Rival) {
