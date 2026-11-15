@@ -5066,13 +5066,13 @@ updateMuteIcon();
 fitBoard();
 newGame('endless');
 // ---------- links straight to a mode ----------
-// onemorecrypt.com/?play=daily|endless|horde|night opens that mode, so a post about the
+// onemorecrypt.com/?play=daily|endless|horde|night|race opens that mode, so a post about the
 // Night Shift can link right into it. The parameter is dropped from the address afterwards,
 // so a reload lands on the title as usual.
 
-type PlayMode = 'daily' | 'endless' | 'horde' | 'night';
+type PlayMode = 'daily' | 'endless' | 'horde' | 'night' | 'race';
 const PLAY_MODES: Record<string, PlayMode> = {
-  daily: 'daily', endless: 'endless', horde: 'horde', night: 'night', nightshift: 'night',
+  daily: 'daily', endless: 'endless', horde: 'horde', night: 'night', nightshift: 'night', race: 'race',
 };
 
 function playFromLink(): PlayMode | null {
@@ -5091,6 +5091,7 @@ function playFromLink(): PlayMode | null {
 /** Press a mode's button on the title screen (Continue when that mode has a run waiting). */
 function openMode(mode: PlayMode) {
   const resumable = savedRun();
+  if (mode === 'race') return void overlay.querySelector<HTMLButtonElement>('#race')?.click();
   if (mode !== 'daily') showDelve();
   const id = resumable?.mode === mode ? 'continue' : mode === 'night' ? 'nightshift' : mode;
   overlay.querySelector<HTMLButtonElement>(`#${id}`)?.click();
