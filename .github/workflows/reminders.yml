@@ -13,6 +13,14 @@ on:
         description: 'Send a test notification to this player now (leave empty for a normal run)'
         type: string
         default: ''
+      announce_title:
+        description: 'Send one announcement to every signed-up device: its title (needs the text below too)'
+        type: string
+        default: ''
+      announce_body:
+        description: 'The announcement text'
+        type: string
+        default: ''
       dry_run:
         description: 'Only print what would be sent'
         type: boolean
@@ -43,4 +51,6 @@ jobs:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           POST_EMAIL_TO: ${{ secrets.POST_EMAIL_TO }}
           TEST_NAME: ${{ inputs.test_name }}
+          ANNOUNCE_TITLE: ${{ inputs.announce_title }}
+          ANNOUNCE_BODY: ${{ inputs.announce_body }}
           DRY_RUN: ${{ inputs.dry_run }}

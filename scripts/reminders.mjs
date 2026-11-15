@@ -11,6 +11,8 @@
 // Needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY. The notification keys live in the
 // private push_config table; the first run makes them.
 // TEST_NAME=<player>: send that player a test notification now instead.
+// ANNOUNCE_TITLE and ANNOUNCE_BODY: send that one notification to every signed-up device now instead
+// (for news, run by hand from the workflow's page).
 // DRY_RUN=true: only print what would be sent.
 import webpush from 'web-push';
 
@@ -20,6 +22,8 @@ const supabaseUrl = (env.SUPABASE_URL ?? '').trim().replace(/\/(rest|auth)\/v1\/
 const serviceKey = (env.SUPABASE_SERVICE_ROLE_KEY ?? '').trim();
 const DRY_RUN = env.DRY_RUN === 'true';
 const TEST_NAME = (env.TEST_NAME ?? '').trim();
+const ANNOUNCE_TITLE = (env.ANNOUNCE_TITLE ?? '').trim();
+const ANNOUNCE_BODY = (env.ANNOUNCE_BODY ?? '').trim();
 
 const MORNING = [8, 12]; // local hours [from, to)
 const EVENING = [19, 23];
@@ -122,7 +126,7 @@ async function send(sub, payload, ttlHours) {
       TTL: Math.round(ttlHours * 3600),
       urgency: 'normal',
       // An unread notification is replaced by a newer one of the same kind.
-      topic: payload.tag === 'rival' ? 'rival' : 'daily',
+      topic: payload.tag === 'rival' || payload.tag === 'news' ? payload.tag : 'daily',
     });
     return true;
   } catch (e) {
@@ -199,6 +203,14 @@ if (TEST_NAME) {
   const [mail] = await rest(`email_reminders?user_id=eq.${profile.id}&select=email,token`).catch(() => []);
   if (mail) await sendEmail(mail, { subject: 'Test reminder from One More Crypt 🕯️', lead: 'Email reminders are working.', today: dailyNumber(Date.now()), champ: null });
   else console.log(`${TEST_NAME} has no email reminders on.`);
+  process.exit(0);
+}
+
+if (ANNOUNCE_TITLE && ANNOUNCE_BODY) {
+  const subs = await rest('push_subs?select=endpoint,p256dh,auth');
+  let sent = 0;
+  for (const sub of subs) if (await send(sub, { title: ANNOUNCE_TITLE, body: ANNOUNCE_BODY, url: `${SITE}?ref=push`, tag: 'news' }, 24)) sent++;
+  console.log(`Announcement sent to ${sent} of ${subs.length} device(s).`);
   process.exit(0);
 }
 
