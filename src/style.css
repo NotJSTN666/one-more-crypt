@@ -6424,3 +6424,8 @@ body.menu:has(#overlay[data-screen='title']:not([hidden])) #ghosts { opacity: 0.
 @keyframes chat-bob { 0%, 100% { transform: translateY(0) rotate(0); } 30% { transform: translateY(-3px) rotate(-6deg); } 60% { transform: translateY(0) rotate(4deg); } }
 @keyframes chat-dot { 0%, 60%, 100% { opacity: 0.35; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
 @media (prefers-reduced-motion: reduce) { .chat-chip.typing .chat-bubble, .typing-dots i { animation: none; opacity: 1; } }
+
+/* the chat's 💬 button on screens other than the title (chat.ts) */
+#chat-fab { position: fixed; z-index: 850; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); }
+#chat-fab[hidden] { display: none; }
+#chat-fab .chat-chip { display: flex; align-items: center; justify-content: center; width: 46px; height: 46px; max-width: none; padding: 0; font-size: 22px; overflow: visible; border-color: rgba(242, 193, 78, 0.5); box-shadow: 0 2px 12px rgba(0, 0, 0, 0.7); }

@@ -110,7 +110,7 @@ function typingText(names: string[]): string {
 /** The 💬 button bobs with dots while someone types; the drawer names them. */
 function paintTyping() {
   const names = typingNames();
-  document.querySelectorAll('#title-chat').forEach((b) => b.classList.toggle('typing', names.length > 0));
+  document.querySelectorAll('[data-chat]').forEach((b) => b.classList.toggle('typing', names.length > 0));
   const line = drawer?.querySelector<HTMLElement>('.chat-typing');
   if (line) line.innerHTML = names.length ? `${typingText(names)}<span class="typing-dots"><i></i><i></i><i></i></span>` : '';
 }
@@ -123,10 +123,10 @@ function noteTyping() {
 }
 
 /** The 💬 button for the title screen's top row (empty until the chat is known to be there). */
-export function chatChipHtml(): string {
+export function chatChipHtml(id = 'title-chat'): string {
   if (!ready) return '';
   const typing = typingNames().length > 0;
-  return `<button class="account-chip mute-chip chat-chip${typing ? ' typing' : ''}" id="title-chat" aria-label="Chat${unread ? `, ${unread} new` : ''}"><span class="chat-bubble">💬</span><span class="typing-dots" aria-hidden="true"><i></i><i></i><i></i></span>${unread ? `<i class="news-dot"></i>` : ''}</button>`;
+  return `<button class="account-chip mute-chip chat-chip${typing ? ' typing' : ''}" ${id ? `id="${id}" ` : ''}data-chat aria-label="Chat${unread ? `, ${unread} new` : ''}"><span class="chat-bubble">💬</span><span class="typing-dots" aria-hidden="true"><i></i><i></i><i></i></span>${unread ? `<i class="news-dot"></i>` : ''}</button>`;
 }
 
 function paintChip() {
@@ -134,10 +134,37 @@ function paintChip() {
   chips.forEach((b) => (b.outerHTML = chatChipHtml()));
   // (the first time, the title screen is already up without one)
   if (!chips.length) document.querySelectorAll('#title-settings').forEach((b) => b.insertAdjacentHTML('beforebegin', chatChipHtml()));
+  paintFab();
+}
+
+// ---- the 💬 button on other screens: a corner button over the menus, the Crypt Race lobby and
+// the results, so the chat is never more than a tap away (not on the title, which has its own,
+// and not over a run, the Night Shift or the story's world) ----
+const NO_FAB = ['title', 'nightshift', 'hollow', 'choose', 'event', 'fused', 'build'];
+let fab: HTMLElement | null = null;
+
+function paintFab() {
+  if (!ready) return;
+  if (!fab) {
+    fab = document.createElement('div');
+    fab.id = 'chat-fab';
+    document.body.appendChild(fab);
+    const overlay = document.getElementById('overlay');
+    if (overlay) new MutationObserver(placeFab).observe(overlay, { attributes: true, attributeFilter: ['hidden', 'data-screen'] });
+  }
+  fab.innerHTML = chatChipHtml('');
+  placeFab();
+}
+
+function placeFab() {
+  if (!fab) return;
+  const overlay = document.getElementById('overlay');
+  const shown = Boolean(overlay && !overlay.hidden && !NO_FAB.includes(overlay.dataset.screen ?? ''));
+  fab.hidden = !shown;
 }
 
 document.addEventListener('click', (e) => {
-  if ((e.target as HTMLElement).closest?.('#title-chat')) {
+  if ((e.target as HTMLElement).closest?.('[data-chat]')) {
     e.preventDefault();
     if (drawer) closeChat();
     else openChat();
