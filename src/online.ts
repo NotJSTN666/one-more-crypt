@@ -574,6 +574,9 @@ export interface RaceLink {
 /** Join a race room. `onMsg` gets every message from the others; `onPeers` the ids present whenever that changes. */
 export async function raceLink(code: string, id: string, onMsg: (from: string, msg: Record<string, unknown>) => void, onPeers: (ids: string[]) => void): Promise<RaceLink> {
   const sb = await client();
+  // The library hands back a channel already open to this room (the title screen's watch on the
+  // lobby, say) instead of a new one, and that one can't take presence any more: close it first.
+  for (const c of sb.getChannels()) if (c.topic === `realtime:omc-race:${code}`) await sb.removeChannel(c);
   const channel = sb.channel(`omc-race:${code}`, { config: { broadcast: { self: false }, presence: { key: id } } });
   channel.on('broadcast', { event: 'm' }, ({ payload }) => {
     const p = payload as { from?: unknown; msg?: unknown };
