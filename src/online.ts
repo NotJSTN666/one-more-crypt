@@ -957,3 +957,52 @@ export async function nightBoard(period: 'all' | 'week'): Promise<NightRow[] | n
     earned: Math.max(0, Math.floor(Number(r.earned) || 0)),
   }));
 }
+
+// ---------- live chat ----------
+
+export interface ChatLine {
+  id: number;
+  user_id: string;
+  name: string;
+  body: string;
+  created_at: string;
+}
+
+const chatLine = (r: Record<string, unknown>): ChatLine | null =>
+  typeof r?.id === 'number' && typeof r.body === 'string' && typeof r.name === 'string'
+    ? { id: r.id, user_id: String(r.user_id ?? ''), name: r.name, body: r.body, created_at: String(r.created_at ?? '') }
+    : null;
+
+/** The newest messages, oldest first, or null when chat isn't set up on the server. */
+export async function chatRecent(limit = 60): Promise<ChatLine[] | null> {
+  if (!ONLINE) return null;
+  try {
+    const sb = await client();
+    const { data, error } = await sb.from('chat').select('id, user_id, name, body, created_at').order('id', { ascending: false }).limit(limit);
+    if (error || !Array.isArray(data)) return null;
+    return (data as Record<string, unknown>[]).map(chatLine).filter((l): l is ChatLine => l !== null).reverse();
+  } catch {
+    return null;
+  }
+}
+
+/** Say something. Throws an OnlineError with the reason when the server turns it down. */
+export async function sendChat(body: string): Promise<ChatLine> {
+  const sb = await client();
+  const { data, error } = await sb.rpc('send_chat', { p_body: body });
+  if (error) throw friendly(error, 'Could not send that.');
+  const line = chatLine(data as Record<string, unknown>);
+  if (!line) throw new OnlineError('Could not send that.');
+  return line;
+}
+
+/** New messages as they're sent, by anyone. */
+export async function watchChat(onLine: (line: ChatLine) => void): Promise<void> {
+  const sb = await client();
+  sb.channel('omc-chat')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat' }, (p) => {
+      const line = chatLine(p.new as Record<string, unknown>);
+      if (line) onLine(line);
+    })
+    .subscribe();
+}

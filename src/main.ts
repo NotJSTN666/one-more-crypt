@@ -43,6 +43,7 @@ import { currentStreak, loadSave, recordDaily, streakStats, WARD_EVERY, writeSav
 import { $, calmChosen, calmMotion, esc, formStatus, hideOverlay, on, onSubmit, overlay, overlayShownAt, screen, setCalm, showOverlay, toast } from './ui';
 import { showTesterAsk, testerAskDue, testerOffer } from './testers';
 import { PODIUM_PRIZES, RACE_PRIZES } from './race-prizes';
+import { chatChipHtml, startChat } from './chat';
 import { joinRoom, leaveRace, raceFrame, raceFromLink, raceOn, raceRunEnded, setRaceHost, showRaceMenu, watchLobby } from './race';
 import { inviteAskDue, noteDailyForInvite, showInviteAsk } from './invite-ask';
 
@@ -2155,6 +2156,7 @@ function muteChipHtml(): string {
 function accountChip(): string {
   const mute = muteChipHtml()
     + `<button class="account-chip mute-chip news-chip" id="title-news" aria-label="What's new${newsUnread() ? `, ${newsUnread()} unread` : ''}">📰${newsUnread() ? '<i class="news-dot"></i>' : ''}</button>`
+    + chatChipHtml()
     + `<button class="account-chip mute-chip" id="title-settings" aria-label="Settings">⚙️</button>`
     + (PORTAL ? '' : `<button class="account-chip mute-chip kofi-chip ${calmMotion() ? 'still' : ''}" id="title-kofi" aria-label="Support One More Crypt"><span class="kofi-heart" aria-hidden="true">❤️</span></button>`)
     // Install, up top beside the sound, wherever the browser can add the game to the home screen.
@@ -5113,7 +5115,13 @@ void initSocial(save, () => {
   // First visit, or back from an email link / X sign-in that still needs a name.
   if (needsName()) showLogin(showTitle, 'name');
   else showTitle();
-});
+}).then(() =>
+  // Live chat (see chat.ts): its button joins the title screen once the server answers.
+  startChat({
+    me: () => (session.account?.name && !unclaimed() ? { id: session.account.id, name: session.account.name } : null),
+    signIn: () => showLogin(showTitle, unclaimed() ? 'claim' : 'start'),
+  }),
+).catch(() => undefined);
 showTitle();
 // On CrazyGames: their SDK, told the game has loaded, and their mute setting obeyed.
 void initPortal((on) => setMuted(on)).then(portalLoaded);
