@@ -335,6 +335,68 @@ await play(0.6);
 await keepSfx();
 }
 
+// ---- Crypt Race (RACE=1): a race against another player's run, their board beside yours ----
+// Off camera, a run is played through to make the rival: its input log is served in place of the
+// server's, so the race's ghost is a real game of this crypt, played back at the pace it was played.
+if (process.env.RACE === '1') {
+  await p.route('**/rest/v1/runs*', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(window_ghost) }));
+  await p.route('**/rest/v1/profiles*', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ id: 'rival', name: 'Bonepicker' }]) }));
+}
+var window_ghost = [];
+if (process.env.RACE === '1') {
+  await stage();
+  await dress();
+  await p.evaluate(() => { document.getElementById('tt-black').style.opacity = 1; });
+  window_ghost = [await p.evaluate(async () => {
+    const { Game, fullPool } = await import('/src/game.ts');
+    const seed = 424242;
+    const g = new Game('endless', seed, 0, { hero: 'rogue', pool: fullPool(), forge: true, mercy: true, depths: true, boons: true });
+    const W = 7;
+    for (let i = 0; i < 400 && g.phase !== 'dead' && g.floor < 7; i++) {
+      if (g.phase === 'choose') { g.choose(0); continue; }
+      if (g.phase === 'event') { g.resolveEvent(false); continue; }
+      const P = g.player, key = (x, y) => y * W + x;
+      const foes = g.enemies.filter((e) => !e.dead && !e.ally);
+      const targets = new Set(foes.length ? foes.map((e) => key(e.x, e.y)) : g.stairsOpen ? [key(g.stairs.x, g.stairs.y)] : []);
+      let step = [0, 0];
+      const prev = new Map([[key(P.x, P.y), null]]), q = [[P.x, P.y]];
+      search: while (q.length) {
+        const [x, y] = q.shift();
+        for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
+          const nx = x + dx, ny = y + dy, k = key(nx, ny);
+          if (nx < 0 || ny < 0 || nx >= W || ny >= W || prev.has(k)) continue;
+          if (targets.has(k)) { let c = [x, y], f = [dx, dy]; while (prev.get(key(c[0], c[1]))) { const pr = prev.get(key(c[0], c[1])); f = [c[0] - pr[0], c[1] - pr[1]]; c = pr; } step = f; break search; }
+          if (g.isWall(nx, ny)) continue;
+          prev.set(k, [x, y]); q.push([nx, ny]);
+        }
+      }
+      g.player.hp = Math.max(g.player.hp, 4);
+      if (!g.act(step[0], step[1])) g.act(0, 0);
+    }
+    const full = g.header() + g.log;
+    // (the ghost must replay exactly: rebuild it from the log as the race will)
+    const again = Game.replay('endless', seed, 0, full);
+    return { user_id: 'rival', seed, floor: again.floor, kills: again.kills, turns: again.turns, log: full, seconds: Math.round(g.log.length * 0.4) };
+  })];
+  await hookSfx();
+  await press('#race'); await tick(30);
+  await press('#race-ghost');
+  await sure(() => !!document.querySelector('.race-count'), 'the race countdown');
+  blackWant = 0;
+  caption('New: <b>Crypt Race</b>. Race other players through the same crypt.');
+  await hold(3.4);
+  await sure(() => !!document.getElementById('race-rivals') && document.querySelector('#overlay')?.hidden, 'the race to start');
+  caption('Their run plays out <b>beside yours</b>. Deepest floor in five minutes wins.');
+  for (let i = 0; i < Math.round(8 * FPS); i++) {
+    if (i % GAP === 0) { if (await has('.offer button')) await p.keyboard.press('1'); else await move(); }
+    await shot();
+  }
+  caption('');
+  blackWant = 1;
+  await play(0.6);
+  await keepSfx();
+}
+
 // ---- off camera: an Endless run, far down, with a build to match ----
 await stage();
 await dress();
