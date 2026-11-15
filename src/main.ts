@@ -1850,7 +1850,7 @@ function showDelve() {
     ${endlessBtn}
     ${hordeButtonHtml()}
     ${nightButtonHtml()}
-    ${PORTAL ? '' : '<button class="btn race-btn" id="race">⚔️ Crypt Race<span class="new-tag">NEW</span><small>Race a friend, or a ghost, through the same crypt</small></button>'}
+    ${PORTAL ? '' : '<button class="btn race-btn" id="race">⚔️ Crypt Race<span class="new-tag">NEW</span><small>Join a live race against other players · up to four at once</small></button>'}
   `);
   on('#race', showRaceMenu);
   on('#back', showTitle);
@@ -5061,7 +5061,11 @@ const visiting = hallFromLink();
 if (visiting && ONLINE) showPublicHall(visiting, showTitle);
 // Crypt Race: the game's side of it (see race.ts).
 setRaceHost({
-  me: () => ({ id: raidPlayer(session.account?.id), name: signedIn() ? playerName() : 'A guest' }),
+  // (a guest races under a short tag of their own, so two guests in a lobby can be told apart)
+  me: () => {
+    const id = raidPlayer(session.account?.id);
+    return { id, name: signedIn() ? playerName() : `Guest ${id.replace(/[^a-z0-9]/gi, '').slice(-4).toUpperCase()}` };
+  },
   newCrypt: () => {
     const seed = (Math.random() * 2 ** 32) >>> 0;
     return { seed, head: new Game('endless', seed, 0, runConfig('endless', 0)).header() };

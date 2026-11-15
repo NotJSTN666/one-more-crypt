@@ -27,8 +27,8 @@ export const NEWS: NewsDay[] = [
     title: 'A tidier results screen and an easier first step',
     go: ['daily'],
     notes: [
-      '⚔️ Crypt Race: race a friend through the same crypt at the same time. Open a room under Delve deeper, send the link, and you each see the other\'s run on a small board beside your own. Deepest floor in five minutes wins.',
-      '👻 Nobody around? Race a ghost: a real player\'s recorded run, played back beside you. Races are their own runs: not saved, not on the leaderboards, and they pay Souls at the end.',
+      '⚔️ Crypt Race: live races against other players. Tap Join a race under Delve deeper and you land in the open lobby with whoever else is waiting. When two or more are there it starts: up to four of you in the same crypt, each watching the others\' runs on small boards. Deepest floor in five minutes wins.',
+      '👻 Nobody around? Race a ghost: a real player\'s recorded run, played back beside you. You can also open a private room for a friend. Races are their own runs: not saved, not on the leaderboards, and they pay Souls at the end.',
       '🧹 The results screen is much shorter: your run, what it earned, tomorrow\'s Daily and your streak, and where to go next all fit on one screen. The rest is folded under "More from this run".',
       '🏅 Feats and unlocks from a run are listed on the results instead of popping up over them.',
       '✨ Your hero now has a thin pale rim, so they are easier to pick out on dark stone, and the Harvest leaves on the floor are quieter.',
