@@ -31,6 +31,8 @@ export const NEWS: NewsDay[] = [
       '💨 Trails follow your hero as they walk: Dust Kick, Ember Step, Lightning Stride and Starfall. Finishers change how the foes you slay burst apart: Gold Burst, Bat Swarm, Soul-Fire and Victory Lap. Wear them from the Wardrobe; they show in every mode.',
       '📜 Two race titles to earn: Quickfoot at 10 Laurels and The Unoutrun at 100. The full prize ladder is on the Crypt Race screen.',
       '⚒️ In the Soul Forge, a fused relic\'s name now glides up onto its card along with the relic, instead of fading out and popping back in.',
+      '🥇 New prizes for the Daily Descent podium, worn from the Wardrobe and only ever won there: 1st gets Crowning Blow, where every foe you slay leaves a little gold crown. 2nd gets Quicksilver, silver afterimages of your hero. 3rd gets Bronze Bell, a ripple of bronze with every step. Win three Dailies for the Royal Procession: a red carpet under your feet.',
+      '👑 Yesterday\'s Daily champion is named on everyone\'s title screen, and heralded as each player enters today\'s crypt.',
     ],
   },
   {

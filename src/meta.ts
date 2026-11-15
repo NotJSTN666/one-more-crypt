@@ -2,7 +2,7 @@
 // and discovered combos. Saved locally and, when signed in, to the player's account.
 
 import { COMPANION_BY_ID, INVITE_COMPANIONS, SHOP_COMPANIONS } from './companions';
-import { LAURELS, RACE_PRIZES, type RacePrize } from './race-prizes';
+import { ALL_PRIZES, LAURELS, RACE_PRIZES, type RacePrize } from './race-prizes';
 import { ACHIEVEMENT_BY_ID, COMBOS, DAILY_TOTALS, HEROES, HERO_BY_ID, dailyHero, type AchievementDef, type ComboDef, type HeroId } from './content';
 import { Game, REAPER_FLOOR, TITHE_SOULS, UNDEAD, basePool, fullPool, type Mode, type RunConfig } from './game';
 import { cleanGraveState, newGraveState, type GraveState } from './graveshift';
@@ -203,7 +203,7 @@ function cleanRaid(r: unknown): RaidProgress {
 function cleanRace(v: unknown): Meta['race'] {
   const o = v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
   const n = (x: unknown) => Math.max(0, Math.min(1_000_000, Math.floor(Number(x) || 0)));
-  const worn = (x: unknown, kind: 'trail' | 'finisher') => (typeof x === 'string' && RACE_PRIZES.some((p) => p.kind === kind && p.id === x) ? x : '');
+  const worn = (x: unknown, kind: 'trail' | 'finisher') => (typeof x === 'string' && ALL_PRIZES.some((p) => p.kind === kind && p.id === x) ? x : '');
   return { laurels: n(o.laurels), races: n(o.races), wins: n(o.wins), trail: worn(o.trail, 'trail'), finisher: worn(o.finisher, 'finisher') };
 }
 
@@ -482,8 +482,9 @@ export const rerollCost = (used: number) => 100 * 2 ** Math.min(used, 20);
 
 // ---------- Crypt Race prizes ----------
 
-/** Whether a race prize is yours (enough Laurels). */
-export const racePrizeOwned = (p: RacePrize) => meta.vault || meta.race.laurels >= p.at;
+/** Whether a trail or finisher is yours: enough Laurels, or the Daily podium finish it asks for. */
+export const racePrizeOwned = (p: RacePrize) =>
+  meta.vault || (p.podium ? podiumCount(p.podium) > 0 : p.wins ? podiumCount(1) >= p.wins : meta.race.laurels >= p.at);
 
 /**
  * A race is over: Souls and Laurels for it, and whatever those Laurels unlocked. The first trail
@@ -508,7 +509,7 @@ export function finishRace(live: boolean, won: boolean, souls: number): { laurel
 
 /** Wear a trail or finisher you've won ('' for none). */
 export function wearRacePrize(kind: 'trail' | 'finisher', id: string) {
-  const p = RACE_PRIZES.find((x) => x.kind === kind && x.id === id);
+  const p = ALL_PRIZES.find((x) => x.kind === kind && x.id === id);
   if (id && (!p || !racePrizeOwned(p))) return;
   meta.race[kind] = id;
   saveMeta();
@@ -959,6 +960,12 @@ export function grantPodium(dailyNo: number, place: number, souls: number, head:
   meta.podiums[dailyNo] = place;
   meta.souls += souls;
   meta.earned += souls;
+  // The podium's own effect goes on at once, if nothing of its kind is being worn.
+  for (const p of ALL_PRIZES) {
+    if (!(p.podium === place || (p.wins && place === 1 && podiumCount(1) === p.wins))) continue;
+    if (p.kind === 'trail' && !meta.race.trail) meta.race.trail = p.id;
+    if (p.kind === 'finisher' && !meta.race.finisher) meta.race.finisher = p.id;
+  }
   if (!meta.headsSeen.includes(head)) meta.headsSeen.push(head);
   saveMeta();
   return true;

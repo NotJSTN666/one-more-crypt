@@ -10,8 +10,14 @@ export interface RacePrize {
   kind: PrizeKind;
   id: string;
   name: string;
-  /** Laurels needed. */
+  /** Laurels needed (race prizes; 0 for the Daily podium's). */
   at: number;
+  /** Daily podium prizes: finish in this place in a Daily Descent... */
+  podium?: 1 | 2 | 3;
+  /** ...or win this many Daily Descents. */
+  wins?: number;
+  /** How a podium prize is earned, for the Wardrobe. */
+  how?: string;
   emoji: string;
   desc: string;
 }
@@ -32,5 +38,18 @@ export const RACE_PRIZES: RacePrize[] = [
   { kind: 'title', id: 'race:100', name: 'The Unoutrun', at: 100, emoji: '👑', desc: 'A golden title for your name.' },
 ];
 
-export const TRAILS = RACE_PRIZES.filter((p) => p.kind === 'trail');
-export const FINISHERS = RACE_PRIZES.filter((p) => p.kind === 'finisher');
+/**
+ * Trails and finishers only the Daily Descent's top three can wear: one for each place, and one
+ * for winning three. They can't be raced for or bought.
+ */
+export const PODIUM_PRIZES: RacePrize[] = [
+  { kind: 'finisher', id: 'crowning', name: 'Crowning Blow', at: 0, podium: 1, emoji: '👑', desc: 'Every foe you slay leaves a little gold crown rising from where it fell.', how: 'Finish 1st in a Daily Descent.' },
+  { kind: 'trail', id: 'quicksilver', name: 'Quicksilver', at: 0, podium: 2, emoji: '🥈', desc: 'You move so fast you leave silver afterimages behind.', how: 'Finish 2nd in a Daily Descent.' },
+  { kind: 'trail', id: 'bronze', name: 'Bronze Bell', at: 0, podium: 3, emoji: '🔔', desc: 'Each step rings out in a ripple of bronze.', how: 'Finish 3rd in a Daily Descent.' },
+  { kind: 'trail', id: 'royal', name: 'Royal Procession', at: 0, wins: 3, emoji: '🎺', desc: 'A red carpet with a gold edge rolls out under your feet.', how: 'Win 3 Daily Descents.' },
+];
+
+/** Every trail and finisher, from both. */
+export const ALL_PRIZES = [...RACE_PRIZES, ...PODIUM_PRIZES];
+export const TRAILS = ALL_PRIZES.filter((p) => p.kind === 'trail');
+export const FINISHERS = ALL_PRIZES.filter((p) => p.kind === 'finisher');

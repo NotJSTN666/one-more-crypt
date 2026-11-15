@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { finishRace, racePrizeOwned, wearRacePrize, INVITE_PETS, INVITE_SOULS, PYRE_GOAL, acceptPlayerGift, buyPet, claimPyreHound, giftables, notePyre, pyreEvent, auraUnlocked, headUnlocked, lookUnlocked, meta, noteFriends, noteInvitedBy, settleInvite, titleUnlocked } from './meta';
+import { grantPodium, finishRace, racePrizeOwned, wearRacePrize, INVITE_PETS, INVITE_SOULS, PYRE_GOAL, acceptPlayerGift, buyPet, claimPyreHound, giftables, notePyre, pyreEvent, auraUnlocked, headUnlocked, lookUnlocked, meta, noteFriends, noteInvitedBy, settleInvite, titleUnlocked } from './meta';
 import { AURA_BY_ID, HEAD_BY_ID, LOOK_BY_ID } from './progression';
-import { RACE_PRIZES } from './race-prizes';
+import { PODIUM_PRIZES, RACE_PRIZES } from './race-prizes';
 
 describe('bring a friend', () => {
   it('gives the invited friend the Kindred Cloak once their run counts', () => {
@@ -133,6 +133,31 @@ describe('bring a friend', () => {
     // the ladder climbs, and every prize id is its own
     expect(RACE_PRIZES.map((p) => p.at)).toEqual([...RACE_PRIZES.map((p) => p.at)].sort((a, b) => a - b));
     expect(new Set(RACE_PRIZES.map((p) => `${p.kind}:${p.id}`)).size).toBe(RACE_PRIZES.length);
+  });
+
+  it('gives the Daily podium its own trails and finisher, put on at once', () => {
+    meta.vault = false;
+    meta.podiums = {};
+    meta.race = { laurels: 0, races: 0, wins: 0, trail: '', finisher: '' };
+    const by = (id: string) => PODIUM_PRIZES.find((p) => p.id === id)!;
+    expect(PODIUM_PRIZES.some(racePrizeOwned)).toBe(false);
+    grantPodium(901, 2, 150, 'silvercirclet');
+    expect(racePrizeOwned(by('quicksilver'))).toBe(true);
+    expect(meta.race.trail).toBe('quicksilver');
+    grantPodium(902, 1, 300, 'champcrown');
+    expect(meta.race.finisher).toBe('crowning');
+    // three wins for the Royal Procession; the trail already worn stays on
+    grantPodium(903, 1, 300, 'champcrown');
+    expect(racePrizeOwned(by('royal'))).toBe(false);
+    grantPodium(904, 1, 300, 'champcrown');
+    expect(racePrizeOwned(by('royal'))).toBe(true);
+    expect(meta.race.trail).toBe('quicksilver');
+    wearRacePrize('trail', 'royal');
+    expect(meta.race.trail).toBe('royal');
+    // no Laurels buy a podium prize
+    meta.podiums = {};
+    meta.race.laurels = 1000;
+    expect(PODIUM_PRIZES.some(racePrizeOwned)).toBe(false);
   });
 
   it('forgets an invite that cannot count', () => {

@@ -6373,3 +6373,8 @@ body.menu:has(#overlay[data-screen='title']:not([hidden])) #ghosts { opacity: 0.
 .race-prize-won small { display: block; margin-top: 3px; font-size: 12px; color: var(--muted); }
 .look-card.locked { opacity: 0.55; }
 @media (prefers-reduced-motion: reduce) { .race-prize-won { animation: none; } }
+
+/* Yesterday's Daily champion, named on the title screen for everyone. */
+.champion-line { margin: -2px auto 8px; padding: 6px 10px; max-width: 100%; border: 1px solid #6b5426; background: linear-gradient(90deg, rgba(242, 193, 78, 0.04), rgba(242, 193, 78, 0.14), rgba(242, 193, 78, 0.04)); font-family: var(--read); font-size: 13px; color: var(--text); }
+.champion-line b { font-weight: normal; color: var(--gold); }
+.champion-line.me { border-color: var(--gold); box-shadow: 0 0 16px rgba(242, 193, 78, 0.25); }

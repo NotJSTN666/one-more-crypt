@@ -44,10 +44,10 @@ function racePrizesHtml(): string {
       <span class="desc">${desc}</span>
     </button>`;
     return `<h3 class="shop-head">${title} <small>${list.filter(racePrizeOwned).length}/${list.length}</small></h3>
-    <p class="fine">${blurb} Won with Laurels in Crypt Race (you have ${meta.race.laurels}).</p>
+    <p class="fine">${blurb} Won with Laurels in Crypt Race (you have ${meta.race.laurels}), or on the Daily Descent's podium.</p>
     <div class="looks">
       ${card('', 'None', kind === 'trail' ? 'Leave no trace.' : 'Foes fall the usual way.', true)}
-      ${list.map((p) => card(p.id, `${p.emoji} ${esc(p.name)}`, racePrizeOwned(p) ? esc(p.desc) : `🔒 ${p.at} Laurels`, racePrizeOwned(p))).join('')}
+      ${list.map((p) => card(p.id, `${p.emoji} ${esc(p.name)}`, racePrizeOwned(p) ? esc(p.desc) : `🔒 ${p.how ? esc(p.how) : `${p.at} Laurels`}`, racePrizeOwned(p))).join('')}
     </div>`;
   };
   return section('trail', 'Trail', 'What your hero leaves behind as they walk.', TRAILS) + section('finisher', 'Finisher', 'How a foe you slay bursts apart.', FINISHERS);

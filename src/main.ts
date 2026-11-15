@@ -8,7 +8,7 @@ import { TRIAL_SOULS, trialProgressText, weekTrial } from './trials';
 import { ACHIEVEMENT_BY_ID, DAILY_TOTALS, ELITES, FEATURES, HERO_BY_ID, HEROES, dailyHero, hordeHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait, heroSprite } from './hero';
 import { BOON_BY_ID, ENEMY_INFO, W, MIST_BITE, REAPER_FLOOR, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode, type EnemyKind } from './game';
-import { acceptQuest, checkRun, grantFeats, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, rerollCost, spendSouls, finishRace, racePrizeOwned, acceptPlayerGift, INVITE_SOULS, INVITE_PETS, type InviteGain, finishHordeMeta, receiveGift, equipTitle, FAIR_DAILY, LEAN_DAILY, MISSILE_DAILY, type RunReward } from './meta';
+import { podiumCount, acceptQuest, checkRun, grantFeats, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, rerollCost, spendSouls, finishRace, racePrizeOwned, acceptPlayerGift, INVITE_SOULS, INVITE_PETS, type InviteGain, finishHordeMeta, receiveGift, equipTitle, FAIR_DAILY, LEAN_DAILY, MISSILE_DAILY, type RunReward } from './meta';
 import { drawGhosts, startGhosts, watching } from './ghosts';
 import { celebrate, celebrateNotes, holdCelebrations, setHallOpener, setOssuaryHost, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
@@ -42,7 +42,7 @@ import { claimInlineHtml, wireClaimInline, keepNameHtml, wireKeepName, endlessRe
 import { currentStreak, loadSave, recordDaily, streakStats, WARD_EVERY, writeSave, type RunResult } from './storage';
 import { $, calmChosen, calmMotion, esc, formStatus, hideOverlay, on, onSubmit, overlay, overlayShownAt, screen, setCalm, showOverlay, toast } from './ui';
 import { showTesterAsk, testerAskDue, testerOffer } from './testers';
-import { RACE_PRIZES } from './race-prizes';
+import { PODIUM_PRIZES, RACE_PRIZES } from './race-prizes';
 import { joinRoom, leaveRace, raceFrame, raceFromLink, raceOn, raceRunEnded, setRaceHost, showRaceMenu, watchLobby } from './race';
 import { inviteAskDue, noteDailyForInvite, showInviteAsk } from './invite-ask';
 
@@ -188,6 +188,10 @@ function startRun(mode: Mode) {
   setMusicMood(game.isBossFloor() ? 'boss' : 'crypt');
   hideOverlay();
   sfx.stairs();
+  // Yesterday's champion is heralded as everyone else enters today's crypt.
+  if (mode === 'daily' && champion?.day === dailyNumber() && !champion.me) {
+    window.setTimeout(() => game?.mode === 'daily' && game.floor === 1 && renderer.banner(`${champion!.name.toUpperCase()} REIGNS`, '#f2c14e'), 1700);
+  }
 }
 
 // ---------- tutorial ----------
@@ -1926,6 +1930,7 @@ function showTitle() {
     <div class="title-play">
     ${continueBlock}
     ${dailyBlock}
+    ${championHtml()}
     ${raid.phase === 'open' ? raidCardHtml(raid) : ''}
     ${delveBtn}
     ${raceBtn}
@@ -2041,6 +2046,32 @@ function showTitle() {
 
 const ORDINAL = ['', '1st', '2nd', '3rd'];
 
+/**
+ * Yesterday's Daily champion, for everyone to see today: named on the title screen, and heralded
+ * as each player enters today's crypt. Asked for once a day.
+ */
+let champion: { day: number; name: string; floor: number; me: boolean } | null = null;
+let championAsked = 0;
+function championHtml(): string {
+  const today = dailyNumber();
+  if (ONLINE && championAsked !== today) {
+    championAsked = today;
+    void dailyBoard(today - 1, null, 1)
+      .then((b) => {
+        const top = b.rows[0];
+        champion = top ? { day: today, name: top.name, floor: top.floor, me: top.user_id === session.account?.id } : null;
+        // (shown once known, if the title is still up)
+        const slot = document.getElementById('champion-line');
+        if (slot && champion) slot.outerHTML = championHtml();
+      })
+      .catch(() => undefined);
+  }
+  if (!champion || champion.day !== today) return '<p class="champion-line" id="champion-line" hidden></p>';
+  return champion.me
+    ? `<p class="champion-line me" id="champion-line">👑 <b>You won yesterday's crypt.</b> Every player sees your name today.</p>`
+    : `<p class="champion-line" id="champion-line">👑 Yesterday's champion: <b>${esc(champion.name)}</b> · floor ${champion.floor}. Can you go deeper?</p>`;
+}
+
 /** The reward screen for finishing in the top 3 of a Daily Descent. */
 function showPodium(won: PodiumFinish[], back: () => void) {
   const best = [...won].sort((a, b) => a.place - b.place || b.dailyNo - a.dailyNo)[0];
@@ -2057,6 +2088,9 @@ function showPodium(won: PodiumFinish[], back: () => void) {
     <ul class="podium-rewards">
       <li>🎩 <b>${esc(head.name)}</b>: exclusive headwear for any hero, in the Wardrobe</li>
       ${best.place === 1 ? '<li>📜 <b>Crypt Champion</b>: a new title for your name, with a gold glow wherever it shows</li><li>👑 A crown by your name on the boards today</li>' : ''}
+      ${PODIUM_PRIZES.filter((z) => z.podium === best.place).map((z) => `<li>${z.emoji} <b>${esc(z.name)}</b>: a ${z.kind} only the podium can wear. ${esc(z.desc)}</li>`).join('')}
+      ${best.place === 1 && podiumCount(1) === 3 ? '<li>🎺 <b>Royal Procession</b>: three wins! A red carpet rolls out under your feet, wherever you go.</li>' : ''}
+      ${best.place === 1 ? '<li>📯 <b>Everyone hears about it</b>: your name is on the title screen for every player today, and in their crypt.</li>' : ''}
       <li>💀 <b>+${souls} Souls</b></li>
       ${others.map((w) => `<li>${PODIUM.find((p) => p.place === w.place)!.medal} Also ${ORDINAL[w.place]} in Daily #${w.dailyNo}</li>`).join('')}
     </ul>

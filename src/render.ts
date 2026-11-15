@@ -141,6 +141,10 @@ export class Renderer {
   outfit: Outfit = { look: '', head: '', aura: '' };
   /** A companion that follows the hero in the daily and Endless: looks only, it never fights. */
   pet = '';
+  /** Quicksilver's afterimages: the hero's sprite where they just stood, fading. */
+  private afterimages: { x: number; y: number; t: number; img: HTMLCanvasElement; face: number }[] = [];
+  private lastHeroImg: HTMLCanvasElement | null = null;
+  private rangThisStep = false;
   /** Crypt Race prizes being worn: what the hero leaves behind as they walk, and how a slain foe bursts ('' for none). */
   trail = '';
   finisher = '';
@@ -732,6 +736,8 @@ export class Renderer {
     if (g.phase === 'dead') this.drawDying(dt);
     if (g.phase !== 'dead') {
       const pd = this.smooth(PLAYER_ID, g.player, k);
+      if (this.trail === 'quicksilver') this.lastHeroImg = heroSprite(g.hero, g.relics, g.relicLog, this.outfit.look, this.outfit.head, g.bowDown).white;
+      this.drawAfterimages(dt);
       this.drawTrail(pd, dt);
       // The rogue fades when the next step will go unseen.
       const ax = pd.x * TILE + PAD + SPRITE_SIZE / 2;
@@ -1046,12 +1052,44 @@ export class Renderer {
         add(30, () => ({ x: cx + (Math.random() - 0.5) * 8, y: cy + 4, vx: (Math.random() - 0.5) * 6, vy: -40 - Math.random() * 70, color: Math.random() < 0.4 ? '#e8fbff' : Math.random() < 0.5 ? '#5fe3ff' : '#2f7fd6', t: 0, life: 0.6 + Math.random() * 0.5, size: Math.random() < 0.6 ? 2 : 1, grav: -0.3 }));
         this.impacts.push({ x: tx, y: ty, t: 0, life: 0.4, color: '#5fe3ff', r: boss ? 26 : 15 });
         break;
+      case 'crowning': {
+        // a little gold crown, made of sparks that rise together and fade
+        const CROWN = [[0, 0], [3, 0], [6, 0], [0, 1], [1, 1], [3, 1], [5, 1], [6, 1], [0, 2], [1, 2], [2, 2], [3, 2], [4, 2], [5, 2], [6, 2], [0, 3], [1, 3], [2, 3], [3, 3], [4, 3], [5, 3], [6, 3]];
+        const crowns = boss ? 3 : 1;
+        for (let k = 0; k < crowns; k++) {
+          const ox = cx - 3 + (k - (crowns - 1) / 2) * 10;
+          const vx = (k - (crowns - 1) / 2) * 8;
+          for (const [px, py] of CROWN) this.particles.push({ x: ox + px, y: cy - 6 + py, vx, vy: -16, color: py === 0 || (py === 2 && px % 3 === 0) ? '#fff2c0' : py === 1 && px === 3 ? '#ff4d5a' : '#f2c14e', t: 0, life: 1.1, size: 1 });
+        }
+        add(8, () => ({ x: cx, y: cy, vx: (Math.random() - 0.5) * 40, vy: -20 - Math.random() * 30, color: '#fff2c0', t: 0, life: 0.5, size: 1 }));
+        break;
+      }
       case 'confetti': {
         const COLORS = ['#ff4d5a', '#f2c14e', '#7ee081', '#5fe3ff', '#d3b0ff', '#ffffff'];
         add(34, () => ({ x: cx, y: cy - 2, vx: (Math.random() - 0.5) * 100, vy: -45 - Math.random() * 65, color: COLORS[Math.floor(Math.random() * COLORS.length)], t: 0, life: 1 + Math.random() * 0.6, size: Math.random() < 0.7 ? 2 : 3, grav: 2.6 }));
         break;
       }
     }
+  }
+
+  /** Quicksilver: pale silhouettes of the hero where they just stood, fading out. */
+  private drawAfterimages(dt: number) {
+    if (!this.afterimages.length) return;
+    const ctx = this.ctx;
+    this.afterimages = this.afterimages.filter((gh) => (gh.t += dt) < 0.32);
+    for (const gh of this.afterimages) {
+      ctx.globalAlpha = 0.45 * (1 - gh.t / 0.32);
+      const x = Math.round(gh.x * TILE + PAD);
+      const y = Math.round(gh.y * TILE + PAD);
+      if (gh.face < 0) {
+        ctx.save();
+        ctx.translate(x + SPRITE_SIZE, y);
+        ctx.scale(-1, 1);
+        ctx.drawImage(gh.img, 0, 0);
+        ctx.restore();
+      } else ctx.drawImage(gh.img, x, y);
+    }
+    ctx.globalAlpha = 1;
   }
 
   /** The trail being worn: something left at the hero's heels while they're on the move. */
@@ -1072,6 +1110,30 @@ export class Renderer {
       case 'lightning':
         // short bright sparks that jump sideways and die at once
         if (some(320)) this.particles.push({ x: x + (Math.random() - 0.5) * 10, y: y - Math.random() * 6, vx: (Math.random() - 0.5) * 110, vy: (Math.random() - 0.5) * 60, color: Math.random() < 0.5 ? '#ffffff' : '#5fe3ff', t: 0, life: 0.18 + Math.random() * 0.2, size: Math.random() < 0.4 ? 2 : 1 });
+        break;
+      case 'quicksilver':
+        // afterimages: the hero's silhouette left behind in silver, fading where they stood
+        if (some(40) && this.lastHeroImg) this.afterimages.push({ x: d.x, y: d.y, t: 0, img: this.lastHeroImg, face: this.facing.get(PLAYER_ID) ?? 1 });
+        if (some(140)) this.particles.push({ x: x + (Math.random() - 0.5) * 10, y: y - Math.random() * 10, vx: (Math.random() - 0.5) * 4, vy: 0, color: Math.random() < 0.5 ? '#ffffff' : '#c9d1e0', t: 0, life: 0.3, size: 1 });
+        break;
+      case 'bronze':
+        // each landing rings out: a bronze ripple across the floor
+        if ((this.landing.get(PLAYER_ID) ?? 0) > 0.06 && !this.rangThisStep) {
+          this.rangThisStep = true;
+          for (let i = 0; i < 16; i++) {
+            const a = (i / 16) * Math.PI * 2;
+            this.particles.push({ x, y: y - 1, vx: Math.cos(a) * 34, vy: Math.sin(a) * 12, color: i % 2 ? '#c98a3a' : '#e8b06a', t: 0, life: 0.5, size: 2 });
+          }
+        }
+        if ((this.remain.get(PLAYER_ID) ?? 0) > 0.3) this.rangThisStep = false;
+        break;
+      case 'royal':
+        // a red carpet with a gold edge, unrolled under each step and slowly fading
+        if (some(260)) {
+          const across = (Math.random() - 0.5) * 10;
+          const edge = Math.abs(across) > 3.6;
+          this.particles.push({ x: x + across, y: y - 1 + (Math.random() - 0.5) * 2, vx: 0, vy: 0, color: edge ? '#f2c14e' : Math.random() < 0.5 ? '#a8182a' : '#c42a3a', t: 0, life: 1.1, size: 2 });
+        }
         break;
       case 'stars':
         if (some(200)) this.particles.push({ x: x + (Math.random() - 0.5) * 14, y: y - 8 - Math.random() * 8, vx: (Math.random() - 0.5) * 8, vy: 6 + Math.random() * 12, color: Math.random() < 0.5 ? '#fff2c0' : Math.random() < 0.5 ? '#f2c14e' : '#ffffff', t: 0, life: 0.8 + Math.random() * 0.5, size: Math.random() < 0.45 ? 2 : 1 });
