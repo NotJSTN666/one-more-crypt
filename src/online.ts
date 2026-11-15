@@ -996,13 +996,19 @@ export async function sendChat(body: string): Promise<ChatLine> {
   return line;
 }
 
-/** New messages as they're sent, by anyone. */
-export async function watchChat(onLine: (line: ChatLine) => void): Promise<void> {
+/** New messages as they're sent, by anyone, and who is typing. Returns how to say you're typing. */
+export async function watchChat(onLine: (line: ChatLine) => void, onTyping: (id: string, name: string) => void): Promise<(id: string, name: string) => void> {
   const sb = await client();
-  sb.channel('omc-chat')
+  const channel = sb
+    .channel('omc-chat', { config: { broadcast: { self: false } } })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat' }, (p) => {
       const line = chatLine(p.new as Record<string, unknown>);
       if (line) onLine(line);
     })
+    .on('broadcast', { event: 'typing' }, ({ payload }) => {
+      const t = payload as { id?: unknown; name?: unknown };
+      if (typeof t?.id === 'string' && typeof t.name === 'string') onTyping(t.id, t.name.slice(0, 16));
+    })
     .subscribe();
+  return (id, name) => void channel.send({ type: 'broadcast', event: 'typing', payload: { id, name } });
 }

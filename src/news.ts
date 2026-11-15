@@ -33,7 +33,7 @@ export const NEWS: NewsDay[] = [
       '⚒️ In the Soul Forge, a fused relic\'s name now glides up onto its card along with the relic, instead of fading out and popping back in.',
       '🥇 New prizes for the Daily Descent podium, worn from the Wardrobe and only ever won there: 1st gets Crowning Blow, where every foe you slay leaves a little gold crown. 2nd gets Quicksilver, silver afterimages of your hero. 3rd gets Bronze Bell, a ripple of bronze with every step. Win three Dailies for the Royal Procession: a red carpet under your feet.',
       '👑 Yesterday\'s Daily champion is named on everyone\'s title screen, and heralded as each player enters today\'s crypt.',
-      '💬 Live chat: tap 💬 at the top of the title screen to talk with everyone in the crypt. On a computer it can stay open while you play. Choose a name and finish a run to post; swearing, links and spam are blocked, and tapping a name mutes that player for you.',
+      '💬 Live chat: tap 💬 at the top of the title screen to talk with everyone in the crypt. On a computer it can stay open while you play. The 💬 button bobs while someone is typing, and the chat shows who. Choose a name and finish a run to post; swearing, links and spam are blocked, and tapping a name mutes that player for you.',
     ],
   },
   {

@@ -67,8 +67,9 @@ export async function startChat(h: ChatHost) {
   const me = host.me()?.id;
   unread = seen ? lines.filter((l) => l.id > seen && l.user_id !== me && !muted().includes(l.user_id)).length : 0;
   paintChip();
-  await watchChat((line) => {
+  sayTyping = await watchChat((line) => {
     if (lines.some((l) => l.id === line.id)) return;
+    if (typers.delete(line.user_id)) paintTyping();
     lines.push(line);
     if (lines.length > 200) lines = lines.slice(-200);
     if (drawer) {
@@ -78,13 +79,54 @@ export async function startChat(h: ChatHost) {
       unread++;
       paintChip();
     }
+  }, (id, name) => {
+    if (id === host?.me()?.id || muted().includes(id)) return;
+    typers.set(id, { name, until: Date.now() + TYPING_MS });
+    paintTyping();
+    window.setTimeout(paintTyping, TYPING_MS + 50);
   });
+}
+
+// ---- who is typing: each keyboard tells the room at most every few seconds, and a name shows
+// for a few seconds after the last word from it ----
+const TYPING_MS = 4000;
+const typers = new Map<string, { name: string; until: number }>();
+let sayTyping: ((id: string, name: string) => void) | null = null;
+let saidTypingAt = 0;
+
+function typingNames(): string[] {
+  const now = Date.now();
+  for (const [id, t] of typers) if (t.until <= now) typers.delete(id);
+  return [...typers.values()].map((t) => t.name);
+}
+
+function typingText(names: string[]): string {
+  if (!names.length) return '';
+  if (names.length === 1) return `${esc(names[0])} is typing`;
+  if (names.length === 2) return `${esc(names[0])} and ${esc(names[1])} are typing`;
+  return 'Several people are typing';
+}
+
+/** The 💬 button bobs with dots while someone types; the drawer names them. */
+function paintTyping() {
+  const names = typingNames();
+  document.querySelectorAll('#title-chat').forEach((b) => b.classList.toggle('typing', names.length > 0));
+  const line = drawer?.querySelector<HTMLElement>('.chat-typing');
+  if (line) line.innerHTML = names.length ? `${typingText(names)}<span class="typing-dots"><i></i><i></i><i></i></span>` : '';
+}
+
+function noteTyping() {
+  const me = host?.me();
+  if (!me || !sayTyping || Date.now() - saidTypingAt < 2500) return;
+  saidTypingAt = Date.now();
+  sayTyping(me.id, me.name);
 }
 
 /** The 💬 button for the title screen's top row (empty until the chat is known to be there). */
 export function chatChipHtml(): string {
   if (!ready) return '';
-  return `<button class="account-chip mute-chip chat-chip" id="title-chat" aria-label="Chat${unread ? `, ${unread} new` : ''}">💬${unread ? `<i class="news-dot"></i>` : ''}</button>`;
+  const typing = typingNames().length > 0;
+  return `<button class="account-chip mute-chip chat-chip${typing ? ' typing' : ''}" id="title-chat" aria-label="Chat${unread ? `, ${unread} new` : ''}"><span class="chat-bubble">💬</span><span class="typing-dots" aria-hidden="true"><i></i><i></i><i></i></span>${unread ? `<i class="news-dot"></i>` : ''}</button>`;
 }
 
 function paintChip() {
@@ -142,6 +184,7 @@ export function openChat() {
   drawer.innerHTML = `
     <header><h2>💬 Crypt chat</h2><button class="chat-close" aria-label="Close chat">✕</button></header>
     <ul class="chat-list">${shown.length ? shown.map(lineHtml).join('') : '<li class="chat-empty">No one has said anything yet. Say hi!</li>'}</ul>
+    <p class="chat-typing" aria-live="polite"></p>
     <p class="chat-rules">Be kind. No swearing, links or spam. Tap a name to mute them.</p>
     <div class="chat-foot">${footHtml()}</div>`;
   document.body.appendChild(drawer);
@@ -149,6 +192,7 @@ export function openChat() {
   list.scrollTop = list.scrollHeight;
   wire();
   markRead();
+  paintTyping();
   requestAnimationFrame(() => drawer?.classList.add('open'));
 }
 
@@ -210,6 +254,9 @@ function wire() {
       input.focus();
     }
   });
-  input.addEventListener('input', () => (status.textContent = ''));
+  input.addEventListener('input', () => {
+    status.textContent = '';
+    if (input.value.trim()) noteTyping();
+  });
   if (window.matchMedia('(pointer: fine)').matches) input.focus();
 }

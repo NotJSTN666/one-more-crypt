@@ -6410,3 +6410,17 @@ body.menu:has(#overlay[data-screen='title']:not([hidden])) #ghosts { opacity: 0.
 .chat-status { min-height: 1.2em; margin: 4px 0 0; font-size: 0.8rem; color: #ff8a8a; }
 .chat-signin { width: 100%; }
 @media (prefers-reduced-motion: reduce) { .chat-drawer { transition: none; } }
+
+/* someone is typing: the 💬 button bobs with three dots, and the drawer names who */
+.chat-chip .typing-dots { display: none; position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); gap: 2px; }
+.chat-chip.typing .typing-dots { display: flex; }
+.chat-chip.typing .chat-bubble { display: inline-block; animation: chat-bob 0.9s ease-in-out infinite; }
+.typing-dots { display: inline-flex; gap: 3px; margin-left: 6px; vertical-align: middle; }
+.typing-dots i { width: 4px; height: 4px; border-radius: 50%; background: #f2c14e; animation: chat-dot 1.1s ease-in-out infinite; }
+.chat-chip .typing-dots i { width: 4px; height: 4px; background: #2a1640; }
+.typing-dots i:nth-child(2) { animation-delay: 0.18s; }
+.typing-dots i:nth-child(3) { animation-delay: 0.36s; }
+.chat-typing { min-height: 1.3em; margin: 6px 0 0; font-family: 'Pixelify Sans', sans-serif; text-transform: none; letter-spacing: 0; font-size: 0.85rem; color: #c9bfa8; }
+@keyframes chat-bob { 0%, 100% { transform: translateY(0) rotate(0); } 30% { transform: translateY(-3px) rotate(-6deg); } 60% { transform: translateY(0) rotate(4deg); } }
+@keyframes chat-dot { 0%, 60%, 100% { opacity: 0.35; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { .chat-chip.typing .chat-bubble, .typing-dots i { animation: none; opacity: 1; } }
