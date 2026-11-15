@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { INVITE_PETS, INVITE_SOULS, PYRE_GOAL, acceptPlayerGift, buyPet, claimPyreHound, giftables, notePyre, pyreEvent, auraUnlocked, headUnlocked, lookUnlocked, meta, noteFriends, noteInvitedBy, settleInvite, titleUnlocked } from './meta';
+import { finishRace, racePrizeOwned, wearRacePrize, INVITE_PETS, INVITE_SOULS, PYRE_GOAL, acceptPlayerGift, buyPet, claimPyreHound, giftables, notePyre, pyreEvent, auraUnlocked, headUnlocked, lookUnlocked, meta, noteFriends, noteInvitedBy, settleInvite, titleUnlocked } from './meta';
 import { AURA_BY_ID, HEAD_BY_ID, LOOK_BY_ID } from './progression';
+import { RACE_PRIZES } from './race-prizes';
 
 describe('bring a friend', () => {
   it('gives the invited friend the Kindred Cloak once their run counts', () => {
@@ -101,6 +102,37 @@ describe('bring a friend', () => {
     expect(meta.pets).toEqual(['pyrehound']);
     // the hound is never one of the companions a friend brings
     expect(INVITE_PETS.some((p) => p.id === 'pyrehound')).toBe(false);
+  });
+
+  it('pays Laurels for racing, and Laurels unlock trails, finishers and titles', () => {
+    meta.vault = false;
+    meta.race = { laurels: 0, races: 0, wins: 0, trail: '', finisher: '' };
+    const souls = meta.souls;
+    // losing to a ghost earns no Laurel; beating one earns 1; a live race 1, or 3 for the win
+    expect(finishRace(false, false, 25).laurels).toBe(0);
+    expect(finishRace(false, true, 75).laurels).toBe(1);
+    expect(finishRace(true, false, 50).laurels).toBe(1);
+    const won = finishRace(true, true, 150);
+    expect(won.laurels).toBe(3);
+    expect(meta.race).toMatchObject({ laurels: 5, races: 4, wins: 2 });
+    expect(meta.souls).toBe(souls + 300);
+    // 2 Laurels: the first trail, worn at once. 5: the first finisher, worn at once.
+    expect(meta.race.trail).toBe('dust');
+    expect(won.unlocked.map((p) => p.id)).toEqual(['coins']);
+    expect(meta.race.finisher).toBe('coins');
+    expect(won.next?.id).toBe('race:10');
+    expect(titleUnlocked('race:10')).toBe(false);
+    // a prize not yet won can't be worn; one that is can be taken off again
+    wearRacePrize('trail', 'stars');
+    expect(meta.race.trail).toBe('dust');
+    wearRacePrize('trail', '');
+    expect(meta.race.trail).toBe('');
+    meta.race.laurels = 100;
+    expect(RACE_PRIZES.every(racePrizeOwned)).toBe(true);
+    expect(titleUnlocked('race:100')).toBe(true);
+    // the ladder climbs, and every prize id is its own
+    expect(RACE_PRIZES.map((p) => p.at)).toEqual([...RACE_PRIZES.map((p) => p.at)].sort((a, b) => a - b));
+    expect(new Set(RACE_PRIZES.map((p) => `${p.kind}:${p.id}`)).size).toBe(RACE_PRIZES.length);
   });
 
   it('forgets an invite that cannot count', () => {

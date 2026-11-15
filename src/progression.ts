@@ -147,6 +147,9 @@ export const TITLES: TitleDef[] = [
   { id: 'pyre:1000', name: 'Kindler', how: 'Give 1,000 Souls to the Soul Pyre.' },
   { id: 'pyre:10000', name: 'Pyre-Keeper', how: 'Give 10,000 Souls to the Soul Pyre.' },
   { id: 'pyre:50000', name: 'Soulburner', how: 'Give 50,000 Souls to the Soul Pyre.' },
+  // Crypt Race: Laurels earned by racing.
+  { id: 'race:10', name: 'Quickfoot', how: 'Earn 10 Laurels in Crypt Race.' },
+  { id: 'race:100', name: 'The Unoutrun', how: 'Earn 100 Laurels in Crypt Race.' },
   // Gifted by hand by the Crypt Keeper.
   { id: 'gift:exterminator', name: 'Bug Exterminator', how: 'A gift from the Crypt Keeper, for hunting down bugs and reporting them.' },
   { id: 'gift:plotkeeper', name: 'Keeper of the Old Plot', how: 'Put 25 graves back to rest in Grave Shift.' },

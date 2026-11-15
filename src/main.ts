@@ -8,7 +8,7 @@ import { TRIAL_SOULS, trialProgressText, weekTrial } from './trials';
 import { ACHIEVEMENT_BY_ID, DAILY_TOTALS, ELITES, FEATURES, HERO_BY_ID, HEROES, dailyHero, hordeHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait, heroSprite } from './hero';
 import { BOON_BY_ID, ENEMY_INFO, W, MIST_BITE, REAPER_FLOOR, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode, type EnemyKind } from './game';
-import { acceptQuest, checkRun, grantFeats, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, rerollCost, spendSouls, grantSouls, acceptPlayerGift, INVITE_SOULS, INVITE_PETS, type InviteGain, finishHordeMeta, receiveGift, equipTitle, FAIR_DAILY, LEAN_DAILY, MISSILE_DAILY, type RunReward } from './meta';
+import { acceptQuest, checkRun, grantFeats, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, rerollCost, spendSouls, finishRace, racePrizeOwned, acceptPlayerGift, INVITE_SOULS, INVITE_PETS, type InviteGain, finishHordeMeta, receiveGift, equipTitle, FAIR_DAILY, LEAN_DAILY, MISSILE_DAILY, type RunReward } from './meta';
 import { drawGhosts, startGhosts, watching } from './ghosts';
 import { celebrate, celebrateNotes, holdCelebrations, setHallOpener, setOssuaryHost, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
@@ -42,6 +42,7 @@ import { claimInlineHtml, wireClaimInline, keepNameHtml, wireKeepName, endlessRe
 import { currentStreak, loadSave, recordDaily, streakStats, WARD_EVERY, writeSave, type RunResult } from './storage';
 import { $, calmChosen, calmMotion, esc, formStatus, hideOverlay, on, onSubmit, overlay, overlayShownAt, screen, setCalm, showOverlay, toast } from './ui';
 import { showTesterAsk, testerAskDue, testerOffer } from './testers';
+import { RACE_PRIZES } from './race-prizes';
 import { joinRoom, leaveRace, raceFrame, raceFromLink, raceOn, raceRunEnded, setRaceHost, showRaceMenu, watchLobby } from './race';
 import { inviteAskDue, noteDailyForInvite, showInviteAsk } from './invite-ask';
 
@@ -128,6 +129,8 @@ function showGame(g: Game) {
   turnLog = [];
   renderer.outfit = outfitFor(game.hero);
   renderer.pet = meta.pet;
+  renderer.trail = meta.race.trail;
+  renderer.finisher = meta.race.finisher;
   renderer.setGame(game);
   renderer.consume(game.events.splice(0));
   updateHud(true);
@@ -5106,7 +5109,12 @@ setRaceHost({
     window.clearTimeout(overlayTimer);
     setMusicMood('silent');
   },
-  grantSouls,
+  reward: (live, won, souls) => {
+    const got = finishRace(live, won, souls);
+    if (got.unlocked.length) sfx.relic();
+    return { laurels: got.laurels, total: meta.race.laurels, unlocked: got.unlocked.map((u) => ({ emoji: u.emoji, name: u.name, what: u.kind })), next: got.next ? { name: got.next.name, at: got.next.at } : null };
+  },
+  prizes: () => ({ laurels: meta.race.laurels, list: RACE_PRIZES.map((z) => ({ emoji: z.emoji, name: z.name, what: z.kind, at: z.at, owned: racePrizeOwned(z) })) }),
   showTitle: () => {
     raceHalt = false;
     newGame('endless');

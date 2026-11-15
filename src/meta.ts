@@ -2,6 +2,7 @@
 // and discovered combos. Saved locally and, when signed in, to the player's account.
 
 import { COMPANION_BY_ID, INVITE_COMPANIONS, SHOP_COMPANIONS } from './companions';
+import { LAURELS, RACE_PRIZES, type RacePrize } from './race-prizes';
 import { ACHIEVEMENT_BY_ID, COMBOS, DAILY_TOTALS, HEROES, HERO_BY_ID, dailyHero, type AchievementDef, type ComboDef, type HeroId } from './content';
 import { Game, REAPER_FLOOR, TITHE_SOULS, UNDEAD, basePool, fullPool, type Mode, type RunConfig } from './game';
 import { cleanGraveState, newGraveState, type GraveState } from './graveshift';
@@ -106,6 +107,8 @@ export interface Meta {
   invite: { from: string; claimed: boolean; friends: number };
   /** Souls given to the Soul Pyre, by month ('2026-11'). */
   pyre: Record<string, number>;
+  /** Crypt Race: Laurels earned, races finished and won, and the trail and finisher being worn ('' for none). */
+  race: { laurels: number; races: number; wins: number; trail: string; finisher: string };
   /** Rare items the Crypt Keeper (the developer) gifted this player by hand. */
   gifts: string[];
   /** Hall decorations you own but took down. Still yours; put them back up any time. */
@@ -180,7 +183,7 @@ function empty(): Meta {
     podiums: {}, podiumChecked: 0, bought: [], streak: { best: 0, count: 0, last: 0 },
     bounties: { day: 0, ids: [], progress: [], done: [] },
     weekly: {}, weeklyChecked: '',
-    story: emptyStory(), pet: '', pets: [], summonsSeen: '', summonsTotal: 0, patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null, raid: { joined: [], won: [], lost: [] }, invite: { from: '', claimed: false, friends: 0 }, pyre: {}, horde: { day: 0, best: 0, wave: 0 }, gifts: [], hallHidden: [], nightShrine: { vigor: 0, reroll: 0, banish: 0, arsenal: false, start: '' }, dailyTotal: 0, runsToday: { day: 0, n: 0 }, trialsDone: 0, rival: '', playedMonths: [],
+    story: emptyStory(), pet: '', pets: [], summonsSeen: '', summonsTotal: 0, patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null, raid: { joined: [], won: [], lost: [] }, invite: { from: '', claimed: false, friends: 0 }, pyre: {}, race: { laurels: 0, races: 0, wins: 0, trail: '', finisher: '' }, horde: { day: 0, best: 0, wave: 0 }, gifts: [], hallHidden: [], nightShrine: { vigor: 0, reroll: 0, banish: 0, arsenal: false, start: '' }, dailyTotal: 0, runsToday: { day: 0, n: 0 }, trialsDone: 0, rival: '', playedMonths: [],
   };
 }
 
@@ -195,6 +198,13 @@ export const INVITE_PETS = INVITE_COMPANIONS;
 function cleanRaid(r: unknown): RaidProgress {
   const o = r && typeof r === 'object' ? (r as Record<string, unknown>) : {};
   return { joined: ids(o.joined).slice(-40), won: ids(o.won), lost: ids(o.lost).slice(-40) };
+}
+
+function cleanRace(v: unknown): Meta['race'] {
+  const o = v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
+  const n = (x: unknown) => Math.max(0, Math.min(1_000_000, Math.floor(Number(x) || 0)));
+  const worn = (x: unknown, kind: 'trail' | 'finisher') => (typeof x === 'string' && RACE_PRIZES.some((p) => p.kind === kind && p.id === x) ? x : '');
+  return { laurels: n(o.laurels), races: n(o.races), wins: n(o.wins), trail: worn(o.trail, 'trail'), finisher: worn(o.finisher, 'finisher') };
 }
 
 function cleanPyre(v: unknown): Record<string, number> {
@@ -225,6 +235,7 @@ function load(): Meta {
     m.invite = cleanInvite(m.invite);
     m.gifts = ids(m.gifts);
     m.pyre = cleanPyre(m.pyre);
+    m.race = cleanRace(m.race);
     m.pets = ids(m.pets).filter((p) => Boolean(COMPANION_BY_ID[p]));
     m.hallHidden = ids(m.hallHidden);
     m.nightShrine = cleanShrine(m.nightShrine);
@@ -287,6 +298,10 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   const oi = cleanInvite(other.invite);
   meta.invite = { from: meta.invite.from || oi.from, claimed: meta.invite.claimed || oi.claimed, friends: Math.max(meta.invite.friends, oi.friends) };
   for (const [k, v] of Object.entries(cleanPyre(other.pyre))) meta.pyre[k] = Math.max(meta.pyre[k] ?? 0, v);
+  {
+    const o = cleanRace(other.race);
+    meta.race = { laurels: Math.max(meta.race.laurels, o.laurels), races: Math.max(meta.race.races, o.races), wins: Math.max(meta.race.wins, o.wins), trail: meta.race.trail || o.trail, finisher: meta.race.finisher || o.finisher };
+  }
   const or = cleanRaid(other.raid);
   meta.raid = cleanRaid({ joined: [...meta.raid.joined, ...or.joined], won: [...meta.raid.won, ...or.won], lost: [...meta.raid.lost, ...or.lost] });
   meta.shame = { ...(other.shame ?? {}), ...meta.shame };
@@ -464,6 +479,40 @@ export function acceptPlayerGift(item: string): { gift: Giftable; refund: number
 
 /** What the next reroll of a relic offer costs in Endless: 100 Souls, doubling with each one this run. */
 export const rerollCost = (used: number) => 100 * 2 ** Math.min(used, 20);
+
+// ---------- Crypt Race prizes ----------
+
+/** Whether a race prize is yours (enough Laurels). */
+export const racePrizeOwned = (p: RacePrize) => meta.vault || meta.race.laurels >= p.at;
+
+/**
+ * A race is over: Souls and Laurels for it, and whatever those Laurels unlocked. The first trail
+ * and the first finisher you win are put on at once.
+ */
+export function finishRace(live: boolean, won: boolean, souls: number): { laurels: number; unlocked: RacePrize[]; next: RacePrize | null } {
+  const laurels = live ? (won ? LAURELS.liveWin : LAURELS.liveFinish) : won ? LAURELS.ghostWin : 0;
+  const before = meta.race.laurels;
+  meta.race.laurels += laurels;
+  meta.race.races++;
+  if (won) meta.race.wins++;
+  meta.souls += souls;
+  meta.earned += souls;
+  const unlocked = RACE_PRIZES.filter((p) => p.at > before && p.at <= meta.race.laurels);
+  for (const p of unlocked) {
+    if (p.kind === 'trail' && !meta.race.trail) meta.race.trail = p.id;
+    if (p.kind === 'finisher' && !meta.race.finisher) meta.race.finisher = p.id;
+  }
+  saveMeta();
+  return { laurels, unlocked, next: RACE_PRIZES.find((p) => p.at > meta.race.laurels) ?? null };
+}
+
+/** Wear a trail or finisher you've won ('' for none). */
+export function wearRacePrize(kind: 'trail' | 'finisher', id: string) {
+  const p = RACE_PRIZES.find((x) => x.kind === kind && x.id === id);
+  if (id && (!p || !racePrizeOwned(p))) return;
+  meta.race[kind] = id;
+  saveMeta();
+}
 
 /** Souls won outside a run's own tally (a race). They count toward your rank like any others. */
 export function grantSouls(n: number) {
@@ -1151,6 +1200,7 @@ export function titleUnlocked(id: string): boolean {
   if (kind === 'welcome') return meta.welcome.claimed >= Number(key);
   if (kind === 'invite') return inviteMet(Number(key));
   if (kind === 'pyre') return pyreGiven() >= Number(key);
+  if (kind === 'race') return meta.race.laurels >= Number(key);
   if (kind === 'story') return storyDone(key === 'all' || key === 'bell' ? STORY_ALL : Number(key));
   if (kind === 'shame') return Boolean(meta.shame[key]);
   if (kind === 'feat') return Boolean(meta.achievements[key]);

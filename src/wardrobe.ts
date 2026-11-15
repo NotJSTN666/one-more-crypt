@@ -6,11 +6,12 @@ import { sfx } from './audio';
 import { HEROES, HERO_BY_ID, type HeroId } from './content';
 import { heroPortrait } from './hero';
 import { auraClass, drawAura } from './aura';
-import { auraUnlocked, equipOutfit, headUnlocked, heroUnlocked, lookUnlocked, meta, outfitFor, setPet } from './meta';
+import { racePrizeOwned, wearRacePrize, auraUnlocked, equipOutfit, headUnlocked, heroUnlocked, lookUnlocked, meta, outfitFor, setPet } from './meta';
 import { petName } from './story';
 import { AURAS, AURA_BY_ID, HEADS, HERO_CLOAKS, LOOKS, LOOK_BY_ID, HEAD_BY_ID } from './progression';
 import { esc, on, overlay, screen, showOverlay } from './ui';
 import { COMPANIONS } from './companions';
+import { FINISHERS, TRAILS, type RacePrize } from './race-prizes';
 
 /** The story's Crypt Hound, once met: it trots behind your hero in every crypt. Looks only. */
 function companionHtml(): string {
@@ -31,6 +32,25 @@ function companionHtml(): string {
       ${COMPANIONS.filter((p) => meta.pets.includes(p.id)).map((p) => card(p.id, `${p.emoji} ${esc(p.name)}`, esc(p.desc))).join('')}
       ${card('', 'None', 'Go down alone.')}
     </div>`;
+}
+
+/** Crypt Race prizes: trails and finishers, worn on every hero in every mode. */
+function racePrizesHtml(): string {
+  const section = (kind: 'trail' | 'finisher', title: string, blurb: string, list: RacePrize[]) => {
+    const worn = meta.race[kind];
+    const card = (id: string, label: string, desc: string, owned: boolean) => `<button class="look-card ${worn === id ? 'equipped' : ''} ${owned ? '' : 'locked'}" data-race-kind="${kind}" data-race-id="${id}" ${owned ? '' : 'disabled'}>
+      <span class="name">${label}</span>
+      ${worn === id ? '<span class="worn">✓ Worn</span>' : ''}
+      <span class="desc">${desc}</span>
+    </button>`;
+    return `<h3 class="shop-head">${title} <small>${list.filter(racePrizeOwned).length}/${list.length}</small></h3>
+    <p class="fine">${blurb} Won with Laurels in Crypt Race (you have ${meta.race.laurels}).</p>
+    <div class="looks">
+      ${card('', 'None', kind === 'trail' ? 'Leave no trace.' : 'Foes fall the usual way.', true)}
+      ${list.map((p) => card(p.id, `${p.emoji} ${esc(p.name)}`, racePrizeOwned(p) ? esc(p.desc) : `🔒 ${p.at} Laurels`, racePrizeOwned(p))).join('')}
+    </div>`;
+  };
+  return section('trail', 'Trail', 'What your hero leaves behind as they walk.', TRAILS) + section('finisher', 'Finisher', 'How a foe you slay bursts apart.', FINISHERS);
 }
 
 export function showWardrobe(back: () => void, hero: HeroId = meta.hero, changed?: () => void) {
@@ -109,8 +129,18 @@ export function showWardrobe(back: () => void, hero: HeroId = meta.hero, changed
       ${AURAS.map((a) => auraCard(a.id, a.name, a.how, auraUnlocked(a))).join('')}
     </div>
     ${companionHtml()}
+    ${racePrizesHtml()}
     <button class="btn primary" id="back">Back</button>`);
 
+  overlay.querySelectorAll<HTMLButtonElement>('[data-race-kind]').forEach((b) =>
+    b.addEventListener('click', () => {
+      wearRacePrize(b.dataset.raceKind as 'trail' | 'finisher', b.dataset.raceId ?? '');
+      sfx.relic();
+      const top = overlay.scrollTop;
+      showWardrobe(back, hero, changed);
+      overlay.scrollTop = top;
+    }),
+  );
   overlay.querySelectorAll<HTMLButtonElement>('[data-pet]').forEach((b) =>
     b.addEventListener('click', () => {
       setPet(b.dataset.pet ?? '');

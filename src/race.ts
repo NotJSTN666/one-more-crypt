@@ -41,7 +41,10 @@ export interface RaceHost {
   game(): Game;
   /** Stop the run (time is up, or the race was decided): no results screen of the game's own. */
   stop(): void;
-  grantSouls(n: number): void;
+  /** Pay out a finished race: Souls and Laurels, and whatever prizes those unlocked. */
+  reward(live: boolean, won: boolean, souls: number): { laurels: number; total: number; unlocked: { emoji: string; name: string; what: string }[]; next: { name: string; at: number } | null };
+  /** The prize ladder, for the race menu. */
+  prizes(): { laurels: number; list: { emoji: string; name: string; what: string; at: number; owned: boolean }[] };
   showTitle(): void;
   backToMenu(): void;
 }
@@ -161,7 +164,10 @@ export function showRaceMenu() {
         <button class="btn" type="submit">Join</button>
       </form>
     </details>
-    <p class="fine">A race is its own run: it isn't saved and doesn't touch the leaderboards. Winning pays ${PAY.live.win} Souls (${PAY.ghost.win} against a ghost).</p>`);
+    <p class="fine">A race is its own run: it isn't saved and doesn't touch the leaderboards. Winning pays ${PAY.live.win} Souls (${PAY.ghost.win} against a ghost).</p>
+    <h3 class="shop-head">🌿 Race prizes <small>${host.prizes().laurels} Laurels</small></h3>
+    <p class="fine">Racing earns Laurels: 3 for winning against players, 1 for finishing a race, 1 for beating a ghost. They unlock trails and finishers you can't get anywhere else.</p>
+    <ul class="race-prizes">${host.prizes().list.map((z) => `<li class="${z.owned ? 'got' : ''}"><span>${z.owned ? '✓' : z.at}</span>${z.emoji} <b>${esc(z.name)}</b><small>${z.what}</small></li>`).join('')}</ul>`);
   on('#back', () => host!.backToMenu());
   on('#race-join-open', () => void joinLobby());
   on('#race-open', () => void openRoom());
@@ -711,7 +717,7 @@ function finish() {
   const tied = r.rivals.some((v) => level(standing(v), mine));
   const won = place === 1 && !tied;
   const pay = PAY[r.kind][won ? 'win' : 'other'];
-  host.grantSouls(pay);
+  const got = host.reward(r.kind === 'live', won, pay);
   const ordinal = ['1st', '2nd', '3rd', '4th'][place - 1];
   const title = won ? '🏆 You won the race' : place === 1 ? 'A dead heat' : r.rivals.length === 1 ? 'You lost the race' : `You came ${ordinal}`;
   let rank = 0;
@@ -722,7 +728,9 @@ function finish() {
       if (i === 0 || better(rows[i - 1].res, row.res)) rank = i + 1;
       return `<li class="${row.me ? 'me' : ''} ${rank === 1 ? 'won' : ''}"><i>${rank}</i><b>${esc(row.name)}</b><span class="race-big">Floor ${row.res.floor}</span><small>${row.res.kills} kills · ${row.res.dead ? 'fell' : 'still standing'}</small></li>`;
     }).join('')}</ol>
-    <p class="earned-line"><b>+${pay} Souls</b></p>
+    <p class="earned-line"><b>+${pay} Souls</b>${got.laurels ? `<b class="laurels">+${got.laurels} 🌿 ${got.laurels === 1 ? 'Laurel' : 'Laurels'}</b>` : ''}</p>
+    ${got.unlocked.map((u) => `<p class="race-prize-won">${u.emoji} <b>${esc(u.name)}</b> unlocked<small>A new ${u.what}. Find it in the Wardrobe.</small></p>`).join('')}
+    <p class="fine">${got.next ? `🌿 ${got.total} Laurels · ${got.next.at - got.total} more for <b>${esc(got.next.name)}</b>` : `🌿 ${got.total} Laurels · every race prize is yours`}${got.laurels ? '' : r.kind === 'ghost' ? ' · beat the ghost to earn one' : ''}</p>
     <button class="btn primary" id="race-again">⚔️ Race again</button>
     <button class="btn" id="race-title">Title</button>`);
   const again = r.kind;

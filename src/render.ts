@@ -141,6 +141,9 @@ export class Renderer {
   outfit: Outfit = { look: '', head: '', aura: '' };
   /** A companion that follows the hero in the daily and Endless: looks only, it never fights. */
   pet = '';
+  /** Crypt Race prizes being worn: what the hero leaves behind as they walk, and how a slain foe bursts ('' for none). */
+  trail = '';
+  finisher = '';
   private petAt: Pos | null = null;
   private heroAt: Pos | null = null;
 
@@ -287,6 +290,7 @@ export class Renderer {
           this.corpses.push({ kind: ev.kind, x: d.x, y: d.y, t: 0 });
           this.shatter(ev.kind, d, this.facing.get(ev.id) ?? 1, isBoss(ev) ? 1.6 : 1);
           this.burstParticles(ev.x, ev.y, ev.ally ? '#7ee081' : ev.kind === 'wraith' ? '#9fe8ff' : '#e8dcc4', 6);
+          if (!ev.ally && !this.quiet) this.finish(ev.x, ev.y, isBoss(ev));
           // Every kill lands with a blink of stillness; a boss gets a long one.
           if (!ev.ally && !this.quiet) this.hitStop = Math.max(this.hitStop, 0.045);
           if (isBoss(ev)) {
@@ -728,6 +732,7 @@ export class Renderer {
     if (g.phase === 'dead') this.drawDying(dt);
     if (g.phase !== 'dead') {
       const pd = this.smooth(PLAYER_ID, g.player, k);
+      this.drawTrail(pd, dt);
       // The rogue fades when the next step will go unseen.
       const ax = pd.x * TILE + PAD + SPRITE_SIZE / 2;
       const ay = pd.y * TILE + PAD + SPRITE_SIZE;
@@ -1015,6 +1020,63 @@ export class Renderer {
     edge.addColorStop(1, `rgba(18, 4, 34, ${0.85 * s})`);
     ctx.fillStyle = edge;
     ctx.fillRect(-10, -10, BOARD_W + 20, BOARD_H + 20);
+  }
+
+  /** The finisher being worn: a slain foe bursts in its own way (coins, bats, soul-fire, confetti). */
+  private finish(tx: number, ty: number, boss: boolean) {
+    if (!this.finisher) return;
+    const cx = tx * TILE + TILE / 2;
+    const cy = ty * TILE + TILE / 2;
+    const many = boss ? 2.2 : 1;
+    const add = (n: number, make: (i: number) => Particle) => {
+      for (let i = 0; i < Math.round(n * many); i++) this.particles.push(make(i));
+    };
+    switch (this.finisher) {
+      case 'coins':
+        // a fountain of coins that arcs up and rains back down
+        add(26, () => ({ x: cx, y: cy, vx: (Math.random() - 0.5) * 80, vy: -55 - Math.random() * 55, color: Math.random() < 0.3 ? '#fff2c0' : Math.random() < 0.5 ? '#f2c14e' : '#c99a2e', t: 0, life: 0.9 + Math.random() * 0.5, size: Math.random() < 0.7 ? 2 : 3, grav: 3.4 }));
+        break;
+      case 'bats':
+        // bats break out of it and beat away upward, each on its own wobble
+        add(12, (i) => ({ x: cx + (Math.random() - 0.5) * 6, y: cy, vx: (i % 2 ? 1 : -1) * (14 + Math.random() * 40), vy: -24 - Math.random() * 34, color: Math.random() < 0.5 ? '#7a4fc0' : '#b48cff', t: 0, life: 1 + Math.random() * 0.5, size: Math.random() < 0.5 ? 3 : 2, grav: -0.4 }));
+        add(5, () => ({ x: cx, y: cy, vx: (Math.random() - 0.5) * 30, vy: -10, color: '#d3b0ff', t: 0, life: 0.4, size: 1 }));
+        break;
+      case 'soulfire':
+        // a column of blue fire straight up, and a ring of it along the floor
+        add(30, () => ({ x: cx + (Math.random() - 0.5) * 8, y: cy + 4, vx: (Math.random() - 0.5) * 6, vy: -40 - Math.random() * 70, color: Math.random() < 0.4 ? '#e8fbff' : Math.random() < 0.5 ? '#5fe3ff' : '#2f7fd6', t: 0, life: 0.6 + Math.random() * 0.5, size: Math.random() < 0.6 ? 2 : 1, grav: -0.3 }));
+        this.impacts.push({ x: tx, y: ty, t: 0, life: 0.4, color: '#5fe3ff', r: boss ? 26 : 15 });
+        break;
+      case 'confetti': {
+        const COLORS = ['#ff4d5a', '#f2c14e', '#7ee081', '#5fe3ff', '#d3b0ff', '#ffffff'];
+        add(34, () => ({ x: cx, y: cy - 2, vx: (Math.random() - 0.5) * 100, vy: -45 - Math.random() * 65, color: COLORS[Math.floor(Math.random() * COLORS.length)], t: 0, life: 1 + Math.random() * 0.6, size: Math.random() < 0.7 ? 2 : 3, grav: 2.6 }));
+        break;
+      }
+    }
+  }
+
+  /** The trail being worn: something left at the hero's heels while they're on the move. */
+  private drawTrail(d: Pos, dt: number) {
+    if (!this.trail || this.quiet) return;
+    // (while stepping, and for the blink of the landing after it)
+    if ((this.remain.get(PLAYER_ID) ?? 0) < 0.04 && !(this.landing.get(PLAYER_ID) ?? 0)) return;
+    const x = d.x * TILE + TILE / 2;
+    const y = d.y * TILE + PAD + SPRITE_SIZE - 1;
+    const some = (rate: number) => Math.random() < dt * rate;
+    switch (this.trail) {
+      case 'dust':
+        if (some(220)) this.particles.push({ x: x + (Math.random() - 0.5) * 9, y, vx: (Math.random() - 0.5) * 16, vy: -4 - Math.random() * 10, color: Math.random() < 0.5 ? '#c9bfd6' : '#8a7f9a', t: 0, life: 0.5 + Math.random() * 0.35, size: Math.random() < 0.6 ? 2 : 3 });
+        break;
+      case 'ember':
+        if (some(260)) this.particles.push({ x: x + (Math.random() - 0.5) * 9, y, vx: (Math.random() - 0.5) * 8, vy: -12 - Math.random() * 20, color: Math.random() < 0.3 ? '#fff2c0' : Math.random() < 0.5 ? '#ff8a2a' : '#d23a46', t: 0, life: 0.55 + Math.random() * 0.4, size: Math.random() < 0.5 ? 2 : 1, grav: -0.2 });
+        break;
+      case 'lightning':
+        // short bright sparks that jump sideways and die at once
+        if (some(320)) this.particles.push({ x: x + (Math.random() - 0.5) * 10, y: y - Math.random() * 6, vx: (Math.random() - 0.5) * 110, vy: (Math.random() - 0.5) * 60, color: Math.random() < 0.5 ? '#ffffff' : '#5fe3ff', t: 0, life: 0.18 + Math.random() * 0.2, size: Math.random() < 0.4 ? 2 : 1 });
+        break;
+      case 'stars':
+        if (some(200)) this.particles.push({ x: x + (Math.random() - 0.5) * 14, y: y - 8 - Math.random() * 8, vx: (Math.random() - 0.5) * 8, vy: 6 + Math.random() * 12, color: Math.random() < 0.5 ? '#fff2c0' : Math.random() < 0.5 ? '#f2c14e' : '#ffffff', t: 0, life: 0.8 + Math.random() * 0.5, size: Math.random() < 0.45 ? 2 : 1 });
+        break;
+    }
   }
 
   /** How the hero is dying ('death' for Death's own touch), or '' while they live: the page tints itself to match. */
