@@ -1897,6 +1897,8 @@ function showTitle() {
   // One thing to do, front and centre: today's crypt (or the run waiting), then a single
   // "Delve deeper" for the other modes. Everything else waits in the More drawer.
   const delveBtn = `<button class="btn ${endlessNext ? 'primary' : ''} delve-btn" id="delve">⚔️ Delve deeper<small>Endless · Horde · The Night Shift</small></button>`;
+  // Live races get their own door on the title, so nobody has to go looking for them.
+  const raceBtn = PORTAL || !ONLINE ? '' : '<button class="btn race-btn race-title-btn" id="race">⚔️ Crypt Race<span class="new-tag">NEW</span><small>Join a live race against other players</small></button>';
   const extras = [
     raid.phase !== 'open' ? raidCardHtml(raid) : '',
     welcomeTitleHtml(),
@@ -1921,6 +1923,7 @@ function showTitle() {
     ${dailyBlock}
     ${raid.phase === 'open' ? raidCardHtml(raid) : ''}
     ${delveBtn}
+    ${raceBtn}
     <button class="btn story-btn" id="story">📖 Story<small>${storyProgress()}</small></button>
     ${streak > 1 ? `<div class="streak">🕯️ ${streak}-day streak</div>` : ''}
     </div>
@@ -1952,6 +1955,7 @@ function showTitle() {
   on('#title-testers', () => showTesterAsk(() => screen === 'title' && !overlay.hidden));
   overlay.querySelector('#title-drawer')?.addEventListener('toggle', (e) => setDrawerOpen((e.currentTarget as HTMLDetailsElement).open));
   on('#delve', () => showDelve());
+  on('#race', showRaceMenu);
   titleScene();
   // The runs playing behind the title are live: say what the one behind the logo is doing.
   const live = overlay.querySelector<HTMLElement>('#title-live');
@@ -5096,7 +5100,7 @@ setRaceHost({
     newGame('endless');
     showTitle();
   },
-  backToMenu: () => showDelve(),
+  backToMenu: () => showTitle(),
 });
 // onemorecrypt.com/?race=CODE joins a friend's race room.
 const raceCode = raceFromLink();
