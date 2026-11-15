@@ -350,7 +350,7 @@ if (process.env.RACE === '1') {
   window_ghost = [await p.evaluate(async () => {
     const { Game, fullPool } = await import('/src/game.ts');
     const seed = 424242;
-    const g = new Game('endless', seed, 0, { hero: 'rogue', pool: fullPool(), forge: true, mercy: true, depths: true, boons: true });
+    const g = new Game('endless', seed, 0, { hero: 'knight', pool: fullPool(), forge: true, mercy: true, depths: true, boons: true });
     const W = 7;
     for (let i = 0; i < 400 && g.phase !== 'dead' && g.floor < 7; i++) {
       if (g.phase === 'choose') { g.choose(0); continue; }
@@ -379,6 +379,8 @@ if (process.env.RACE === '1') {
     return { user_id: 'rival', seed, floor: again.floor, kills: again.kills, turns: again.turns, log: full, seconds: Math.round(g.log.length * 0.4) };
   })];
   await hookSfx();
+  // (the rival's board, twice its size: on a video it has to be seen)
+  await p.addStyleTag({ content: '#race-rivals:not(.big) { transform: scale(1.9); transform-origin: bottom right; }' });
   await press('#race'); await tick(30);
   await press('#race-ghost');
   await sure(() => !!document.querySelector('.race-count'), 'the race countdown');
@@ -428,15 +430,17 @@ await peek('picked');
 await sure((floor) => window.cryptfall.game.floor === floor && window.cryptfall.game.phase === 'play', `floor ${DEEP}`, DEEP);
 await centre();
 // the dead down here are tough; the build makes short work of them, as it would
-const soften = () => p.evaluate(() => { for (const e of window.cryptfall.game.enemies) if (!e.softened) { e.softened = true; e.hp = Math.min(e.hp, 45); } });
+const soften = () => p.evaluate(() => { for (const e of window.cryptfall.game.enemies) if (!e.softened) { e.softened = true; e.hp = Math.min(e.hp, 45); e.dmg = Math.min(e.dmg, 18); } });
 // and nothing down here gets to end the take: topped up before every step
 // (Death himself stalks these floors and ends a run at a touch: he's left waiting in his corner)
 const guard = () => p.evaluate(() => {
   const g = window.cryptfall.game;
   g.player.maxHp = Math.max(g.player.maxHp, 900);
   g.player.hp = g.player.maxHp;
-  // a blow down here can take thousands: the Mirror's charges turn every one aside
-  g.shieldCharges = 40;
+  // (a blow down here can take thousands, a share of your health that grows with the depth;
+  // for the take that share is set aside and soften() keeps blows to a scratch, so no shield is
+  // needed and the screen isn't filled with BLOCK)
+  g.abyssDamage = () => 0;
   if (g.reaperIn < 60) g.reaperIn = 99;
   if (g.reaper && !g.reaper.waiting) g.reaper = null;
 });
