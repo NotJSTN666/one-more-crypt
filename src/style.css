@@ -6348,3 +6348,11 @@ body.menu:has(#overlay[data-screen='title']:not([hidden])) #ghosts { opacity: 0.
 .race-result .race-big { grid-area: floor; font-family: var(--gothic); font-size: 26px; color: var(--text); }
 .race-result li.won .race-big { color: var(--gold); }
 @media (prefers-reduced-motion: reduce) { .race-wait i, #race-rivals .race-clock.late { animation: none; } }
+
+/* The open lobby: who is ready, and the count of racers waiting on the title's race button. */
+.race-list li { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.race-list li em { font-style: normal; font-family: var(--pixel); font-size: 10px; color: var(--muted); white-space: nowrap; }
+.race-list li.ready em { color: var(--heal); }
+.race-list li.ready { border-color: #2f6b3a; }
+.race-list li.me.ready { border-color: var(--heal); }
+#race-waiting.hot { color: var(--heal); }

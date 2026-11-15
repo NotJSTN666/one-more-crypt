@@ -24,8 +24,7 @@ import { esc, hideOverlay, on, overlay, showOverlay, toast } from './ui';
 /** How long a race runs. */
 export const RACE_MS = 5 * 60 * 1000;
 const COUNTDOWN_MS = 4000;
-/** The open lobby: how long it gathers racers once two are there, and how many race together. */
-const GATHER_MS = 7000;
+/** The open lobby: how many race together. A full lobby starts at once; otherwise when everyone there is ready. */
 const MAX_RACERS = 4;
 const LOBBY = 'LOBBY';
 /** Souls for finishing a race: against players, and against a ghost. */
@@ -82,8 +81,9 @@ interface Race {
   timer: number;
   /** The open lobby: who is waiting (by id), and when the race is called. */
   since: number;
-  waiting: Map<string, { name: string; since: number; seen: number; gatherAt: number }>;
-  gatherAt: number;
+  waiting: Map<string, { name: string; since: number; seen: number; ready: boolean }>;
+  /** Whether I've readied up. */
+  ready: boolean;
 }
 
 let host: RaceHost | null = null;
@@ -104,7 +104,7 @@ const fell = (g: Game | null) => (g?.phase as string | undefined) === 'dead';
 function blank(code: string, kind: Race['kind'], role: Race['role']): Race {
   return {
     code, kind, role, link: null, seed: 0, head: '', rivals: [], phase: 'lobby', startAt: 0, mine: null,
-    lastSent: 0, lastSentLen: -1, timer: 0, since: Date.now(), waiting: new Map(), gatherAt: 0,
+    lastSent: 0, lastSentLen: -1, timer: 0, since: Date.now(), waiting: new Map(), ready: false,
   };
 }
 
@@ -151,7 +151,7 @@ export function showRaceMenu() {
     <button class="btn back-top" id="back">← Back</button>
     <h2>⚔️ Crypt Race</h2>
     <p class="sub">Up to four players, the same crypt, the same hero, at the same time. You see each other play. Deepest floor in five minutes wins.</p>
-    <button class="btn primary" id="race-join-open">⚔️ Join a race<small>Jump in with whoever is waiting. It starts when two of you are there.</small></button>
+    <button class="btn primary" id="race-join-open">⚔️ Join a race<small>Jump in with whoever is waiting. It starts when everyone is ready, or when four are in.</small></button>
     <button class="btn" id="race-ghost">👻 Race a ghost<small>A real player's run, played back beside you. Always ready.</small></button>
     <details class="race-private">
       <summary>Race a friend privately</summary>
@@ -200,13 +200,10 @@ async function joinLobby() {
     for (const [id, w] of r.waiting) if (now - w.seen > 3500) r.waiting.delete(id);
     const order = lobbyOrder(r, me.id);
     const lead = order[0].id === me.id;
-    if (lead) {
-      // Two or more: call the race a few seconds out, so others can still get in.
-      if (order.length < 2) r.gatherAt = 0;
-      else if (!r.gatherAt) r.gatherAt = now + GATHER_MS;
-      if (r.gatherAt && now >= r.gatherAt) return callRace(order.slice(0, MAX_RACERS));
-    } else r.gatherAt = r.waiting.get(order[0].id)?.gatherAt ?? 0;
-    r.link?.send({ t: 'here', name: me.name, since: r.since, gatherAt: lead ? r.gatherAt : 0 });
+    // Whoever runs the lobby calls the race: at once when it's full, or when the two or more
+    // who are here have all readied up.
+    if (lead && (order.length >= MAX_RACERS || (order.length >= 2 && order.every((p) => p.ready)))) return callRace(order.slice(0, MAX_RACERS));
+    r.link?.send({ t: 'here', name: me.name, since: r.since, ready: r.ready });
     drawLobby();
     r.timer = window.setTimeout(beat, 1000);
   };
@@ -214,8 +211,8 @@ async function joinLobby() {
 }
 
 /** Everyone in the lobby, longest-waiting first (that one runs it). */
-function lobbyOrder(r: Race, myId: string): { id: string; name: string; since: number }[] {
-  const all = [{ id: myId, name: host!.me().name, since: r.since }, ...[...r.waiting].map(([id, w]) => ({ id, name: w.name, since: w.since }))];
+function lobbyOrder(r: Race, myId: string): { id: string; name: string; since: number; ready: boolean }[] {
+  const all = [{ id: myId, name: host!.me().name, since: r.since, ready: r.ready }, ...[...r.waiting].map(([id, w]) => ({ id, name: w.name, since: w.since, ready: w.ready }))];
   return all.sort((a, b) => a.since - b.since || (a.id < b.id ? -1 : 1));
 }
 
@@ -224,15 +221,26 @@ function drawLobby() {
   if (!r || !host || r.role !== 'lobby' || r.phase !== 'lobby') return;
   const me = host.me();
   const order = lobbyOrder(r, me.id);
-  const left = r.gatherAt ? Math.max(0, Math.ceil((r.gatherAt - Date.now()) / 1000)) : 0;
   const waited = Math.floor((Date.now() - r.since) / 1000);
+  const racers = order.slice(0, MAX_RACERS);
+  const notReady = racers.filter((p) => !p.ready).length;
+  // (redrawn every second: keep the page where the player has scrolled it, and don't steal a tap mid-press)
+  const top = overlay.scrollTop;
   showOverlay('race', `
     <h2>⚔️ The open race</h2>
-    <p class="race-wait"><i></i>${order.length < 2 ? 'Waiting for another racer…' : `The race starts in <b>${left}</b>`}</p>
-    <ul class="race-list">${order.slice(0, MAX_RACERS).map((p) => `<li class="${p.id === me.id ? 'me' : ''}">${esc(p.id === me.id ? `${p.name} (you)` : p.name)}</li>`).join('')}${order.length > MAX_RACERS ? `<li class="more">+${order.length - MAX_RACERS} waiting for the next one</li>` : ''}</ul>
-    <p class="fine">${order.length < 2 ? (waited >= 20 ? 'Quiet down here right now. A ghost is always ready to race.' : 'Anyone who taps Join a race lands here with you.') : `Up to ${MAX_RACERS} race together.`}</p>
-    ${order.length < 2 ? '<button class="btn primary" id="race-ghost">👻 Race a ghost instead</button>' : ''}
+    <p class="race-wait"><i></i>${order.length < 2 ? 'Waiting for another racer…' : notReady ? `${racers.length} here · waiting on ${notReady} to ready up` : 'Everyone is ready!'}</p>
+    <ul class="race-list">${racers.map((p) => `<li class="${p.id === me.id ? 'me' : ''} ${p.ready ? 'ready' : ''}"><span>${esc(p.id === me.id ? `${p.name} (you)` : p.name)}</span><em>${p.ready ? '✓ Ready' : 'Not ready'}</em></li>`).join('')}${order.length > MAX_RACERS ? `<li class="more">+${order.length - MAX_RACERS} waiting for the next one</li>` : ''}</ul>
+    <button class="btn ${r.ready ? '' : 'primary'}" id="race-ready">${r.ready ? '↩ Not ready<small>Wait for more racers to join</small>' : '✅ Ready up<small>The race starts when everyone here is ready</small>'}</button>
+    <p class="fine">${order.length < 2 ? (waited >= 20 ? 'Quiet down here right now. A ghost is always ready to race.' : 'Anyone who taps Join a race lands here with you. Ready up now, or hold off to let more join.') : `Want more racers? Hold off readying up. With ${MAX_RACERS} here it starts straight away.`}</p>
+    ${order.length < 2 ? '<button class="btn" id="race-ghost">👻 Race a ghost instead</button>' : ''}
     <button class="btn" id="back">Leave</button>`);
+  overlay.scrollTop = top;
+  on('#race-ready', () => {
+    r.ready = !r.ready;
+    // (said at once, not on the next heartbeat)
+    r.link?.send({ t: 'here', name: me.name, since: r.since, ready: r.ready });
+    drawLobby();
+  });
   on('#back', showRaceMenu);
   on('#race-ghost', () => void startGhostRace());
 }
@@ -267,6 +275,38 @@ function enterMatch(code: string, seed: number, head: string, players: { id: str
       else link.leave();
     })
     .catch(() => undefined);
+}
+
+/**
+ * Listen in on the open lobby without standing in it, to say how many are waiting (the race
+ * button on the title shows it). Returns a way to stop listening.
+ */
+export function watchLobby(onCount: (n: number) => void): () => void {
+  if (!host) return () => undefined;
+  let stopped = false;
+  let link: RaceLink | null = null;
+  const seen = new Map<string, number>();
+  const tell = () => {
+    const now = Date.now();
+    for (const [id, at] of seen) if (now - at > 3500) seen.delete(id);
+    onCount(seen.size);
+  };
+  const timer = window.setInterval(tell, 1000);
+  void openLink(LOBBY, `${host.me().id}#watch`, (from, msg) => {
+    if (msg.t === 'here') seen.set(from, Date.now());
+    else if (msg.t === 'match') for (const p of (Array.isArray(msg.players) ? msg.players : []) as { id: string }[]) seen.delete(p?.id);
+    tell();
+  }, () => undefined)
+    .then((l) => {
+      if (stopped) l.leave();
+      else link = l;
+    })
+    .catch(() => undefined);
+  return () => {
+    stopped = true;
+    window.clearInterval(timer);
+    link?.leave();
+  };
 }
 
 // ---------- a private room, for a friend ----------
@@ -415,7 +455,7 @@ function onMessage(from: string, msg: Record<string, unknown>) {
     // ---- the open lobby ----
     case 'here':
       if (r.role !== 'lobby' || r.phase !== 'lobby') return;
-      r.waiting.set(from, { name: String(msg.name ?? '').slice(0, 24) || 'A racer', since: Number(msg.since) || Date.now(), seen: Date.now(), gatherAt: Number(msg.gatherAt) || 0 });
+      r.waiting.set(from, { name: String(msg.name ?? '').slice(0, 24) || 'A racer', since: Number(msg.since) || Date.now(), seen: Date.now(), ready: Boolean(msg.ready) });
       break;
     case 'match': {
       if (r.role !== 'lobby' || r.phase !== 'lobby') return;

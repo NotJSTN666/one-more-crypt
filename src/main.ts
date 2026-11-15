@@ -42,7 +42,7 @@ import { claimInlineHtml, wireClaimInline, keepNameHtml, wireKeepName, endlessRe
 import { currentStreak, loadSave, recordDaily, streakStats, WARD_EVERY, writeSave, type RunResult } from './storage';
 import { $, calmChosen, calmMotion, esc, formStatus, hideOverlay, on, onSubmit, overlay, overlayShownAt, screen, setCalm, showOverlay, toast } from './ui';
 import { showTesterAsk, testerAskDue, testerOffer } from './testers';
-import { joinRoom, leaveRace, raceFrame, raceFromLink, raceOn, raceRunEnded, setRaceHost, showRaceMenu } from './race';
+import { joinRoom, leaveRace, raceFrame, raceFromLink, raceOn, raceRunEnded, setRaceHost, showRaceMenu, watchLobby } from './race';
 import { inviteAskDue, noteDailyForInvite, showInviteAsk } from './invite-ask';
 
 const canvas = $<HTMLCanvasElement>('board');
@@ -75,6 +75,8 @@ let lastReward: RunReward | null = null;
 let lastWelcome: { day: number; reward: WelcomeReward } | null = null;
 /** Set when a race stops the run on screen (time up, or decided), so no more moves are taken. */
 let raceHalt = false;
+/** Stops listening for who is waiting in the open race lobby (the title screen's count). */
+let stopLobbyWatch: () => void = () => undefined;
 let lastLabel = '';
 /** Whether the run just finished was a personal best (a guest is asked for a name then), and whether the results' extra section is open. */
 let lastPersonalBest = false;
@@ -1898,7 +1900,7 @@ function showTitle() {
   // "Delve deeper" for the other modes. Everything else waits in the More drawer.
   const delveBtn = `<button class="btn ${endlessNext ? 'primary' : ''} delve-btn" id="delve">⚔️ Delve deeper<small>Endless · Horde · The Night Shift</small></button>`;
   // Live races get their own door on the title, so nobody has to go looking for them.
-  const raceBtn = PORTAL || !ONLINE ? '' : '<button class="btn race-btn race-title-btn" id="race">⚔️ Crypt Race<span class="new-tag">NEW</span><small>Join a live race against other players</small></button>';
+  const raceBtn = PORTAL || !ONLINE ? '' : '<button class="btn race-btn race-title-btn" id="race">⚔️ Crypt Race<span class="new-tag">NEW</span><small id="race-waiting">Join a live race against other players</small></button>';
   const extras = [
     raid.phase !== 'open' ? raidCardHtml(raid) : '',
     welcomeTitleHtml(),
@@ -1956,6 +1958,16 @@ function showTitle() {
   overlay.querySelector('#title-drawer')?.addEventListener('toggle', (e) => setDrawerOpen((e.currentTarget as HTMLDetailsElement).open));
   on('#delve', () => showDelve());
   on('#race', showRaceMenu);
+  // How many are standing in the open lobby right now, on the race button (while the title is up).
+  const waitingEl = overlay.querySelector<HTMLElement>('#race-waiting');
+  if (waitingEl) {
+    stopLobbyWatch();
+    stopLobbyWatch = watchLobby((n) => {
+      if (!waitingEl.isConnected) return stopLobbyWatch();
+      waitingEl.textContent = n ? `${n} ${n === 1 ? 'player' : 'players'} waiting · jump in` : 'Join a live race against other players';
+      waitingEl.classList.toggle('hot', n > 0);
+    });
+  }
   titleScene();
   // The runs playing behind the title are live: say what the one behind the logo is doing.
   const live = overlay.querySelector<HTMLElement>('#title-live');
