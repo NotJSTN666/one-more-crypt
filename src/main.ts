@@ -8,7 +8,7 @@ import { TRIAL_SOULS, trialProgressText, weekTrial } from './trials';
 import { ACHIEVEMENT_BY_ID, DAILY_TOTALS, ELITES, FEATURES, HERO_BY_ID, HEROES, dailyHero, hordeHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait, heroSprite } from './hero';
 import { BOON_BY_ID, ENEMY_INFO, W, MIST_BITE, REAPER_FLOOR, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode, type EnemyKind } from './game';
-import { acceptQuest, checkRun, grantFeats, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, rerollCost, spendSouls, acceptPlayerGift, INVITE_SOULS, INVITE_PETS, type InviteGain, finishHordeMeta, receiveGift, equipTitle, FAIR_DAILY, LEAN_DAILY, MISSILE_DAILY, type RunReward } from './meta';
+import { acceptQuest, checkRun, grantFeats, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, rerollCost, spendSouls, grantSouls, acceptPlayerGift, INVITE_SOULS, INVITE_PETS, type InviteGain, finishHordeMeta, receiveGift, equipTitle, FAIR_DAILY, LEAN_DAILY, MISSILE_DAILY, type RunReward } from './meta';
 import { drawGhosts, startGhosts, watching } from './ghosts';
 import { celebrate, celebrateNotes, holdCelebrations, setHallOpener, setOssuaryHost, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
@@ -42,6 +42,7 @@ import { claimInlineHtml, wireClaimInline, keepNameHtml, wireKeepName, endlessRe
 import { currentStreak, loadSave, recordDaily, streakStats, WARD_EVERY, writeSave, type RunResult } from './storage';
 import { $, calmChosen, calmMotion, esc, formStatus, hideOverlay, on, onSubmit, overlay, overlayShownAt, screen, setCalm, showOverlay, toast } from './ui';
 import { showTesterAsk, testerAskDue, testerOffer } from './testers';
+import { joinRoom, leaveRace, raceFrame, raceFromLink, raceOn, raceRunEnded, setRaceHost, showRaceMenu } from './race';
 import { inviteAskDue, noteDailyForInvite, showInviteAsk } from './invite-ask';
 
 const canvas = $<HTMLCanvasElement>('board');
@@ -72,6 +73,8 @@ let lastResult: RunResult | null = null;
 let lastReward: RunReward | null = null;
 /** The Seven Nights gift claimed by the run that just ended, if any. */
 let lastWelcome: { day: number; reward: WelcomeReward } | null = null;
+/** Set when a race stops the run on screen (time up, or decided), so no more moves are taken. */
+let raceHalt = false;
 let lastLabel = '';
 /** Whether the run just finished was a personal best (a guest is asked for a name then), and whether the results' extra section is open. */
 let lastPersonalBest = false;
@@ -116,6 +119,7 @@ function newGame(mode: Mode) {
 
 function showGame(g: Game) {
   delete document.body.dataset.dying;
+  raceHalt = false;
   game = g;
   portalPlaying(true);
   runCombos = [];
@@ -471,7 +475,7 @@ onAccountSynced(() => {
 
 function saveRun() {
   // Story chapters are short, and start over rather than resume.
-  if (!game || game.phase === 'dead' || game.mode === 'story' || deathTest()) return;
+  if (!game || game.phase === 'dead' || game.mode === 'story' || deathTest() || raceOn()) return;
   // A Horde run keeps its own slot, so it never overwrites a saved Endless or Daily run.
   if (game.mode === 'horde') {
     try {
@@ -584,6 +588,12 @@ function killedByPhrase(name: string): string {
 }
 
 function finishRun(abandoned = false) {
+  if (raceOn()) {
+    // A race has its own ending: nothing is recorded, and the race decides what happens next.
+    window.clearTimeout(overlayTimer);
+    raceRunEnded(abandoned);
+    return;
+  }
   if (deathTest()) {
     // The try-out: watch the ending on the board, then back to the title with nothing recorded.
     deathTestGame = null;
@@ -703,7 +713,7 @@ function setRank(text: string) {
 
 function act(dx: number, dy: number) {
   unlockAudio();
-  if (!game || game.phase !== 'play' || !overlay.hidden || tutorial?.busy || fusionPlaying) return;
+  if (!game || game.phase !== 'play' || !overlay.hidden || tutorial?.busy || fusionPlaying || raceHalt) return;
   clockInput();
   // The first input of the tutorial, to tell "never touched it" from "tried and left".
   if (tutorial && !tutorialTouched) {
@@ -763,7 +773,7 @@ function processEvents() {
       renderer.banner(`${def.name.toUpperCase()}!`, def.rarity === 'ascended' ? '#fff2c0' : '#7fb4ff');
       fusedReveal = { id: ev.id, first: noteFusion(ev.id) };
     }
-    if (ev.t !== 'relic' || deathTest()) continue;
+    if (ev.t !== 'relic' || deathTest() || raceOn()) continue;
     const { achievements, combos } = noteRelic(game, ev.id);
     for (const c of combos) {
       runCombos.push(c);
@@ -773,7 +783,7 @@ function processEvents() {
   }
   // (The Horde's depth isn't a floor reached, so floor feats don't count there.)
   if (deathTest()) deathTestTurn();
-  if (game.phase !== 'dead' && game.mode !== 'horde' && !deathTest()) celebrate(checkRun(game));
+  if (game.phase !== 'dead' && game.mode !== 'horde' && !deathTest() && !raceOn()) celebrate(checkRun(game));
   updateHud();
   if (raidRun && (game.phase === 'dead' || game.phase === 'won' || game.turns >= RAID_TURNS)) {
     if (game.phase === 'dead') setMusicMood('silent');
@@ -1840,7 +1850,9 @@ function showDelve() {
     ${endlessBtn}
     ${hordeButtonHtml()}
     ${nightButtonHtml()}
+    ${PORTAL ? '' : '<button class="btn race-btn" id="race">⚔️ Crypt Race<span class="new-tag">NEW</span><small>Race a friend, or a ghost, through the same crypt</small></button>'}
   `);
+  on('#race', showRaceMenu);
   on('#back', showTitle);
   on('#continue', () => resumable && resumeRun(resumable));
   on('#endless', () => withTutorialOffer(() => showHeroSelect(() => startRun('endless'), showDelve), showDelve));
@@ -1851,6 +1863,8 @@ function showDelve() {
 
 function showTitle() {
   delete document.body.dataset.dying;
+  // (a race room left open is closed by going back to the title)
+  if (!raceOn()) leaveRace();
   portalPlaying(false);
   // A newer version came out while the app sat open: load it now, between runs.
   if (updateReady && reloadForUpdate()) return;
@@ -2357,7 +2371,7 @@ function showChoice() {
   const surge = game.mode === 'horde' && game.config.surge;
   const canForge = surge && game.forgeOptions().length > 0;
   // Endless (not a challenge or a world-boss fight, which must stay even): pay Souls for a fresh set.
-  const rerollable = game.canReroll() && !challenge && !raidRun && !tutorial;
+  const rerollable = game.canReroll() && !challenge && !raidRun && !tutorial && !raceOn();
   const price = rerollCost(game.rerolls);
   const rerollBtn = rerollable
     ? `<button class="btn reroll-btn" id="reroll" ${meta.souls >= price || deathTest() ? '' : 'disabled'}>🎲 Reroll these relics<small>💀 ${price.toLocaleString()} Souls · you have ${meta.souls.toLocaleString()} · the price doubles each time this run</small></button>`
@@ -4890,6 +4904,7 @@ function loop(now: number) {
   if (document.body.dataset.dying && game && game.phase !== 'dead') delete document.body.dataset.dying;
   renderer.frame(dt);
   drawGhosts(dt);
+  raceFrame(dt);
   requestAnimationFrame(loop);
 }
 
@@ -5044,6 +5059,45 @@ showTitle();
 void initPortal((on) => setMuted(on)).then(portalLoaded);
 const visiting = hallFromLink();
 if (visiting && ONLINE) showPublicHall(visiting, showTitle);
+// Crypt Race: the game's side of it (see race.ts).
+setRaceHost({
+  me: () => ({ id: raidPlayer(session.account?.id), name: signedIn() ? playerName() : 'A guest' }),
+  newCrypt: () => {
+    const seed = (Math.random() * 2 ** 32) >>> 0;
+    return { seed, head: new Game('endless', seed, 0, runConfig('endless', 0)).header() };
+  },
+  start: (seed, head) => {
+    unlockAudio();
+    if (tutorial) endTutorial();
+    challenge = null;
+    raceHalt = false;
+    showGame(new Game('endless', seed, 0, Game.parseLog(head).config));
+    startClock();
+    setMusicDepth(game.floor, game.zone.def.key);
+    setMusicMood('crypt');
+    hideOverlay();
+    sfx.stairs();
+    renderer.banner('RACE!', '#f2c14e');
+    return game;
+  },
+  game: () => game,
+  stop: () => {
+    raceHalt = true;
+    window.clearTimeout(overlayTimer);
+    setMusicMood('silent');
+  },
+  grantSouls,
+  showTitle: () => {
+    raceHalt = false;
+    newGame('endless');
+    showTitle();
+  },
+  backToMenu: () => showDelve(),
+});
+// onemorecrypt.com/?race=CODE joins a friend's race room.
+const raceCode = raceFromLink();
+if (raceCode) window.setTimeout(() => void joinRoom(raceCode), 900);
+
 const challengeCode = challengeFromLink();
 inviteFromLink();
 if (challengeCode && ONLINE) openChallenge(challengeCode, showTitle);

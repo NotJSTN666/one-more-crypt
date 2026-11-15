@@ -2785,20 +2785,25 @@ export class Game {
   static replay(mode: Mode, seed: number, dailyNo: number, fullLog: string): Game {
     const { config, inputs } = Game.parseLog(fullLog, mode);
     const g = new Game(mode, seed, dailyNo, config);
-    const moves: Record<string, [number, number]> = { U: [0, -1], D: [0, 1], L: [-1, 0], R: [1, 0], W: [0, 0] };
     for (const ch of inputs) {
       if (g.phase === 'dead') break;
-      if (moves[ch]) g.act(moves[ch][0], moves[ch][1]);
-      else if (ch === 'r') g.choose(-1);
-      else if (ch === 'a' || ch === 'x') g.resolveEvent(ch === 'a');
-      else if (FORGE_KEYS.includes(ch)) g.forge(FORGE_KEYS.indexOf(ch));
-      else if (ch === 'z') g.hordeForge();
-      else if (ch === 'o') g.toggleBow();
-      else if (ch === 'q') g.reroll();
-      else g.choose(Number(ch));
+      g.applyInput(ch);
     }
     g.events.length = 0;
     return g;
+  }
+
+  /** Play one logged input (a single character of a run log). A race feeds a rival's board with these as they arrive. */
+  applyInput(ch: string) {
+    const moves: Record<string, [number, number]> = { U: [0, -1], D: [0, 1], L: [-1, 0], R: [1, 0], W: [0, 0] };
+    if (moves[ch]) this.act(moves[ch][0], moves[ch][1]);
+    else if (ch === 'r') this.choose(-1);
+    else if (ch === 'a' || ch === 'x') this.resolveEvent(ch === 'a');
+    else if (FORGE_KEYS.includes(ch)) this.forge(FORGE_KEYS.indexOf(ch));
+    else if (ch === 'z') this.hordeForge();
+    else if (ch === 'o') this.toggleBow();
+    else if (ch === 'q') this.reroll();
+    else this.choose(Number(ch));
   }
 
   /** Short run summary used by the share card and results screen. */

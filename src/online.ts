@@ -561,6 +561,77 @@ export async function sendGift(to: string, item: string): Promise<string> {
   return typeof data === 'string' && data ? data : to;
 }
 
+// ---------- Crypt Race ----------
+// A race room is a live channel and nothing else: no tables. Whoever opens the room holds the
+// crypt's seed and tells it to whoever joins; from then on each side sends its run's input log,
+// and the other redraws the run from it (the game is deterministic, so inputs are enough).
+
+export interface RaceLink {
+  send(msg: Record<string, unknown>): void;
+  leave(): void;
+}
+
+/** Join a race room. `onMsg` gets every message from the others; `onPeers` the ids present whenever that changes. */
+export async function raceLink(code: string, id: string, onMsg: (from: string, msg: Record<string, unknown>) => void, onPeers: (ids: string[]) => void): Promise<RaceLink> {
+  const sb = await client();
+  const channel = sb.channel(`omc-race:${code}`, { config: { broadcast: { self: false }, presence: { key: id } } });
+  channel.on('broadcast', { event: 'm' }, ({ payload }) => {
+    const p = payload as { from?: unknown; msg?: unknown };
+    if (typeof p?.from === 'string' && p.from !== id && p.msg && typeof p.msg === 'object') onMsg(p.from, p.msg as Record<string, unknown>);
+  });
+  channel.on('presence', { event: 'sync' }, () => onPeers(Object.keys(channel.presenceState())));
+  await new Promise<void>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new OnlineError('Could not reach the race room. Check your connection.')), 10000);
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        window.clearTimeout(timer);
+        void channel.track({ at: Date.now() });
+        resolve();
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        window.clearTimeout(timer);
+        reject(new OnlineError('Could not reach the race room. Check your connection.'));
+      }
+    });
+  });
+  return {
+    send: (msg) => void channel.send({ type: 'broadcast', event: 'm', payload: { from: id, msg } }),
+    leave: () => void sb.removeChannel(channel),
+  };
+}
+
+export interface RaceGhost { name: string; seed: number; log: string; floor: number; kills: number; turns: number; seconds: number }
+
+/** A few recent Endless runs by real players, with their input logs, to race against when nobody is waiting. */
+export async function raceGhosts(): Promise<RaceGhost[]> {
+  if (!ONLINE) return [];
+  try {
+    const sb = await client();
+    const { data, error } = await sb
+      .from('runs')
+      .select('user_id, seed, floor, kills, turns, log, seconds')
+      .eq('mode', 'endless')
+      .gte('floor', 4)
+      .lte('floor', 40)
+      .gt('seconds', 30)
+      .order('created_at', { ascending: false })
+      .limit(40);
+    if (error || !Array.isArray(data)) return [];
+    const rows = (data as Record<string, unknown>[]).filter((r) => typeof r.log === 'string' && (r.log as string).startsWith('#'));
+    const ids = [...new Set(rows.map((r) => String(r.user_id)))];
+    const names = new Map<string, string>();
+    if (ids.length) {
+      const res = await sb.from('profiles').select('id, name').in('id', ids);
+      for (const p of (res.data ?? []) as { id: string; name: string | null }[]) if (p.name) names.set(p.id, p.name);
+    }
+    return rows.map((r) => ({
+      name: names.get(String(r.user_id)) ?? 'A fallen hero',
+      seed: Number(r.seed), log: String(r.log), floor: Number(r.floor) || 1, kills: Number(r.kills) || 0, turns: Number(r.turns) || 0, seconds: Number(r.seconds) || 0,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 // ---------- the Soul Pyre ----------
 
 export interface PyreState {

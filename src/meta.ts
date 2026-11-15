@@ -465,6 +465,14 @@ export function acceptPlayerGift(item: string): { gift: Giftable; refund: number
 /** What the next reroll of a relic offer costs in Endless: 100 Souls, doubling with each one this run. */
 export const rerollCost = (used: number) => 100 * 2 ** Math.min(used, 20);
 
+/** Souls won outside a run's own tally (a race). They count toward your rank like any others. */
+export function grantSouls(n: number) {
+  if (n <= 0) return;
+  meta.souls += n;
+  meta.earned += n;
+  saveMeta();
+}
+
 /** Pay Souls for something that isn't kept (a reroll). False if you can't afford it. */
 export function spendSouls(n: number): boolean {
   if (n <= 0 || meta.souls < n) return false;
