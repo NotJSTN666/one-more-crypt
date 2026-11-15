@@ -24,7 +24,7 @@ export interface NewsDay {
 export const NEWS: NewsDay[] = [
   {
     date: '2026-11-14',
-    title: 'A tidier results screen and an easier first step',
+    title: 'Crypt Race: live races against other players',
     go: ['daily'],
     notes: [
       '⚔️ Crypt Race: live races against other players. Tap Crypt Race on the title screen, then Join a race, and you land in the open lobby with whoever else is waiting. The button shows how many are waiting. Ready up when you want to go: the race starts when everyone there is ready, or straight away once four are in. Up to four of you race the same crypt, each watching the others\' runs on small boards. Deepest floor in five minutes wins.',
