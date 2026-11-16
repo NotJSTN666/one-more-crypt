@@ -6430,3 +6430,52 @@ body.menu:has(#overlay[data-screen='title']:not([hidden])) #ghosts { opacity: 0.
 #chat-fab[hidden] { display: none; }
 #chat-fab .chat-chip { display: flex; align-items: center; justify-content: center; width: 46px; height: 46px; max-width: none; padding: 0; font-size: 22px; overflow: visible; border-color: rgba(242, 193, 78, 0.5); box-shadow: 0 2px 12px rgba(0, 0, 0, 0.7); }
 .race-hero { margin: 4px 0 0; text-align: center; font-size: 0.9rem; color: #c9bfa8; } .race-hero b { color: #f2c14e; }
+
+/* ---------- conversations: played out over the scene they happen in (talk() in main.ts) ---------- */
+.talk-scene { position: fixed; inset: 0; z-index: 0; background: #07040b center / cover no-repeat; image-rendering: pixelated; filter: brightness(0.5) saturate(0.85); }
+.talk-scene::after { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 40%, rgba(7, 4, 11, 0) 30%, rgba(7, 4, 11, 0.85) 100%); }
+.talk-bar { position: fixed; left: 0; right: 0; z-index: 1; height: 7vh; background: #05030a; animation: talk-bar-in 0.45s ease-out both; }
+.talk-bar.top { top: 0; transform-origin: top; }
+.talk-bar.bottom { bottom: 0; transform-origin: bottom; }
+#overlay.again .talk-bar { animation: none; }
+@keyframes talk-bar-in { from { transform: scaleY(0); } }
+/* (fixed children need a panel that isn't transformed, so this screen skips the entrance) */
+#overlay#overlay[data-screen='talk'] > .panel { animation: none; transform: none; opacity: 1; }
+#overlay[data-screen='talk'] .talk-stage { transform: translateX(-50%); }
+#overlay[data-screen='talk'] .talk-bar { animation: talk-bar-in 0.45s ease-out both; }
+#overlay[data-screen='talk'] .back-top { position: fixed; z-index: 3; top: calc(7vh + 10px); left: 12px; width: auto; }
+.talk-stage { position: fixed; z-index: 2; left: 50%; bottom: calc(7vh + 14px + env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(820px, calc(100vw - 24px)); }
+.talk-stage .talk { position: relative; gap: 18px; align-items: stretch; min-height: 140px; padding: 16px 18px; background: linear-gradient(180deg, rgba(28, 18, 38, 0.97), rgba(14, 9, 20, 0.97)); border: 2px solid var(--who, var(--gold)); box-shadow: 0 0 0 1px #05030a, 0 0 28px color-mix(in srgb, var(--who, var(--gold)) 35%, transparent), 0 10px 30px rgba(0, 0, 0, 0.7); cursor: pointer; }
+.talk-stage .talk img { width: 112px; height: 112px; align-self: flex-start; border: 2px solid var(--who, var(--gold)); background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--who, var(--gold)) 30%, #1c1226), #0b0710); box-shadow: 0 0 14px color-mix(in srgb, var(--who, var(--gold)) 40%, transparent); animation: talk-face 3.2s ease-in-out infinite; }
+.talk-stage .talk b { font-size: 26px; color: var(--who, var(--gold)); text-shadow: 0 0 12px color-mix(in srgb, var(--who, var(--gold)) 45%, transparent); }
+.talk-stage .talk p { font-size: 18px; line-height: 1.55; }
+.talk-stage .talk em { color: var(--gold); font-style: normal; }
+.talk-more { position: absolute; right: 12px; bottom: 8px; font-style: normal; color: var(--who, var(--gold)); opacity: 0; }
+.talk.said .talk-more { opacity: 1; animation: talk-more 0.9s ease-in-out infinite; }
+.talk-stage .talk.narrator { justify-content: center; align-items: center; min-height: 110px; text-align: center; border-style: solid; border-color: rgba(232, 220, 196, 0.35); --who: #e8dcc4; background: rgba(7, 4, 11, 0.9); }
+.talk-stage .talk.narrator p { margin: 0; font-size: 19px; color: #d8ccb0; }
+.talk-stage .talk.narrator p::before { content: '✦'; display: block; margin-bottom: 6px; font-style: normal; font-size: 12px; color: var(--gold); opacity: 0.7; }
+.talk-stage .talk-head { text-align: center; text-shadow: 0 2px 6px #000; }
+.talk-stage .talk-prompt { padding: 14px 16px; text-align: center; font-size: 18px; background: rgba(14, 9, 20, 0.95); border: 2px solid var(--gold); }
+.talk-stage .btn { margin-top: 8px; }
+.talk-stage .link-btn { display: block; margin: 6px auto 0; text-shadow: 0 2px 6px #000; }
+.talk[data-who='gravedigger'] { --who: #f2c14e; }
+.talk[data-who='aldric'] { --who: #9fe8ff; }
+.talk[data-who='warden'] { --who: #ff4d5a; }
+.talk[data-who='hound'] { --who: #ff8a2a; }
+.talk[data-who='bess'] { --who: #ffb070; }
+.talk[data-who='agnes'] { --who: #b07cff; }
+.talk[data-who='pip'] { --who: #5fe3ff; }
+.talk[data-who='ambrose'] { --who: #9be36a; }
+.talk[data-who='hero'] { --who: #e8dcc4; }
+@keyframes talk-face { 50% { transform: translateY(-2px); } }
+@keyframes talk-more { 50% { transform: translateY(3px); } }
+@media (max-width: 560px) {
+  .talk-stage .talk { gap: 12px; padding: 12px; min-height: 120px; }
+  .talk-stage .talk img { width: 76px; height: 76px; }
+  .talk-stage .talk b { font-size: 22px; }
+  .talk-stage .talk p { font-size: 16px; }
+  .talk-bar { height: 4vh; }
+  .talk-stage { bottom: calc(4vh + 10px + env(safe-area-inset-bottom)); }
+}
+@media (prefers-reduced-motion: reduce) { .talk-bar, .talk-stage .talk img, .talk.said .talk-more { animation: none; } }

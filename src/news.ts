@@ -23,6 +23,14 @@ export interface NewsDay {
 
 export const NEWS: NewsDay[] = [
   {
+    date: '2026-11-16',
+    title: 'Story conversations, staged',
+    go: ['story'],
+    notes: [
+      '🎭 Conversations in the story now play out over the scene they happen in, with bigger portraits, each speaker in their own colour, and lines that spell themselves out. Tap once to finish a line, again to move on.',
+    ],
+  },
+  {
     date: '2026-11-15',
     title: 'Live chat, race prizes and a random hero',
     go: ['wardrobe'],

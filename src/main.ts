@@ -4703,8 +4703,70 @@ function showQuests(back: () => void = enterHollow) {
   on('#back', back);
 }
 
+/** What was on screen when a conversation began (the world, or the crypt), to play it out over. */
+function sceneShot(): string {
+  try {
+    const world = document.querySelector<HTMLCanvasElement>('#hollow-canvas');
+    if (world?.width) return world.toDataURL('image/jpeg', 0.8);
+    if (game && overlay.hidden) return canvas.toDataURL('image/jpeg', 0.8);
+  } catch {
+    // no picture: the conversation plays over the dark
+  }
+  return '';
+}
+
+/** Spell a line out letter by letter. Returns how to finish it at once (false when already done). */
+function typeOut(p: HTMLElement, onDone: () => void): () => boolean {
+  if (calmMotion()) {
+    onDone();
+    return () => false;
+  }
+  const parts: { text: string; on: HTMLElement; off: HTMLElement }[] = [];
+  const walk = document.createTreeWalker(p, NodeFilter.SHOW_TEXT);
+  const nodes: Text[] = [];
+  while (walk.nextNode()) nodes.push(walk.currentNode as Text);
+  for (const node of nodes) {
+    const on = document.createElement('span');
+    const off = document.createElement('span');
+    off.style.visibility = 'hidden';
+    off.textContent = node.data;
+    parts.push({ text: node.data, on, off });
+    node.replaceWith(on, off);
+  }
+  const total = parts.reduce((n, x) => n + x.text.length, 0);
+  let shown = 0;
+  const paint = () => {
+    let left = shown;
+    for (const x of parts) {
+      const n = Math.max(0, Math.min(x.text.length, left));
+      x.on.textContent = x.text.slice(0, n);
+      x.off.textContent = x.text.slice(n);
+      left -= n;
+    }
+  };
+  const timer = window.setInterval(() => {
+    if (!p.isConnected) return window.clearInterval(timer);
+    shown = Math.min(total, shown + 2);
+    paint();
+    if (shown >= total) {
+      window.clearInterval(timer);
+      onDone();
+    }
+  }, 22);
+  return () => {
+    if (shown >= total) return false;
+    shown = total;
+    paint();
+    window.clearInterval(timer);
+    onDone();
+    return true;
+  };
+}
+
 function talk(lines: Line[], done: () => void, heading = '') {
   let i = 0;
+  const scene = sceneShot();
+  const backdrop = `<div class="talk-scene" ${scene ? `style="background-image:url(${scene})"` : ''}></div><i class="talk-bar top"></i><i class="talk-bar bottom"></i>`;
   const next = () => {
     const line = lines[i++];
     if (!line) return done();
@@ -4716,10 +4778,12 @@ function talk(lines: Line[], done: () => void, heading = '') {
         lines = [...lines.slice(0, i), ...chosen.then, ...lines.slice(i)];
         return next();
       }
-      showOverlay('talk', `
+      showOverlay('talk', `${backdrop}
+        <div class="talk-stage">
         ${heading ? `<p class="talk-head">${esc(heading)}</p>` : ''}
         <p class="talk-prompt">${storyText(line.prompt)}</p>
-        ${line.options.map((o, k) => `<button class="btn ${k === 0 ? 'primary' : ''}" data-opt="${k}">${esc(o.label)}</button>`).join('')}`);
+        ${line.options.map((o, k) => `<button class="btn ${k === 0 ? 'primary' : ''}" data-opt="${k}">${esc(o.label)}</button>`).join('')}
+        </div>`);
       overlay.querySelectorAll<HTMLButtonElement>('[data-opt]').forEach((b) =>
         b.addEventListener('click', () => {
           const o = line.options[Number(b.dataset.opt)];
@@ -4736,21 +4800,30 @@ function talk(lines: Line[], done: () => void, heading = '') {
         ? heroPortrait(meta.hero, {}, [], 6, outfitFor(meta.hero).look, outfitFor(meta.hero).head)
         : facePortrait(line.who);
     const name = line.who === 'hero' ? HERO_BY_ID[meta.hero].name : storyText(SPEAKERS[line.who]);
-    showOverlay('talk', `
+    showOverlay('talk', `${backdrop}
+      <div class="talk-stage">
       ${heading ? `<p class="talk-head">${esc(heading)}</p>` : ''}
-      <div class="talk ${line.who === 'narrator' ? 'narrator' : ''}">
-        ${face ? `<img src="${face}" alt="" width="72" height="72" />` : ''}
+      <div class="talk ${line.who === 'narrator' ? 'narrator' : ''}" data-who="${line.who}">
+        ${face ? `<img src="${face}" alt="" width="112" height="112" />` : ''}
         <div>
           ${name ? `<b>${name}</b>` : ''}
           <p>${storyText(line.text)}</p>
         </div>
+        <i class="talk-more" aria-hidden="true">▾</i>
       </div>
       <button class="btn primary" id="next">${i < lines.length ? 'Next ▸' : 'Continue ▸'}</button>
-      <button class="link-btn" id="skip">Skip</button>`);
-    on('#next', () => {
+      <button class="link-btn" id="skip">Skip</button>
+      </div>`);
+    // The line spells itself out; the first press finishes it, the next moves on.
+    const box = overlay.querySelector<HTMLElement>('.talk')!;
+    const finish = typeOut(box.querySelector<HTMLElement>('p')!, () => box.classList.add('said'));
+    const onward = () => {
+      if (finish()) return;
       sfx.step();
       next();
-    });
+    };
+    on('#next', onward);
+    box.addEventListener('click', onward);
     on('#skip', () => {
       // Skipping still makes any choice ahead: jump to it, or to the end.
       const k = lines.findIndex((l, j) => j >= i && 'key' in l && !meta.story.choices[l.key]);
