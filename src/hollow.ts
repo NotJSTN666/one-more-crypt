@@ -907,8 +907,10 @@ function passThrough(swap: () => void, iris: boolean) {
   };
   place();
   document.body.appendChild(veil);
-  const closeMs = calm ? 120 : iris ? 340 : 220;
-  const openMs = calm ? 140 : iris ? 420 : 260;
+  const closeMs = calm ? 120 : iris ? 700 : 220;
+  const openMs = calm ? 140 : iris ? 800 : 260;
+  // A beat in the dark between closing and opening, so the iris reads as a wipe.
+  const holdMs = iris && !calm ? 180 : 0;
   // Let the walk onto the door finish before closing in.
   window.setTimeout(() => {
     place();
@@ -917,17 +919,18 @@ function passThrough(swap: () => void, iris: boolean) {
     window.setTimeout(() => {
       swap();
       // The new place draws a frame first, then the hero is found in it and it opens up.
-      requestAnimationFrame(() =>
-        requestAnimationFrame(() => {
-          place();
-          veil.classList.remove('shut');
-          veil.classList.add('opening');
-          window.setTimeout(() => {
-            veil.remove();
-            fading = false;
-          }, openMs);
-        }),
-      );
+      window.setTimeout(() =>
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            place();
+            veil.classList.remove('shut');
+            veil.classList.add('opening');
+            window.setTimeout(() => {
+              veil.remove();
+              fading = false;
+            }, openMs);
+          }),
+        ), holdMs);
     }, closeMs);
   }, iris ? 90 : 0);
 }
