@@ -34,6 +34,7 @@ export const NEWS: NewsDay[] = [
       '🕯️ Homes look lived in: rugs, candles on the walls, moonlight through the window and cobwebs in the corners.',
       '🗺️ The quest log has a map showing where you are and where a quest is waiting.',
       '🎬 Each quest opens with a title card, and ends with its rewards laid out.',
+      '🚪 Going in and out of buildings in the world is no longer an instant cut: the view closes in on your hero at the door and opens again on the other side. Roads to the next place dip through black.',
       '🎭 Conversations in the story now play out over the scene they happen in, with bigger portraits, each speaker in their own colour, and lines that spell themselves out. Tap once to finish a line, again to move on.',
     ],
   },

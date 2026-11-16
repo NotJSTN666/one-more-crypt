@@ -21,7 +21,7 @@ import { buyLand, graveState, meta, outfitFor, pickUpIsleItem, placeIsleItem, re
 import { LOOK_BY_ID, seasonDress } from './progression';
 import { enemyFrames, onCanvasReset } from './sprites';
 import { npcFigure, type NpcId } from './story';
-import { esc, overlay, screen, showOverlay, staleTap, toast } from './ui';
+import { calmMotion, esc, overlay, screen, showOverlay, staleTap, toast } from './ui';
 
 export type HollowPlace = 'daily' | 'endless' | 'forge' | 'ossuary' | 'hall' | 'grimoire' | 'wardrobe' | 'ranks';
 
@@ -876,6 +876,62 @@ function travel(to: string, x: number, y: number) {
   open();
 }
 
+// ---------- going in and out: an iris closes on the hero at a door, and opens on the other side ----------
+
+let fading = false;
+
+/** Where the hero stands on screen, in page pixels. */
+function heroOnScreen(): { x: number; y: number } {
+  const c = document.getElementById('hollow-canvas') as HTMLCanvasElement | null;
+  if (!c) return { x: innerWidth / 2, y: innerHeight / 2 };
+  const r = c.getBoundingClientRect();
+  const k = r.width / c.width;
+  return { x: r.left + ((draw.x * TILE + 8) * SCALE - Math.round(camX * SCALE)) * k, y: r.top + (draw.y * TILE + 8) * SCALE * k };
+}
+
+/**
+ * Change place behind a transition: `iris` (a door) closes a circle on the hero, swaps, and opens
+ * it again where they come out; otherwise (a road) the screen dips to black and back.
+ */
+function passThrough(swap: () => void, iris: boolean) {
+  if (fading) return;
+  fading = true;
+  path = [];
+  const calm = calmMotion();
+  const veil = document.createElement('div');
+  veil.className = `hollow-veil ${iris && !calm ? 'iris' : 'dip'}`;
+  const place = () => {
+    const at = heroOnScreen();
+    veil.style.setProperty('--hx', `${at.x}px`);
+    veil.style.setProperty('--hy', `${at.y}px`);
+  };
+  place();
+  document.body.appendChild(veil);
+  const closeMs = calm ? 120 : iris ? 340 : 220;
+  const openMs = calm ? 140 : iris ? 420 : 260;
+  // Let the walk onto the door finish before closing in.
+  window.setTimeout(() => {
+    place();
+    void veil.offsetWidth;
+    veil.classList.add('shut');
+    window.setTimeout(() => {
+      swap();
+      // The new place draws a frame first, then the hero is found in it and it opens up.
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          place();
+          veil.classList.remove('shut');
+          veil.classList.add('opening');
+          window.setTimeout(() => {
+            veil.remove();
+            fading = false;
+          }, openMs);
+        }),
+      );
+    }, closeMs);
+  }, iris ? 90 : 0);
+}
+
 // ---------- your isle ----------
 
 const icons = new Map<string, string>();
@@ -1010,8 +1066,11 @@ function enterHome(key: string) {
   build = null;
   AREAS.home.name = visiting ? `${visiting.name}'s ${it.name.replace(/^.*'s /, '')}` : `Your ${it.name}`;
   AREAS.home.floor = HOME_FLOORS[house[0]] ?? '#4a3020';
-  outside = { area: 'isle', x: pos.x, y: pos.y };
-  travel('home', ROOM_ENTRY.x, ROOM_ENTRY.y);
+  const from = { area: 'isle', x: pos.x, y: pos.y };
+  passThrough(() => {
+    outside = from;
+    travel('home', ROOM_ENTRY.x, ROOM_ENTRY.y);
+  }, true);
 }
 
 /** Look round someone else's isle. `back` runs when they leave. */
@@ -1395,6 +1454,7 @@ export function hollowKey(e: KeyboardEvent): boolean {
 const SOON = '<b>Coming soon</b>The road to Gravesend is still being laid. Mortimer says "soon". Mortimer says that about everything.';
 
 function step(dx: number, dy: number) {
+  if (fading) return;
   if (dx) facing = dx;
   lastStep = performance.now();
   const x = pos.x + dx;
@@ -1466,7 +1526,7 @@ function step(dx: number, dy: number) {
       return showDialog('<b>An old stair, choked with rubble</b>It goes down past the lid. Something under there is singing. Open the lid first.');
     }
     build = null;
-    return travel(exit.to, exit.x, exit.y);
+    return passThrough(() => travel(exit.to, exit.x, exit.y), false);
   }
   if (area().isle) {
     // Walking into the front of a house takes you inside.
@@ -1496,21 +1556,26 @@ function step(dx: number, dy: number) {
   if (!door) return;
   path = [];
   if ('out' in door) {
-    const back = outside ?? { area: 'graveyard', x: SPAWN.x, y: SPAWN.y };
-    outside = null;
-    room = null;
-    build = null;
-    areaId = back.area;
-    pos.x = back.x;
-    pos.y = back.y;
-    stepOut();
-    return open();
+    return passThrough(() => {
+      const back = outside ?? { area: 'graveyard', x: SPAWN.x, y: SPAWN.y };
+      outside = null;
+      room = null;
+      build = null;
+      areaId = back.area;
+      pos.x = back.x;
+      pos.y = back.y;
+      stepOut();
+      open();
+    }, true);
   }
   if ('interior' in door) {
-    outside = { area: areaId, x, y };
-    const inside = AREAS[door.interior];
-    const ex = inside.map.findIndex((row) => row.includes('x'));
-    return travel(door.interior, inside.map[ex].indexOf('x'), ex - 1);
+    const from = { area: areaId, x, y };
+    return passThrough(() => {
+      outside = from;
+      const inside = AREAS[door.interior];
+      const ex = inside.map.findIndex((row) => row.includes('x'));
+      travel(door.interior, inside.map[ex].indexOf('x'), ex - 1);
+    }, true);
   }
   // Let the walk-in finish, then ask: a stray step shouldn't, say, start today's daily.
   window.setTimeout(() => {
@@ -1650,7 +1715,7 @@ function walkTo(tx: number, ty: number) {
 
 function update(now: number, dt: number) {
   if (area().farm) farmUpdate(now);
-  if (path.length && now - lastStep > 150 && !dialog) {
+  if (path.length && now - lastStep > 150 && !dialog && !fading) {
     const n = path.shift()!;
     step(n.x - pos.x, n.y - pos.y);
   }

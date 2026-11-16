@@ -6515,3 +6515,15 @@ body.menu:has(#overlay[data-screen='title']:not([hidden])) #ghosts { opacity: 0.
 .talk[data-who='abbot'] { --who: #c9c36a; }
 @keyframes won-rays { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .chapter-card { animation-duration: 2.6s; } .chapter-card i, .won-rays, .wmap-spot.wanted { animation: none; } }
+
+/* ---------- going through a door in the world (passThrough in hollow.ts) ---------- */
+.hollow-veil { position: fixed; inset: 0; z-index: 950; pointer-events: none; overflow: hidden; }
+/* an iris: a hole round the hero in a sea of black, shrinking shut and opening again */
+.hollow-veil.iris::before { content: ''; position: absolute; left: var(--hx); top: var(--hy); width: 300vmax; height: 300vmax; border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 0 300vmax #07040b; transition: width 0.34s cubic-bezier(0.55, 0, 0.85, 0.4), height 0.34s cubic-bezier(0.55, 0, 0.85, 0.4); }
+.hollow-veil.iris.shut::before { width: 0; height: 0; }
+.hollow-veil.iris.opening::before { transition: width 0.42s cubic-bezier(0.2, 0.7, 0.3, 1), height 0.42s cubic-bezier(0.2, 0.7, 0.3, 1); }
+/* a dip to black, for roads (and for anyone who'd rather things didn't move) */
+.hollow-veil.dip { background: #07040b; opacity: 0; transition: opacity 0.22s ease-in; }
+.hollow-veil.dip.shut { opacity: 1; }
+.hollow-veil.dip.opening { opacity: 0; transition: opacity 0.26s ease-out; }
+@media (prefers-reduced-motion: reduce) { .hollow-veil.dip { transition-duration: 0.12s; } }
