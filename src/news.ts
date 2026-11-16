@@ -24,7 +24,7 @@ export interface NewsDay {
 export const NEWS: NewsDay[] = [
   {
     date: '2026-11-15',
-    title: 'Race prizes: trails and finishers',
+    title: 'Live chat, race prizes and a random hero',
     go: ['wardrobe'],
     notes: [
       '🌿 Crypt Race has prizes: racing earns Laurels (3 for a win against players, 1 for finishing a race, 1 for beating a ghost), and Laurels unlock two new kinds of cosmetic found nowhere else.',
@@ -36,6 +36,7 @@ export const NEWS: NewsDay[] = [
       '🎲 Every Crypt Race now deals a random hero, the same for every racer, with every relic in play, so no one\'s own unlocks decide the race. The countdown tells you who you\'re playing.',
       '💬 Live chat: tap 💬 at the top of the title screen, or in the corner of the Crypt Race lobby, the results and the other menus, to talk with everyone in the crypt. On a computer it can stay open while you play. The 💬 button bobs while someone is typing, and the chat shows who. Choose a name and finish a run to post; swearing, links and spam are blocked, and tapping a name mutes that player for you.',
     ],
+    fixes: ['⚔️ Joining the open Crypt Race no longer fails with an error.', '🏁 Rival boards in a race no longer cut names short or cover the list of foes.'],
   },
   {
     date: '2026-11-14',
