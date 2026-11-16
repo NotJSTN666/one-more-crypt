@@ -2204,10 +2204,10 @@ function hollowHooks(): HollowHooks {
     storyOpen,
     npcPresent: (id) => npcPresent(id, storyState()),
     npcMarker: (id) => npcMarker(id, storyState()),
-    questDoor: (n) => Boolean(QUEST_BY_N[n]) && questStatus(QUEST_BY_N[n], storyState()) === 'active',
+    questDoor: (n) => Boolean(QUEST_BY_N[doorQuest(n)]) && questStatus(QUEST_BY_N[doorQuest(n)], storyState()) === 'active',
     talk: talkTo,
     dungeon: dungeonDoor,
-    enterDungeon: (n) => QUEST_BY_N[n] && beginDungeon(QUEST_BY_N[n]),
+    enterDungeon: (n) => QUEST_BY_N[doorQuest(n)] && beginDungeon(QUEST_BY_N[doorQuest(n)]),
     gate: (n) => ['active', 'cleared', 'done'].includes(questStatus(QUEST_BY_N[n], storyState())),
     areaOpen: (id) => (id === 'farm' ? graveShiftOpen() : id !== 'cloister' || meta.story.done.includes(21)),
     lore: (id) => LORE[id] ?? null,
@@ -4611,6 +4611,10 @@ function finishQuest(q: Quest, then: () => void) {
     : q.n === 31 ? '🎨 The Plague Coat: a new cloak.'
     : q.n === 32 ? "🎩 The Physician's Mask: new headwear. 📜 New title: Physician."
     : q.n === 33 ? '🎨 The Choir Robe: a new cloak. 📜 New title: Keeper of the Hymn.'
+    : q.n === 23 ? '🎨 The Bell-Rope Cloak: a new cloak. 📜 New title: Shaft-Climber.'
+    : q.n === 24 ? '✨ Three Notes: a new aura. 📜 New title: Hymn-Ringer.'
+    : q.n === 25 ? "🎨 The Abbot's Cope: a new cloak. ✨ The Silent Bell: a new aura. 📜 New title: Bellbreaker."
+    : q.n === 34 ? "🎨 The Founder's Apron: a new cloak. 📜 New title: Bell-Founder."
     : '';
   // The last quest of the act: the Bell-Ringer and everything that comes with them.
   const actDone = !q.act && storyDone(STORY_ALL);
@@ -4637,16 +4641,29 @@ function finishQuest(q: Quest, then: () => void) {
     ${unlocked ? `<p class="talk-quip">${unlocked}</p>` : ''}
     ${act}
     ${q.n === 4 || actDone ? `<p class="talk-quip">${act2Open() ? 'Act II: The Plague Abbot is open. Mortimer has found a lid.' : 'Act II: The Plague Abbot opens this Friday.'}</p><button class="btn act2-btn" id="act2">🔔 About Act II</button>` : ''}
-    ${q.act && ACT2_QUESTS.every((x) => meta.story.done.includes(x.n)) ? '<p class="talk-quip">That is all of Act II, Part 1. The bell shaft opens in Part 2.</p>' : ''}
+    ${q.n === 25 ? '<div class="act-done"><b>🔔 Act II complete</b><p>The bells of the Sunken Cloister are silent, and Gravesend sleeps through the night. Its people have come back out into the streets.</p><p class="fine">Something is knocking under the sanctum. Act III is on its way.</p></div>' : ''}
+    ${q.act && q.n !== 25 && ACT2_QUESTS.every((x) => meta.story.done.includes(x.n)) ? '<p class="talk-quip">That is every quest in Act II. Gravesend thanks you.</p>' : ''}
     <button class="btn primary" id="back">Continue</button>`);
   on('#act2', () => showActTwo(then));
   on('#back', then);
 }
 
+// Some doors lead further down as the story goes on: the Bell Shaft to the Ringing Chamber and
+// the Abbot's Sanctum, the Old Mine to the Deep Seam.
+const DOOR_CHAINS: Record<number, number[]> = { 23: [23, 24, 25], 12: [12, 34] };
+
+/** The quest a door serves right now: one you're on, else the next to take, else the last one done. */
+function doorQuest(n: number): number {
+  const chain = DOOR_CHAINS[n];
+  if (!chain) return n;
+  const st = (k: number) => questStatus(QUEST_BY_N[k], storyState());
+  return chain.find((k) => st(k) === 'active') ?? chain.find((k) => st(k) === 'available' && k !== chain[0] && st(chain[0]) === 'done') ?? [...chain].reverse().find((k) => ['done', 'cleared'].includes(st(k))) ?? chain[0];
+}
+
 /** A dungeon's door in the world: open once its quest is taken, barred until then. */
-function dungeonDoor(n: number): { open: boolean; title: string; text: string } {
+function dungeonDoor(door: number): { open: boolean; title: string; text: string } {
+  const n = doorQuest(door);
   const q = QUEST_BY_N[n];
-  if (n === 23) return { open: false, title: 'The Bell Shaft', text: "Sealed with the Abbot's mark. Far below, a bell is waiting, and Aldric with it. (Act II, Part 2.)" };
   if (!q) return { open: false, title: 'Sealed', text: 'Nothing but stone.' };
   const status = questStatus(q, storyState());
   if (q.act === 2 && status === 'locked' && !act2Open()) return { open: false, title: q.dungeon.name, text: 'Something heavy shifts beneath the stone. Act II opens this Friday.' };
@@ -4691,7 +4708,7 @@ function showQuests(back: () => void = enterHollow) {
   const lore = meta.story.journal.filter((id) => LORE[id]);
   showOverlay('quests', `
     <h2>${esc(s.done.includes(4) && act2Open() ? ACT2_TITLE : ACT_TITLE)}</h2>
-    <p class="sub">${actCount('Act I', ACT1_QUESTS)}${s.done.includes(4) ? (act2Open() ? `<br>${actCount('Act II, Part 1', ACT2_QUESTS)}` : '<br>Act II opens this Friday.') : ''}</p>
+    <p class="sub">${actCount('Act I', ACT1_QUESTS)}${s.done.includes(4) ? (act2Open() ? `<br>${actCount('Act II', ACT2_QUESTS)}` : '<br>Act II opens this Friday.') : ''}</p>
     ${houndJoined() ? `<p class="fine">🐕 ${esc(petName(meta.story.choices.hound))} fights beside you in the story · bond ${meta.story.bond}</p>` : ''}
     <h3 class="shop-head">On the go</h3>
     <div class="quests">${current.length ? current.map(row).join('') : '<p class="fine">Nothing yet. Look for a ! over someone\'s head.</p>'}</div>

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Game, fullPool } from './game';
-import { ACT2_OPENS, QUESTS, QUEST_BY_N, conversation, houndStats, npcMarker, questStatus, type StoryState } from './story';
+import { ACT2_OPENS, QUESTS, QUEST_BY_N, conversation, houndStats, npcMarker, npcPresent, questStatus, type StoryState } from './story';
 
 const dungeon = (n: number, pet = false) => {
   const d = QUEST_BY_N[n].dungeon;
@@ -148,10 +148,26 @@ describe('Act II', () => {
 
   it('only counts Act I towards the Bell-Ringer', () => {
     const now = vi.spyOn(Date, 'now').mockReturnValue(ACT2_OPENS);
-    expect(QUESTS.filter((q) => q.act === 2).map((q) => q.n)).toEqual([21, 22, 31, 32, 33]);
+    expect(QUESTS.filter((q) => q.act === 2).map((q) => q.n)).toEqual([21, 22, 31, 32, 33, 23, 24, 25, 34]);
     expect(questStatus(QUEST_BY_N[21], state({ done: [1, 2, 3] }))).toBe('locked');
     expect(questStatus(QUEST_BY_N[21], state({ done: [1, 2, 3, 4] }))).toBe('available');
     expect(conversation('ambrose', state({ done: [21] })).accept).toBe(22);
+    now.mockRestore();
+  });
+
+  it('ends down the Bell Shaft: three quests in a row, and Aldric comes home', () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(ACT2_OPENS);
+    expect(questStatus(QUEST_BY_N[23], state({ done: [1, 2, 3, 4, 21] }))).toBe('locked');
+    expect(conversation('ambrose', state({ done: [21, 22] })).accept).toBe(23);
+    expect(conversation('ambrose', state({ done: [21, 22, 23] })).accept).toBe(24);
+    expect(conversation('ambrose', state({ done: [21, 22, 23, 24] })).accept).toBe(25);
+    expect(QUEST_BY_N[25].dungeon.boss?.kind).toBe('abbot');
+    expect(conversation('pip', state({ done: [12, 21, 22, 23, 32] })).accept).toBe(34);
+    // gone from his chapel while the bell has him; back at once if freed, else when it's over
+    expect(npcPresent('aldric', state({ done: [1, 2, 3, 4, 21, 22, 23] }))).toBe(false);
+    expect(npcPresent('aldric', state({ done: [1, 2, 3, 4, 21, 22, 23, 24], choices: { aldric: 'free' } }))).toBe(true);
+    expect(npcPresent('aldric', state({ done: [1, 2, 3, 4, 21, 22, 23, 24], choices: { aldric: 'stay' } }))).toBe(false);
+    expect(npcPresent('aldric', state({ done: [1, 2, 3, 4, 21, 22, 23, 24, 25], choices: { aldric: 'stay' } }))).toBe(true);
     now.mockRestore();
   });
 });

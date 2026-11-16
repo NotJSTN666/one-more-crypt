@@ -6,7 +6,7 @@ import type { EnemyKind } from './game';
 import type { ZoneId } from './zones';
 import { onCanvasReset } from './sprites';
 
-export type Speaker = 'gravedigger' | 'aldric' | 'warden' | 'hound' | 'bess' | 'agnes' | 'pip' | 'ambrose' | 'hero' | 'narrator';
+export type Speaker = 'gravedigger' | 'aldric' | 'warden' | 'hound' | 'bess' | 'agnes' | 'pip' | 'ambrose' | 'abbot' | 'hero' | 'narrator';
 /** People you can talk to in the world. */
 export type NpcId = 'gravedigger' | 'aldric' | 'bess' | 'agnes' | 'pip' | 'ambrose';
 
@@ -85,6 +85,7 @@ export const SPEAKERS: Record<Speaker, string> = {
   agnes: 'Widow Agnes',
   pip: 'Pip',
   ambrose: 'Brother Ambrose',
+  abbot: 'Abbot Ansel',
   hero: 'You',
   narrator: '',
 };
@@ -455,6 +456,182 @@ export const QUESTS: Quest[] = [
       { who: 'ambrose', text: 'Keep the robe. Cuthbert would want someone to wear it who will not sing.' },
     ],
   },
+  {
+    n: 23,
+    act: 2,
+    title: 'The Bell Shaft',
+    giver: 'ambrose',
+    needs: 22,
+    dungeon: { name: 'The Bell Shaft', floors: [8, 12], gifts: 3, look: 'cloister', mist: 3, monks: true },
+    souls: 350,
+    reward: 'The Bell-Rope Cloak and a title',
+    hint: 'The Bell Shaft stands in the Sunken Cloister, north-east of the Chapter House. Climb down to the bells.',
+    barred: "Sealed with the Abbot's mark. Far below, a bell is waiting. Brother Ambrose has been eyeing the seal.",
+    offer: [
+      { who: 'ambrose', text: 'The seal on the Bell Shaft cracked the night Vespers broke. I have been at it since with a chisel and a great deal of prayer. Mostly the chisel.' },
+      { who: 'ambrose', text: 'It is open. I wish I could say I felt brave about it.' },
+      { who: 'hero', text: 'What is down there?' },
+      { who: 'ambrose', text: 'Three bells, and whoever has been ringing them for four hundred years. The Abbot does not pull his own ropes. He never did. He had novices for that.' },
+      { who: 'ambrose', text: 'Go down. See who is on the rope. And if it is who I think it is, be gentle. He was a knight once, and he has had a very long shift.' },
+    ],
+    reminder: [{ who: 'ambrose', text: 'The Bell Shaft, across the cloister. Five floors down to the bells. Mind the mist, it pools at the bottom of things.' }],
+    cleared: [
+      { who: 'narrator', text: 'The shaft opens into a chamber as tall as a church. Three bells hang in the dark, each bigger than a house, and under them a figure in pale armour hauls on the ropes.' },
+      { who: 'narrator', text: 'He does not look up. His hands do not stop. On his back plate is a dent shaped exactly like a door.' },
+      { who: 'hero', text: 'Aldric?' },
+      { who: 'aldric', text: 'I cannot let go. I have tried. He rings me and I ring the bell. Do not come closer. Go and tell the monk.' },
+      { who: 'narrator', text: '{pet} whines, and for one stroke the bell is late.' },
+    ],
+    turnIn: [
+      { who: 'ambrose', text: 'So it is him. The knight from the chapel. The Abbot always did like a strong back and a guilty conscience.' },
+      { who: 'ambrose', text: 'Take this. It is a bell-rope, an old one, cut before the plague. It never rang for him. Wear it and the bells will know you are not his.' },
+      { who: 'ambrose', text: 'There is a way to make him let go. But we will need a song.' },
+    ],
+  },
+  {
+    n: 24,
+    act: 2,
+    title: 'Three Notes',
+    giver: 'ambrose',
+    needs: 23,
+    dungeon: { name: 'The Ringing Chamber', floors: [9, 13], gifts: 3, look: 'cloister', mist: 2, monks: true, holdout: 5, summon: true },
+    souls: 450,
+    reward: 'The Three Notes aura and a title',
+    hint: 'Go back down the Bell Shaft to the Ringing Chamber. Hold out on the last floor while the three bells are rung.',
+    barred: 'The bells are ringing down there, slow and steady. Brother Ambrose has a plan. He says it is a good one.',
+    offer: [
+      { who: 'ambrose', text: 'Three bells, three notes. The hymn they were cast to ring, before the Abbot taught them something worse. Ring it once, right through, and his hold on the ropes breaks.' },
+      { who: 'ambrose', text: 'The trouble is that somebody has to stand under the bells while it happens. The whole cloister will come to stop it. Five waves, by my count. I counted twice. I got five and then six, so let us say five.' },
+      { who: 'hero', text: 'And who rings the hymn?' },
+      { who: 'ambrose', text: 'Aldric does. He is already on the ropes. He only has to pull the right ones, for once, and you only have to keep everyone off him until he is done.' },
+      { who: 'ambrose', text: 'Take a friend. Take the hound. Take whatever the dead will lend you.' },
+    ],
+    reminder: [{ who: 'ambrose', text: 'The Ringing Chamber, at the bottom of the shaft. Five waves on the last floor. Three notes. Do not hum along, you will put him off.' }],
+    cleared: [
+      { who: 'narrator', text: 'The third note rings out and holds. It is the first clean sound this place has made in four hundred years. The ropes go slack in Aldric\'s hands.' },
+      { who: 'aldric', text: 'I can feel my fingers. I had forgotten I had them. I am told I do not, strictly, but I can feel them.' },
+      { who: 'aldric', text: 'Listen to me. The Abbot is below us, and he will want a ringer. If the rope hangs empty he will find another. Someone living, this time. Someone from the village.' },
+      { who: 'aldric', text: 'I could stay. Hold the rope still, and keep it out of his hands until you have dealt with him. Or you can cut it, and we take our chances. It is your crypt now. You choose.' },
+      {
+        key: 'aldric',
+        prompt: 'Aldric waits, one hand still on the rope.',
+        options: [
+          {
+            label: 'Cut the rope. He has rung enough.',
+            value: 'free',
+            then: [
+              { who: 'narrator', text: 'You cut it. The rope falls a long way. Aldric watches it go, and then, very carefully, sits down.' },
+              { who: 'aldric', text: 'Four hundred years. I should like to see my chapel. Is the roof still off? Good. I liked the stars.' },
+              { who: 'narrator', text: 'When you look again he is gone, and the cold has gone with him, up the shaft towards home.' },
+            ],
+          },
+          {
+            label: 'Let him hold it. Nobody else gets taken.',
+            value: 'stay',
+            then: [
+              { who: 'aldric', text: 'Then I stay, and this time it is my hand on the rope and my choice. That is a different thing altogether.' },
+              { who: 'aldric', text: 'Go on. I will keep the bells quiet. Tell the gravedigger I am doing the dignified voice.' },
+              { who: 'narrator', text: 'He stands under the three bells like a knight at vigil, and for the first time the rope does not move.' },
+            ],
+          },
+        ],
+      },
+    ],
+    turnIn: [
+      { who: 'ambrose', text: 'I heard it. All three notes. I wept, a little. Do not tell the novices. There are no novices. Do not tell the frogs.' },
+      { who: 'ambrose', text: 'Take this. The hymn is yours now. It will ring wherever you walk, very quietly, to anyone who is listening.' },
+      { who: 'ambrose', text: 'One thing left, then. He is at the bottom, where he has always been. His name was Ansel. He was my friend.' },
+    ],
+  },
+  {
+    n: 25,
+    act: 2,
+    title: 'The Plague Abbot',
+    giver: 'ambrose',
+    needs: 24,
+    dungeon: {
+      name: "The Abbot's Sanctum",
+      floors: [10, 15],
+      gifts: 4,
+      look: 'cloister',
+      mist: 3,
+      monks: true,
+      summon: true,
+      boss: { floor: 15, kind: 'abbot' },
+      bossLines: [
+        { who: 'narrator', text: 'The sanctum is a garden. Everything in it is dead and everything in it is growing. At the far end a tall figure in a beaked mask tends a bed of grey flowers.' },
+        { who: 'abbot', text: 'You broke my choir. You stopped my bells. I am not angry. Anger is a symptom, and I cured myself of those long ago.' },
+        { who: 'hero', text: 'You have kept a whole village dying for four hundred years.' },
+        { who: 'abbot', text: 'I have kept it from dying. Nobody in my cloister has died since the plague. They only sleep, and sing, and get up again. Can your gravedigger say the same?' },
+        { who: 'abbot', text: 'Ambrose sent you. He always did send someone else. Come, then. Let me take your temperature.' },
+      ],
+    },
+    souls: 800,
+    reward: "The Abbot's Cope, the Silent Bell aura and a title",
+    hint: "The Abbot's Sanctum lies at the very bottom of the Bell Shaft. Fifteen floors. He is waiting in his garden.",
+    barred: 'Below the bells the stair keeps going. It smells of herbs and something sweeter. Brother Ambrose would like a word first.',
+    offer: [
+      { who: 'ambrose', text: 'Ansel was the best physician the cloister ever had. When the plague came he would not let anyone die of it. Not one. He found a way to keep them.' },
+      { who: 'ambrose', text: 'That is all the bell ever was. A way to wake the dead before they noticed they were dead. He thought it was kindness. I think he still does.' },
+      { who: 'hero', text: 'And you hid in a cell for four hundred years.' },
+      { who: 'ambrose', text: 'I did. I am not proud of it. I am asking you to do what I could not, which is the least proud thing of all.' },
+      { who: 'ambrose', text: 'His sanctum is under the bells. Take anyone who will go with you. And when it is done, tell me how he looked. No. Do not. Yes. Tell me.' },
+    ],
+    reminder: [{ who: 'ambrose', text: "The Abbot's Sanctum, at the bottom of the shaft. He rains plague where you stand, so do not stand. I shall be here, being useless with great devotion." }],
+    cleared: [
+      { who: 'narrator', text: 'The mask cracks down the middle. Behind it is a tired old man who has not slept since the plague.' },
+      { who: 'abbot', text: 'Oh. It is quiet. I had forgotten that was allowed.' },
+      { who: 'abbot', text: 'Tell Ambrose the garden was for him. He never came down to see it.' },
+      { who: 'narrator', text: 'He lies down among the grey flowers, and one by one, all through the cloister, four hundred years of monks lie down with him. The mist thins. Far above, three bells hang still.' },
+      {
+        key: 'aldric',
+        prompt: 'The bells are quiet.',
+        options: [
+          { label: '', value: 'free', then: [{ who: 'narrator', text: 'Somewhere over Gravesend a roofless chapel has a knight in it again, looking up at the stars.' }] },
+          { label: '', value: 'stay', then: [{ who: 'narrator', text: 'Under the bells, Sir Aldric takes his hand off the rope at last, salutes nobody in particular, and starts the long climb home.' }] },
+        ],
+      },
+      { who: 'narrator', text: 'And then, from under the sanctum floor, from under everything, something knocks. Three times. Politely.' },
+      { who: 'narrator', text: 'End of Act II. Ambrose will want to hear how it went. Mortimer will want to hear about the knocking.' },
+    ],
+    turnIn: [
+      { who: 'ambrose', text: 'It is done, then. I felt them go. All of them, like candles. Tell me how he looked.' },
+      { who: 'hero', text: 'Tired. He said the garden was for you.' },
+      { who: 'ambrose', text: '...' },
+      { who: 'ambrose', text: 'Of course it was. Stubborn old goose. I shall go down and water it. Somebody should.' },
+      { who: 'ambrose', text: 'Take his cope. He would hate you having it, which is most of why I want you to. And thank you. I have not said that to anyone since the plague. It is nicer than I remembered.' },
+    ],
+  },
+  {
+    n: 34,
+    act: 2,
+    title: 'Bell Metal',
+    side: true,
+    giver: 'pip',
+    needs: 23,
+    dungeon: { name: 'The Deep Seam', floors: [7, 10], gifts: 2, look: 'mine' },
+    souls: 250,
+    reward: "The Founder's Apron and a title",
+    hint: 'Pip needs bell-bronze from the Deep Seam: take the Old Mine, north of the village by the kennels, and keep going down.',
+    barred: 'The deep seam is boarded over, with a sign in Marta\'s handwriting: "NOT YET, PIP." Pip will know what that means.',
+    offer: [
+      { who: 'pip', text: "I've had an idea. It's a good one. Don't make that face." },
+      { who: 'pip', text: "Everyone in this village flinches when a bell rings. That's four hundred years of flinching. So I'm going to cast us a new one. A nice one. One that only says what time it is." },
+      { who: 'pip', text: "Marta always said there's bell-bronze in the deep seam, under the old mine. She also said never go down there. I've decided she meant me, specifically." },
+      { who: 'hero', text: 'So you want me to go.' },
+      { who: 'pip', text: "You're very quick. Four floors, past where you found the coal. Bring back as much as you can carry and I'll do the rest. I've read a book about it. Most of a book." },
+    ],
+    reminder: [{ who: 'pip', text: 'The Deep Seam, down the Old Mine. Bell-bronze. It rings when you drop it, so try not to drop it near anything hungry.' }],
+    cleared: [
+      { who: 'narrator', text: 'At the bottom of the seam the rock is the colour of old pennies. A pick still stands in it, with M.S. burned into the handle.' },
+      { who: 'narrator', text: 'You fill your pack. Every lump hums a little, each on a different note, like a choir warming up.' },
+    ],
+    turnIn: [
+      { who: 'pip', text: "That's it! That's the stuff! Listen to it! No, don't, it's not a bell yet, it's just rocks. But LISTEN to it!" },
+      { who: 'pip', text: "You found her pick. I'll hang it next to the tongs. She'd say I was getting sentimental. She'd be right." },
+      { who: 'pip', text: "Give me a week. Gravesend's getting a bell that never woke anybody who wasn't supposed to get up. Here, take the apron, I've got two and one's on fire." },
+    ],
+  },
 ];
 
 export const QUEST_BY_N = Object.fromEntries(QUESTS.map((q) => [q.n, q])) as Record<number, Quest>;
@@ -469,6 +646,8 @@ export interface StoryState {
   done: number[];
   active: number[];
   cleared: number[];
+  /** Choices made along the way (the hound's name, what became of Aldric). */
+  choices?: Record<string, string>;
 }
 
 export type QuestStatus = 'locked' | 'available' | 'active' | 'cleared' | 'done';
@@ -483,7 +662,8 @@ export function questStatus(q: Quest, s: StoryState): QuestStatus {
 
 /** Aldric haunts his chapel from the hound's quest until the bell takes him. */
 export function npcPresent(npc: NpcId, s: StoryState): boolean {
-  if (npc === 'aldric') return s.done.includes(2) && !s.done.includes(4);
+  // ...and comes home to it once the bells are quiet (straight away, if you cut his rope).
+  if (npc === 'aldric') return (s.done.includes(2) && !s.done.includes(4)) || s.done.includes(25) || (s.done.includes(24) && s.choices?.aldric === 'free');
   if (npc === 'ambrose') return s.done.includes(21);
   return true;
 }
@@ -502,7 +682,7 @@ export function conversation(npc: NpcId, s: StoryState): { lines: Line[]; accept
   const ready = mine.find((q) => questStatus(q, s) === 'cleared' && q.turnIn);
   if (ready) return { lines: ready.turnIn!, turnIn: ready.n };
   // Main quests first, so the story moves along.
-  const offer = mine.find((q) => questStatus(q, s) === 'available');
+  const offer = mine.find((q) => !q.side && questStatus(q, s) === 'available') ?? mine.find((q) => questStatus(q, s) === 'available');
   if (offer) return { lines: offer.offer, accept: offer.n };
   const active = mine.find((q) => questStatus(q, s) === 'active' || questStatus(q, s) === 'cleared');
   if (active) return { lines: active.reminder };
@@ -513,6 +693,13 @@ function chatter(npc: NpcId, s: StoryState): Line[] {
   const has = (n: number) => s.done.includes(n);
   switch (npc) {
     case 'gravedigger':
+      if (has(25)) return [
+        { who: 'gravedigger', text: "Not one grave's moved in a week. I've had to start a hobby. It's digging. Turns out I just like digging." },
+        { who: 'gravedigger', text: "Knocking, you say. Under the Abbot's garden. Three times, polite. I don't like polite. Nothing good ever knocked." },
+      ];
+      if (has(24)) return [
+        { who: 'gravedigger', text: 'I heard three notes come up through the floor last night. Proper ones. The cat sat up and listened. I have not got a cat.' },
+      ];
       if (has(22)) return [
         { who: 'gravedigger', text: "The bell missed a stroke last night. Whole village heard it. Bess served free ale for an hour before she realised what she was doing." },
       ];
@@ -529,20 +716,25 @@ function chatter(npc: NpcId, s: StoryState): Line[] {
       ];
       return [{ who: 'gravedigger', text: 'Tea? No? More for me.' }];
     case 'aldric':
+      if (has(25)) return [{ who: 'aldric', text: 'It is quiet. I keep waiting for midnight, and then midnight comes, and nothing happens. It is the best thing that has ever not happened to me.' }];
+      if (has(24)) return [{ who: 'aldric', text: 'I am home. The roof is still off. Finish it, friend. He is at the bottom, where the mist comes from.' }];
       return [{ who: 'aldric', text: 'The bell is quiet tonight. I do not trust it when it is quiet.' }];
     case 'bess':
+      if (has(25)) return [{ who: 'bess', text: "Slept right through, I did. First time since I was a girl. Woke up and didn't know what to do with myself, so I opened early." }];
       return has(13)
         ? [{ who: 'bess', text: "The usual, love? That's the ale. The usual's always the ale." }]
         : [{ who: 'bess', text: "Rumour has it Pip licked the blue coal. Rumour is Pip. He tells everyone." }];
     case 'agnes':
+      if (has(25)) return [{ who: 'agnes', text: "Harold says it's very peaceful now. He says it through the kettle, mostly. One whistle for yes." }];
       return has(11)
         ? [{ who: 'agnes', text: "I set a place for Harold every night. Last night the chair was warm. Isn't that nice?" }]
         : [{ who: 'agnes', text: "It's very quiet in the village these days. Even the dead are quiet. Mostly." }];
     case 'ambrose':
-      if (has(33)) return [{ who: 'ambrose', text: 'Three bells, three notes. The shaft stays sealed for now. When it opens, we go down together. Well. You go down. I shall pray loudly from up here.' }];
+      if (has(25)) return [{ who: 'ambrose', text: 'I went down to the garden. Grey flowers, every one of them. I have planted a red one. We shall see who wins.' }];
       if (has(22)) return [{ who: 'ambrose', text: 'Listen. No singing. I had forgotten what quiet sounded like. It sounds like dripping, mostly.' }];
       return [{ who: 'ambrose', text: 'The bell shaft is sealed. Only the Abbot opens it. Or a very large hammer. We have neither, for now.' }];
     case 'pip':
+      if (has(34)) return [{ who: 'pip', text: has(25) ? "Hear that? Noon. Just noon. Nobody got up who shouldn't. Best bell I ever made. Only bell I ever made." : "Bell's cooling. Don't touch it. I touched it. Don't touch it." }];
       if (has(32)) return [{ who: 'pip', text: "Cough's gone. Village is pink again. Well, the usual grey. Healthy grey." }];
       if (has(21) && !has(32)) return [{ who: 'pip', text: '*cough* Sorry. Everyone has it. *cough*' }];
       return has(12)
@@ -598,6 +790,11 @@ const FACES: Partial<Record<Speaker, string[]>> = {
     '....kkkkkkkk....', '...kTttttttTk...', '..kTttTttTtttk..', '..ktkkkkkkkktk..', '..ktkbbbbbbktk..', '..ktbbbbbbbbtk..',
     '..ktbkkbbkkbtk..', '..ktbkEkkEkbtk..', '..ktbbbbbbbbtk..', '..ktbbbkkbbbtk..', '..kkbkbkbkbbkk..', '...kbbbbbbbbk...',
     '.kTTkBkBkBkTTk..', 'kTttTkkkkkTttTk.', 'kTtYYTtTtTTYYtk.', 'kTtYTtTtTtTtYTk.',
+  ],
+  abbot: [
+    '......kkkk......', '.....kYYYYk.....', '....kYYggYYk....', '....kYgYYgYk....', '...kkkkkkkkkk...', '..kvvvvvvvvvvk..',
+    '..kvkkkkkkkkvk..', '..kvkbbbbbbkvk..', '..kvbmmbbmmbvk..', '..kvbmYbbmYbvk..', '..kvbbbBBbbbvk..', '..kvkbbBBbbkvk..',
+    '..kvvkbBBbkvvk..', '.kvvvvkBBkvvvvk.', '.kvVvvvkkvvvVvk.', '.kkkkkkkkkkkkkk.',
   ],
   bess: [
     '.....kkkkkk.....', '....kqqqqqqk....', '...kqqQqqQqqk...', '...kqffffffqk...', '...kfekffkefk...', '...kffffFfffk...',
