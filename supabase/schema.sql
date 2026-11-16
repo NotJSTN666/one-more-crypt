@@ -798,3 +798,6 @@ alter publication supabase_realtime add table public.chat;
 create or replace function public.players_now() returns json language sql stable security definer set search_path = public as $$ select json_build_object('online', count(*) filter (where updated_at > now() - interval '2 minutes'), 'playing', count(*) filter (where updated_at > now() - interval '2 minutes' and doing not in ('', 'title')), 'at', now()) from public.presence $$;
 revoke all on function public.players_now() from public;
 grant execute on function public.players_now() to anon, authenticated;
+
+-- Feedback the maker has dealt with: the Crypt Census moves it to an Archived tab (and can restore it).
+alter table public.feedback add column if not exists archived_at timestamptz;
