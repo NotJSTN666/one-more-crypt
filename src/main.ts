@@ -23,7 +23,7 @@ import {
   ACT2_MAIN, ACT2_QUESTS, ACT2_TITLE, act2Open, ACT_TITLE, ACT1_QUESTS, LORE, LORE_COUNT, MAIN_QUESTS, QUESTS, QUEST_BY_N, SPEAKERS, conversation, facePortrait, houndStats, npcMarker, npcPresent, petName, questStatus,
   type Line, type NpcId, type Quest, type StoryState,
 } from './story';
-import { EPITAPHS, hollowKey, setHollowSpot, showHollow, showIsleVisit, type HollowHooks, type HollowPlace } from './hollow';
+import { worldMapHtml, EPITAPHS, hollowKey, setHollowSpot, showHollow, showIsleVisit, type HollowHooks, type HollowPlace } from './hollow';
 import { auraClass, drawAura } from './aura';
 import { islePerks, type IsleState } from './isle';
 import { FARM_SPAWN } from './graveshift';
@@ -2209,6 +2209,7 @@ function hollowHooks(): HollowHooks {
     dungeon: dungeonDoor,
     enterDungeon: (n) => QUEST_BY_N[doorQuest(n)] && beginDungeon(QUEST_BY_N[doorQuest(n)]),
     gate: (n) => ['active', 'cleared', 'done'].includes(questStatus(QUEST_BY_N[n], storyState())),
+    peace: () => meta.story.done.includes(25),
     areaOpen: (id) => (id === 'farm' ? graveShiftOpen() : id !== 'cloister' || meta.story.done.includes(21)),
     lore: (id) => LORE[id] ?? null,
     readLore: (id) => {
@@ -4634,11 +4635,13 @@ function finishQuest(q: Quest, then: () => void) {
     : '';
   sfx.relic();
   showOverlay('story-won', `
+    <div class="won-rays" aria-hidden="true"></div>
     <div class="podium-medal">${q.side ? '📜' : '🔔'}</div>
     <h2 class="podium-title">${esc(q.title)}</h2>
     <p class="sub">${q.side ? 'Side quest complete' : 'Quest complete'}</p>
     <div class="souls-earned"><b>+${result.souls} Souls</b><span>💀 ${meta.souls} to spend in the Ossuary</span></div>
-    ${unlocked ? `<p class="talk-quip">${unlocked}</p>` : ''}
+    ${unlocked ? `<ul class="won-list">${unlocked.split(/(?<=\.)\s+(?=\p{Extended_Pictographic})/u).map((u) => `<li>${u}</li>`).join('')}</ul>` : ''}
+    ${facePortrait(q.giver) ? `<p class="won-from"><img src="${facePortrait(q.giver)}" alt="" width="40" height="40" /> With thanks from ${esc(SPEAKERS[q.giver])}</p>` : ''}
     ${act}
     ${q.n === 4 || actDone ? `<p class="talk-quip">${act2Open() ? 'Act II: The Plague Abbot is open. Mortimer has found a lid.' : 'Act II: The Plague Abbot opens this Friday.'}</p><button class="btn act2-btn" id="act2">🔔 About Act II</button>` : ''}
     ${q.n === 25 ? '<div class="act-done"><b>🔔 Act II complete</b><p>The bells of the Sunken Cloister are silent, and Gravesend sleeps through the night. Its people have come back out into the streets.</p><p class="fine">Something is knocking under the sanctum. Act III is on its way.</p></div>' : ''}
@@ -4658,6 +4661,11 @@ function doorQuest(n: number): number {
   if (!chain) return n;
   const st = (k: number) => questStatus(QUEST_BY_N[k], storyState());
   return chain.find((k) => st(k) === 'active') ?? chain.find((k) => st(k) === 'available' && k !== chain[0] && st(chain[0]) === 'done') ?? [...chain].reverse().find((k) => ['done', 'cleared'].includes(st(k))) ?? chain[0];
+}
+
+/** The door in the world that leads to a quest's dungeon. */
+function doorOf(n: number): number {
+  return Number(Object.keys(DOOR_CHAINS).find((k) => DOOR_CHAINS[Number(k)].includes(n)) ?? n);
 }
 
 /** A dungeon's door in the world: open once its quest is taken, barred until then. */
@@ -4710,6 +4718,11 @@ function showQuests(back: () => void = enterHollow) {
     <h2>${esc(s.done.includes(4) && act2Open() ? ACT2_TITLE : ACT_TITLE)}</h2>
     <p class="sub">${actCount('Act I', ACT1_QUESTS)}${s.done.includes(4) ? (act2Open() ? `<br>${actCount('Act II', ACT2_QUESTS)}` : '<br>Act II opens this Friday.') : ''}</p>
     ${houndJoined() ? `<p class="fine">🐕 ${esc(petName(meta.story.choices.hound))} fights beside you in the story · bond ${meta.story.bond}</p>` : ''}
+    ${worldMapHtml(
+      current.filter((q) => questStatus(q, s) === 'active').map((q) => doorOf(q.n)),
+      [...current.filter((q) => questStatus(q, s) === 'cleared' && q.turnIn), ...open].map((q) => q.giver),
+      (id) => id !== 'cloister' || s.done.includes(21),
+    )}
     <h3 class="shop-head">On the go</h3>
     <div class="quests">${current.length ? current.map(row).join('') : '<p class="fine">Nothing yet. Look for a ! over someone\'s head.</p>'}</div>
     ${open.length ? `<h3 class="shop-head">Someone needs help</h3><div class="quests">${open.map((q) => `<div class="quest available"><b>❗ ${esc(q.title)}</b><span>Talk to ${esc(SPEAKERS[q.giver])}.</span></div>`).join('')}</div>` : ''}
@@ -4939,7 +4952,18 @@ function startStory(q: Quest, ghost: GhostInfo | null) {
   setMusicMood(g.isBossFloor() ? 'boss' : 'crypt');
   hideOverlay();
   sfx.stairs();
-  renderer.banner(d.name.toUpperCase(), '#9fe8ff');
+  chapterCard(q);
+}
+
+/** A title card as a quest's dungeon opens: the act, the quest, and where you are. */
+function chapterCard(q: Quest) {
+  document.querySelector('.chapter-card')?.remove();
+  const el = document.createElement('div');
+  el.className = 'chapter-card';
+  const [a, b] = q.dungeon.floors;
+  el.innerHTML = `<small>${q.act === 2 ? 'Act II · The Plague Abbot' : 'Act I · The Bell Beneath'}${q.side ? ' · Side quest' : ''}</small><b>${esc(q.title)}</b><i></i><span>${esc(q.dungeon.name)} · floors ${a} to ${b}</span>`;
+  document.body.appendChild(el);
+  window.setTimeout(() => el.remove(), 3400);
 }
 
 /** Story dungeons can have words waiting on the boss floor. */

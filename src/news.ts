@@ -24,9 +24,16 @@ export interface NewsDay {
 export const NEWS: NewsDay[] = [
   {
     date: '2026-11-16',
-    title: 'Story conversations, staged',
+    title: 'The story: Act II ends',
     go: ['story'],
     notes: [
+      '🔔 Act II of the story now has its ending. Three new quests from Brother Ambrose take you down the Bell Shaft: find who has been ringing the bells, hold the Ringing Chamber while the lost hymn is rung, and face the Plague Abbot in his garden. One choice along the way is yours to make.',
+      '⚒️ A new side quest from Pip, Bell Metal, once the Bell Shaft is open: he wants to cast Gravesend a bell that only tells the time.',
+      '🎁 New story-only rewards: three cloaks (the Bell-Rope Cloak, the Abbot\'s Cope, the Founder\'s Apron), two auras (Three Notes, The Silent Bell) and four titles.',
+      '🧑‍🌾 Villagers are out in the lanes of Gravesend. Walk into one to hear what they think. More of them come out once the bells are quiet.',
+      '🕯️ Homes look lived in: rugs, candles on the walls, moonlight through the window and cobwebs in the corners.',
+      '🗺️ The quest log has a map showing where you are and where a quest is waiting.',
+      '🎬 Each quest opens with a title card, and ends with its rewards laid out.',
       '🎭 Conversations in the story now play out over the scene they happen in, with bigger portraits, each speaker in their own colour, and lines that spell themselves out. Tap once to finish a line, again to move on.',
     ],
   },

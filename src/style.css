@@ -6479,3 +6479,39 @@ body.menu:has(#overlay[data-screen='title']:not([hidden])) #ghosts { opacity: 0.
   .talk-stage { bottom: calc(4vh + 10px + env(safe-area-inset-bottom)); }
 }
 @media (prefers-reduced-motion: reduce) { .talk-bar, .talk-stage .talk img, .talk.said .talk-more { animation: none; } }
+
+/* ---------- the story: a map in the quest log, title cards, and a quest's end ---------- */
+.wmap { position: relative; display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(3, auto); gap: 10px 8px; margin: 10px 0 14px; padding: 12px 10px; background: radial-gradient(ellipse at 50% 50%, #1c1524, #0b0710); border: 1px solid var(--line); }
+.wmap-road { position: absolute; background: repeating-linear-gradient(90deg, #4a4038 0 5px, transparent 5px 9px); opacity: 0.8; }
+.wmap-road.h { left: 12%; right: 12%; top: 50%; height: 2px; }
+.wmap-road.v1, .wmap-road.v2 { width: 2px; background: repeating-linear-gradient(180deg, #4a4038 0 5px, transparent 5px 9px); }
+.wmap-road.v1 { left: 62.5%; top: 18%; height: 32%; }
+.wmap-road.v2 { left: 87.5%; top: 50%; height: 32%; }
+.wmap-spot { position: relative; z-index: 1; min-height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 6px 4px; text-align: center; background: #150e1c; border: 1px solid #3a3044; }
+.wmap-spot b { font-family: var(--pixel); font-weight: normal; font-size: 9px; letter-spacing: 0.5px; color: var(--text); }
+.wmap-spot small { margin-top: 3px; font-family: var(--read); font-size: 11px; color: var(--muted); }
+.wmap-spot.here { border-color: var(--spectral); box-shadow: 0 0 12px rgba(159, 232, 255, 0.3); }
+.wmap-spot.here small { color: var(--spectral); }
+.wmap-spot.wanted { border-color: var(--gold); animation: wmap-want 1.6s ease-in-out infinite; }
+.wmap-spot.wanted small { color: var(--gold); }
+.wmap-spot.unknown { opacity: 0.4; border-style: dashed; }
+@keyframes wmap-want { 50% { box-shadow: 0 0 14px rgba(242, 193, 78, 0.45); } }
+
+.chapter-card { position: fixed; inset: 0; z-index: 800; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; pointer-events: none; text-align: center; background: radial-gradient(ellipse at 50% 50%, rgba(7, 4, 11, 0.92), rgba(7, 4, 11, 0.55) 60%, rgba(7, 4, 11, 0)); animation: chapter-card 3.4s ease-in-out both; }
+.chapter-card small { font-family: var(--pixel); font-size: 12px; letter-spacing: 3px; color: var(--spectral); text-transform: uppercase; }
+.chapter-card b { font-family: var(--gothic); font-weight: normal; font-size: clamp(44px, 9vw, 84px); line-height: 1; color: var(--gold); text-shadow: 0 0 26px rgba(242, 193, 78, 0.5), 0 4px 0 #05030a; }
+.chapter-card i { width: min(360px, 60vw); height: 2px; background: linear-gradient(90deg, transparent, var(--gold), transparent); animation: chapter-rule 3.4s ease-out both; }
+.chapter-card span { font-family: var(--read); font-size: 16px; color: var(--text); }
+@keyframes chapter-card { 0% { opacity: 0; } 14%, 76% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes chapter-rule { 0%, 10% { transform: scaleX(0); } 40%, 100% { transform: scaleX(1); } }
+
+#overlay[data-screen='story-won'] .panel { position: relative; }
+.won-rays { position: absolute; left: 50%; top: 20px; width: 260px; height: 260px; margin-left: -130px; pointer-events: none; border-radius: 50%; background: repeating-conic-gradient(rgba(242, 193, 78, 0.16) 0 8deg, transparent 8deg 20deg); -webkit-mask-image: radial-gradient(circle, #000 10%, transparent 68%); mask-image: radial-gradient(circle, #000 10%, transparent 68%); animation: won-rays 26s linear infinite; }
+#overlay[data-screen='story-won'] .panel > :not(.won-rays) { position: relative; }
+.won-list { list-style: none; margin: 10px 0; padding: 0; display: grid; gap: 6px; }
+.won-list li { padding: 8px 10px; text-align: left; font-family: var(--read); font-size: 14px; line-height: 1.4; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--gold); }
+.won-from { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 10px 0; font-family: var(--read); font-size: 14px; font-style: italic; color: var(--muted); }
+.won-from img { image-rendering: pixelated; border: 1px solid var(--gold); background: var(--panel-2); }
+.talk[data-who='abbot'] { --who: #c9c36a; }
+@keyframes won-rays { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .chapter-card { animation-duration: 2.6s; } .chapter-card i, .won-rays, .wmap-spot.wanted { animation: none; } }

@@ -392,6 +392,8 @@ export interface HollowHooks {
   loreRead: (id: string) => boolean;
   /** The Crypt Hound trots along behind. */
   pet: () => boolean;
+  /** The bells are silent (Act II is over): Gravesend comes back out of doors. */
+  peace?: () => boolean;
   quests: () => void;
   /** Something built, picked up or bought on the isle. */
   built?: (what: 'place' | 'pickup' | 'land' | 'fail') => void;
@@ -474,6 +476,119 @@ interface Ghost {
   px: number;
   py: number;
   next: number;
+}
+
+// ---------- villagers: ordinary folk out in the lanes, with something to say if you stop ----------
+
+interface Folk {
+  x: number;
+  y: number;
+  px: number;
+  py: number;
+  next: number;
+  look: number;
+  face: number;
+  line: number;
+}
+
+let folk: Folk[] = [];
+let folkArea = '';
+
+/** How many are out, by place: a few brave ones while the bell tolls, the whole village once it stops. */
+const FOLK_OUT: Record<string, [number, number]> = { village: [2, 5], kennels: [0, 2], chapel: [0, 2], cloister: [0, 1] };
+const FOLK_UNEASY = [
+  "Don't stay out past midnight. That's when it rings.",
+  'I only came out for bread. I am going straight back in.',
+  "My gran's been dead ten years. She was at the window again last night.",
+  'You hear it too, do you? Under the ground? Good. I thought it was just me.',
+  'Mortimer says he has someone looking into it. I hope they are quick.',
+  "Lovely evening. Don't tell anyone I said so, it's bad luck.",
+];
+const FOLK_AT_PEACE = [
+  'Slept eight hours. Eight! I counted them when I woke up.',
+  "Pip's bell rang noon and nobody got out of their grave. Marvellous.",
+  'They say it was you, down the shaft. I knew it was. I told everyone.',
+  "My gran's stayed where we put her for a week now. I almost miss her.",
+  'Bess has put tables outside. Outside! In Gravesend!',
+  'First time I have seen the cloister without the mist. It is quite pretty. For a plague cloister.',
+  'Somebody said they heard knocking. I said, do not you start.',
+];
+const FOLK_LOOKS: [string, string, string, string][] = [
+  // hat or hair, coat, coat shade, legs
+  ['#7a5532', '#4f6b3a', '#2a3b1f', '#241f2c'],
+  ['#b5431c', '#3b4f7d', '#22304f', '#241f2c'],
+  ['#d8d2c2', '#6b3a4a', '#3a1d2a', '#241f2c'],
+  ['#3a2a1e', '#8a6a2a', '#4a3812', '#33281f'],
+  ['#8a8590', '#4a4038', '#2e2620', '#141119'],
+];
+const FOLK_ROWS = ['....kkkk....', '...khhhhk...', '...khhhhk...', '...kffffk...', '...kfeefk...', '....kffk....', '..kkcccckk..', '.kcccCcccck.', '.kfkcCcckfk.', '..kccccck...', '...klk.klk..', '...kk...kk..'];
+const folkSprites = new Map<number, HTMLCanvasElement>();
+onCanvasReset(() => folkSprites.clear());
+
+function folkSprite(look: number): HTMLCanvasElement {
+  let c = folkSprites.get(look);
+  if (!c) {
+    const [h, coat, shade, legs] = FOLK_LOOKS[look % FOLK_LOOKS.length];
+    const pal: Record<string, string> = { k: '#0d0812', h, f: '#c9a27e', e: '#0d0812', c: coat, C: shade, l: legs };
+    c = document.createElement('canvas');
+    c.width = c.height = 12;
+    const g = c.getContext('2d')!;
+    FOLK_ROWS.forEach((row, y) =>
+      [...row].forEach((ch, x) => {
+        if (!pal[ch]) return;
+        g.fillStyle = pal[ch];
+        g.fillRect(x, y, 1, 1);
+      }),
+    );
+    folkSprites.set(look, c);
+  }
+  return c;
+}
+
+const folkAt = (x: number, y: number) => folk.find((f) => f.x === x && f.y === y);
+
+/** Put the villagers out for the place just walked into. */
+function callFolk() {
+  folkArea = areaId;
+  folk = [];
+  const out = FOLK_OUT[areaId];
+  if (!out || !hooks.storyOpen()) return;
+  const n = out[hooks.peace?.() ? 1 : 0];
+  const spots: { x: number; y: number }[] = [];
+  for (let y = 1; y < rows() - 1; y++) for (let x = 2; x < cols() - 2; x++) if (walkable(x, y) && !doorAt(x, y) && !EXIT_KEYS.includes(at(x, y)) && !npcAt(x, y) && Math.abs(x - pos.x) + Math.abs(y - pos.y) > 2) spots.push({ x, y });
+  for (let i = 0; i < n && spots.length; i++) {
+    const s = spots.splice(Math.floor(Math.random() * spots.length), 1)[0];
+    folk.push({ ...s, px: s.x, py: s.y, next: performance.now() + Math.random() * 2000, look: Math.floor(Math.random() * FOLK_LOOKS.length), face: 1, line: Math.floor(Math.random() * 50) });
+  }
+}
+
+// ---------- the map in the quest log ----------
+
+const MAP_SPOTS: [string, number, number][] = [['isle', 0, 1], ['graveyard', 1, 1], ['village', 2, 1], ['chapel', 3, 1], ['kennels', 2, 0], ['cloister', 3, 2]];
+
+/** The outdoor place a room belongs to (or the place itself). */
+function outdoorsOf(id: string): string {
+  if (!AREAS[id]?.interior) return id === 'farm' ? 'graveyard' : id;
+  if (id === 'home') return 'isle';
+  return Object.keys(AREAS).find((k) => Object.values(AREAS[k].doors).some((d) => 'interior' in d && d.interior === id)) ?? 'graveyard';
+}
+
+/**
+ * A little map of the world: where you are, and where the story wants you (a door to go down,
+ * `doors`, or someone to see, `people`). Places not yet reached are left dark.
+ */
+export function worldMapHtml(doors: number[], people: NpcId[], open: (id: string) => boolean): string {
+  const wanted = (id: string): boolean => {
+    const a = AREAS[id];
+    const here = Object.values(a.doors).some((d) => 'dungeon' in d && doors.includes(d.dungeon)) || (a.npcs ?? []).some((n) => people.includes(n.id));
+    return here || Object.values(a.doors).some((d) => 'interior' in d && wanted(d.interior));
+  };
+  const here = outdoorsOf(areaId);
+  const cells = MAP_SPOTS.map(([id, x, y]) => {
+    const known = open(id);
+    return `<div class="wmap-spot${id === here ? ' here' : ''}${known ? '' : ' unknown'}${known && wanted(id) ? ' wanted' : ''}" style="grid-column:${x + 1};grid-row:${y + 1}"><b>${known ? esc(AREAS[id].name) : '???'}</b>${id === here ? '<small>You are here</small>' : known && wanted(id) ? '<small>❗ Quest</small>' : ''}</div>`;
+  }).join('');
+  return `<div class="wmap" aria-label="Map"><i class="wmap-road h"></i><i class="wmap-road v1"></i><i class="wmap-road v2"></i>${cells}</div>`;
 }
 
 const area = () => AREAS[areaId];
@@ -1295,6 +1410,14 @@ function step(dx: number, dy: number) {
     path = [];
     return hooks.talk(npc.id);
   }
+  const neighbour = folkAt(x, y);
+  if (neighbour) {
+    path = [];
+    const lines = hooks.peace?.() ? FOLK_AT_PEACE : FOLK_UNEASY;
+    dialog = 'folk';
+    showDialog(`<b>A villager</b>${esc(lines[neighbour.line++ % lines.length])}`);
+    return;
+  }
   const ghost = areaId === 'graveyard' ? ghosts.find((g) => g.x === x && g.y === y) : undefined;
   if (ghost) {
     path = [];
@@ -1521,7 +1644,7 @@ function walkTo(tx: number, ty: number) {
   const steps: { x: number; y: number }[] = [];
   for (let k = goal; k !== start; k = prev.get(k)!) steps.unshift({ x: k % C, y: Math.floor(k / C) });
   // Ending beside something solid (a grave, a person, a ghost): bump into it.
-  if (blocked(tx, ty) || ghosts.some((g) => g.x === tx && g.y === ty)) steps.push({ x: tx, y: ty });
+  if (blocked(tx, ty) || ghosts.some((g) => g.x === tx && g.y === ty) || folkAt(tx, ty)) steps.push({ x: tx, y: ty });
   path = steps;
 }
 
@@ -1537,6 +1660,25 @@ function update(now: number, dt: number) {
   trailDraw.x += (trail.x - trailDraw.x) * Math.min(1, dt * 10);
   trailDraw.y += (trail.y - trailDraw.y) * Math.min(1, dt * 10);
   camX += (cameraTarget() - camX) * Math.min(1, dt * 6);
+  if (folkArea !== areaId) callFolk();
+  for (const f of folk) {
+    if (now > f.next && !dialog) {
+      f.next = now + 1800 + Math.random() * 2600;
+      const options = [[0, -1], [1, 0], [0, 1], [-1, 0]].filter(([dx, dy]) => {
+        const x = f.x + dx;
+        const y = f.y + dy;
+        return x > 0 && y > 0 && x < cols() - 1 && y < rows() - 1 && walkable(x, y) && !doorAt(x, y) && !EXIT_KEYS.includes(at(x, y)) && !(x === pos.x && y === pos.y) && !npcAt(x, y) && !folkAt(x, y);
+      });
+      if (options.length) {
+        const [dx, dy] = options[Math.floor(Math.random() * options.length)];
+        f.x += dx;
+        f.y += dy;
+        if (dx) f.face = dx;
+      }
+    }
+    f.px += (f.x - f.px) * Math.min(1, dt * 4);
+    f.py += (f.y - f.py) * Math.min(1, dt * 4);
+  }
   if (areaId !== 'graveyard') return;
   for (const g of ghosts) {
     if (now > g.next) {
@@ -1616,6 +1758,21 @@ function render(ctx: CanvasRenderingContext2D, t: number) {
     ctx.globalAlpha = 1;
     const mark = hooks.npcMarker(n.id);
     if (mark) questMark(px, n.x * TILE, n.y * TILE - 5, mark, t);
+  }
+
+  // villagers out in the lanes
+  for (const f of folk) {
+    const moving = Math.abs(f.x - f.px) + Math.abs(f.y - f.py) > 0.05;
+    const X = f.px * TILE + 2;
+    const Y = f.py * TILE + 1 + (moving ? Math.round(Math.abs(Math.sin(t * 9)) * -1) : 0);
+    px(Math.round(X) + 2, Math.round(f.py * TILE) + 13, 8, 2, 'rgba(0,0,0,0.4)');
+    ctx.save();
+    if (f.face > 0) {
+      ctx.translate(Math.round(X) + 12, Math.round(Y));
+      ctx.scale(-1, 1);
+      ctx.drawImage(folkSprite(f.look), 0, 0, 12, 12);
+    } else ctx.drawImage(folkSprite(f.look), Math.round(X), Math.round(Y), 12, 12);
+    ctx.restore();
   }
 
   // ghosts of today's best, in the graveyard
@@ -2347,6 +2504,7 @@ function renderInside(ctx: CanvasRenderingContext2D, px: Px, t: number) {
       }
     }
   }
+  dressRoom(ctx, px, t, win);
   // the floor darkens toward the walls
   px(TILE, TILE, (C - 2) * TILE, 3, 'rgba(0,0,0,0.3)');
   px(TILE, TILE, 3, (R - 2) * TILE, 'rgba(0,0,0,0.25)');
@@ -2362,6 +2520,87 @@ function renderInside(ctx: CanvasRenderingContext2D, px: Px, t: number) {
     }
   }
 }
+
+/** Each home's rug: [wool, border, motif]. Places with bare boards (the smithy, a monk's cell) have none. */
+const RUGS: Record<string, [string, string, string]> = {
+  cottage: ['#3f5a34', '#263a20', '#c9a24a'],
+  tavern: ['#6e2430', '#3f121a', '#e8c26a'],
+  agnes: ['#4a3460', '#2a1c3a', '#c9c3b2'],
+  'chapel-in': ['#5a1a26', '#2e0c14', '#9fe8ff'],
+  lodge: ['#3a3f4a', '#20232b', '#ff4d5a'],
+  home: ['#3b4f7d', '#22304f', '#f2c14e'],
+};
+
+/** What makes a room look lived in: a rug, moonlight through the window, candles on the wall, cobwebs. */
+function dressRoom(ctx: CanvasRenderingContext2D, px: Px, t: number, win: number) {
+  const C = cols();
+  const R = rows();
+  const rug = RUGS[areaId];
+  if (rug && areaId !== 'home') {
+    const [wool, edge, motif] = rug;
+    const x0 = (Math.floor(C / 2) - 2) * TILE + 4;
+    const y0 = Math.floor(R / 2) * TILE + 3;
+    const w = 5 * TILE - 8;
+    const h = 2 * TILE - 6;
+    px(x0, y0, w, h, edge);
+    px(x0 + 1, y0 + 1, w - 2, h - 2, wool);
+    px(x0 + 3, y0 + 3, w - 6, 1, motif);
+    px(x0 + 3, y0 + h - 4, w - 6, 1, motif);
+    px(x0 + 3, y0 + 3, 1, h - 6, motif);
+    px(x0 + w - 4, y0 + 3, 1, h - 6, motif);
+    for (let i = 0; i < 5; i++) {
+      const mx = x0 + 9 + i * 13;
+      const my = y0 + Math.floor(h / 2);
+      px(mx, my - 2, 1, 5, motif);
+      px(mx - 1, my - 1, 3, 3, motif);
+      px(mx - 2, my, 5, 1, motif);
+      px(mx, my, 1, 1, edge);
+    }
+    for (let y = y0 + 1; y < y0 + h - 1; y += 2) {
+      px(x0 - 2, y, 2, 1, lighten(wool, 18));
+      px(x0 + w, y, 2, 1, lighten(wool, 18));
+    }
+    // worn thin where people walk
+    ctx.globalAlpha = 0.12;
+    px(x0 + Math.floor(w / 2) - 6, y0 + 1, 12, h - 2, '#000000');
+    ctx.globalAlpha = 1;
+  }
+  // moonlight falls through the window in a long pane across the boards, with dust turning in it
+  if (win >= 0) {
+    const X = win * TILE;
+    for (let i = 0; i < 26; i++) {
+      ctx.globalAlpha = 0.085 * (1 - i / 26);
+      px(X + 3 - Math.floor(i / 3), TILE + i, 10 + Math.floor(i / 2), 1, '#9fb4d8');
+    }
+    for (let i = 0; i < 5; i++) {
+      const k = (t * 0.12 + i * 0.21) % 1;
+      ctx.globalAlpha = 0.5 * Math.sin(k * Math.PI);
+      px(X + 2 + ((i * 5) % 11) + Math.round(Math.sin(t + i) * 1.5), TILE + 2 + Math.floor(k * 22), 1, 1, '#e8eefc');
+    }
+    ctx.globalAlpha = 1;
+  }
+  // a candle in a sconce on the back wall, either side
+  for (const x of [2, C - 3]) {
+    if (x === win || area().map[0]?.[x] !== '#') continue;
+    const X = x * TILE;
+    const flick = Math.sin(t * 9 + x) * 0.5 + Math.sin(t * 23 + x * 3) * 0.3;
+    px(X + 6, Y_SCONCE + 4, 4, 1, '#5a4a3a');
+    px(X + 7, Y_SCONCE + 1, 2, 3, '#e8dcc4');
+    px(X + 7, Y_SCONCE - 1 - (flick > 0.3 ? 1 : 0), 2, 2, '#ff8a2a');
+    px(X + 7 + (flick > 0 ? 1 : 0), Y_SCONCE - 1, 1, 1, '#ffd27a');
+    lights.push({ x: X + 8, y: Y_SCONCE + 6, r: 26 + flick * 2, color: '#ffb060', a: 0.13 + flick * 0.02 });
+  }
+  // cobwebs in the top corners
+  for (const [X, d] of [[TILE, 1], [(C - 1) * TILE - 1, -1]] as const) {
+    ctx.globalAlpha = 0.28;
+    for (let i = 0; i < 6; i++) px(X + d * i, TILE + 5 - i, 1, 1, '#c9c3b2');
+    px(X + d * 1, TILE + 1, 1, 3, '#c9c3b2');
+    px(X + d * 3, TILE, 1, 2, '#c9c3b2');
+    px(X, TILE + 2, 1, 1, '#c9c3b2');
+    ctx.globalAlpha = 1;
+  }
+}
+const Y_SCONCE = 3;
 
 function furniture(ctx: CanvasRenderingContext2D, px: Px, c: string, X: number, Y: number, t: number) {
   switch (c) {
