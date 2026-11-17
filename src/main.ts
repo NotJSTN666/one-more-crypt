@@ -890,11 +890,30 @@ window.addEventListener('keydown', (e) => {
 const GUARD = 'omc-back';
 const guarded = () => (history.state as { [GUARD]?: boolean } | null)?.[GUARD] === true;
 let unguarding = false;
+/** Whether this page load added the spare entry. One it finds already there (after a reload, or
+ * coming Forward to the game) sits on top of an entry from another page load, so going back from
+ * it would load the page again (or leave), and it's only marked as not needed instead. */
+let guardedHere = false;
+function unmarkGuard() {
+  const state = { ...(history.state ?? {}) } as Record<string, unknown>;
+  delete state[GUARD];
+  history.replaceState(Object.keys(state).length ? state : null, '');
+}
 function guardBack() {
-  if (screen !== 'title' && !guarded()) history.pushState({ ...(history.state ?? {}), [GUARD]: true }, '');
-  else if (screen === 'title' && guarded() && !unguarding) {
+  if (screen !== 'title' && !guarded()) {
+    // Not until the player has tapped or pressed something: browsers mark a page that adds
+    // history entries before any input as one to skip, and going back from the spare entry then
+    // skips right past the game and out of the site (what a brand-new visitor, or a private
+    // window, ran into). The next screen change after their first tap sets it.
+    const act = (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation;
+    if (act && !act.hasBeenActive) return;
+    history.pushState({ ...(history.state ?? {}), [GUARD]: true }, '');
+    guardedHere = true;
+  } else if (screen === 'title' && guarded() && !unguarding) {
+    if (!guardedHere) return unmarkGuard();
     // Home again: drop the spare entry, so Back on the title screen leaves straight away.
     unguarding = true;
+    guardedHere = false;
     history.back();
   }
 }
@@ -5129,6 +5148,8 @@ function reloadForUpdate(): boolean {
   } catch {
     return false;
   }
+  // (the reloaded page mustn't take the Back guard for its own and go back across to this one)
+  if (guarded()) unmarkGuard();
   location.reload();
   return true;
 }

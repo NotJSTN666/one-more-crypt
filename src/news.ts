@@ -32,7 +32,7 @@ export const NEWS: NewsDay[] = [
       '🎲 A lucky Bone Dice hit throws a little die off the foe, the Mirror Shield shows a small shield over your head for each block left, and Blood Pact pulses red when it wakes.',
       '💀 Cursed relics now mark you: dark wisps rise off the Cursed Crown, the Blood Moon washes you red, and the Glass Skull leaves hairline cracks.',
     ],
-    fixes: ['🕯️ The Vespers Candles aura now shows its green haze and the candles circling behind your hero.'],
+    fixes: ['🕯️ The Vespers Candles aura now shows its green haze and the candles circling behind your hero.', '🚪 In a private window or on a first visit, going back to the title after a run no longer closes the game.'],
   },
   {
     date: '2026-11-16',
