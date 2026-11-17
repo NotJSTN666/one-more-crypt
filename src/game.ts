@@ -108,6 +108,11 @@ export type GameEvent =
   | { t: 'boon'; id: BoonId }
   | { t: 'block'; src?: string }
   | { t: 'revive' }
+  /** Relic moments with nothing else to show them: ice shattered, a hit rung again, a lucky roll, life drunk from the slain. */
+  | { t: 'shatter'; x: number; y: number }
+  | { t: 'echo'; x: number; y: number }
+  | { t: 'dice'; x: number; y: number }
+  | { t: 'drain'; x: number; y: number; amount: number }
   | { t: 'bolt'; from: Pos; to: Pos }
   | { t: 'dart'; from: Pos; to: Pos; hit: boolean }
   | { t: 'burst'; x: number; y: number }
@@ -528,6 +533,10 @@ export class Game {
 
   private harvestBonus = 0;
   private shieldCharges = 0;
+  /** Hits the Mirror Shield (and its kin) will still block this floor. */
+  get wards(): number {
+    return this.shieldCharges;
+  }
   private phylacteryUsed = false;
   private nextId = 1;
   private steps = 0;
@@ -1411,19 +1420,26 @@ export class Game {
       dmg += 2 * this.r('mark');
       e.marked = true;
     }
-    if (this.r('shatter') && e.frozen > 0) dmg += 3 * this.r('shatter');
+    if (this.r('shatter') && e.frozen > 0) {
+      dmg += 3 * this.r('shatter');
+      this.events.push({ t: 'shatter', x: e.x, y: e.y });
+    }
     if (this.r('headsman') && e.hp * 2 <= e.maxHp) dmg += 2 * this.r('headsman');
     if (this.r('pact') && this.player.hp <= 4) dmg *= this.r('pact') + 1;
     let crit = false;
     if (this.r('dice') && this.combat() < 0.15 * this.r('dice')) {
       dmg *= 3;
       crit = true;
+      this.events.push({ t: 'dice', x: e.x, y: e.y });
     }
     this.stats.maxHit = Math.max(this.stats.maxHit, dmg);
     this.damageEnemy(e, dmg, ranged ? 'pierce' : 'melee', crit);
     if (how === true && e.dead) this.stats.arrowKills++;
     const echoEvery = this.r('echo') >= 2 ? 3 : 4;
-    if (this.r('echo') && this.attacks % echoEvery === 0 && !e.dead) this.damageEnemy(e, dmg, 'melee');
+    if (this.r('echo') && this.attacks % echoEvery === 0 && !e.dead) {
+      this.events.push({ t: 'echo', x: e.x, y: e.y });
+      this.damageEnemy(e, dmg, 'melee');
+    }
 
     if (!e.dead) {
       if (this.r('ember')) {
@@ -1756,7 +1772,10 @@ export class Game {
       if (this.hero === 'paladin') this.heal(this.player.maxHp);
     }
 
-    if (this.r('fang')) this.heal(this.r('fang'));
+    if (this.r('fang')) {
+      this.events.push({ t: 'drain', x: e.x, y: e.y, amount: this.r('fang') });
+      this.heal(this.r('fang'));
+    }
     if (this.r('lantern') && this.kills % 6 === 0) {
       this.changeMaxHp(this.r('lantern'));
       this.heal(this.r('lantern'));

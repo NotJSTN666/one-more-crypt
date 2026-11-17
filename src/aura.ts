@@ -139,9 +139,6 @@ function drawBack(ctx: Ctx, a: AuraDef, cx: number, feet: number, mid: number, w
       }
       rising(t, 3, 1.2, (i, p) => px(cx + (i - 1) * w * 0.35, feet - Math.sin(p * Math.PI) * w * 0.4, k, '#a0ebff', 1 - p));
       break;
-    case 'vespers':
-      orbit(t, 5, 0.7, (i, x, y, front) => front && vesperCandle(px, cx + x * w * 0.6, mid + y * w * 0.2, k, t, i, 1));
-      break;
     case 'bone':
       orbit(t, 4, 1.6, (_i, x, y, front) => !front && bone(px, cx + x * w * 0.7, mid + y * w * 0.2, k));
       break;
@@ -342,6 +339,10 @@ function drawBack(ctx: Ctx, a: AuraDef, cx: number, feet: number, mid: number, w
 
 function drawFront(ctx: Ctx, a: AuraDef, cx: number, feet: number, mid: number, w: number, k: number, t: number, px: Px) {
   switch (a.style) {
+    case 'vespers':
+      // (the candles passing in front of the hero; drawBack has the haze and those behind)
+      orbit(t, 5, 0.7, (i, x, y, front) => front && vesperCandle(px, cx + x * w * 0.6, mid + y * w * 0.2, k, t, i, 1));
+      break;
     case 'bell':
       orbit(t, 4, 1.2, (i, x, y, front) => front && px(cx + x * w * 0.62 - k / 2, mid + y * w * 0.22 - k / 2, k, i % 2 ? '#ffffff' : '#9fe8ff', 0.85));
       greatBell(px, cx, feet - w * 1.32, k, t);

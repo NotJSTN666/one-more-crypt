@@ -1055,8 +1055,8 @@ function newsDay(date: string): string {
 }
 
 const NEWS_GO: Record<NewsGo, string> = {
-  horde: '🛡️ Play the Horde', story: '📖 Go to the story', howto: '❔ How to play', settings: '⚙️ Settings',
-  wardrobe: '👘 Wardrobe', endless: '♾️ Play Endless', daily: "📅 Today's crypt",
+  horde: `${pxi('shield')} Play the Horde`, story: `${pxi('book')} Go to the story`, howto: `${pxi('help')} How to play`, settings: `${pxi('gear')} Settings`,
+  wardrobe: `${pxi('cloak')} Wardrobe`, endless: `${pxi('infinity')} Play Endless`, daily: `${pxi('candle')} Today's crypt`,
 };
 
 /** What's new: patch notes for every day of updates, newest first. Opening it marks them read. */
@@ -1077,7 +1077,7 @@ function showWhatsNew(back: () => void) {
         ${d.go?.length ? `<p class="news-gos">${d.go.map((g) => `<button type="button" class="link-btn news-go" data-go="${g}">${NEWS_GO[g]} →</button>`).join('')}</p>` : ''}
       </article>`).join('<div class="news-sep" aria-hidden="true">✦</div>');
   showOverlay('whats-new', `
-    <h2>📰 What's new</h2>
+    <h2>${pxi('scroll')} What's new</h2>
     <div class="news-feed">${days || '<p class="fine">Nothing yet.</p>'}</div>
     <p class="fine">Talk about it, report bugs and suggest ideas in the <a href="${DISCORD_URL}" target="_blank" rel="noopener">Discord</a> 💬</p>
     <button class="btn primary" id="back">Back</button>`);
@@ -1169,11 +1169,11 @@ document.addEventListener('click', (e) => {
 
 function showSupport(back: () => void) {
   showOverlay('support', `
-    <h2>❤️ Keep the crypt open</h2>
+    <h2>${pxi('heart')} Keep the crypt open</h2>
     <p class="sub">One More Crypt is free to play, with no ads.</p>
     <p class="fine">Donations are welcome and help keep the crypt open: the servers, the leaderboards and a new crypt every day. Supporters get the Patron of the Crypt title and the rainbow Patron's Prism aura as thanks.</p>
     ${meta.patron ? '<p class="fine">You already support the crypt. Thank you!</p>' : ''}
-    <button class="btn primary" id="kofi-go">❤️ Donate on Ko-fi</button>
+    <button class="btn primary" id="kofi-go">${pxi('heart')} Donate on Ko-fi</button>
     <button class="btn" id="back">Back</button>`);
   on('#kofi-go', () => window.open(KOFI_URL, '_blank', 'noopener'));
   on('#back', back);
@@ -1854,7 +1854,7 @@ function showDelve() {
   const resumable = savedRun();
   const endlessBtn = resumable?.mode === 'endless'
     ? `<button class="btn primary" id="continue">${pxi('play')} Continue Endless<small>${HERO_BY_ID[resumable.hero].name} · floor ${resumable.floor} · ${resumable.player.hp}/${resumable.player.maxHp} HP</small></button>`
-    : `<button class="btn" id="endless">♾️ Endless Descent<small>${save.bestEndless ? `Your best: floor ${save.bestEndless}<span class="endless-record"></span>` : 'Choose your hero. No limit, no daily reset.'}</small></button>`;
+    : `<button class="btn" id="endless">${pxi('infinity')} Endless Descent<small>${save.bestEndless ? `Your best: floor ${save.bestEndless}<span class="endless-record"></span>` : 'Choose your hero. No limit, no daily reset.'}</small></button>`;
   showOverlay('delve', `
     <button class="btn back-top" id="back">← Back</button>
     <h2>Delve deeper</h2>
@@ -2157,10 +2157,10 @@ function muteChipHtml(): string {
 
 function accountChip(): string {
   const mute = muteChipHtml()
-    + `<button class="account-chip mute-chip news-chip" id="title-news" aria-label="What's new${newsUnread() ? `, ${newsUnread()} unread` : ''}">📰${newsUnread() ? '<i class="news-dot"></i>' : ''}</button>`
+    + `<button class="account-chip mute-chip news-chip" id="title-news" aria-label="What's new${newsUnread() ? `, ${newsUnread()} unread` : ''}">${pxi('scroll')}${newsUnread() ? '<i class="news-dot"></i>' : ''}</button>`
     + chatChipHtml()
     + `<button class="account-chip mute-chip" id="title-settings" aria-label="Settings">${pxi('gear')}</button>`
-    + (PORTAL ? '' : `<button class="account-chip mute-chip kofi-chip ${calmMotion() ? 'still' : ''}" id="title-kofi" aria-label="Support One More Crypt"><span class="kofi-heart" aria-hidden="true">❤️</span></button>`)
+    + (PORTAL ? '' : `<button class="account-chip mute-chip kofi-chip ${calmMotion() ? 'still' : ''}" id="title-kofi" aria-label="Support One More Crypt"><span class="kofi-heart" aria-hidden="true">${pxi('heart')}</span></button>`)
     // Install, up top beside the sound, wherever the browser can add the game to the home screen.
     + (installMode() ? `<button class="account-chip install-chip" id="install" aria-label="Install the app">📲 Install</button>` : '');
   if (ONLINE && !session.ready) return `<div class="account-row">${mute}</div>`;
@@ -2856,10 +2856,10 @@ function showDeath(r: RunResult, best: boolean) {
     ${keepNameHtml()}
     <div class="row grid2 share-row">
       <button class="btn share-btn" id="copy">📋 Copy result</button>
-      ${ch ? (PORTAL ? '' : '<button class="btn" id="pass-challenge">📨 Pass it on</button>') : ONLINE && !PORTAL ? '<button class="btn challenge-btn" id="challenge">⚔️ Challenge a friend</button>' : ''}
+      ${ch ? (PORTAL ? '' : '<button class="btn" id="pass-challenge">' + pxi('letter') + ' Pass it on</button>') : ONLINE && !PORTAL ? '<button class="btn challenge-btn" id="challenge">' + pxi('sword') + ' Challenge a friend</button>' : ''}
     </div>
     <div class="row grid2 nav-row">
-      ${ONLINE ? '<button class="btn" id="leaderboard">🏆 Leaderboard</button>' : ''}
+      ${ONLINE ? '<button class="btn" id="leaderboard">' + pxi('trophy') + ' Leaderboard</button>' : ''}
       <button class="btn" id="hall">🏰 Hall</button>
       <button class="btn" id="ossuary">🏛️ Ossuary</button>
       <button class="btn" id="title">Title</button>
@@ -3031,12 +3031,12 @@ function challengeHero(c: Challenge): HeroId {
 
 /** Someone's challenge, opened from a link: who, how deep, and the board so far. */
 function openChallenge(code: string, back: () => void) {
-  showOverlay('challenge', '<h2>⚔️ A challenge</h2><p class="sub">Opening the crypt…</p>');
+  showOverlay('challenge', `<h2>${pxi('sword')} A challenge</h2><p class="sub">Opening the crypt…</p>`);
   void getChallenge(code)
     .then((c) => {
       if (screen !== 'challenge') return;
       if (!c) {
-        showOverlay('challenge', '<h2>⚔️ A challenge</h2><p class="sub">That challenge doesn\'t exist. The link may be mistyped.</p><button class="btn primary" id="back">Back</button>');
+        showOverlay('challenge', `<h2>${pxi('sword')} A challenge</h2><p class="sub">That challenge doesn't exist. The link may be mistyped.</p><button class="btn primary" id="back">Back</button>`);
         on('#back', back);
         return;
       }
@@ -3044,7 +3044,7 @@ function openChallenge(code: string, back: () => void) {
       const today = dailyNumber();
       if (Number(c.seed) === hashSeed('cryptfall-daily', today) && !save.daily[today]) {
         showOverlay('challenge', `
-          <h2>⚔️ ${esc(c.name)} challenges you</h2>
+          <h2>${pxi('sword')} ${esc(c.name)} challenges you</h2>
           <p class="sub"><b>${esc(c.name)}</b> reached <b>floor ${c.floor}</b> in today's Daily crypt.</p>
           <p class="fine">Play your own Daily #${today} first, then open this link again to take them on.</p>
           <button class="btn primary" id="play-daily">Play Daily #${today}</button>
@@ -3060,12 +3060,12 @@ function openChallenge(code: string, back: () => void) {
       const hero = challengeHero(c);
       const unfinished = savedRun();
       showOverlay('challenge', `
-        <h2>⚔️ ${esc(c.name)} challenges you</h2>
+        <h2>${pxi('sword')} ${esc(c.name)} challenges you</h2>
         <img class="hero-portrait" src="${heroPortrait(hero, {}, [], 8)}" alt="" width="96" height="96" />
         <p class="sub"><b>${esc(c.name)}</b> reached <b>floor ${c.floor}</b> (${c.kills} kills) as the ${esc(HERO_BY_ID[hero].name)}.</p>
         <p class="fine">Same crypt, same hero, same relics on offer. Can you go deeper?${heroUnlocked(hero) ? '' : ` You'll borrow the ${esc(HERO_BY_ID[hero].name)} for this run.`}</p>
         <ol class="challenge-board" id="challenge-board"><li class="fine">Loading the board…</li></ol>
-        <button class="btn primary" id="accept">⚔️ Accept the challenge<small>${c.players ? `${c.players} ${c.players === 1 ? 'player has' : 'players have'} tried` : 'Be the first to try'}</small></button>
+        <button class="btn primary" id="accept">${pxi('sword')} Accept the challenge<small>${c.players ? `${c.players} ${c.players === 1 ? 'player has' : 'players have'} tried` : 'Be the first to try'}</small></button>
         ${unfinished ? `<p class="fine">This replaces your unfinished run on floor ${unfinished.floor}.</p>` : ''}
         <button class="btn" id="back">Not now</button>`);
       on('#accept', () => startChallenge(c));
@@ -3073,7 +3073,7 @@ function openChallenge(code: string, back: () => void) {
       void fillChallengeBoard(c);
     })
     .catch((e) => {
-      showOverlay('challenge', `<h2>⚔️ A challenge</h2><p class="sub">${esc((e as Error).message)}</p><button class="btn primary" id="back">Back</button>`);
+      showOverlay('challenge', `<h2>${pxi('sword')} A challenge</h2><p class="sub">${esc((e as Error).message)}</p><button class="btn primary" id="back">Back</button>`);
       on('#back', back);
     });
 }
@@ -3116,7 +3116,7 @@ function challengeResultHtml(r: RunResult, c: Challenge): string {
     : gap
       ? `<b>${esc(c.name)}</b> still leads by ${gap} floor${gap === 1 ? '' : 's'}.`
       : `<b>${esc(c.name)}</b> edges it on the same floor.`;
-  return `<div class="challenge-box ${won ? 'won' : ''}">⚔️ ${line}<small>Floor ${r.floor} vs ${c.floor}</small></div>
+  return `<div class="challenge-box ${won ? 'won' : ''}">${pxi('sword')} ${line}<small>Floor ${r.floor} vs ${c.floor}</small></div>
     <ol class="challenge-board" id="challenge-board"><li class="fine">Loading the board…</li></ol>`;
 }
 
@@ -3168,7 +3168,7 @@ function showChallengeShare(code: string, line: string, back: () => void, passin
     : `⚔️ I reached ${line} in One More Crypt. Same crypt, same hero: can you beat me?`;
   const native = typeof navigator.share === 'function';
   showOverlay('challenge-share', `
-    <h2>⚔️ ${passing ? 'Pass it on' : 'Your challenge'}</h2>
+    <h2>${pxi('sword')} ${passing ? 'Pass it on' : 'Your challenge'}</h2>
     <p class="sub">Send this link. Whoever opens it plays the exact same crypt.</p>
     <input class="challenge-link" readonly value="${esc(url)}" aria-label="Challenge link" />
     ${native ? '<button class="btn primary" id="native-share">📤 Share</button>' : ''}
@@ -3333,7 +3333,7 @@ function trialHtml(): string {
   const t = weekTrial();
   const s = meta.trial;
   const done = Boolean(s && s.week === weekStart() && s.done);
-  return `<div class="trial ${done ? 'done' : ''}">⚔️ <b>Weekly Trial:</b> ${esc(t.text)}. ${done ? '✅ Done! New trial on Monday.' : `${trialProgressText(t, s)} · ${TRIAL_SOULS} Souls`}</div>`;
+  return `<div class="trial ${done ? 'done' : ''}">${pxi('sword')} <b>Weekly Trial:</b> ${esc(t.text)}. ${done ? '✅ Done! New trial on Monday.' : `${trialProgressText(t, s)} · ${TRIAL_SOULS} Souls`}</div>`;
 }
 
 function welcomeTitleHtml(): string {
@@ -3532,7 +3532,7 @@ function showRaid(back: () => void) {
         ${raidBarHtml(st)}
         <p class="fine raid-meta"><span data-raid-players>${raidPlayersText(st)}</span> · ${p.phase === 'open' ? 'join for' : 'ends in'} <span data-raid-clock>${raidClockText(p)}</span></p>
         ${st?.felled ? `<p class="act2-ready">☠️ ${name} has fallen! Everyone who fought earns a reward.</p>` : ''}
-        ${p.phase === 'open' && !st?.felled ? `<button class="btn primary" id="raid-join">⚔️ Join the fight<small>${RAID_TURNS} turns against ${name}. Your hero, 4 relics to start. Fight as often as you like.</small></button>` : ''}
+        ${p.phase === 'open' && !st?.felled ? `<button class="btn primary" id="raid-join">${pxi('sword')} Join the fight<small>${RAID_TURNS} turns against ${name}. Your hero, 4 relics to start. Fight as often as you like.</small></button>` : ''}
         <h3 class="shop-head">Latest blows</h3>
         <ul class="raid-feed" data-raid-feed>${raidFeedHtml(st)}</ul>
         <h3 class="shop-head">Top damage</h3>
@@ -3954,8 +3954,8 @@ function keepGoingHtml(): string {
   return `<div class="keep-going">
       <p class="endless-tease">Daily done. Keep going?${save.bestEndless ? ` Your Endless best: <b>floor ${save.bestEndless}</b>` : ''}<span class="endless-record"></span></p>
       <div class="keep-row">
-        <button class="btn primary keep-btn" id="again">♾️ Endless<small>No limit<span class="keys-hint"> · Enter</span></small></button>
-        <button class="btn keep-btn horde-btn" id="horde">🛡️ Horde #${n}<small>${horde}</small></button>
+        <button class="btn primary keep-btn" id="again">${pxi('infinity')} Endless<small>No limit<span class="keys-hint"> · Enter</span></small></button>
+        <button class="btn keep-btn horde-btn" id="horde">${pxi('shield')} Horde #${n}<small>${horde}</small></button>
         <button class="btn keep-btn night-btn" id="keep-night">🌙 Night Shift<small>Survive the night</small></button>
       </div>
     </div>`;
@@ -3967,12 +3967,12 @@ function hordeButtonHtml(): string {
   const saved = savedHorde();
   if (saved) {
     const g = saved.game;
-    return `<button class="btn horde-btn" id="horde">🛡️ Continue Horde #${n}<small>Wave ${g.horde.wave} · ${g.horde.score.toLocaleString()} pts · ${g.player.hp}/${g.player.maxHp} HP</small></button>
+    return `<button class="btn horde-btn" id="horde">${pxi('shield')} Continue Horde #${n}<small>Wave ${g.horde.wave} · ${g.horde.score.toLocaleString()} pts · ${g.player.hp}/${g.player.maxHp} HP</small></button>
       <button class="link-btn horde-new" id="horde-new">Start a new Horde run</button>`;
   }
   // A "NEW" badge for the first weeks of the mode.
   const fresh = Date.now() < HORDE_NEW_UNTIL;
-  return `<button class="btn horde-btn" id="horde">${fresh ? '<span class="new-badge">NEW</span>' : ''}🛡️ Horde #${n}<small>${
+  return `<button class="btn horde-btn" id="horde">${fresh ? '<span class="new-badge">NEW</span>' : ''}${pxi('shield')} Horde #${n}<small>${
     h ? `Your best today: wave ${h.wave} · ${h.best.toLocaleString()} pts` : `Hold the crypt as the ${HERO_BY_ID[hordeHero(n)].name} · unlimited tries`
   }</small></button>`;
 }
@@ -4371,7 +4371,7 @@ function showActTwoNews() {
       <li>🎁 Story-only rewards: 3 cloaks, a mask, an aura and 4 titles</li>
       <li>🏅 Open the lid before 12 November: <b>First Down the Lid</b></li>
     </ul>
-    <button class="btn primary story-btn" id="news-play">📖 Go to Mortimer<small>Knock on his door</small></button>
+    <button class="btn primary story-btn" id="news-play">${pxi('book')} Go to Mortimer<small>Knock on his door</small></button>
     <button class="btn" id="news-later">Later</button>`);
   on('#news-play', () => {
     placeAtCottage();
@@ -4385,7 +4385,7 @@ function showStoryNews() {
   markNewsSeen();
   showOverlay('news', `
     <p class="news-tag">✨ New in One More Crypt</p>
-    <h2>📖 Story mode is open</h2>
+    <h2>${pxi('book')} Story mode is open</h2>
     <p class="sub">Act I · The Bell Beneath</p>
     <img class="hero-portrait" src="${heroPortrait(meta.hero, {}, [], 8, outfitFor(meta.hero).look, outfitFor(meta.hero).head)}" alt="" width="96" height="96" />
     <p class="fine">Every midnight a bell tolls under the graveyard, and the whole crypt shuffles its furniture. Someone is ringing it. Help Mortimer the gravedigger find out who.</p>
@@ -4413,7 +4413,7 @@ const NIGHT_NEW_UNTIL = Date.UTC(2026, 11, 1);
 function nightButtonHtml(): string {
   const best = meta.grave?.nightKills ?? 0;
   const fresh = Date.now() < NIGHT_NEW_UNTIL;
-  return `<button class="btn horde-btn night-btn" id="nightshift">${fresh ? '<span class="new-badge">NEW</span>' : ''}🌙 The Night Shift<small>${
+  return `<button class="btn horde-btn night-btn" id="nightshift">${fresh ? '<span class="new-badge">NEW</span>' : ''}${pxi('moon')} The Night Shift<small>${
     best ? `Your best night: ${best.toLocaleString()} put down` : 'Survive the endless dead · relics fight for you'
   }</small></button>`;
 }
@@ -4431,7 +4431,7 @@ function nightIntroSeen(): boolean {
 function showNightIntro() {
   const touch = matchMedia('(pointer: coarse)').matches;
   showOverlay('nightshift-intro', `
-    <h2>🌙 The Night Shift</h2>
+    <h2>${pxi('moon')} The Night Shift</h2>
     <p class="sub">The dead come from every side, and they never stop.</p>
     <div class="ns-intro">
       <div><span>🕹️</span><p><b>Keep moving.</b> ${touch ? 'Use the stick at the bottom.' : 'WASD or the arrow keys.'} Your relics attack on their own.</p></div>
@@ -5152,6 +5152,7 @@ document.addEventListener('visibilitychange', () => {
   get game() {
     return game;
   },
+  renderer,
   act,
   pickRelic,
   forgePick,
@@ -5364,7 +5365,7 @@ for (const ev of ['pointerdown', 'touchend', 'keydown']) window.addEventListener
 // Until then, a small hint that the music is waiting on a tap.
 const soundHint = document.createElement('div');
 soundHint.id = 'sound-hint';
-soundHint.textContent = matchMedia('(pointer: coarse)').matches ? '🔊 Tap anywhere for music' : '🔊 Click anywhere or press a key for music';
+soundHint.innerHTML = `${pxi('sound')} ${matchMedia('(pointer: coarse)').matches ? 'Tap anywhere for music' : 'Click anywhere or press a key for music'}`;
 document.body.appendChild(soundHint);
 function updateSoundHint() {
   soundHint.hidden = audioRunning() || isMuted() || !isMusicEnabled();

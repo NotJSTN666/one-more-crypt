@@ -24,11 +24,15 @@ export interface NewsDay {
 export const NEWS: NewsDay[] = [
   {
     date: '2026-11-17',
-    title: 'Pixel icons and real flames',
+    title: 'Pixel icons and relics you can see',
     notes: [
       '🎨 The menus and the bar above the crypt now use hand-drawn pixel icons instead of emoji, so they match the rest of the game.',
       '🔥 Foes set ablaze by Ember Brand and the other fire relics now visibly burn: flames lick up from their feet, taller the longer they have left to burn, with embers and smoke.',
+      '🛡️ More relics now show when they work: the Plague Mask hangs a green haze round you and puffs it onto foes, Thorned Mail spikes back at whoever hits you, frozen foes shatter into shards, Vampire Fang draws a red stream from the slain, and the Echo Bell and Twin Blade cut a second, violet slash.',
+      '🎲 A lucky Bone Dice hit throws a little die off the foe, the Mirror Shield shows a small shield over your head for each block left, and Blood Pact pulses red when it wakes.',
+      '💀 Cursed relics now mark you: dark wisps rise off the Cursed Crown, the Blood Moon washes you red, and the Glass Skull leaves hairline cracks.',
     ],
+    fixes: ['🕯️ The Vespers Candles aura now shows its green haze and the candles circling behind your hero.'],
   },
   {
     date: '2026-11-16',

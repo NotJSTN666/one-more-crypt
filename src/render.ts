@@ -101,6 +101,8 @@ export class Renderer {
   private impacts: Impact[] = [];
   /** A white flash over the board for crits and big kills. */
   private critFlash = 0;
+  /** Bone Dice rolling up off a foe after a lucky hit. */
+  private dice: { x: number; y: number; t: number }[] = [];
   /** Pickups the Grave Magnet is pulling in, flying from where they lay to the hero. */
   private flying: { kind: MagnetPull['kind']; x0: number; y0: number; x1: number; y1: number; t: number }[] = [];
 
@@ -279,6 +281,19 @@ export class Renderer {
             this.slashes.push({ x: ev.x, y: ev.y, ang, t: 0, crit: Boolean(ev.crit) });
           }
           this.impacts.push({ x: ev.x, y: ev.y, t: 0, life: ev.crit ? 0.32 : 0.2, color: ev.crit ? '#f2c14e' : colors[ev.kind] ?? '#ffffff', r: ev.crit ? 13 : 8 });
+          if (ev.kind === 'thorns') this.thornsAt(g.player, ev);
+          if (ev.kind === 'mask') {
+            // a puff of plague rolls off the hero onto the foe
+            const dx = ev.x - g.player.x;
+            const dy = ev.y - g.player.y;
+            for (let i = 0; i < 7; i++) {
+              this.particles.push({
+                x: g.player.x * TILE + TILE / 2 + dx * 4, y: g.player.y * TILE + TILE / 2 + dy * 4,
+                vx: dx * (40 + Math.random() * 25) + (Math.random() - 0.5) * 14, vy: dy * (40 + Math.random() * 25) + (Math.random() - 0.5) * 14 - 4,
+                color: Math.random() < 0.5 ? '#7f9a52' : '#b5e07a', t: 0, life: 0.4, size: Math.random() < 0.4 ? 2 : 1,
+              });
+            }
+          }
           const f = this.floater(ev.x, ev.y, `${ev.amount}${ev.crit ? '!' : ''}`, ev.crit ? '#f2c14e' : colors[ev.kind], 0.8);
           this.say(f);
           if (ev.crit) {
@@ -356,6 +371,40 @@ export class Renderer {
         case 'block':
           this.say(this.floater(g.player.x, g.player.y, 'BLOCK', '#9fe8ff', 0.8));
           this.burstParticles(g.player.x, g.player.y, '#9fe8ff', 8);
+          // a shield cracks away: bright shards thrown wide
+          this.burstParticles(g.player.x, g.player.y, '#ffffff', 6, 1.6);
+          break;
+        case 'shatter':
+          // the ice breaks: shards flung out, white and pale blue
+          for (let i = 0; i < 14; i++) {
+            const a = (i / 14) * Math.PI * 2 + Math.random() * 0.3;
+            const v = 55 + Math.random() * 45;
+            this.particles.push({ x: ev.x * TILE + TILE / 2, y: ev.y * TILE + TILE / 2, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 15, color: i % 3 ? '#9fe8ff' : '#ffffff', t: 0, life: 0.45, size: 2 });
+          }
+          this.impacts.push({ x: ev.x, y: ev.y, t: 0, life: 0.25, color: '#9fe8ff', r: 12 });
+          this.say(this.floater(ev.x, ev.y, 'SHATTER', '#9fe8ff', 0.9));
+          break;
+        case 'echo': {
+          // the blow rings again: a second, violet slash across the first
+          const ang = Math.atan2(ev.y - g.player.y, ev.x - g.player.x) + Math.PI / 2;
+          this.slashes.push({ x: ev.x, y: ev.y, ang, t: 0, crit: false });
+          this.impacts.push({ x: ev.x, y: ev.y, t: 0, life: 0.3, color: '#d3b0ff', r: 11 });
+          this.say(this.floater(ev.x, ev.y, '×2', '#d3b0ff', 0.9));
+          break;
+        }
+        case 'dice':
+          // a lucky roll: a little die tumbles up off the foe
+          this.dice.push({ x: ev.x, y: ev.y, t: 0 });
+          break;
+        case 'drain':
+          // life drawn from the slain back to the hero: a red stream, and drops along it
+          this.lines.push({ from: { x: ev.x, y: ev.y }, to: { x: g.player.x, y: g.player.y }, t: 0, life: 0.35, color: '#d23a46' });
+          for (let i = 0; i < 6; i++) {
+            const f = i / 6;
+            const sx = (ev.x + (g.player.x - ev.x) * f) * TILE + TILE / 2;
+            const sy = (ev.y + (g.player.y - ev.y) * f) * TILE + TILE / 2;
+            this.particles.push({ x: sx, y: sy, vx: (g.player.x - ev.x) * 30, vy: (g.player.y - ev.y) * 30 - 4, color: i % 2 ? '#d23a46' : '#ff7a85', t: 0, life: 0.35 + f * 0.1, size: 1 });
+          }
           break;
         case 'revive':
           this.say(this.floater(g.player.x, g.player.y, 'DEATH DENIED', '#f2c14e', 1.4));
@@ -605,11 +654,67 @@ export class Renderer {
     if (r('hellfire')) emit(0.15, x + 2 + Math.random() * 8, y + 11, -10, Math.random() < 0.5 ? '#d23a46' : '#701826');
     if (r('dust')) emit(0.12, x + Math.random() * 12, y + 8 + Math.random() * 4, -4, 'rgba(200,195,215,0.6)');
     if (r('phylactery') && Math.sin(this.time * 4) > 0.9) emit(0.5, x + 6, y + 6, -8, '#9fe8ff');
+    const ctx = this.ctx;
+    const cx = x + SPRITE_SIZE / 2;
+    const cy = y + SPRITE_SIZE / 2;
+    // Blood Pact awake (low on health): a red heartbeat swelling round the hero, and blood rising.
     if (r('pact') && g.player.hp <= 4) {
-      const ctx = this.ctx;
-      ctx.strokeStyle = `rgba(210, 58, 70, ${0.4 + 0.3 * Math.sin(this.time * 8)})`;
+      const beat = Math.max(0, Math.sin(this.time * 7)) ** 3;
+      const glow = ctx.createRadialGradient(cx, cy, 2, cx, cy, 12 + beat * 4);
+      glow.addColorStop(0, 'rgba(210, 58, 70, 0)');
+      glow.addColorStop(0.45, `rgba(210, 58, 70, ${0.1 + 0.22 * beat})`);
+      glow.addColorStop(1, 'rgba(210, 58, 70, 0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(cx - 16, cy - 16, 32, 32);
+      ctx.strokeStyle = `rgba(210, 58, 70, ${0.35 + 0.4 * beat})`;
       ctx.lineWidth = 1;
       ctx.strokeRect(Math.round(x) - 1.5, Math.round(y) - 1.5, SPRITE_SIZE + 3, SPRITE_SIZE + 3);
+      emit(0.25, x + Math.random() * 12, y + 10, -14, Math.random() < 0.5 ? '#d23a46' : '#701826');
+    }
+    // Plague Mask: a sickly green haze hangs round the hero, reaching into the tiles beside.
+    if (r('mask')) {
+      const haze = ctx.createRadialGradient(cx, cy + 2, 3, cx, cy + 2, TILE * 0.95);
+      haze.addColorStop(0, `rgba(127, 154, 82, ${0.3 + 0.08 * Math.sin(this.time * 2)})`);
+      haze.addColorStop(0.6, `rgba(127, 154, 82, ${0.14 + 0.05 * Math.sin(this.time * 2)})`);
+      haze.addColorStop(1, 'rgba(127, 154, 82, 0)');
+      ctx.fillStyle = haze;
+      ctx.fillRect(cx - TILE, cy - TILE + 2, TILE * 2, TILE * 2);
+      if (Math.random() < 0.4) {
+        const a = Math.random() * Math.PI * 2;
+        const d = 7 + Math.random() * 7;
+        this.particles.push({ x: cx + Math.cos(a) * d, y: cy + Math.sin(a) * d, vx: Math.cos(a) * 4, vy: -5, color: Math.random() < 0.5 ? 'rgba(127,154,82,0.8)' : 'rgba(181,224,122,0.7)', t: 0, life: 0.9, size: 1 });
+      }
+    }
+    // Mirror Shield: a small pale shield over the head for every block left this floor.
+    const wards = Math.min(5, g.wards);
+    for (let i = 0; i < wards; i++) {
+      const sx = Math.round(cx - (wards * 4 - 1) / 2 + i * 4);
+      const sy = Math.round(y - 5 + Math.sin(this.time * 3 + i) * 0.6);
+      ctx.fillStyle = '#0d0812';
+      ctx.fillRect(sx - 1, sy - 1, 5, 5);
+      ctx.fillStyle = '#9fe8ff';
+      ctx.fillRect(sx, sy, 3, 3);
+      ctx.fillRect(sx + 1, sy + 3, 1, 1);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(sx, sy, 1, 1);
+    }
+    // The curses show. Cursed Crown: dark wisps curl up off the head.
+    if (r('crown')) emit(0.22, x + 3 + Math.random() * 6, y + 1, -9, Math.random() < 0.5 ? '#6b3a96' : '#3a1d55');
+    // Blood Moon: the hero is washed red, beating slowly.
+    if (r('moon')) {
+      ctx.fillStyle = `rgba(210, 40, 60, ${0.2 + 0.1 * Math.sin(this.time * 2.5)})`;
+      ctx.fillRect(Math.round(x), Math.round(y), SPRITE_SIZE, SPRITE_SIZE);
+      emit(0.06, x + Math.random() * 12, y + Math.random() * 10, 6, '#d23a46');
+    }
+    // Glass Skull: hairline cracks across the hero that catch the light.
+    if (r('glass')) {
+      const gx = Math.round(x);
+      const gy = Math.round(y);
+      const crack = [[2, 1], [3, 2], [3, 3], [4, 4], [5, 5], [5, 6], [6, 7], [7, 7], [8, 8], [8, 9], [9, 10], [4, 7], [3, 8], [2, 9], [8, 4], [9, 3], [10, 3]];
+      ctx.fillStyle = 'rgba(13, 8, 18, 0.55)';
+      for (const [px, py] of crack) ctx.fillRect(gx + px + 1, gy + py, 1, 1);
+      ctx.fillStyle = `rgba(235, 248, 255, ${0.6 + 0.35 * Math.max(0, Math.sin(this.time * 1.7))})`;
+      for (const [px, py] of crack) ctx.fillRect(gx + px, gy + py, 1, 1);
     }
   }
 
@@ -768,6 +873,7 @@ export class Renderer {
     this.drawImpacts(dt);
     this.drawSlashes(dt);
     this.drawRings(dt);
+    this.drawDice(dt);
     this.drawOrbit(g, dt);
     this.drawDarts(dt);
     this.drawFlying(dt);
@@ -1509,6 +1615,42 @@ export class Renderer {
       ctx.fillRect(hx, hy + 2, 3, 1);
       ctx.fillRect(hx + 1, hy + 3, 1, 1);
     }
+  }
+
+  /** Thorned Mail answering a blow: green thorns spike from the hero toward whoever struck. */
+  private thornsAt(from: Pos, to: Pos) {
+    const cx = from.x * TILE + TILE / 2;
+    const cy = from.y * TILE + TILE / 2;
+    const ang = Math.atan2(to.y - from.y, to.x - from.x);
+    for (const off of [-0.45, 0, 0.45]) {
+      const a = ang + off;
+      const len = off ? 0.55 : 0.8;
+      this.lines.push({ from: { x: from.x, y: from.y }, to: { x: from.x + Math.cos(a) * len, y: from.y + Math.sin(a) * len }, t: 0, life: 0.35, color: off ? '#7f9a52' : '#b5e07a' });
+    }
+    for (let i = 0; i < 9; i++) {
+      const a = ang + (Math.random() - 0.5) * 1.1;
+      const v = 50 + Math.random() * 40;
+      this.particles.push({ x: cx + Math.cos(a) * 5, y: cy + Math.sin(a) * 5, vx: Math.cos(a) * v, vy: Math.sin(a) * v, color: i % 2 ? '#7f9a52' : '#b5e07a', t: 0, life: 0.3, size: 2 });
+    }
+  }
+
+  /** Bone Dice: a little white die (showing a six) tumbling up and fading. */
+  private drawDice(dt: number) {
+    const ctx = this.ctx;
+    this.dice = this.dice.filter((d) => (d.t += dt) < 0.7);
+    for (const d of this.dice) {
+      const p = d.t / 0.7;
+      const x = Math.round(d.x * TILE + TILE / 2 + 5 - 2);
+      const y = Math.round(d.y * TILE + 2 - p * 10);
+      ctx.globalAlpha = p < 0.7 ? 1 : 1 - (p - 0.7) / 0.3;
+      ctx.fillStyle = '#0d0812';
+      ctx.fillRect(x - 1, y - 1, 7, 7);
+      ctx.fillStyle = Math.floor(d.t * 12) % 2 ? '#e8dcc4' : '#ffffff';
+      ctx.fillRect(x, y, 5, 5);
+      ctx.fillStyle = '#d23a46';
+      for (const [px, py] of [[0, 0], [0, 2], [0, 4], [4, 0], [4, 2], [4, 4]]) ctx.fillRect(x + px, y + py, 1, 1);
+    }
+    ctx.globalAlpha = 1;
   }
 
   /**
