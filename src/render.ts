@@ -1511,6 +1511,44 @@ export class Renderer {
     }
   }
 
+  /**
+   * A foe set ablaze: a warm glow over it, tongues of flame licking up from its feet (taller
+   * the more turns it has left to burn), embers rising and a wisp of smoke.
+   */
+  private drawAblaze(x: number, y: number, id: number, turns: number) {
+    const ctx = this.ctx;
+    const t = this.time;
+    ctx.fillStyle = `rgba(255, 110, 30, ${0.1 + 0.05 * Math.sin(t * 13 + id)})`;
+    ctx.fillRect(x, y, SPRITE_SIZE, SPRITE_SIZE);
+    const tall = Math.min(3, turns);
+    const base = y + SPRITE_SIZE;
+    for (let i = 0; i < 4; i++) {
+      const fx = x + 1 + i * 3;
+      // each tongue flickers on its own, between short and tall
+      const h = 2 + tall + Math.round(2 * Math.sin(t * (11 + i * 3) + id * 1.7 + i * 2));
+      if (h <= 0) continue;
+      ctx.fillStyle = '#d23a1e';
+      ctx.fillRect(fx, base - h, 2, h);
+      ctx.fillStyle = '#ff8a2a';
+      ctx.fillRect(fx, base - h + 1, 2, Math.max(0, h - 2));
+      ctx.fillStyle = '#f2c14e';
+      ctx.fillRect(fx + (i % 2), base - Math.ceil(h / 2), 1, Math.ceil(h / 2) - 1);
+      if (h >= 5) {
+        ctx.fillStyle = '#fff3b0';
+        ctx.fillRect(fx + (i % 2), base - h, 1, 1);
+      }
+    }
+    if (Math.random() < 0.55) {
+      this.particles.push({
+        x: x + 1 + Math.random() * 10, y: y + 2 + Math.random() * 8, vx: (Math.random() - 0.5) * 6, vy: -22 - Math.random() * 10,
+        color: Math.random() < 0.5 ? '#ff8a2a' : '#f2c14e', t: 0, life: 0.45, size: Math.random() < 0.25 ? 2 : 1,
+      });
+    }
+    if (Math.random() < 0.06) {
+      this.particles.push({ x: x + 3 + Math.random() * 6, y: y - 1, vx: 0, vy: -10, color: '#5d566a', t: 0, life: 0.8, size: 2 });
+    }
+  }
+
   private drawEnemy(g: Game, e: Game['enemies'][number], d: Pos, dt: number) {
     const ctx = this.ctx;
     // Foes turn to face the hero (thralls face whichever way they last walked).
@@ -1561,12 +1599,7 @@ export class Renderer {
       ctx.lineWidth = 1;
       ctx.strokeRect(x - 0.5, y - 0.5, SPRITE_SIZE + 1, SPRITE_SIZE + 1);
     }
-    if (e.burn > 0 && Math.random() < 0.5) {
-      this.particles.push({
-        x: x + 2 + Math.random() * 8, y: y + 4 + Math.random() * 6, vx: 0, vy: -18,
-        color: Math.random() < 0.5 ? '#ff8a2a' : '#f2c14e', t: 0, life: 0.35, size: 1,
-      });
-    }
+    if (e.burn > 0) this.drawAblaze(x, y, e.id, e.burn);
     if (e.asleep) {
       // Sleeping: a slow drift of z's.
       ctx.fillStyle = '#9aa3b5';

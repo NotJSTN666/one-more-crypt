@@ -5,6 +5,7 @@
 import { chatProblem, CHAT_MAX, tidyChat } from './chat-filter';
 import { chatRecent, OnlineError, sendChat, watchChat, type ChatLine } from './online';
 import { esc } from './ui';
+import { pxi } from './pixel-icons';
 
 interface ChatHost {
   /** The signed-in player's account id and chosen name, or null for a guest or nobody. */
@@ -126,7 +127,7 @@ function noteTyping() {
 export function chatChipHtml(id = 'title-chat'): string {
   if (!ready) return '';
   const typing = typingNames().length > 0;
-  return `<button class="account-chip mute-chip chat-chip${typing ? ' typing' : ''}" ${id ? `id="${id}" ` : ''}data-chat aria-label="Chat${unread ? `, ${unread} new` : ''}"><span class="chat-bubble">💬</span><span class="typing-dots" aria-hidden="true"><i></i><i></i><i></i></span>${unread ? `<i class="news-dot"></i>` : ''}</button>`;
+  return `<button class="account-chip mute-chip chat-chip${typing ? ' typing' : ''}" ${id ? `id="${id}" ` : ''}data-chat aria-label="Chat${unread ? `, ${unread} new` : ''}"><span class="chat-bubble">${pxi('chat')}</span><span class="typing-dots" aria-hidden="true"><i></i><i></i><i></i></span>${unread ? `<i class="news-dot"></i>` : ''}</button>`;
 }
 
 function paintChip() {

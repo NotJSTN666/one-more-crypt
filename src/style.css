@@ -6528,3 +6528,9 @@ body.menu:has(#overlay[data-screen='title']:not([hidden])) #ghosts { opacity: 0.
 .hollow-veil.dip.shut { opacity: 1; }
 .hollow-veil.dip.opening { opacity: 0; transition: opacity 0.26s ease-out; }
 @media (prefers-reduced-motion: reduce) { .hollow-veil.dip { transition-duration: 0.12s; } }
+
+/* ---------- pixel icons (pixel-icons.ts) in place of emoji ---------- */
+.pxi { display: inline-block; width: 1.25em; height: 1.25em; vertical-align: -0.28em; background: no-repeat center / contain; image-rendering: pixelated; flex: none; font-style: normal; }
+.tile-icon .pxi { width: 32px; height: 32px; vertical-align: middle; }
+.icon-btn .pxi, .mute-chip .pxi, .chat-bubble .pxi { width: 22px; height: 22px; vertical-align: middle; }
+#hud .stats .pxi { width: 16px; height: 16px; vertical-align: -3px; }

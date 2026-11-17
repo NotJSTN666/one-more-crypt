@@ -23,6 +23,14 @@ export interface NewsDay {
 
 export const NEWS: NewsDay[] = [
   {
+    date: '2026-11-17',
+    title: 'Pixel icons and real flames',
+    notes: [
+      '🎨 The menus and the bar above the crypt now use hand-drawn pixel icons instead of emoji, so they match the rest of the game.',
+      '🔥 Foes set ablaze by Ember Brand and the other fire relics now visibly burn: flames lick up from their feet, taller the longer they have left to burn, with embers and smoke.',
+    ],
+  },
+  {
     date: '2026-11-16',
     title: 'The story: Act II ends',
     go: ['story'],

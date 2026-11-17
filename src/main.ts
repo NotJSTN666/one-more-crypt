@@ -1,5 +1,6 @@
 import './style.css';
 import { relicIcon, boonIcon, iconCanvas, iconsFromEmoji } from './relic-icons';
+import { installPixelIcons, pxi } from './pixel-icons';
 import { PORTAL, initPortal, portalHappy, portalLoaded, portalPlaying } from './portal';
 import { audioRunning, fusionSound, isMusicEnabled, isMuted, onAudioState, setMusicDepth, setMusicEnabled, setMusicMood, setMuted, sfx, unlockAudio } from './audio';
 import { centralDate, dailyNumber, formatCountdown, msUntilNextDaily, weekStart } from './daily';
@@ -1180,10 +1181,10 @@ function showSupport(back: () => void) {
 $('menu-btn').addEventListener('click', () => showPause());
 
 function updateMuteIcon() {
-  $('mute').textContent = isMuted() ? '🔇' : '🔊';
+  $('mute').innerHTML = pxi(isMuted() ? 'mute' : 'sound');
   const chip = document.getElementById('title-mute');
   if (chip) {
-    chip.textContent = isMuted() ? '🔇' : '🔊';
+    chip.innerHTML = pxi(isMuted() ? 'mute' : 'sound');
     chip.setAttribute('aria-label', isMuted() ? 'Sound off. Turn it on' : 'Sound on. Mute');
   }
 }
@@ -1338,7 +1339,8 @@ function updateHud(reset = false) {
   // In the Horde the floor counter shows the wave.
   const horde = game.mode === 'horde';
   $('floor').textContent = String(horde ? game.horde.wave : game.floor);
-  $('floor-icon').textContent = horde ? 'Wave' : '⛧';
+  if (horde) $('floor-icon').textContent = 'Wave';
+  else $('floor-icon').innerHTML = pxi('stairs');
   $('floor-stat').title = horde ? 'Wave' : 'Floor';
   $('atk').textContent = String(game.atk);
   $('kills').textContent = String(game.kills);
@@ -1851,7 +1853,7 @@ function setDrawerOpen(open: boolean) {
 function showDelve() {
   const resumable = savedRun();
   const endlessBtn = resumable?.mode === 'endless'
-    ? `<button class="btn primary" id="continue">▶ Continue Endless<small>${HERO_BY_ID[resumable.hero].name} · floor ${resumable.floor} · ${resumable.player.hp}/${resumable.player.maxHp} HP</small></button>`
+    ? `<button class="btn primary" id="continue">${pxi('play')} Continue Endless<small>${HERO_BY_ID[resumable.hero].name} · floor ${resumable.floor} · ${resumable.player.hp}/${resumable.player.maxHp} HP</small></button>`
     : `<button class="btn" id="endless">♾️ Endless Descent<small>${save.bestEndless ? `Your best: floor ${save.bestEndless}<span class="endless-record"></span>` : 'Choose your hero. No limit, no daily reset.'}</small></button>`;
   showOverlay('delve', `
     <button class="btn back-top" id="back">← Back</button>
@@ -1860,7 +1862,7 @@ function showDelve() {
     ${endlessBtn}
     ${hordeButtonHtml()}
     ${nightButtonHtml()}
-    ${PORTAL ? '' : '<button class="btn race-btn" id="race">⚔️ Crypt Race<span class="new-tag">NEW</span><small>Join a live race against other players · up to four at once</small></button>'}
+    ${PORTAL ? '' : '<button class="btn race-btn" id="race">' + pxi('sword') + ' Crypt Race<span class="new-tag">NEW</span><small>Join a live race against other players · up to four at once</small></button>'}
   `);
   on('#race', showRaceMenu);
   on('#back', showTitle);
@@ -1906,9 +1908,9 @@ function showTitle() {
   const ns = (n: number) => n.toLocaleString();
   // One thing to do, front and centre: today's crypt (or the run waiting), then a single
   // "Delve deeper" for the other modes. Everything else waits in the More drawer.
-  const delveBtn = `<button class="btn ${endlessNext ? 'primary' : ''} delve-btn" id="delve">⚔️ Delve deeper<small>Endless · Horde · The Night Shift</small></button>`;
+  const delveBtn = `<button class="btn ${endlessNext ? 'primary' : ''} delve-btn" id="delve">${pxi('sword')} Delve deeper<small>Endless · Horde · The Night Shift</small></button>`;
   // Live races get their own door on the title, so nobody has to go looking for them.
-  const raceBtn = PORTAL || !ONLINE ? '' : '<button class="btn race-btn race-title-btn" id="race">⚔️ Crypt Race<span class="new-tag">NEW</span><small id="race-waiting">Join a live race against other players</small></button>';
+  const raceBtn = PORTAL || !ONLINE ? '' : '<button class="btn race-btn race-title-btn" id="race">' + pxi('sword') + ' Crypt Race<span class="new-tag">NEW</span><small id="race-waiting">Join a live race against other players</small></button>';
   const extras = [
     raid.phase !== 'open' ? raidCardHtml(raid) : '',
     welcomeTitleHtml(),
@@ -1935,33 +1937,33 @@ function showTitle() {
     ${raid.phase === 'open' ? raidCardHtml(raid) : ''}
     ${delveBtn}
     ${raceBtn}
-    <button class="btn story-btn" id="story">📖 Story<small>${storyProgress()}</small></button>
-    ${streak > 1 ? `<div class="streak">🕯️ ${streak}-day streak</div>` : ''}
+    <button class="btn story-btn" id="story">${pxi('book')} Story<small>${storyProgress()}</small></button>
+    ${streak > 1 ? `<div class="streak">${pxi('candle')} ${streak}-day streak</div>` : ''}
     </div>
     <details class="title-drawer" id="title-drawer"${drawerOpen() ? ' open' : ''}>
-      <summary>${nudge ? '<span class="drawer-dot"></span>' : ''}☰ More<small>Bounties · your Hall · Ossuary · leaderboards</small></summary>
+      <summary>${nudge ? '<span class="drawer-dot"></span>' : ''}${pxi('menu')} More<small>Bounties · your Hall · Ossuary · leaderboards</small></summary>
       <div class="drawer-body">
       ${extras}
       <h2 class="title-section">Adventure</h2>
       <div class="tiles">
-        ${titleTile('hollow', '🌙', 'The Hollow', 'Graveyard & your isle')}
-        ${titleTile('act2', '🔔', 'Act II', act2Open() ? 'Part 1 open' : 'Opens Friday', 'act2-tile')}
+        ${titleTile('hollow', pxi('moon'), 'The Hollow', 'Graveyard & your isle')}
+        ${titleTile('act2', pxi('bell'), 'Act II', act2Open() ? 'Part 1 open' : 'Opens Friday', 'act2-tile')}
       </div>
       <h2 class="title-section">Your crypt</h2>
       <div class="tiles">
-        ${titleTile('hall', '🏰', 'Crypt Hall', `<span style="color:${rankFor(meta.earned).color}">${esc(rankFor(meta.earned).name)}</span>`)}
-        ${titleTile('wardrobe', '🎨', 'Wardrobe', 'Dress your heroes')}
-        ${titleTile('ossuary', '🏛️', 'Ossuary', `💀 ${ns(meta.souls)} Souls${meta.bought.includes(marketPiece(today).id) ? '' : ` · 🕯️ Today: ${esc(marketPiece(today).name)}`}`)}
-        ${titleTile('grimoire', '📖', 'Grimoire', 'Relics & combos')}
-        ${ONLINE ? titleTile('leaderboard', '🏆', 'Leaderboards', 'Daily & Endless') : ''}
-        ${ONLINE ? titleTile('invite', '👥', 'Bring a friend', meta.invite.friends ? `${meta.invite.friends} brought` : `You both get ${INVITE_SOULS} Souls`) : ''}
-        ${titleTile('feedback', '💬', 'Feedback', 'Bugs & ideas')}
-        ${titleTile('help', '❔', 'How to play', 'The basics')}
+        ${titleTile('hall', pxi('castle'), 'Crypt Hall', `<span style="color:${rankFor(meta.earned).color}">${esc(rankFor(meta.earned).name)}</span>`)}
+        ${titleTile('wardrobe', pxi('cloak'), 'Wardrobe', 'Dress your heroes')}
+        ${titleTile('ossuary', pxi('ossuary'), 'Ossuary', `${pxi('skull')} ${ns(meta.souls)} Souls${meta.bought.includes(marketPiece(today).id) ? '' : ` · 🕯️ Today: ${esc(marketPiece(today).name)}`}`)}
+        ${titleTile('grimoire', pxi('book'), 'Grimoire', 'Relics & combos')}
+        ${ONLINE ? titleTile('leaderboard', pxi('trophy'), 'Leaderboards', 'Daily & Endless') : ''}
+        ${ONLINE ? titleTile('invite', pxi('friends'), 'Bring a friend', meta.invite.friends ? `${meta.invite.friends} brought` : `You both get ${INVITE_SOULS} Souls`) : ''}
+        ${titleTile('feedback', pxi('chat'), 'Feedback', 'Bugs & ideas')}
+        ${titleTile('help', pxi('help'), 'How to play', 'The basics')}
       </div>
       </div>
     </details>
-    <div class="foot-links">${followXHtml}${discordHtml}${kofiHtml}<a class="follow-x privacy" href="${PRIVACY_URL}" target="_blank" rel="noopener">🔒 Privacy</a></div>
-    ${testerOffer(PORTAL) ? '<button type="button" class="follow-x testers-link" id="title-testers">📱 Android testers needed</button>' : ''}
+    <div class="foot-links">${followXHtml}${discordHtml}${kofiHtml}<a class="follow-x privacy" href="${PRIVACY_URL}" target="_blank" rel="noopener">${pxi('lock')} Privacy</a></div>
+    ${testerOffer(PORTAL) ? '<button type="button" class="follow-x testers-link" id="title-testers">' + pxi('phone') + ' Android testers needed</button>' : ''}
   `);
   on('#title-testers', () => showTesterAsk(() => screen === 'title' && !overlay.hidden));
   overlay.querySelector('#title-drawer')?.addEventListener('toggle', (e) => setDrawerOpen((e.currentTarget as HTMLDetailsElement).open));
@@ -2150,14 +2152,14 @@ function showInstallHelp(back: () => void) {
 
 /** The sound button from the title screen, for screens where people stay a while. */
 function muteChipHtml(): string {
-  return `<button class="account-chip mute-chip" id="title-mute" aria-label="${isMuted() ? 'Sound off. Turn it on' : 'Sound on. Mute'}">${isMuted() ? '🔇' : '🔊'}</button>`;
+  return `<button class="account-chip mute-chip" id="title-mute" aria-label="${isMuted() ? 'Sound off. Turn it on' : 'Sound on. Mute'}">${pxi(isMuted() ? 'mute' : 'sound')}</button>`;
 }
 
 function accountChip(): string {
   const mute = muteChipHtml()
     + `<button class="account-chip mute-chip news-chip" id="title-news" aria-label="What's new${newsUnread() ? `, ${newsUnread()} unread` : ''}">📰${newsUnread() ? '<i class="news-dot"></i>' : ''}</button>`
     + chatChipHtml()
-    + `<button class="account-chip mute-chip" id="title-settings" aria-label="Settings">⚙️</button>`
+    + `<button class="account-chip mute-chip" id="title-settings" aria-label="Settings">${pxi('gear')}</button>`
     + (PORTAL ? '' : `<button class="account-chip mute-chip kofi-chip ${calmMotion() ? 'still' : ''}" id="title-kofi" aria-label="Support One More Crypt"><span class="kofi-heart" aria-hidden="true">❤️</span></button>`)
     // Install, up top beside the sound, wherever the browser can add the game to the home screen.
     + (installMode() ? `<button class="account-chip install-chip" id="install" aria-label="Install the app">📲 Install</button>` : '');
@@ -5349,6 +5351,7 @@ if (firstVisit() && !visiting && !challengeCode && (!playMode || playMode === 'd
     toast("🕯️ You've already conquered today's crypt. The next one opens at midnight.");
   } else openMode(playMode);
 }
+installPixelIcons();
 startGhosts();
 requestAnimationFrame(loop);
 
