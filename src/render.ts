@@ -651,6 +651,8 @@ export class Renderer {
   private burstParticles(tx: number, ty: number, color: string, n: number, speed = 1) {
     const cx = tx * TILE + TILE / 2;
     const cy = ty * TILE + TILE / 2;
+    // The background ghosts throw a third as many sparks.
+    if (this.quiet) n = Math.ceil(n / 3);
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2;
       const v = (20 + Math.random() * 40) * speed;
@@ -877,7 +879,8 @@ export class Renderer {
     ctx.ellipse(Math.round(d.x * TILE + PAD + ox) + SPRITE_SIZE / 2, Math.round(d.y * TILE + PAD + oy) + SPRITE_SIZE - 0.5, sw / 2, 1.5, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = alpha;
-    const img = this.flashes.has(id) ? sprite.white : sprite.normal;
+    // (the background ghosts never blink white: a page of them flickering is hard on the eyes)
+    const img = this.flashes.has(id) && !this.quiet ? sprite.white : sprite.normal;
     const face = this.facing.get(id) ?? 1;
     const w = SPRITE_SIZE + (land > 0 ? 2 : 0);
     const h = SPRITE_SIZE - squash;

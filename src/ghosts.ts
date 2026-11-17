@@ -9,13 +9,16 @@ import { Renderer } from './render';
 import { calmMotion } from './ui';
 
 const TARGET_BOARD = 640; // rough board size in CSS px; boards are stretched to tile exactly
-const STEP_MS = 340;
+// Unhurried: they're scenery, not a show, and a fast page full of fights is tiring to sit over.
+const STEP_MS = 560;
 
 interface Ghost {
   canvas: HTMLCanvasElement;
   renderer: Renderer;
   game: Game;
   deadTicks: number;
+  /** Seconds drawn so far (only counted while the boards are held still). */
+  shown?: number;
 }
 
 const ghosts: Ghost[] = [];
@@ -122,7 +125,7 @@ function layout() {
     reset(ghost);
     ghosts.push(ghost);
     // Stagger the ghosts so they don't all move in lockstep.
-    window.setTimeout(() => window.setInterval(() => ghost.canvas.isConnected && step(ghost), stepMs), Math.random() * stepMs);
+    window.setTimeout(() => window.setInterval(() => ghost.canvas.isConnected && !still && step(ghost), stepMs), Math.random() * stepMs);
   }
   while (ghosts.length > needed) ghosts.pop()!.canvas.remove();
   ghosts.forEach((ghost, i) => {
@@ -156,11 +159,13 @@ export function watching(): string {
 
 /** Slower ghosts for players who ask their system for less motion. */
 let stepMs = STEP_MS;
+let still = false;
 
 export function startGhosts() {
   container = document.getElementById('ghosts');
   if (!container) return;
-  if (calmMotion()) stepMs = STEP_MS * 4;
+  // Asked for less motion: the boards are drawn once and then hold still.
+  if (calmMotion()) still = true;
   layout();
   window.addEventListener('resize', layout);
   window.addEventListener('pageshow', layout);
@@ -171,5 +176,9 @@ export function startGhosts() {
 export function drawGhosts(dt: number) {
   frameSkip = !frameSkip;
   if (frameSkip) return;
-  for (const ghost of ghosts) ghost.renderer.frame(dt * 2);
+  for (const ghost of ghosts) {
+    // Held still: each board is drawn for its first second (so it settles), then left alone.
+    if (still && (ghost.shown = (ghost.shown ?? 0) + dt * 2) > 1) continue;
+    ghost.renderer.frame(dt * 2);
+  }
 }
