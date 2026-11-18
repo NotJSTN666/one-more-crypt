@@ -168,13 +168,19 @@ const botDir = () => p.evaluate(() => {
   return null;
 });
 const KEY = { '0,-1': 'ArrowUp', '1,0': 'ArrowRight', '0,1': 'ArrowDown', '-1,0': 'ArrowLeft' };
-// Nothing ends the clip early: health topped up, every blow turned aside (a single hit deep down
-// can be thousands), and Death left waiting in his corner.
+// Nothing ends the clip early: health topped up, no blow allowed to take the last of it (a single
+// hit deep down can be thousands), and Death left waiting in his corner. (Not by handing out
+// shield charges: those now show as the Mirror Shield's shields over the hero, and every hit
+// would read BLOCK.)
 const keepAlive = () => p.evaluate(() => {
   const g = window.cryptfall?.game;
   if (!g) return;
+  if (!g.__spared) {
+    const hurt = g.hurtPlayer;
+    g.hurtPlayer = function (amount, ...rest) { return hurt.call(this, Math.min(amount, Math.max(1, this.player.hp - 1)), ...rest); };
+    g.__spared = true;
+  }
   g.player.hp = Math.max(g.player.hp, Math.ceil(g.player.maxHp * 0.6));
-  g.shieldCharges = 40;
   if (g.reaperIn > 0 && g.reaperIn < 60) g.reaperIn = 99;
   if (g.reaper && !g.reaper.waiting) g.reaper = null;
 });
