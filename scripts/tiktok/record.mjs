@@ -102,8 +102,11 @@ await p.evaluate(({ hook, endLines }) => {
     #tt-end .url { font-size: 17px; color: #f2c14e; border: 2px solid #f2c14e; padding: 10px 14px; margin-top: 8px; }
     #tt-end.fade { animation: tt-fade 0.9s ease-out both; }
     #tt-end.black { background: #000; }
-    #tt-end.black.fade { animation: none; }
-    #tt-end.black.fade > * { animation: tt-fade 1s ease-out 0.25s both; }
+    /* the game fades out to black first, then the title comes up out of it */
+    #tt-end.black.fade { animation: tt-dark 0.9s ease-in both; }
+    #tt-end.black.fade > * { animation: tt-fade 1s ease-out 1.05s both; }
+    #tt-end.black.fade::before { animation: tt-fade 1.2s ease-out 0.9s both, tt-glow 2.4s ease-in-out 2.1s infinite alternate; }
+    @keyframes tt-dark { from { background-color: rgba(0,0,0,0); } to { background-color: #000; } }
     #tt-end.black::before { content: ''; position: absolute; left: 50%; top: 42%; width: 70vmin; height: 50vmin; transform: translate(-50%, -50%);
       background: radial-gradient(ellipse at center, rgba(210,40,60,0.55) 0%, rgba(150,20,40,0.25) 40%, rgba(0,0,0,0) 70%); filter: blur(8px);
       animation: tt-glow 2.4s ease-in-out infinite alternate; z-index: -1; }
@@ -362,7 +365,7 @@ for (let i = 0; i < (idea.jumps?.some((j) => j.death) ? total + 30 * FPS : total
   // game's own results screen first)
   if (deadAt && (idea.deathScreen
     ? i - deadAt > Math.round((idea.deathHold ?? 4.2) * FPS)
-    : await p.evaluate(() => { const o = document.getElementById('overlay'); return Boolean(o && !o.hidden && o.dataset.screen === 'death'); }))) break;
+    : i - deadAt > Math.round((idea.blackAfter ?? 1.6) * FPS) || await p.evaluate(() => { const o = document.getElementById('overlay'); return Boolean(o && !o.hidden && o.dataset.screen === 'death'); }))) break;
   if (idea.scene === 'night' && idea.ultAt !== undefined && i === Math.round(idea.ultAt * FPS)) {
     await p.evaluate(() => { window.night.ult = 1; });
     await p.keyboard.press('e');
@@ -372,14 +375,21 @@ for (let i = 0; i < (idea.jumps?.some((j) => j.death) ? total + 30 * FPS : total
 }
 marks.end = frame / FPS;
 await p.evaluate(({ fade, black }) => {
-  document.getElementById('tt-hook').style.display = 'none';
+  // (on the fade to black the hook goes down with the game, under the black)
+  if (!black) document.getElementById('tt-hook').style.display = 'none';
   const e = document.getElementById('tt-end');
   e.style.display = 'flex';
-  if (black) e.classList.add('black');
+  if (black) {
+    e.classList.add('black');
+    // (the results screen, if it comes up under the fade, stays out of sight)
+    const st = document.createElement('style');
+    st.textContent = '#overlay { visibility: hidden !important; }';
+    document.head.appendChild(st);
+  }
   if (fade) e.classList.add('fade');
 }, { fade: Boolean(idea.jumps), black: Boolean(idea.jumps?.some((j) => j.death) && !idea.deathScreen) });
 // (end: false leaves the end card off, for a clip that's one part of a longer video)
-for (let i = 0; i < (idea.end === false ? 0 : Math.round(END * FPS)); i++) {
+for (let i = 0; i < (idea.end === false ? 0 : Math.round((idea.jumps?.some((j) => j.death) ? END + 1.4 : END) * FPS)); i++) {
   await tick();
   await shot();
 }
