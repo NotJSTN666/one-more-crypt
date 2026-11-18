@@ -59,7 +59,7 @@ await p.waitForTimeout(2500);
 await p.evaluate(() => document.fonts.ready);
 await p.evaluate(() => window.__freeze());
 // No toasts, banners or event pop-ups over the action.
-await p.addStyleTag({ content: '#toast, .ns-event, .back-top, .install-bar { display: none !important; }' });
+await p.addStyleTag({ content: '#toast, .ns-event, .back-top, .install-bar, .tester-ask, .invite-ask { display: none !important; }' });
 
 // ---- the clock: game time and CSS animations both move one frame at a time ----
 const STEP = 1000 / FPS;
@@ -88,7 +88,7 @@ const until = async (fn, max = 300) => {
 };
 
 // ---- the overlay: the hook at the top, then the end card ----
-await p.evaluate(({ hook }) => {
+await p.evaluate(({ hook, endLines }) => {
   const st = document.createElement('style');
   st.textContent = `
     #tt-hook { position: fixed; left: 16px; right: 16px; top: 64%; z-index: 9999; text-align: center; pointer-events: none;
@@ -99,7 +99,14 @@ await p.evaluate(({ hook }) => {
       background: radial-gradient(circle at 50% 45%, rgba(40,10,20,0.92), rgba(5,2,8,0.97)); text-align: center; }
     #tt-end h1 { margin: 0; font: 64px/1 'Pirata One', Georgia, serif; color: #d23a46; text-shadow: 0 0 24px rgba(255,60,80,0.7); }
     #tt-end p { margin: 0; font: 13px Silkscreen, monospace; letter-spacing: 2px; color: #e8dcc4; }
-    #tt-end .url { font-size: 17px; color: #f2c14e; border: 2px solid #f2c14e; padding: 10px 14px; margin-top: 8px; }`;
+    #tt-end .url { font-size: 17px; color: #f2c14e; border: 2px solid #f2c14e; padding: 10px 14px; margin-top: 8px; }
+    #tt-end.fade { animation: tt-fade 0.9s ease-out both; }
+    @keyframes tt-fade { from { opacity: 0; } to { opacity: 1; } }
+    #tt-floor { position: fixed; left: 0; right: 0; top: 50%; z-index: 9998; text-align: center; pointer-events: none; display: none;
+      font: 56px/1 'Pirata One', Georgia, serif; color: #f2c14e; text-shadow: 0 0 3px #000, 3px 3px 0 #000, 0 0 30px rgba(0,0,0,0.9); }
+    #tt-floor small { display: block; font: 13px Silkscreen, monospace; letter-spacing: 3px; color: #e8dcc4; margin-top: 6px; }
+    #tt-floor.on { display: block; animation: tt-stamp 1.1s ease-out both; }
+    @keyframes tt-stamp { 0% { opacity: 0; transform: translateY(-50%) scale(1.6); } 15% { opacity: 1; transform: translateY(-50%) scale(1); } 75% { opacity: 1; transform: translateY(-50%) scale(1); } 100% { opacity: 0; transform: translateY(-50%) scale(0.96); } }`;
   document.head.appendChild(st);
   const h = document.createElement('div');
   h.id = 'tt-hook';
@@ -107,9 +114,13 @@ await p.evaluate(({ hook }) => {
   document.body.appendChild(h);
   const e = document.createElement('div');
   e.id = 'tt-end';
-  e.innerHTML = '<h1>One More<br>Crypt</h1><p>FREE · NO DOWNLOAD</p><p>PLAYS IN YOUR BROWSER</p><p class="url">ONEMORECRYPT.COM</p>';
+  // (`endLines` replaces the lines under the title)
+  e.innerHTML = `<h1>One More<br>Crypt</h1>${(endLines ?? ['FREE · NO DOWNLOAD', 'PLAYS IN YOUR BROWSER']).map((l) => `<p>${l}</p>`).join('')}<p class="url">ONEMORECRYPT.COM</p>`;
   document.body.appendChild(e);
-}, { hook: idea.hook });
+  const f = document.createElement('div');
+  f.id = 'tt-floor';
+  document.body.appendChild(f);
+}, { hook: idea.hook, endLines: idea.endLines });
 // The hook goes above the game, in the space left by centring it: clear of the action and of
 // TikTok's own buttons and caption.
 const placeHook = () => p.evaluate(() => {
@@ -174,10 +185,10 @@ const KEY = { '0,-1': 'ArrowUp', '1,0': 'ArrowRight', '0,1': 'ArrowDown', '-1,0'
 // would read BLOCK.)
 const keepAlive = () => p.evaluate(() => {
   const g = window.cryptfall?.game;
-  if (!g) return;
+  if (!g || window.__mortal) return;
   if (!g.__spared) {
     const hurt = g.hurtPlayer;
-    g.hurtPlayer = function (amount, ...rest) { return hurt.call(this, Math.min(amount, Math.max(1, this.player.hp - 1)), ...rest); };
+    g.hurtPlayer = function (amount, ...rest) { return hurt.call(this, window.__mortal ? amount : Math.min(amount, Math.max(1, this.player.hp - 1)), ...rest); };
     g.__spared = true;
   }
   g.player.hp = Math.max(g.player.hp, Math.ceil(g.player.maxHp * 0.6));
@@ -186,12 +197,15 @@ const keepAlive = () => p.evaluate(() => {
 });
 const cryptStep = async (i, gap = 9) => {
   if (i % gap) return;
+  // (nothing to press once the run is over: a key on the death screen would start another)
+  if (await p.evaluate(() => window.cryptfall?.game?.phase === 'dead')) return;
   if (await p.evaluate(() => !!document.querySelector('.offer button'))) {
     await p.keyboard.press('1');
     return;
   }
   await keepAlive();
-  const d = await botDir();
+  // (waiting for Death: the hero holds its ground and lets him come)
+  const d = (await p.evaluate(() => window.__mortal)) ? null : await botDir();
   await p.keyboard.press(d ? KEY[d.join(',')] : ' ');
 };
 
@@ -271,7 +285,9 @@ await hideHook(false);
 const total = Math.round(SECONDS * FPS);
 const fuseAt = idea.fuse ? Math.round((idea.fuse.at ?? 1) * FPS) : -1;
 let fusing = 0;
-for (let i = 0; i < total; i++) {
+let dying = false;
+let deadAt = 0;
+for (let i = 0; i < (idea.jumps?.some((j) => j.death) ? total + 30 * FPS : total); i++) {
   // The Soul Forge: two relics become one, played over the run (the run waits while it plays).
   if (i === fuseAt) {
     await p.evaluate(async (f) => {
@@ -283,6 +299,38 @@ for (let i = 0; i < total; i++) {
   }
   if (fusing > 0) fusing--;
   else await drive();
+  // `jumps: [{ at, floor, label?, hook?, death? }]`: cut deeper into the same run at `at` seconds,
+  // with the floor stamped over the cut. `death` lets Death come for the hero, and the clip
+  // follows the game's own death screen before the end card fades in over it.
+  for (const j of idea.jumps ?? []) {
+    // (at the time given, or as soon after as the hero is back on the board, not mid relic pick)
+    if (j.done || i < Math.round(j.at * FPS)) continue;
+    if (!(await p.evaluate(() => window.cryptfall.game.phase === 'play' && !document.querySelector('.offer button')))) continue;
+    j.done = true;
+    await p.evaluate((j) => {
+      const g = window.cryptfall.game;
+      g.relics = { ...g.relics, ...(j.relics ?? { ember: 3, storm: 3, frost: 2, fang: 3, whetstone: 4, thorns: 2, whirl: 2, heart: 3 }) };
+      g.relicLog = Object.keys(g.relics);
+      // deep down a hit can be hundreds: a big pool of health, so the cut isn't over in a blink
+      g.player.maxHp = j.hp ?? Math.max(g.player.maxHp, 400);
+      g.player.hp = g.player.maxHp;
+      g.enterFloor(j.floor);
+      if (j.death) {
+        // the floor to Death alone: the others cleared off, and him rising straight away
+        window.__mortal = true;
+        g.enemies = g.enemies.filter((e) => e.ally);
+        g.reaperIn = 1;
+      }
+      const f = document.getElementById('tt-floor');
+      f.innerHTML = `Floor ${j.floor}${j.label ? `<small>${j.label}</small>` : ''}`;
+      f.classList.remove('on'); void f.offsetWidth; f.classList.add('on');
+      if (j.hook !== undefined) document.getElementById('tt-hook').innerHTML = j.hook;
+    }, j);
+    if (j.death) dying = true;
+  }
+  // once the hero has fallen, play on through the death screen, then fade to the end card
+  if (dying && !deadAt && (await p.evaluate(() => window.cryptfall.game.phase === 'dead'))) deadAt = i;
+  if (deadAt && i - deadAt > Math.round((idea.deathHold ?? 4.2) * FPS)) break;
   if (idea.scene === 'night' && idea.ultAt !== undefined && i === Math.round(idea.ultAt * FPS)) {
     await p.evaluate(() => { window.night.ult = 1; });
     await p.keyboard.press('e');
@@ -290,7 +338,7 @@ for (let i = 0; i < total; i++) {
   await tick();
   await shot();
 }
-await p.evaluate(() => { document.getElementById('tt-hook').style.display = 'none'; document.getElementById('tt-end').style.display = 'flex'; });
+await p.evaluate((fade) => { document.getElementById('tt-hook').style.display = 'none'; const e = document.getElementById('tt-end'); e.style.display = 'flex'; if (fade) e.classList.add('fade'); }, Boolean(idea.jumps));
 // (end: false leaves the end card off, for a clip that's one part of a longer video)
 for (let i = 0; i < (idea.end === false ? 0 : Math.round(END * FPS)); i++) {
   await tick();

@@ -12,7 +12,7 @@ import { existsSync } from 'node:fs';
 // On the cloud machines Chromium is preinstalled at a fixed path, whatever Playwright version the
 // project pins; elsewhere Playwright finds its own.
 const BROWSER = existsSync('/opt/pw-browsers/chromium') ? { executablePath: '/opt/pw-browsers/chromium' } : {};
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { ideaFor } from './ideas.mjs';
 
 const central = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' }).format(new Date());
@@ -38,7 +38,8 @@ writeFileSync(`${out}/idea.json`, JSON.stringify(idea));
 execFileSync('node', [new URL('./record.mjs', import.meta.url).pathname, `${out}/idea.json`, out], { stdio: 'inherit' });
 
 // 2. the music: the Night Shift's score, rendered offline, hot from the start
-const seconds = (idea.seconds ?? 11) + 2.2;
+// as long as the clip came out (a run that ends in death plays on past `seconds`)
+const seconds = readdirSync(`${out}/frames`).length / 30;
 const browser = await chromium.launch(BROWSER);
 const page = await browser.newPage();
 // On a page with no game running (only the audio module is loaded), so nothing else the game
