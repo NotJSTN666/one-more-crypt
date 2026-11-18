@@ -8,7 +8,7 @@
 // companion and relics, optionally firing the ultimate or bringing in a boss), 'crypt' (deep in
 // Endless), 'horde' or 'daily'. `fuse: { a, b, out, name, at }` plays a Soul Forge fusion of
 // those relics `at` seconds in; `end: false` leaves off the end card. Needs the dev server: npx vite --port 5199
-import { mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { existsSync } from 'node:fs';
 // On the cloud machines Chromium is preinstalled at a fixed path, whatever Playwright version the
@@ -101,6 +101,20 @@ await p.evaluate(({ hook, endLines }) => {
     #tt-end p { margin: 0; font: 13px Silkscreen, monospace; letter-spacing: 2px; color: #e8dcc4; }
     #tt-end .url { font-size: 17px; color: #f2c14e; border: 2px solid #f2c14e; padding: 10px 14px; margin-top: 8px; }
     #tt-end.fade { animation: tt-fade 0.9s ease-out both; }
+    #tt-end.black { background: #000; }
+    #tt-end.black.fade { animation: none; }
+    #tt-end.black.fade > * { animation: tt-fade 1s ease-out 0.25s both; }
+    #tt-end.black::before { content: ''; position: absolute; left: 50%; top: 42%; width: 70vmin; height: 50vmin; transform: translate(-50%, -50%);
+      background: radial-gradient(ellipse at center, rgba(210,40,60,0.55) 0%, rgba(150,20,40,0.25) 40%, rgba(0,0,0,0) 70%); filter: blur(8px);
+      animation: tt-glow 2.4s ease-in-out infinite alternate; z-index: -1; }
+    #tt-end.black { isolation: isolate; }
+    #tt-end.black h1 { text-shadow: 0 0 18px rgba(255,60,80,0.9), 0 0 50px rgba(210,40,60,0.7); }
+    @media (min-aspect-ratio: 1/1) {
+      #tt-end h1 { font-size: 120px; }
+      #tt-end p { font-size: 20px; letter-spacing: 4px; }
+      #tt-end .url { font-size: 26px; padding: 14px 22px; }
+    }
+    @keyframes tt-glow { from { opacity: 0.75; } to { opacity: 1; } }
     @keyframes tt-fade { from { opacity: 0; } to { opacity: 1; } }
     #tt-floor { position: fixed; left: 0; right: 0; top: 50%; z-index: 9998; text-align: center; pointer-events: none; display: none;
       font: 56px/1 'Pirata One', Georgia, serif; color: #f2c14e; text-shadow: 0 0 3px #000, 3px 3px 0 #000, 0 0 30px rgba(0,0,0,0.9); }
@@ -123,7 +137,15 @@ await p.evaluate(({ hook, endLines }) => {
 }, { hook: idea.hook, endLines: idea.endLines });
 // The hook goes above the game, in the space left by centring it: clear of the action and of
 // TikTok's own buttons and caption.
-const placeHook = () => p.evaluate(() => {
+const placeHook = () => p.evaluate((wide) => {
+  if (wide) {
+    const c = [...document.querySelectorAll('canvas')].map((x) => x.getBoundingClientRect()).filter((r) => r.width > 200).sort((a, b) => b.width * b.height - a.width * a.height)[0];
+    const h = document.getElementById('tt-hook');
+    const w = Math.max(160, (c ? c.left : 300) - 40);
+    // low in the empty column left of the board, under the floor's panels
+    Object.assign(h.style, { left: '20px', right: 'auto', width: `${w}px`, top: 'auto', bottom: '9%', fontSize: '30px', lineHeight: '1.25' });
+    return;
+  }
   const big = [...document.querySelectorAll('canvas')].map((c) => c.getBoundingClientRect()).filter((r) => r.width > 200).sort((a, b) => b.width * b.height - a.width * a.height)[0];
   const h = document.getElementById('tt-hook');
   // just above the game's top bar, in the space the centring made
@@ -136,7 +158,7 @@ const placeHook = () => p.evaluate(() => {
   }
   h.style.top = 'auto';
   h.style.bottom = `${innerHeight - bar + 10}px`;
-});
+}, WIDE);
 if (!WIDE) await p.addStyleTag({ content: '.ns-pad, .touch-pad, .dpad, #pad { visibility: hidden !important; }' });
 // The play area sits high on a phone with the controls below it. With the controls hidden, move
 // everything down so the action is in the middle of the frame, clear of TikTok's buttons.
@@ -185,13 +207,15 @@ const KEY = { '0,-1': 'ArrowUp', '1,0': 'ArrowRight', '0,1': 'ArrowDown', '-1,0'
 // would read BLOCK.)
 const keepAlive = () => p.evaluate(() => {
   const g = window.cryptfall?.game;
-  if (!g || window.__mortal) return;
+  if (!g) return;
   if (!g.__spared) {
     const hurt = g.hurtPlayer;
-    g.hurtPlayer = function (amount, ...rest) { return hurt.call(this, window.__mortal ? amount : Math.min(amount, Math.max(1, this.player.hp - 1)), ...rest); };
+    g.hurtPlayer = function (amount, ...rest) { return hurt.call(this, Math.min(amount, Math.max(1, this.player.hp - 1)), ...rest); };
     g.__spared = true;
   }
   g.player.hp = Math.max(g.player.hp, Math.ceil(g.player.maxHp * 0.6));
+  // (Death's touch kills outright, whatever the health: he's kept away until the clip calls him)
+  if (window.__mortal) return;
   if (g.reaperIn > 0 && g.reaperIn < 60) g.reaperIn = 99;
   if (g.reaper && !g.reaper.waiting) g.reaper = null;
 });
@@ -204,8 +228,10 @@ const cryptStep = async (i, gap = 9) => {
     return;
   }
   await keepAlive();
-  // (waiting for Death: the hero holds its ground and lets him come)
-  const d = (await p.evaluate(() => window.__mortal)) ? null : await botDir();
+  // (once Death is called and the floor is clear, the hero walks straight into him)
+  const d = (await p.evaluate(() => window.__mortal && !window.cryptfall.game.enemies.some((e) => !e.ally) && window.cryptfall.game.reaper))
+    ? await p.evaluate(() => { const g = window.cryptfall.game, r = g.reaper, P = g.player; const dx = Math.sign(r.x - P.x), dy = Math.sign(r.y - P.y); return Math.abs(r.x - P.x) >= Math.abs(r.y - P.y) && dx && !g.isWall(P.x + dx, P.y) ? [dx, 0] : dy && !g.isWall(P.x, P.y + dy) ? [0, dy] : dx ? [dx, 0] : null; })
+    : await botDir();
   await p.keyboard.press(d ? KEY[d.join(',')] : ' ');
 };
 
@@ -287,6 +313,7 @@ const fuseAt = idea.fuse ? Math.round((idea.fuse.at ?? 1) * FPS) : -1;
 let fusing = 0;
 let dying = false;
 let deadAt = 0;
+const marks = {};
 for (let i = 0; i < (idea.jumps?.some((j) => j.death) ? total + 30 * FPS : total); i++) {
   // The Soul Forge: two relics become one, played over the run (the run waits while it plays).
   if (i === fuseAt) {
@@ -307,6 +334,7 @@ for (let i = 0; i < (idea.jumps?.some((j) => j.death) ? total + 30 * FPS : total
     if (j.done || i < Math.round(j.at * FPS)) continue;
     if (!(await p.evaluate(() => window.cryptfall.game.phase === 'play' && !document.querySelector('.offer button')))) continue;
     j.done = true;
+    (marks.jumps ??= []).push(i / FPS);
     await p.evaluate((j) => {
       const g = window.cryptfall.game;
       g.relics = { ...g.relics, ...(j.relics ?? { ember: 3, storm: 3, frost: 2, fang: 3, whetstone: 4, thorns: 2, whirl: 2, heart: 3 }) };
@@ -316,9 +344,8 @@ for (let i = 0; i < (idea.jumps?.some((j) => j.death) ? total + 30 * FPS : total
       g.player.hp = g.player.maxHp;
       g.enterFloor(j.floor);
       if (j.death) {
-        // the floor to Death alone: the others cleared off, and him rising straight away
+        // Death rises straight away and comes through the fight
         window.__mortal = true;
-        g.enemies = g.enemies.filter((e) => e.ally);
         g.reaperIn = 1;
       }
       const f = document.getElementById('tt-floor');
@@ -329,8 +356,13 @@ for (let i = 0; i < (idea.jumps?.some((j) => j.death) ? total + 30 * FPS : total
     if (j.death) dying = true;
   }
   // once the hero has fallen, play on through the death screen, then fade to the end card
-  if (dying && !deadAt && (await p.evaluate(() => window.cryptfall.game.phase === 'dead'))) deadAt = i;
-  if (deadAt && i - deadAt > Math.round((idea.deathHold ?? 4.2) * FPS)) break;
+  if (dying && !marks.rise && (await p.evaluate(() => { const r = window.cryptfall.game.reaper; return Boolean(r && !r.waiting); }))) marks.rise = i / FPS;
+  if (dying && !deadAt && (await p.evaluate(() => window.cryptfall.game.phase === 'dead'))) { deadAt = i; marks.death = i / FPS; }
+  // after "Death claims you" goes to black, straight to the title (`deathScreen: true` shows the
+  // game's own results screen first)
+  if (deadAt && (idea.deathScreen
+    ? i - deadAt > Math.round((idea.deathHold ?? 4.2) * FPS)
+    : await p.evaluate(() => { const o = document.getElementById('overlay'); return Boolean(o && !o.hidden && o.dataset.screen === 'death'); }))) break;
   if (idea.scene === 'night' && idea.ultAt !== undefined && i === Math.round(idea.ultAt * FPS)) {
     await p.evaluate(() => { window.night.ult = 1; });
     await p.keyboard.press('e');
@@ -338,11 +370,19 @@ for (let i = 0; i < (idea.jumps?.some((j) => j.death) ? total + 30 * FPS : total
   await tick();
   await shot();
 }
-await p.evaluate((fade) => { document.getElementById('tt-hook').style.display = 'none'; const e = document.getElementById('tt-end'); e.style.display = 'flex'; if (fade) e.classList.add('fade'); }, Boolean(idea.jumps));
+marks.end = frame / FPS;
+await p.evaluate(({ fade, black }) => {
+  document.getElementById('tt-hook').style.display = 'none';
+  const e = document.getElementById('tt-end');
+  e.style.display = 'flex';
+  if (black) e.classList.add('black');
+  if (fade) e.classList.add('fade');
+}, { fade: Boolean(idea.jumps), black: Boolean(idea.jumps?.some((j) => j.death) && !idea.deathScreen) });
 // (end: false leaves the end card off, for a clip that's one part of a longer video)
 for (let i = 0; i < (idea.end === false ? 0 : Math.round(END * FPS)); i++) {
   await tick();
   await shot();
 }
+writeFileSync(`${OUT}/marks.json`, JSON.stringify(marks));
 console.log(JSON.stringify({ frames: frame, fps: FPS }), errs.length ? `errors: ${errs.join(' | ')}` : '');
 await b.close();
