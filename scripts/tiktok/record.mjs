@@ -226,7 +226,11 @@ const keepAlive = () => p.evaluate(() => {
   if (!g) return;
   if (!g.__spared) {
     const hurt = g.hurtPlayer;
-    g.hurtPlayer = function (amount, ...rest) { return hurt.call(this, Math.min(amount, Math.max(1, this.player.hp - 1)), ...rest); };
+    g.hurtPlayer = function (amount, ...rest) {
+      // (several foes can strike in one turn: never let a hit land on the last few points)
+      if (this.player.hp <= amount + 2) this.player.hp = Math.max(this.player.hp, Math.min(this.player.maxHp, amount + 3), Math.ceil(this.player.maxHp * 0.5));
+      return hurt.call(this, Math.min(amount, Math.max(1, this.player.hp - 2)), ...rest);
+    };
     g.__spared = true;
   }
   g.player.hp = Math.max(g.player.hp, Math.ceil(g.player.maxHp * 0.6));
