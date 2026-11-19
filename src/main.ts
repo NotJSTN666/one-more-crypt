@@ -20,7 +20,7 @@ import { hallFromLink, onVisitIsle, showHall, showPublicHall, soulRankHtml, titl
 import { AURA_BY_ID, BESTIARY_KINDS, COMMUNITY_GOAL, MASTERY_SOULS, soulSurge, beastPlural, bestiaryTiers, featCosmetics, marketPiece, masteryRank, GIFT_BY_ID, TITLE_BY_ID, HEAD_BY_ID, LOOK_BY_ID, PODIUM, RAID_DECOR_BY_ID, RAID_KIND_LABEL, RAID_REWARDS, STORY_ALL, STREAK_HELMS, WEEKLY, WELCOME, rankFor, titleFxClass, welcomeLabel, type WelcomeReward } from './progression';
 import { Renderer } from './render';
 import { enemyFrames, resetCanvases, sprites } from './sprites';
-import { RAID_JOIN_MIN, RAID_SUBMIT_MIN, RAID_TURNS, currentRaid, nextRaid, raidBossName, raidConfig, raidJoinable, raidTimeLabel, type RaidSlot } from './raid';
+import { RAID_TURNS, currentRaid, nextRaid, raidBossName, raidConfig, raidJoinable, type RaidSlot } from './raid';
 import { hashSeed } from './rng';
 import { ONLINE, loadCloudRuns, saveCloudRuns, type CloudRuns, communityKills, loadHall, submitHorde, hordeBoard, claimInvite, myInvites, raidHit, raidPlayer, raidState, type RaidState, challengeBoard, emailReminderOff, sendFeedback, setEmailReminder, type FeedbackKind, challengeNews, createChallenge, dailyBoard, endlessBoard, getChallenge, mySummons, noteRun, noteSummon, pingActivity, setPresenceSource, startActivityPings, waitingGifts, claimGift, submitChallengeRun, type Challenge, type ChallengeRow } from './online';
 import {
@@ -1957,7 +1957,7 @@ function showTitle() {
   // Live races get their own door on the title, so nobody has to go looking for them.
   const raceBtn = PORTAL || !ONLINE ? '' : '<button class="btn race-btn race-title-btn" id="race">' + pxi('sword') + ' Crypt Race<span class="new-tag">NEW</span><small id="race-waiting">Join a live race against other players</small></button>';
   const extras = [
-    raid.phase !== 'open' ? raidCardHtml(raid) : '',
+    raidFought(raid) ? raidCardHtml(raid) : '',
     welcomeTitleHtml(),
     keepNameHtml(false),
     surgeHtml(),
@@ -1979,7 +1979,7 @@ function showTitle() {
     ${continueBlock}
     ${dailyBlock}
     ${championHtml()}
-    ${raid.phase === 'open' ? raidCardHtml(raid) : ''}
+    ${raidFought(raid) ? '' : raidCardHtml(raid)}
     ${delveBtn}
     ${raceBtn}
     <button class="btn story-btn" id="story">${pxi('book')} Story<small>${storyProgress()}</small></button>
@@ -3441,21 +3441,25 @@ function tickCountdowns() {
 setInterval(tickCountdowns, 1000);
 
 // ---------- The Bell Tolls (world boss) ----------
-// A few times a day a boss rises for everyone at once. Each fight is a short arena (a story-mode
-// game, so it's never saved or uploaded as a run); the damage dealt lands on one shared bar.
+// Every day at midnight (Central) a boss rises for everyone and stays up all day. Each fight is a
+// short arena (a story-mode game, so it's never saved or uploaded as a run); the damage dealt
+// lands on one shared bar.
 
 let raidRun: { slot: RaidSlot } | null = null;
-/** The shared bar for the toll under way, as last fetched. */
+/** The shared bar for today's boss, as last fetched. */
 let raidLive: { id: string; state: RaidState } | null = null;
-let raidPhaseSeen = '';
+let raidDaySeen = '';
 let raidPolledAt = 0;
 
-type RaidPhase = { slot: RaidSlot; phase: 'open' | 'closing' | 'soon' };
+type RaidPhase = { slot: RaidSlot };
 
 function raidPhase(now = Date.now()): RaidPhase {
-  const slot = currentRaid(now);
-  if (slot) return { slot, phase: raidJoinable(slot, now) ? 'open' : 'closing' };
-  return { slot: nextRaid(now), phase: 'soon' };
+  return { slot: currentRaid(now) };
+}
+
+/** Fought today's boss already (its card then moves into the More drawer). */
+function raidFought(p: RaidPhase): boolean {
+  return meta.raid.joined.includes(p.slot.id);
 }
 
 function raidStateFor(id: string): RaidState | null {
@@ -3471,29 +3475,28 @@ function raidDamage(g: Game, kind: RaidSlot['kind']): number {
 const raidLeft = (st: RaidState | null) => (st ? (st.felled ? 0 : Math.max(0, st.hp - st.damage)) : null);
 const raidPct = (st: RaidState | null) => (st ? Math.round(((raidLeft(st) ?? 0) / st.hp) * 100) : 100);
 
+/** How long until today's boss leaves (and tomorrow's rises). */
 function raidClockText(p: RaidPhase, now = Date.now()): string {
-  if (p.phase === 'soon') return formatCountdown(p.slot.start - now);
-  const end = p.slot.start + (p.phase === 'open' ? RAID_JOIN_MIN : RAID_SUBMIT_MIN) * 60_000;
-  return formatCountdown(end - now).replace(/^00:/, '');
+  return formatCountdown(p.slot.end - now);
 }
 
 function raidPlayersText(st: RaidState | null): string {
   if (!st) return 'Gathering';
-  return st.players === 1 ? '1 fighting' : `${st.players} fighting`;
+  if (!st.players) return 'No one has fought it yet';
+  return st.players === 1 ? '1 has fought it' : `${st.players} have fought it`;
 }
 
-/** The title screen's card: live and loud while a boss is up, a countdown otherwise. */
+/** The title screen's card: today's boss and the shared bar. */
 function raidCardHtml(p: RaidPhase): string {
   if (!ONLINE) return '';
   const name = esc(raidBossName(p.slot.kind));
   const st = raidStateFor(p.slot.id);
-  if (p.phase === 'soon') {
-    return `<button class="btn raid-btn" id="raid">🔔 The Bell Tolls: World Boss<small>Everyone fights at ${esc(raidTimeLabel(p.slot.start))} · in <span data-raid-clock>${raidClockText(p)}</span> · ${raidWins()}/${RAID_REWARDS.length} rewards</small></button>`;
-  }
+  const fought = raidFought(p);
   const felled = st?.felled;
-  return `<button class="btn raid-btn live" id="raid">🔔 ${felled ? `${name} has fallen!` : p.phase === 'open' ? `LIVE: ${name} has risen` : `${name}: last blows landing`}<small>${
-    felled ? 'Everyone who fought earns a reward' : `<span data-raid-players>${raidPlayersText(st)}</span> · ${p.phase === 'open' ? 'open for' : 'ends in'} <span data-raid-clock>${raidClockText(p)}</span>`
-  }</small><span class="raid-mini"><span data-raid-fill style="width:${raidPct(st)}%"></span></span></button>`;
+  const line = felled
+    ? fought ? 'Fallen. Your reward is yours.' : 'Fallen! Fight it today to share the reward'
+    : `<span data-raid-players>${raidPlayersText(st)}</span> · leaves in <span data-raid-clock>${raidClockText(p)}</span>`;
+  return `<button class="btn raid-btn${fought || felled ? '' : ' live'}" id="raid">🔔 ${felled ? `${name} has fallen!` : `World Boss: ${name}`}<small>${line}</small><span class="raid-mini"><span data-raid-fill style="width:${raidPct(st)}%"></span></span></button>`;
 }
 
 function raidFeedHtml(st: RaidState | null): string {
@@ -3526,65 +3529,63 @@ function paintRaid() {
 }
 
 async function refreshRaid() {
+  if (!ONLINE) return;
   const slot = currentRaid();
-  if (!ONLINE || !slot) return;
   raidPolledAt = Date.now();
   const st = await raidState(slot.id).catch(() => null);
   if (!st) return;
-  const wasFelled = raidStateFor(slot.id)?.felled;
+  const was = raidStateFor(slot.id);
   raidLive = { id: slot.id, state: st };
   paintRaid();
-  if (st.felled && !wasFelled) {
+  // the first look, or the boss just fell: redraw the cards that depend on it
+  if (!was || (st.felled && !was.felled)) {
     if (screen === 'title') showTitle();
     else if (screen === 'raid') showRaid(showTitle);
   }
 }
 
-/** Every second: clocks, a fresh look at the bar while a boss is up, and redraws when a toll starts or ends. */
+/** Every second: clocks, a fresh look at the bar now and then, and a redraw when a new boss rises. */
 function raidTick() {
   if (!ONLINE) return;
   const p = raidPhase();
-  const key = `${p.slot.id}:${p.phase}`;
-  if (raidPhaseSeen && key !== raidPhaseSeen) {
+  if (raidDaySeen && p.slot.id !== raidDaySeen) {
+    raidLive = null;
     if (screen === 'title') showTitle();
     else if (screen === 'raid') showRaid(showTitle);
-    if (p.phase === 'soon') void checkRaidRewards();
+    void checkRaidRewards();
   }
-  raidPhaseSeen = key;
+  raidDaySeen = p.slot.id;
   paintRaid();
-  const watching = screen === 'title' || screen === 'raid' || raidRun;
-  if (p.phase !== 'soon' && watching && Date.now() - raidPolledAt > 5000) void refreshRaid();
+  // every few seconds while fighting or watching the bar, every minute on the title
+  const every = screen === 'raid' || raidRun ? 5000 : screen === 'title' ? 60_000 : 0;
+  if (every && Date.now() - raidPolledAt > every) void refreshRaid();
 }
 setInterval(raidTick, 1000);
 
-/** The world boss panel: the live fight, or when the next one is and what it gives. */
+/** The world boss panel: today's fight, the shared bar, and what it gives. */
 function showRaid(back: () => void) {
   const p = raidPhase();
   const name = esc(raidBossName(p.slot.kind));
   const st = raidStateFor(p.slot.id);
   const wins = raidWins();
   const next = RAID_REWARDS[wins];
-  const after = nextRaid(p.phase === 'soon' ? p.slot.start : Date.now());
-  const upcoming = [after.start, nextRaid(after.start).start];
-  const live = p.phase !== 'soon';
+  const fought = raidFought(p);
+  const tomorrow = esc(raidBossName(nextRaid().kind));
   const rewards = RAID_REWARDS.map((r) => `<li class="${r.n <= wins ? 'got' : r.n === wins + 1 ? 'next' : ''}" title="${esc(RAID_KIND_LABEL[r.kind])}"><span>${r.n <= wins ? '✓' : r.n === wins + 1 ? '▶' : '🔒'}</span>${esc(r.name)}<small>${esc(RAID_KIND_LABEL[r.kind])}</small></li>`).join('');
   showOverlay('raid', `
     <canvas class="raid-art" id="raid-art" width="320" height="150" aria-label="${name}"></canvas>
-    <p class="act2-kicker">${live ? (st?.felled ? 'Fallen' : 'Live now') : 'World boss'}</p>
+    <p class="act2-kicker">${st?.felled ? 'Fallen' : "Today's world boss"}</p>
     <h2 class="act2-title">The Bell Tolls</h2>
-    ${live
-      ? `<p class="sub"><b>${name}</b> has risen. Everyone fights it at once, and every hit lands on one shared health bar. Bring it down before the bell falls silent, and everyone who fought earns a reward.</p>
-        ${raidBarHtml(st)}
-        <p class="fine raid-meta"><span data-raid-players>${raidPlayersText(st)}</span> · ${p.phase === 'open' ? 'join for' : 'ends in'} <span data-raid-clock>${raidClockText(p)}</span></p>
-        ${st?.felled ? `<p class="act2-ready">☠️ ${name} has fallen! Everyone who fought earns a reward.</p>` : ''}
-        ${p.phase === 'open' && !st?.felled ? `<button class="btn primary" id="raid-join">${pxi('sword')} Join the fight<small>${RAID_TURNS} turns against ${name}. Your hero, 4 relics to start. Fight as often as you like.</small></button>` : ''}
-        <h3 class="shop-head">Latest blows</h3>
-        <ul class="raid-feed" data-raid-feed>${raidFeedHtml(st)}</ul>
-        <h3 class="shop-head">Top damage</h3>
-        <ol class="raid-top" data-raid-top>${raidTopHtml(st)}</ol>`
-      : `<p class="sub">Three times a day a world boss rises for everyone at once. Join in and fight it together for a reward you can't get anywhere else.</p>
-        <p class="act2-ready">Next: <b>${esc(raidBossName(p.slot.kind))}</b> at ${esc(raidTimeLabel(p.slot.start))} · in <span data-raid-clock>${raidClockText(p)}</span></p>
-        <p class="fine">Then ${upcoming.map((t) => esc(raidTimeLabel(t))).join(' and ')}. Times are in your time zone. You can join for the first ${RAID_JOIN_MIN} minutes.</p>`}
+    <p class="sub"><b>${name}</b> rose at midnight and stays until the next. Everyone fights it, as often as they like, and every hit lands on one shared health bar. Bring it down together, and everyone who fought it today earns a reward.</p>
+    ${raidBarHtml(st)}
+    <p class="fine raid-meta"><span data-raid-players>${raidPlayersText(st)}</span> · leaves in <span data-raid-clock>${raidClockText(p)}</span></p>
+    ${st?.felled ? `<p class="act2-ready">☠️ ${name} has fallen! ${fought ? 'Your reward is yours.' : 'Fight it before midnight to share the reward.'}</p>` : ''}
+    <button class="btn primary" id="raid-join">${pxi('sword')} ${st?.felled ? (fought ? 'Fight it again' : 'Fight it for your share') : fought ? 'Fight again' : 'Join the fight'}<small>${RAID_TURNS} turns against ${name}. Your hero, 4 relics to start.</small></button>
+    <p class="fine">Tomorrow: <b>${tomorrow}</b>.</p>
+    <h3 class="shop-head">Latest blows</h3>
+    <ul class="raid-feed" data-raid-feed>${raidFeedHtml(st)}</ul>
+    <h3 class="shop-head">Top damage today</h3>
+    <ol class="raid-top" data-raid-top>${raidTopHtml(st)}</ol>
     <h3 class="shop-head">Bell-Breaker rewards <small>${wins}/${RAID_REWARDS.length}</small></h3>
     <p class="fine">${next ? `Each boss that falls earns you the next one. Next up: <b>${esc(next.name)}</b> (${esc(RAID_KIND_LABEL[next.kind])}).` : 'You have every Bell-Breaker reward. The crypt bows.'}</p>
     <ul class="raid-rewards">${rewards}</ul>
@@ -3592,7 +3593,7 @@ function showRaid(back: () => void) {
   on('#raid-join', () => showHeroSelect(() => startRaid(p.slot), () => showRaid(back), `The Bell Tolls · ${raidBossName(p.slot.kind)}`));
   on('#back', back);
   drawRaidArt($('raid-art') as HTMLCanvasElement, p.slot.kind);
-  if (live) void refreshRaid();
+  void refreshRaid();
 }
 
 /** The boss, big, under a swinging bell, with a red glow that pulses on the toll. */
@@ -3637,7 +3638,7 @@ function drawRaidArt(cv: HTMLCanvasElement, kind: RaidSlot['kind']) {
 
 function startRaid(slot: RaidSlot) {
   if (!raidJoinable(slot)) {
-    toast('The bell has gone quiet. Catch the next toll.');
+    toast('That boss has gone. A new one has risen.');
     return showRaid(showTitle);
   }
   unlockAudio();
@@ -3671,7 +3672,7 @@ function finishRaid(fell: boolean) {
   const name = raidBossName(run.slot.kind);
   const show = (st: RaidState | null, err = '') => {
     const p = raidPhase();
-    const again = p.phase === 'open' && p.slot.id === run.slot.id && !st?.felled;
+    const again = p.slot.id === run.slot.id && !st?.felled;
     showOverlay('raid-result', `
       <div class="podium-medal">${fell ? '💀' : '🔔'}</div>
       <h2 class="podium-title">${fell ? 'You fell' : 'The bell rings you out'}</h2>
@@ -3679,7 +3680,7 @@ function finishRaid(fell: boolean) {
       ${again ? '<button class="btn primary retry-btn" id="raid-again">↻ Retry<small>Same boss. Every hit counts.</small></button>' : ''}
       <div class="souls-earned"><b>+${reward.souls} Souls</b><span>💀 ${meta.souls} to spend in the Ossuary</span></div>
       ${err ? `<p class="form-status">${esc(err)}</p>` : st ? raidBarHtml(st) : '<p class="fine">Landing your blows…</p>'}
-      ${st?.felled ? `<p class="act2-ready">☠️ ${esc(name)} has fallen! Everyone who fought earns a reward.</p>` : st ? `<p class="fine raid-meta"><span data-raid-players>${raidPlayersText(st)}</span> · keep it up, the bar is shared</p>` : ''}
+      ${st?.felled ? `<p class="act2-ready">☠️ ${esc(name)} has fallen! Everyone who fought it today earns a reward.</p>` : st ? `<p class="fine raid-meta"><span data-raid-players>${raidPlayersText(st)}</span> · the bar is shared, and it stays up until midnight</p>` : ''}
       <button class="btn" id="raid-watch">🔔 Watch the bar</button>
       <button class="btn" id="back">Back to the title</button>`);
     on('#raid-again', () => showHeroSelect(() => startRaid(run.slot), () => showRaid(showTitle), `The Bell Tolls · ${name}`));

@@ -24,10 +24,11 @@ export interface NewsDay {
 export const NEWS: NewsDay[] = [
   {
     date: '2026-11-19',
-    title: 'Five new themes',
+    title: 'Five new themes and a daily world boss',
     notes: [
       '🎨 Reskin the whole game in Settings with one of five new themes, each its own crypt: Ashen (rubble, ash and falling cinders), Verdigris (mossy cobbles, hanging vines and spores), Frostbound (ice walls, icicles and snow), Crimson Court (marble floors, velvet walls and rose petals) and Gilded Tomb (sandstone, carved walls and gold dust).',
       '🕯️ Each theme also brings its own candle flames, lettering, logo, button frames and board border, and the menus get their own drifting particles. Classic is still there if you want it back.',
+      '🔔 The Bell Tolls is now a daily world boss: a new boss rises at midnight Central and stays up all day, so you can fight it whenever you play. Every hit lands on one shared health bar, and when it falls everyone who fought it that day earns the next Bell-Breaker reward, even if they join after it has fallen.',
     ],
     go: ['settings'],
   },
