@@ -26,7 +26,8 @@ export const NEWS: NewsDay[] = [
     date: '2026-11-19',
     title: 'Five new themes',
     notes: [
-      '🎨 Reskin the whole game in Settings with one of five new themes: Ashen, Verdigris, Frostbound, Crimson Court and Gilded Tomb. Each recolours the menus and buttons, the crypt\'s floors and walls, its torchlight and the Night Shift\'s graveyard. Classic is still there if you want it back.',
+      '🎨 Reskin the whole game in Settings with one of five new themes, each its own crypt: Ashen (rubble, ash and falling cinders), Verdigris (mossy cobbles, hanging vines and spores), Frostbound (ice walls, icicles and snow), Crimson Court (marble floors, velvet walls and rose petals) and Gilded Tomb (sandstone, carved walls and gold dust).',
+      '🕯️ Each theme also brings its own candle flames, lettering, logo, button frames and board border, and the menus get their own drifting particles. Classic is still there if you want it back.',
     ],
     go: ['settings'],
   },

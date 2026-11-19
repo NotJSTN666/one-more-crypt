@@ -12,7 +12,8 @@ import { centralDate } from './daily';
 import { RELIC_BY_ID, type RelicId } from './relics';
 import { SPRITE_SIZE, enemyFrames, sprites } from './sprites';
 import { deepLook, zoneAt, zoneLook, zoneTitle, type Weather } from './zones';
-import { boardBack, gradeGround, theme, themedDark, themedLight } from './themes';
+import { boardBack, gradeGround, theme, themedDark, themedLight, type ThemeWeather } from './themes';
+import { hasBoardArt, paintBoard } from './theme-art';
 
 export const TILE = 16;
 /** Blend two #rrggbb colours: 0 gives a, 1 gives b. */
@@ -783,7 +784,8 @@ export class Renderer {
     const bgKey = `${g.seed}:${g.lookFloor}:${g.terrain}:${this.bgEpoch}:${this.contrast}:${theme().id}`;
     if (this.bgKey !== bgKey) {
       this.bg = this.buildBackground(g);
-      gradeGround(this.bg);
+      // (a theme that rebuilds the board in its own materials needs no grade)
+      if (this.contrast || !hasBoardArt(theme().id)) gradeGround(this.bg);
       this.bgKey = bgKey;
     }
 
@@ -2264,18 +2266,19 @@ export class Renderer {
       const r = 26 + f * 4;
       ctx.globalCompositeOperation = 'lighter';
       const glow = ctx.createRadialGradient(c.x + 1, c.y, 1, c.x + 1, c.y + 6, r);
-      glow.addColorStop(0, 'rgba(255, 160, 70, 0.32)');
-      glow.addColorStop(1, 'rgba(255, 120, 40, 0)');
+      const fl = theme().flame;
+      glow.addColorStop(0, `rgba(${fl?.glow ?? '255, 160, 70'}, 0.32)`);
+      glow.addColorStop(1, `rgba(${fl?.glow ?? '255, 120, 40'}, 0)`);
       ctx.fillStyle = glow;
       ctx.fillRect(c.x - r, c.y - r, r * 2, r * 2 + 6);
       ctx.globalCompositeOperation = 'source-over';
       const tall = f > 0.2 ? 1 : 0;
-      ctx.fillStyle = '#ff8a2a';
+      ctx.fillStyle = fl?.flame ?? '#ff8a2a';
       ctx.fillRect(c.x, c.y - 1 - tall, 2, 2 + tall);
-      ctx.fillStyle = '#fff2c0';
+      ctx.fillStyle = fl?.tip ?? '#fff2c0';
       ctx.fillRect(c.x + (f > 0 ? 1 : 0), c.y, 1, 1);
       if (Math.random() < 0.02) {
-        this.particles.push({ x: c.x + 1, y: c.y - 2, vx: (Math.random() - 0.5) * 3, vy: -8, color: '#f2c14e', t: 0, life: 0.6, size: 1, grav: -0.1 });
+        this.particles.push({ x: c.x + 1, y: c.y - 2, vx: (Math.random() - 0.5) * 3, vy: -8, color: fl?.spark ?? '#f2c14e', t: 0, life: 0.6, size: 1, grav: -0.1 });
       }
     }
   }
@@ -2478,7 +2481,7 @@ export class Renderer {
     const heroTint = g.r('ember') || g.r('wildfire') ? '255,140,60' : g.r('frost') ? '140,200,255' : g.r('storm') ? '180,210,255' : '255,180,110';
     lights.push([cx, cy, outer, 1, heroTint, 0.1]);
     const k = dark ? 0.6 : 1;
-    for (const c of this.candles) lights.push([c.x + 1, c.y + 2, (30 + fl(c.phase) * 3) * k, 0.85, '255,150,60', 0.12]);
+    for (const c of this.candles) lights.push([c.x + 1, c.y + 2, (30 + fl(c.phase) * 3) * k, 0.85, theme().flame?.glow.replace(/ /g, '') ?? '255,150,60', 0.12]);
     if (g.zone !== undefined) {
       let lava = 0;
       for (let y = 0; y < H && lava < 18; y++) {
@@ -2791,6 +2794,19 @@ export class Renderer {
         }
       }
     }
+    // A theme with its own materials rebuilds the floors and walls, keeping a hint of the zone's colour.
+    const art = theme().id;
+    if (hasBoardArt(art)) {
+      paintBoard(art, { ctx, w: W, h: H, tile: TILE, wallAt, rng: mulberry32(hashSeed(g.seed, 'theme', g.lookFloor)), boss, candles: this.candles });
+      if (zone.id !== 'crypt') {
+        ctx.globalCompositeOperation = 'color';
+        ctx.globalAlpha = 0.16;
+        ctx.fillStyle = zone.color;
+        ctx.fillRect(0, 0, BOARD_W, BOARD_H);
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+      }
+    }
     this.drawStaticGround(ctx, g);
     this.deepDetail(ctx, g, wallAt);
     if (this.harvest) this.harvestDetail(ctx, g, wallAt);
@@ -3000,7 +3016,7 @@ export class Renderer {
   // ---------- the deeper passes' weather ----------
 
   private weather: { x: number; y: number; vx: number; vy: number; t: number; life: number; size: number }[] = [];
-  private weatherKind: Weather | 'leaves' | null = null;
+  private weatherKind: Weather | 'leaves' | ThemeWeather | null = null;
   private seasonWeather: 'snow' | 'leaves' | null = null;
   /** The Harvest Feast is on: leaf litter, drifts and gourds on the crypt floor. */
   private harvest = false;
@@ -3008,7 +3024,7 @@ export class Renderer {
   /** Spores, snow, red rain, twinkling stars or rising gold, over everything. */
   private drawWeather(g: Game, dt: number) {
     if (this.quiet || this.contrast) return;
-    const kind = deepLook(g.zone)?.weather ?? this.seasonWeather;
+    const kind = deepLook(g.zone)?.weather ?? this.seasonWeather ?? theme().weather ?? null;
     if (!kind) {
       this.weather = [];
       this.weatherKind = null;
@@ -3019,15 +3035,19 @@ export class Renderer {
       this.weatherKind = kind;
     }
     const ctx = this.ctx;
-    const cap = { spores: 18, snow: 34, rain: 26, stars: 22, sparks: 16, leaves: 8 }[kind];
-    const rate = { spores: 4, snow: 12, rain: 30, stars: 6, sparks: 5, leaves: 4 }[kind];
+    const cap = { spores: 18, snow: 34, rain: 26, stars: 22, sparks: 16, leaves: 8, ash: 26, petals: 10, dust: 22 }[kind];
+    const rate = { spores: 4, snow: 12, rain: 30, stars: 6, sparks: 5, leaves: 4, ash: 7, petals: 4, dust: 6 }[kind];
     if (this.weather.length < cap && Math.random() < dt * rate) {
       const r = Math.random;
       const p =
         kind === 'snow'
           ? { x: r() * (BOARD_W + 20) - 10, y: -2, vx: -2 + r() * 4, vy: 6 + r() * 6, life: 30, size: r() < 0.25 ? 2 : 1 }
-          : kind === 'leaves'
+          : kind === 'leaves' || kind === 'petals'
             ? { x: r() * (BOARD_W + 20) - 20, y: -2, vx: 2 + r() * 4, vy: 5 + r() * 4, life: 40, size: Math.floor(r() * 4) }
+          : kind === 'ash'
+            ? { x: r() * (BOARD_W + 20) - 10, y: -2, vx: 1 + r() * 2, vy: 4 + r() * 4, life: 40, size: r() < 0.12 ? 0 : r() < 0.3 ? 2 : 1 }
+          : kind === 'dust'
+            ? { x: -4, y: r() * BOARD_H, vx: 6 + r() * 8, vy: (r() - 0.5) * 2, life: 40, size: r() < 0.3 ? 2 : 1 }
           : kind === 'rain'
             ? { x: r() * (BOARD_W + 30), y: -4, vx: -8, vy: 70 + r() * 30, life: 3, size: 3 }
             : kind === 'stars'
@@ -3035,12 +3055,29 @@ export class Renderer {
               : { x: r() * BOARD_W, y: BOARD_H * (0.4 + r() * 0.6), vx: (r() - 0.5) * 3, vy: -(3 + r() * 4), life: 4 + r() * 3, size: 1 };
       this.weather.push({ ...p, t: 0 });
     }
-    this.weather = this.weather.filter((p) => (p.t += dt) < p.life && p.y < BOARD_H + 6);
+    this.weather = this.weather.filter((p) => (p.t += dt) < p.life && p.y < BOARD_H + 6 && p.x < BOARD_W + 8);
     for (const p of this.weather) {
-      p.x += (p.vx + (kind === 'snow' || kind === 'spores' || kind === 'leaves' ? Math.sin(this.time * 1.3 + p.life * 7 + p.size) * (kind === 'leaves' ? 5 : 2) : 0)) * dt;
+      const sway = kind === 'snow' || kind === 'spores' || kind === 'leaves' || kind === 'petals' || kind === 'ash';
+      p.x += (p.vx + (sway ? Math.sin(this.time * 1.3 + p.life * 7 + p.size) * (kind === 'leaves' || kind === 'petals' ? 5 : 2) : 0)) * dt;
       p.y += p.vy * dt;
       const fade = Math.sin(Math.min(1, p.t / p.life) * Math.PI);
-      if (kind === 'leaves') {
+      if (kind === 'petals') {
+        // a rose petal, turning as it drifts down
+        ctx.globalAlpha = 0.7;
+        ctx.fillStyle = ['#a3182e', '#c8263f', '#7a1020', '#e04a5e'][p.size];
+        const flip = Math.sin(this.time * 4 + p.vx * 3) > 0;
+        ctx.fillRect(Math.round(p.x), Math.round(p.y), flip ? 2 : 1, flip ? 1 : 2);
+      } else if (kind === 'ash') {
+        // grey flakes, and now and then one still glowing
+        ctx.globalAlpha = p.size === 0 ? 0.6 + 0.4 * Math.sin(this.time * 6 + p.vx) : 0.55;
+        ctx.fillStyle = p.size === 0 ? '#ff8a3a' : p.size === 2 ? '#8f8a82' : '#bdb7ad';
+        ctx.fillRect(Math.round(p.x), Math.round(p.y), Math.max(1, p.size), 1);
+      } else if (kind === 'dust') {
+        // gold dust blowing through
+        ctx.globalAlpha = 0.35 + 0.35 * Math.sin(this.time * 5 + p.y);
+        ctx.fillStyle = p.size === 2 ? '#ffe39a' : '#d9a83a';
+        ctx.fillRect(Math.round(p.x), Math.round(p.y), 1, 1);
+      } else if (kind === 'leaves') {
         // a two-pixel leaf in autumn colours (its size picks the colour), flipping as it falls
         ctx.globalAlpha = 0.55;
         ctx.fillStyle = ['#c0662a', '#a8391f', '#d9a03a', '#8a5a28'][p.size];

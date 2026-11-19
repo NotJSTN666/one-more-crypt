@@ -1,7 +1,9 @@
 import './style.css';
 import { relicIcon, boonIcon, iconCanvas, iconsFromEmoji } from './relic-icons';
 import { installPixelIcons, pxi } from './pixel-icons';
-import { THEMES, applyTheme, savedTheme, theme, type ThemeId } from './themes';
+import { THEMES, applyTheme, loadThemeFonts, savedTheme, theme, type ThemeId } from './themes';
+import { installThemeFx } from './theme-fx';
+import './themes.css';
 import { PORTAL, initPortal, portalHappy, portalLoaded, portalPlaying } from './portal';
 import { audioRunning, fusionSound, isMusicEnabled, isMuted, onAudioState, setMusicDepth, setMusicEnabled, setMusicMood, setMuted, sfx, unlockAudio } from './audio';
 import { centralDate, dailyNumber, formatCountdown, msUntilNextDaily, weekStart } from './daily';
@@ -65,6 +67,7 @@ const discordBtn = PORTAL ? '' : `<a class="btn discord" href="${DISCORD_URL}" t
 
 setMusicEnabled(!save.musicOff);
 applyTheme(savedTheme(), false);
+installThemeFx(calmMotion, () => !overlay.hidden);
 
 /** The player's display settings, applied to the board. */
 function applyDisplay() {
@@ -1131,6 +1134,7 @@ document.addEventListener('click', (e) => {
 
 /** Sound, music and display settings, saved on this device. */
 function showSettings(back: () => void) {
+  loadThemeFonts();
   const row = (id: string, icon: string, name: string, on: boolean, note: string) =>
     `<button class="btn setting-row ${on ? 'on' : ''}" id="${id}" aria-pressed="${on}"><span>${icon} ${name}</span><b>${on ? 'On' : 'Off'}</b><small>${note}</small></button>`;
   showOverlay('settings', `
@@ -1139,7 +1143,8 @@ function showSettings(back: () => void) {
     <h3 class="shop-head">Theme</h3>
     <div class="theme-grid">${THEMES.map((t) => {
       const chosen = t.id === theme().id;
-      return `<button class="theme-pick${chosen ? ' on' : ''}" data-theme-id="${t.id}" aria-pressed="${chosen}">`
+      const look = `--pk-bg:${t.swatch[1]};--pk-acc:${t.swatch[2]};--pk-text:${t.swatch[3]};--pk-line:${t.vars['--line'] ?? '#3a2a4a'};--pk-font:${t.font?.family ?? "'Pirata One'"}`;
+      return `<button class="theme-pick${chosen ? ' on' : ''}" data-theme-id="${t.id}" aria-pressed="${chosen}" style="${look}">`
         + `<span class="theme-swatch">${t.swatch.map((c) => `<i style="background:${c}"></i>`).join('')}</span>`
         + `<b>${t.name}</b><small>${t.blurb}</small></button>`;
     }).join('')}</div>

@@ -1,7 +1,10 @@
 // Themes: a whole new look for the game, chosen in Settings. A theme recolours the
-// menus and screens (through the CSS colours in style.css) and grades the crypt's
-// floors and walls (the boards' cached backgrounds); heroes, foes and relics keep
-// their own colours so they read the same in every theme.
+// menus and screens (the CSS colours in style.css) and dresses them in its own frames,
+// fonts and drifting particles (themes.css, theme-fx.ts); it rebuilds the crypt's floors
+// and walls in its own materials (theme-art.ts), with its own candle flames and weather.
+// Heroes, foes and relics keep their own colours so they read the same in every theme.
+
+import { ornamentVars, setFx } from './theme-fx';
 
 export type ThemeId = 'classic' | 'ashen' | 'verdigris' | 'frost' | 'crimson' | 'gilded';
 
@@ -15,7 +18,15 @@ export interface Theme {
   vars: Record<string, string>;
   /** How the board is graded: a hue laid over the floors and walls, how strongly, and the torchlight's colour. */
   board?: { tint: string; mix: number; glow: string };
+  /** The candles' flames: body, tip, sparks, and the light they throw ('r, g, b'). */
+  flame?: { flame: string; tip: string; spark: string; glow: string };
+  /** What drifts through the crypt (unless the depth or the season brings its own). */
+  weather?: ThemeWeather;
+  /** The heading font, loaded from Google Fonts when the theme is first put on. */
+  font?: { family: string; css: string };
 }
+
+export type ThemeWeather = 'ash' | 'spores' | 'snow' | 'petals' | 'dust';
 
 export const THEMES: Theme[] = [
   {
@@ -36,6 +47,9 @@ export const THEMES: Theme[] = [
       '--primary': '#8f8a84', '--primary-dark': '#3f3c39', '--primary-edge': '#d9d2bf', '--primary-base': '#141313', '--primary-ink': '#eee8dd',
     },
     board: { tint: '#8c8a86', mix: 0.85, glow: '#e8e4da' },
+    flame: { flame: '#d8d2c2', tip: '#ffffff', spark: '#bdb7ad', glow: '220, 215, 205' },
+    weather: 'ash',
+    font: { family: "'Jacquarda Bastarda 9'", css: 'Jacquarda+Bastarda+9' },
   },
   {
     id: 'verdigris',
@@ -48,6 +62,9 @@ export const THEMES: Theme[] = [
       '--primary': '#3f9a52', '--primary-dark': '#17421f', '--primary-edge': '#8fe36b', '--primary-base': '#06170b', '--primary-ink': '#dcf7cf',
     },
     board: { tint: '#3f8a52', mix: 0.55, glow: '#b4ff8a' },
+    flame: { flame: '#5fe39a', tip: '#e6ffd0', spark: '#9cf5d6', glow: '110, 230, 150' },
+    weather: 'spores',
+    font: { family: "'Uncial Antiqua'", css: 'Uncial+Antiqua' },
   },
   {
     id: 'frost',
@@ -60,6 +77,9 @@ export const THEMES: Theme[] = [
       '--primary': '#3d7fbf', '--primary-dark': '#173556', '--primary-edge': '#9fd8ff', '--primary-base': '#06121f', '--primary-ink': '#d8efff',
     },
     board: { tint: '#5c8fc2', mix: 0.6, glow: '#bfe6ff' },
+    flame: { flame: '#5fb8ff', tip: '#e6f6ff', spark: '#bfe6ff', glow: '120, 190, 255' },
+    weather: 'snow',
+    font: { family: "'Grenze Gotisch'", css: 'Grenze+Gotisch:wght@500' },
   },
   {
     id: 'crimson',
@@ -71,6 +91,9 @@ export const THEMES: Theme[] = [
       '--text': '#f2dad5', '--muted': '#ad8e92', '--gold': '#ff7466', '--bg-glow': '#2c0a12',
     },
     board: { tint: '#a3283a', mix: 0.55, glow: '#ff8a7a' },
+    flame: { flame: '#ff4d5a', tip: '#ffd0d0', spark: '#ff8a8a', glow: '255, 80, 90' },
+    weather: 'petals',
+    font: { family: "'UnifrakturMaguntia'", css: 'UnifrakturMaguntia' },
   },
   {
     id: 'gilded',
@@ -83,6 +106,9 @@ export const THEMES: Theme[] = [
       '--primary': '#c08a28', '--primary-dark': '#5a3a0c', '--primary-edge': '#ffd36a', '--primary-base': '#1f1404', '--primary-ink': '#fff0c8',
     },
     board: { tint: '#b8863a', mix: 0.6, glow: '#ffd88a' },
+    flame: { flame: '#ffb02a', tip: '#fff6c8', spark: '#ffd36a', glow: '255, 190, 80' },
+    weather: 'dust',
+    font: { family: "'Cinzel Decorative'", css: 'Cinzel+Decorative:wght@700' },
   },
 ];
 
@@ -111,6 +137,13 @@ export function applyTheme(id: ThemeId, keep = true) {
   const root = document.documentElement;
   for (const t of THEMES) for (const name of Object.keys(t.vars)) root.style.removeProperty(name);
   for (const [name, value] of Object.entries(current.vars)) root.style.setProperty(name, value);
+  root.style.removeProperty('--gothic');
+  if (current.font) {
+    loadFont(current.font.css);
+    root.style.setProperty('--gothic', `${current.font.family}, 'Pirata One', Georgia, serif`);
+  }
+  for (const [name, value] of Object.entries(ornamentVars(current.id))) root.style.setProperty(name, value);
+  setFx(current.weather ?? null);
   if (current.id === 'classic') delete root.dataset.theme;
   else root.dataset.theme = current.id;
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', current.vars['--bg'] ?? '#07040b');
@@ -121,6 +154,22 @@ export function applyTheme(id: ThemeId, keep = true) {
       /* this visit only */
     }
   }
+}
+
+const loaded = new Set<string>();
+/** Fetch a heading font the first time its theme is put on. */
+function loadFont(css: string) {
+  if (loaded.has(css)) return;
+  loaded.add(css);
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = `https://fonts.googleapis.com/css2?family=${css}&display=swap`;
+  document.head.appendChild(link);
+}
+
+/** Fetch every theme's heading font (for the picker, where each card is lettered in its own). */
+export function loadThemeFonts() {
+  for (const t of THEMES) if (t.font) loadFont(t.font.css);
 }
 
 /** The colour the board is cleared to. */
