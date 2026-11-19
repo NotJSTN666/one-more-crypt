@@ -22,6 +22,7 @@ import { featCosmetics, seasonDress, soulSurge } from './progression';
 import { claimInlineHtml, keepNameHtml, wireKeepName, ensureGuest, playerName, showLeaderboard, signedIn, unclaimed, wireClaimInline } from './social';
 import { enemyFrames, type Sprite } from './sprites';
 import { calmMotion, esc, on, overlay, showOverlay, toast } from './ui';
+import { boardBack, gradeGround } from './themes';
 
 const TILE = 16;
 const STEP = 1 / 60;
@@ -247,6 +248,7 @@ function startNight(back: () => void) {
   const allySprite = n.companion && allyFit ? heroSprite(n.companion, {}, [], allyFit.look, allyFit.head) : null;
   const spectreSprite = heroSprite('knight', {}, []);
   const ground = fieldCanvas();
+  gradeGround(ground);
   let paused = false;
   let ended = false;
   let choosing: NightPick[] | null = null;
@@ -1347,7 +1349,7 @@ function startNight(back: () => void) {
       const amp = Math.max(qk < 0.5 ? 3 * (1 - qk / 0.5) : 0, uq < 0.6 ? 5 * (1 - uq / 0.6) : 0);
       ctx.setTransform(S, 0, 0, S, Math.round((Math.random() - 0.5) * amp * 2) * S, Math.round((Math.random() - 0.5) * amp * 2) * S);
     }
-    ctx.fillStyle = '#0b0910';
+    ctx.fillStyle = boardBack();
     ctx.fillRect(0, 0, W, H);
     ctx.drawImage(ground, -Math.round(camX), -Math.round(camY));
 

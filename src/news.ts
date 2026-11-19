@@ -23,6 +23,14 @@ export interface NewsDay {
 
 export const NEWS: NewsDay[] = [
   {
+    date: '2026-11-19',
+    title: 'Five new themes',
+    notes: [
+      '🎨 Reskin the whole game in Settings with one of five new themes: Ashen, Verdigris, Frostbound, Crimson Court and Gilded Tomb. Each recolours the menus and buttons, the crypt\'s floors and walls, its torchlight and the Night Shift\'s graveyard. Classic is still there if you want it back.',
+    ],
+    go: ['settings'],
+  },
+  {
     date: '2026-11-17',
     title: 'Pixel icons and relics you can see',
     notes: [

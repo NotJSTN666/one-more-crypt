@@ -12,6 +12,7 @@ import { centralDate } from './daily';
 import { RELIC_BY_ID, type RelicId } from './relics';
 import { SPRITE_SIZE, enemyFrames, sprites } from './sprites';
 import { deepLook, zoneAt, zoneLook, zoneTitle, type Weather } from './zones';
+import { boardBack, gradeGround, theme, themedDark, themedLight } from './themes';
 
 export const TILE = 16;
 /** Blend two #rrggbb colours: 0 gives a, 1 gives b. */
@@ -779,16 +780,17 @@ export class Renderer {
     const dt = this.hitStop > 0 ? 0 : realDt;
     this.hitStop = Math.max(0, this.hitStop - realDt);
     this.time += dt;
-    const bgKey = `${g.seed}:${g.lookFloor}:${g.terrain}:${this.bgEpoch}:${this.contrast}`;
+    const bgKey = `${g.seed}:${g.lookFloor}:${g.terrain}:${this.bgEpoch}:${this.contrast}:${theme().id}`;
     if (this.bgKey !== bgKey) {
       this.bg = this.buildBackground(g);
+      gradeGround(this.bg);
       this.bgKey = bgKey;
     }
 
     const ctx = this.ctx;
     ctx.setTransform(this.scale, 0, 0, this.scale, 0, 0);
     ctx.imageSmoothingEnabled = false;
-    ctx.fillStyle = '#07040b';
+    ctx.fillStyle = boardBack();
     ctx.fillRect(0, 0, BOARD_W, BOARD_H);
 
     this.shake = Math.min(SHAKE_MAX, Math.max(0, this.shake - dt * 30));
@@ -2306,7 +2308,7 @@ export class Renderer {
     const cy = g.player.y * TILE + TILE / 2;
     const r = Math.max(1, 6 + p * Math.hypot(BOARD_W, BOARD_H));
     ctx.save();
-    ctx.fillStyle = '#07040b';
+    ctx.fillStyle = boardBack();
     ctx.beginPath();
     ctx.rect(-10, -10, BOARD_W + 20, BOARD_H + 20);
     ctx.arc(cx, cy, r, 0, Math.PI * 2, true);
@@ -2417,7 +2419,7 @@ export class Renderer {
     // elsewhere the dark is softer, and gone in high contrast.
     // Where Death walks (floor 150 and down) the light reaches less far, so depth reads at a glance.
     const deathly = !dark && Boolean(g.config.reaper) && g.floor >= REAPER_FLOOR && g.mode !== 'horde';
-    if (dark || !this.contrast) this.drawLightMap(g, cx, cy, deathly ? inner * 0.8 : inner, deathly ? outer * 0.62 : outer, dark, zone.light);
+    if (dark || !this.contrast) this.drawLightMap(g, cx, cy, deathly ? inner * 0.8 : inner, deathly ? outer * 0.62 : outer, dark, [themedLight(zone.light[0]), themedDark(zone.light[1])]);
     if (this.contrast) return;
     if (deathly) {
       // and what light there is runs cold

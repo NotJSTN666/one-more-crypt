@@ -1,6 +1,7 @@
 import './style.css';
 import { relicIcon, boonIcon, iconCanvas, iconsFromEmoji } from './relic-icons';
 import { installPixelIcons, pxi } from './pixel-icons';
+import { THEMES, applyTheme, savedTheme, theme, type ThemeId } from './themes';
 import { PORTAL, initPortal, portalHappy, portalLoaded, portalPlaying } from './portal';
 import { audioRunning, fusionSound, isMusicEnabled, isMuted, onAudioState, setMusicDepth, setMusicEnabled, setMusicMood, setMuted, sfx, unlockAudio } from './audio';
 import { centralDate, dailyNumber, formatCountdown, msUntilNextDaily, weekStart } from './daily';
@@ -63,6 +64,7 @@ const PRIVACY_URL = 'https://onemorecrypt.com/privacy.html';
 const discordBtn = PORTAL ? '' : `<a class="btn discord" href="${DISCORD_URL}" target="_blank" rel="noopener">💬 Join the Discord<small>Post your result, compare builds, report bugs</small></a>`;
 
 setMusicEnabled(!save.musicOff);
+applyTheme(savedTheme(), false);
 
 /** The player's display settings, applied to the board. */
 function applyDisplay() {
@@ -1134,6 +1136,13 @@ function showSettings(back: () => void) {
   showOverlay('settings', `
     <h2>⚙️ Settings</h2>
     <p class="sub">Saved on this device.</p>
+    <h3 class="shop-head">Theme</h3>
+    <div class="theme-grid">${THEMES.map((t) => {
+      const chosen = t.id === theme().id;
+      return `<button class="theme-pick${chosen ? ' on' : ''}" data-theme-id="${t.id}" aria-pressed="${chosen}">`
+        + `<span class="theme-swatch">${t.swatch.map((c) => `<i style="background:${c}"></i>`).join('')}</span>`
+        + `<b>${t.name}</b><small>${t.blurb}</small></button>`;
+    }).join('')}</div>
     <h3 class="shop-head">Sound</h3>
     ${row('set-sound', '🔊', 'Sound effects', !isMuted(), 'Hits, steps, the bell and the rest')}
     ${row('set-music', '🎵', 'Music', isMusicEnabled(), 'The crypt\'s music, which changes with depth')}
@@ -1177,6 +1186,18 @@ function showSettings(back: () => void) {
     setDmgNumbers(!dmgNumbers());
     again();
   });
+  // A theme goes on at once, without redrawing the list (so it stays where it was scrolled to).
+  for (const pick of document.querySelectorAll<HTMLButtonElement>('.theme-pick')) {
+    pick.addEventListener('click', () => {
+      applyTheme(pick.dataset.themeId as ThemeId);
+      sfx.step();
+      for (const other of document.querySelectorAll<HTMLButtonElement>('.theme-pick')) {
+        const chosen = other === pick;
+        other.classList.toggle('on', chosen);
+        other.setAttribute('aria-pressed', String(chosen));
+      }
+    });
+  }
   on('#set-help', () => showHelp(again));
   on('#back', back);
 }
