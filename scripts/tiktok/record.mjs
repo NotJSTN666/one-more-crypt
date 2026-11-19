@@ -88,7 +88,7 @@ const until = async (fn, max = 300) => {
 };
 
 // ---- the overlay: the hook at the top, then the end card ----
-await p.evaluate(({ hook, endLines }) => {
+await p.evaluate(({ hook, endLines, hookStyle }) => {
   const st = document.createElement('style');
   st.textContent = `
     #tt-hook { position: fixed; left: 16px; right: 16px; top: 64%; z-index: 9999; text-align: center; pointer-events: none;
@@ -137,7 +137,20 @@ await p.evaluate(({ hook, endLines }) => {
   const f = document.createElement('div');
   f.id = 'tt-floor';
   document.body.appendChild(f);
-}, { hook: idea.hook, endLines: idea.endLines });
+  // `hookStyle: 'caption'`: the hook in TikTok's own caption look (bold white sans, black edge,
+  // lower case), for the plain "dev asking for help" kind of clip
+  if (hookStyle === 'caption') {
+    const l = document.createElement('link');
+    l.rel = 'stylesheet';
+    l.href = 'https://fonts.googleapis.com/css2?family=Montserrat:wght@800&display=swap';
+    document.head.appendChild(l);
+    const c = document.createElement('style');
+    c.textContent = `#tt-hook { font: 800 19px/1.3 Montserrat, 'DejaVu Sans', sans-serif !important; letter-spacing: 0 !important; text-transform: lowercase;
+      text-shadow: -1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000, 1.5px 1.5px 0 #000, 0 0 6px rgba(0,0,0,0.9) !important; }
+      #tt-hook b { color: #fff !important; font-weight: 800 !important; }`;
+    document.head.appendChild(c);
+  }
+}, { hook: idea.hook, endLines: idea.endLines, hookStyle: idea.hookStyle });
 // The hook goes above the game, in the space left by centring it: clear of the action and of
 // TikTok's own buttons and caption.
 const placeHook = () => p.evaluate((wide) => {
