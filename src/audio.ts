@@ -236,6 +236,11 @@ export const sfx = {
     [262, 330, 392, 523].forEach((f, i) => tone(f, 0.3, 'sine', 0.08, undefined, i * 0.05));
   },
   block: () => tone(880, 0.12, 'square', 0.06, 1200),
+  /** A new chat message: a small, soft two-note ping. */
+  ping: () => {
+    tone(1320, 0.09, 'sine', 0.05);
+    tone(1760, 0.14, 'sine', 0.045, undefined, 0.07);
+  },
   /** The Soul Forge at work (see fusionSound for the full three-second piece). */
   fuse: () => fusionSound(false),
   death: () => {

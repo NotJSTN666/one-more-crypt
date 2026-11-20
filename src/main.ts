@@ -41,7 +41,7 @@ import { howToHtml, startHowTo } from './howto';
 import { RELIC_COACH, TUTORIAL } from './tutorial';
 import { DISCORD_URL, KOFI_URL, copyText, discordHtml, followXHtml, kofiHtml, playTime, shareText, siteUrl } from './share';
 import { installMode, onInstallChange, promptInstall, setupInstall } from './install';
-import { bountiesHtml, progressBounties } from './bounties';
+import { bountiesHtml, bountyList, progressBounties } from './bounties';
 import { enableReminders, loadReminders, reminderPrefs, remindersAvailable, remindersNeedInstall, timeZone } from './push';
 import { onAccountSynced, claimPodiums, claimWeekly, clearBeat, lastBeat, type PodiumFinish, type WeeklyFinish } from './social';
 import { paintBoardNames, claimInlineHtml, wireClaimInline, keepNameHtml, wireKeepName, endlessRecord, ensureGuest, initSocial, needsName, unclaimed, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
@@ -1878,6 +1878,14 @@ function animateResults() {
 }
 
 const DRAWER_KEY = 'omc:title-more';
+const CHALLENGES_KEY = 'omc:title-challenges';
+function challengesOpen(): boolean {
+  try {
+    return localStorage.getItem(CHALLENGES_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 function drawerOpen(): boolean {
   try {
     return localStorage.getItem(DRAWER_KEY) === '1';
@@ -1906,7 +1914,7 @@ function showDelve() {
     ${endlessBtn}
     ${hordeButtonHtml()}
     ${nightButtonHtml()}
-    ${PORTAL ? '' : '<button class="btn race-btn" id="race">' + pxi('sword') + ' Crypt Race<span class="new-tag">NEW</span><small>Join a live race against other players · up to four at once</small></button>'}
+    ${PORTAL ? '' : '<button class="btn race-btn" id="race">' + pxi('swords') + ' Crypt Race<span class="new-tag">NEW</span><small>Join a live race against other players · up to four at once</small></button>'}
   `);
   on('#race', showRaceMenu);
   on('#back', showTitle);
@@ -1957,16 +1965,30 @@ function showTitle() {
   // "Delve deeper" for the other modes. Everything else waits in the More drawer.
   const delveBtn = `<button class="btn ${endlessNext ? 'primary' : ''} delve-btn" id="delve">${pxi('sword')} Delve deeper<small>Endless · Horde · The Night Shift</small></button>`;
   // Live races get their own door on the title, so nobody has to go looking for them.
-  const raceBtn = PORTAL || !ONLINE ? '' : '<button class="btn race-btn race-title-btn" id="race">' + pxi('sword') + ' Crypt Race<span class="new-tag">NEW</span><small id="race-waiting">Join a live race against other players</small></button>';
-  const extras = [
-    raidFought(raid) ? raidCardHtml(raid) : '',
-    welcomeTitleHtml(),
-    keepNameHtml(false),
-    surgeHtml(),
-    trialHtml(),
-    ONLINE ? '<div class="together" id="together" hidden></div><div class="rival-line" id="rival-line" hidden></div>' : '',
-    bountiesHtml(today),
-  ].join('');
+  const raceBtn = PORTAL || !ONLINE ? '' : '<button class="btn race-btn race-title-btn" id="race">' + pxi('swords') + ' Crypt Race<span class="new-tag">NEW</span><small id="race-waiting">Join a live race against other players</small></button>';
+  // The day's and week's goals fold away under Challenges, so the drawer opens on its doors.
+  const bounties = bountyList(today);
+  const bountiesDone = bounties.filter((b) => b.done).length;
+  const trialDone = Boolean(meta.trial && meta.trial.week === weekStart() && meta.trial.done);
+  const gift = welcomeWaiting(today);
+  const challengeNotes = [
+    `${bountiesDone}/${bounties.length} bounties`,
+    trialDone ? 'trial done' : 'weekly trial',
+    gift ? 'gift waiting' : '',
+    soulSurge(centralDate()) ? 'Soul Surge' : '',
+  ].filter(Boolean);
+  const challenges = `<details class="title-challenges" id="title-challenges"${challengesOpen() ? ' open' : ''}>
+      <summary>${gift || bountiesDone < bounties.length ? '<span class="drawer-dot"></span>' : ''}${pxi('swords')} Challenges<small>${challengeNotes.join(' · ')}</small></summary>
+      <div class="challenges-body">
+        ${welcomeTitleHtml()}
+        ${surgeHtml()}
+        ${bountiesHtml(today)}
+        ${trialHtml()}
+        ${raidFought(raid) ? raidCardHtml(raid) : ''}
+        ${ONLINE ? '<div class="together" id="together" hidden></div><div class="rival-line" id="rival-line" hidden></div>' : ''}
+      </div>
+    </details>`;
+  const extras = keepNameHtml(false) + challenges;
   // A gift to claim or a name to keep: worth a dot on the closed drawer.
   const nudge = /gift waiting|keep-name/i.test(welcomeTitleHtml() + keepNameHtml(false));
   showOverlay('title', `
@@ -1989,7 +2011,7 @@ function showTitle() {
     </div>
     ${titleDepthHtml(done)}
     <details class="title-drawer" id="title-drawer"${drawerOpen() ? ' open' : ''}>
-      <summary>${nudge ? '<span class="drawer-dot"></span>' : ''}${pxi('menu')} More<small>Bounties · your Hall · Ossuary · leaderboards</small></summary>
+      <summary>${nudge ? '<span class="drawer-dot"></span>' : ''}${pxi('menu')} More<small>Challenges · your Hall · Ossuary · leaderboards</small></summary>
       <div class="drawer-body">
       ${extras}
       <h2 class="title-section">Adventure</h2>
@@ -2015,6 +2037,13 @@ function showTitle() {
   `);
   on('#title-testers', () => showTesterAsk(() => screen === 'title' && !overlay.hidden));
   overlay.querySelector('#title-drawer')?.addEventListener('toggle', (e) => setDrawerOpen((e.currentTarget as HTMLDetailsElement).open));
+  overlay.querySelector('#title-challenges')?.addEventListener('toggle', (e) => {
+    try {
+      localStorage.setItem(CHALLENGES_KEY, (e.currentTarget as HTMLDetailsElement).open ? '1' : '0');
+    } catch {
+      /* starts closed next time */
+    }
+  });
   on('#delve', () => showDelve());
   on('#race', showRaceMenu);
   // How many are standing in the open lobby right now, on the race button (while the title is up).

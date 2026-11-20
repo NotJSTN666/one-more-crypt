@@ -33,6 +33,8 @@ export const NEWS: NewsDay[] = [
       '🖋️ Style your name on the leaderboards: 12 inks earned by playing Dailies and reaching each depth, and 9 effects (Drip, Glow, Flame, Frost, Embers, Haunted, Shadow, Starfall and Gilded) earned by streaks, world bosses, depth and winning a Daily. Tap your name at the top of the title screen to pick your ink, effect and title. You start with everything your past runs have earned.',
       '🗺️ The title screen now shows how deep you went: your deepest descent before today\'s Daily, then today\'s run in the Daily card, with Copy result and Share image right under it.',
       '👑 Yesterday\'s Daily champion now stands on the title screen for everyone: their hero in their own cloak, headwear and aura, their name in its style, their title and how deep they went. Tap them to visit their Hall.',
+      '💬 Chat now plays a small ping when someone else posts, so you know without opening it. Mute sound in Settings to silence it.',
+      '🧹 The More menu is tidier: the day\'s bounties, the Weekly Trial, Seven Nights and the rest now fold away under one Challenges bar, which shows what\'s left at a glance. Crypt Race has its own crossed-swords icon.',
     ],
     fixes: ['🪦 The results now say you were slain by "an" Ember Imp, not "a".'],
     go: ['settings'],

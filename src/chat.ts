@@ -6,6 +6,7 @@ import { chatProblem, CHAT_MAX, tidyChat } from './chat-filter';
 import { chatRecent, OnlineError, sendChat, watchChat, type ChatLine } from './online';
 import { esc } from './ui';
 import { pxi } from './pixel-icons';
+import { sfx } from './audio';
 
 interface ChatHost {
   /** The signed-in player's account id and chosen name, or null for a guest or nobody. */
@@ -57,6 +58,15 @@ function markRead() {
   paintChip();
 }
 
+let pingedAt = 0;
+/** A soft ping for someone else's message (at most one every couple of seconds, so a busy room doesn't chime). */
+function ping() {
+  const now = Date.now();
+  if (now - pingedAt < 2000) return;
+  pingedAt = now;
+  sfx.ping();
+}
+
 /** Start listening (once the game has settled). The 💬 button appears only if the server has a chat. */
 export async function startChat(h: ChatHost) {
   host = h;
@@ -73,10 +83,12 @@ export async function startChat(h: ChatHost) {
     if (typers.delete(line.user_id)) paintTyping();
     lines.push(line);
     if (lines.length > 200) lines = lines.slice(-200);
+    const fromOther = line.user_id !== host?.me()?.id && !muted().includes(line.user_id);
+    if (fromOther) ping();
     if (drawer) {
       addLine(line);
       markRead();
-    } else if (line.user_id !== host?.me()?.id && !muted().includes(line.user_id)) {
+    } else if (fromOther) {
       unread++;
       paintChip();
     }

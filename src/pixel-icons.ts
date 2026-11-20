@@ -51,6 +51,25 @@ const ART = {
     'kyYk...k........',
     '.kk.............',
   ],
+  // ⚔️ Crypt Race · Challenges: two swords crossed
+  swords: [
+    '.k............k.',
+    'khkk........kkhk',
+    'kShhk......khhSk',
+    '.kShhk....khhSk.',
+    '..kShhk..khhSk..',
+    '...kShhkkhhSk...',
+    '....kShkhhSk....',
+    '..k..kkhhSk..k..',
+    '.kYk.khhSkk.kYk.',
+    '..kFkhhSkhhkFk..',
+    '...kyhSkkShyk...',
+    '...koyk..kyok...',
+    '.kkOkkykkykkOkk.',
+    'kYok..kYkk..koYk',
+    'kyYk...kk...kYyk',
+    '.kk..........kk.',
+  ],
   // 📖 Story · Grimoire
   book: [
     '................',

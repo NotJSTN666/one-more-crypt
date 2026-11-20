@@ -6829,3 +6829,25 @@ body.menu:has(#overlay[data-screen='title']:not([hidden])) #ghosts { opacity: 0.
 .champ-cta { font-family: var(--read); font-size: 12px; color: var(--gold); }
 :root.calm .champ-hero { animation: none; }
 @media (prefers-reduced-motion: reduce) { .champ-hero { animation: none; } }
+
+/* More drawer: the day's and week's goals fold away under Challenges */
+.title-challenges { margin: 0 0 10px; }
+.title-challenges > summary {
+  list-style: none;
+  cursor: pointer;
+  position: relative;
+  padding: 10px 14px;
+  border: 1px solid var(--gold-dim);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--gold) 5%, transparent), color-mix(in srgb, var(--gold) 12%, transparent));
+  font-family: var(--pixel);
+  font-size: 13px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--gold);
+}
+.title-challenges > summary::-webkit-details-marker { display: none; }
+.title-challenges > summary small { display: block; margin-top: 4px; font-size: 9px; letter-spacing: 1px; color: var(--muted); }
+.title-challenges[open] > summary { border-color: var(--gold); }
+.title-challenges .challenges-body { padding-top: 8px; }
+.title-challenges .challenges-body > :first-child { margin-top: 0; }
