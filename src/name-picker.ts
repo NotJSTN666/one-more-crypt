@@ -46,14 +46,18 @@ export function namePickerHtml(): string {
     <div class="ns-grid">${opt('fx', null)}${EFFECTS.map((d) => opt('fx', d)).join('')}</div>`;
 }
 
-/** The titles you hold, to wear one (or none) under your name. */
+/** The titles you hold, in a dropdown that shows each in its own style, to wear one (or none). */
 export function titlePickerHtml(): string {
   const owned = unlockedTitles();
-  const chip = (id: string, name: string) =>
-    `<button class="ns-title ${meta.title === id ? 'on' : ''}" data-pick-title="${esc(id)}" aria-pressed="${meta.title === id}"><span class="title-tag ${titleFxClass(id)}">${esc(name)}</span></button>`;
+  const current = (meta.title && TITLE_BY_ID[meta.title]?.name) || '';
+  const item = (id: string, name: string) =>
+    `<button class="ns-title-opt ${meta.title === id ? 'on' : ''}" role="option" aria-selected="${meta.title === id}" data-pick-title="${esc(id)}">${id ? `<span class="title-tag ${titleFxClass(id)}">${esc(name)}</span>` : '<span class="fine">No title</span>'}${meta.title === id ? '<b>✓</b>' : ''}</button>`;
   return `
     <h3 class="shop-head">Title <small>${owned.length} earned</small></h3>
-    <div class="ns-titles">${chip('', 'None')}${owned.map((t) => chip(t.id, t.name)).join('')}</div>
+    <details class="ns-title-select">
+      <summary aria-label="Choose a title">${current ? `<span class="title-tag ${titleFxClass(meta.title)}">${esc(current)}</span>` : '<span class="fine">No title</span>'}<i aria-hidden="true">▾</i></summary>
+      <div class="ns-title-list" role="listbox">${item('', '')}${owned.map((t) => item(t.id, t.name)).join('')}</div>
+    </details>
     ${owned.length ? '' : '<p class="fine">Earn titles by winning Dailies, filling the Bestiary, finishing the story and more. See them all in your Hall.</p>'}`;
 }
 

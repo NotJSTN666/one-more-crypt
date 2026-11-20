@@ -6788,10 +6788,46 @@ body.menu:has(#overlay[data-screen='title']:not([hidden])) #ghosts { opacity: 0.
 .name-card { text-align: left; }
 .name-card-head { font-family: var(--gothic); font-size: 24px; color: var(--gold); text-align: center; }
 .ns-preview .title-tag, .ns-preview .fine { display: block; margin-top: 6px; }
-.ns-titles { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
-.ns-title { padding: 6px 8px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); }
-.ns-title .title-tag { margin: 0; }
-.ns-title.on { border-color: var(--gold); box-shadow: 0 0 8px color-mix(in srgb, var(--gold) 35%, transparent); }
+/* the title dropdown: shut, it's one line with your title in its style; open, a short scrolling list */
+.ns-title-select { position: relative; margin: 6px 0; }
+.ns-title-select > summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  cursor: pointer;
+}
+.ns-title-select > summary::-webkit-details-marker { display: none; }
+.ns-title-select > summary i { font-style: normal; color: var(--muted); transition: transform 0.15s; }
+.ns-title-select[open] > summary { border-color: var(--gold); }
+.ns-title-select[open] > summary i { transform: rotate(180deg); }
+.ns-title-select .title-tag { margin: 0; font-size: 12px; }
+.ns-title-list {
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--gold-dim);
+  border-top: 0;
+  background: var(--panel);
+}
+.ns-title-opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+.ns-title-opt:hover, .ns-title-opt:focus-visible { background: color-mix(in srgb, var(--gold) 8%, transparent); }
+.ns-title-opt.on { background: color-mix(in srgb, var(--gold) 12%, transparent); }
+.ns-title-opt b { font-weight: normal; color: var(--gold); }
 .account-chip .pname { font: inherit; }
 
 /* Today's Daily, done: its depth column with the ways to share it */
