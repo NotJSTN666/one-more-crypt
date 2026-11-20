@@ -4,7 +4,7 @@ import { installPixelIcons, pxi } from './pixel-icons';
 import { THEMES, applyTheme, loadThemeFonts, savedTheme, theme, type ThemeId } from './themes';
 import { installThemeFx } from './theme-fx';
 import { depthAt, shareCard, showColumn, type ColumnRun } from './depth';
-import { earnedStyles, styleName } from './name-style';
+import { earnedStyles, myNameStyle, styleClass, styleName } from './name-style';
 import './themes.css';
 import { PORTAL, initPortal, portalHappy, portalLoaded, portalPlaying } from './portal';
 import { audioRunning, fusionSound, isMusicEnabled, isMuted, onAudioState, setMusicDepth, setMusicEnabled, setMusicMood, setMuted, sfx, unlockAudio } from './audio';
@@ -14,7 +14,7 @@ import { TRIAL_SOULS, trialProgressText, weekTrial } from './trials';
 import { ACHIEVEMENT_BY_ID, DAILY_TOTALS, ELITES, FEATURES, HERO_BY_ID, HEROES, dailyHero, hordeHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait, heroSprite } from './hero';
 import { BOON_BY_ID, ENEMY_INFO, W, MIST_BITE, REAPER_FLOOR, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode, type EnemyKind } from './game';
-import { podiumCount, acceptQuest, checkRun, grantFeats, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, rerollCost, spendSouls, finishRace, racePrizeOwned, acceptPlayerGift, INVITE_SOULS, INVITE_PETS, type InviteGain, finishHordeMeta, receiveGift, equipTitle, FAIR_DAILY, LEAN_DAILY, MISSILE_DAILY, type RunReward } from './meta';
+import { deepestFloor, podiumCount, acceptQuest, checkRun, grantFeats, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, rerollCost, spendSouls, finishRace, racePrizeOwned, acceptPlayerGift, INVITE_SOULS, INVITE_PETS, type InviteGain, finishHordeMeta, receiveGift, equipTitle, FAIR_DAILY, LEAN_DAILY, MISSILE_DAILY, type RunReward } from './meta';
 import { drawGhosts, startGhosts, watching } from './ghosts';
 import { celebrate, celebrateNotes, holdCelebrations, setHallOpener, setOssuaryHost, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
@@ -39,7 +39,7 @@ import { showWardrobe } from './wardrobe';
 import { IMPACT, animateReveal, playFusion, tintOf } from './fusefx';
 import { howToHtml, startHowTo } from './howto';
 import { RELIC_COACH, TUTORIAL } from './tutorial';
-import { DISCORD_URL, KOFI_URL, copyText, descentStrip, discordHtml, followXHtml, kofiHtml, playTime, shareText, siteUrl } from './share';
+import { DISCORD_URL, KOFI_URL, copyText, discordHtml, followXHtml, kofiHtml, playTime, shareText, siteUrl } from './share';
 import { installMode, onInstallChange, promptInstall, setupInstall } from './install';
 import { bountiesHtml, progressBounties } from './bounties';
 import { enableReminders, loadReminders, reminderPrefs, remindersAvailable, remindersNeedInstall, timeZone } from './push';
@@ -1936,7 +1936,6 @@ function showTitle() {
   const dailyBlock = done
     ? `<div class="card">
         <div>Daily #${today} conquered</div>
-        <div class="strip">${descentStrip(done.floor)}</div>
         <div class="sub" style="margin:0">Floor ${done.floor} · ${done.kills} kills</div>
         <button class="btn share-btn" id="copy-daily">📋 Copy today's result</button>
         <div class="sub" style="margin:6px 0 0">Next crypt opens in <span class="countdown">--:--:--</span></div>
@@ -1984,6 +1983,7 @@ function showTitle() {
     <button class="btn story-btn" id="story">${pxi('book')} Story<small>${storyProgress()}</small></button>
     ${streak > 1 ? `<div class="streak">${pxi('candle')} ${streak}-day streak</div>` : ''}
     </div>
+    ${titleDepthHtml(done)}
     <details class="title-drawer" id="title-drawer"${drawerOpen() ? ' open' : ''}>
       <summary>${nudge ? '<span class="drawer-dot"></span>' : ''}${pxi('menu')} More<small>Bounties · your Hall · Ossuary · leaderboards</small></summary>
       <div class="drawer-body">
@@ -2024,6 +2024,7 @@ function showTitle() {
     });
   }
   titleScene();
+  drawTitleDepth(done, today);
   // The runs playing behind the title are live: say what the one behind the logo is doing.
   const live = overlay.querySelector<HTMLElement>('#title-live');
   const tellLive = () => {
@@ -2212,7 +2213,7 @@ function accountChip(): string {
   const title = titleName(meta.title);
   // A guest on the boards under a placeholder is nudged to pick a real name.
   if (unclaimed()) return `<div class="account-row">${mute}<button class="account-chip claim-chip" id="account">✍️ Claim your name</button></div>`;
-  return `<div class="account-row">${mute}<button class="account-chip" id="account">👤 ${name ? esc(name) : 'Sign in'}${name && title ? ` <small class="${titleFxClass(meta.title)}">${esc(title)}</small>` : ''}</button></div>`;
+  return `<div class="account-row">${mute}<button class="account-chip" id="account" aria-label="${name ? `${esc(name)}: your name, title and profile` : 'Sign in'}">👤 ${name ? `<span class="pname ${styleClass(myNameStyle())}">${esc(name)}</span>` : 'Sign in'}${name && title ? ` <small class="${titleFxClass(meta.title)}">${esc(title)}</small>` : ''}</button></div>`;
 }
 
 // ---------- the Hollow ----------
@@ -3044,8 +3045,48 @@ function showDeath(r: RunResult, best: boolean) {
 
 /** The run whose column has already played its drop (so coming back to the results doesn't replay it). */
 let depthShown: RunResult | null = null;
-/** Today's deepest run on the board for this mode, once fetched. */
-let todayDeepest: { key: string; floor: number } | null = null;
+/** Today's deepest run on the board for this mode, once fetched (and when). */
+let todayDeepest: { key: string; floor: number; at: number } | null = null;
+
+/** Today's deepest on a board, fetched at most every few minutes; `then` gets the floor. */
+function fetchDeepest(key: string, load: () => Promise<{ rows: { floor: number }[] }>, then: (floor: number) => void) {
+  if (!ONLINE || (todayDeepest?.key === key && Date.now() - todayDeepest.at < 3 * 60_000)) return;
+  void load()
+    .then((b) => {
+      const floor = b.rows[0]?.floor ?? 0;
+      todayDeepest = { key, floor: Math.max(floor, todayDeepest?.key === key ? todayDeepest.floor : 0), at: Date.now() };
+      then(todayDeepest.floor);
+    })
+    .catch(() => undefined);
+}
+
+/** The title screen's column: today's Daily once it's done, or else your deepest descent. Empty before a first run. */
+function titleDepthHtml(done: RunResult | undefined): string {
+  const floor = done ? done.floor : deepestFloor();
+  if (floor < 1) return '';
+  const d = depthAt(floor);
+  return `<div class="title-depth">
+    <canvas class="depth-col" id="title-depth" role="img" aria-label="Floor ${floor}, ${esc(d.name)}"></canvas>
+    <p class="fine">${done ? `Today's descent: floor ${floor}, ${esc(d.name)}` : `Your deepest descent: floor ${floor}, ${esc(d.name)}. How deep today?`}</p>
+  </div>`;
+}
+
+function drawTitleDepth(done: RunResult | undefined, today: number) {
+  const cv = document.getElementById('title-depth') as HTMLCanvasElement | null;
+  if (!cv) return;
+  const hero = done ? dailyHero(today) : meta.hero;
+  const fit = outfitFor(hero);
+  const key = `daily:${today}`;
+  const update = showColumn(cv, {
+    floor: done ? done.floor : deepestFloor(),
+    best: done ? save.totals.bestDaily : undefined,
+    deepest: todayDeepest?.key === key ? todayDeepest.floor : undefined,
+    hero: heroSprite(hero, {}, [], fit.look, fit.head),
+    reaper: sprites().reaper.normal,
+    theme: theme().id,
+  }, false);
+  fetchDeepest(key, () => dailyBoard(today, null, 1), (floor) => update({ deepest: floor }));
+}
 
 /** The results screen's cross-section: the hero falls to where they died, beside your best and today's deepest. Returns the run as drawn. */
 function depthColumn(r: RunResult, daily: boolean): () => ColumnRun {
@@ -3063,16 +3104,11 @@ function depthColumn(r: RunResult, daily: boolean): () => ColumnRun {
   if (todayDeepest?.key === key) run.deepest = todayDeepest.floor;
   const update = showColumn(cv, run, depthShown !== r && !calmMotion());
   depthShown = r;
-  if (ONLINE && todayDeepest?.key !== key) {
-    void (daily ? dailyBoard(game.dailyNo, null, 1) : endlessBoard(null, 1, 'day'))
-      .then((b) => {
-        const floor = Math.max(r.floor, b.rows[0]?.floor ?? 0);
-        todayDeepest = { key, floor };
-        run = { ...run, deepest: floor };
-        update({ deepest: floor });
-      })
-      .catch(() => undefined);
-  }
+  const dailyNo = game.dailyNo;
+  fetchDeepest(key, () => (daily ? dailyBoard(dailyNo, null, 1) : endlessBoard(null, 1, 'day')), (floor) => {
+    run = { ...run, deepest: Math.max(floor, r.floor) };
+    update({ deepest: run.deepest });
+  });
   return () => run;
 }
 

@@ -48,6 +48,7 @@ import {
   nameStyles,
 } from './online';
 import { paintNames } from './name-style';
+import { namePickerHtml, namePreviewHtml, titlePickerHtml, wireNamePicker } from './name-picker';
 import { showPublicHall, titleName } from './hall';
 import { HEAD_BY_ID, LOOK_BY_ID, PODIUM, WEEKLY, rankFor, titleFxClass } from './progression';
 import { HERO_BY_ID, dailyHero, type HeroId } from './content';
@@ -55,7 +56,7 @@ import { auraClass } from './aura';
 import { heroPortrait } from './hero';
 import { BACKFILL_VERSION, backfillHeroes, grantPatron, grantPodium, grantVault, grantWeekly, meta, mergeMeta, noteDeepest, noteStreak, onMetaChange, saveMeta, type Meta } from './meta';
 import { currentStreak, streakStats, writeSave, type Save } from './storage';
-import { esc, field, formStatus, on, onSubmit, screen, showOverlay, toast } from './ui';
+import { esc, field, formStatus, on, onSubmit, overlay, screen, showOverlay, toast } from './ui';
 
 export const session: { account: Account | null; ready: boolean } = { account: null, ready: !ONLINE };
 
@@ -785,6 +786,12 @@ export function showProfile(back: () => void) {
   showOverlay('profile', `
     <h2>${esc(playerName() || 'Nameless')}</h2>
     <p class="sub">${kindLabel}</p>
+    <div class="card name-card">
+      <div class="name-card-head">Your name on the boards</div>
+      ${namePreviewHtml(playerName())}
+      ${titlePickerHtml()}
+      ${namePickerHtml()}
+    </div>
     <div class="stat-grid" id="stats">${statGrid(localStats(today))}</div>
     <details class="card">
       <summary>Change name</summary>
@@ -809,6 +816,12 @@ export function showProfile(back: () => void) {
     ${acc ? '<button class="link-btn" id="signout">Sign out</button>' : ''}`);
   wireReminders();
   wireEmailReminders();
+  // (a pick redraws the screen where it was scrolled to)
+  wireNamePicker(() => {
+    const top = overlay.scrollTop;
+    showProfile(back);
+    overlay.scrollTop = top;
+  });
 
   wireDice();
   onSubmit('#name-form', async (form) => {

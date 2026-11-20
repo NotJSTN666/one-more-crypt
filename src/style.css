@@ -6778,3 +6778,18 @@ body.menu:has(#overlay[data-screen='title']:not([hidden])) #ghosts { opacity: 0.
 .ns-opt.on { border-color: var(--gold); box-shadow: 0 0 8px color-mix(in srgb, var(--gold) 35%, transparent); }
 .ns-opt:disabled { opacity: 0.5; cursor: default; }
 .ns-opt:disabled small { color: #ff8a8a; }
+
+/* The title screen's depth column, under the play buttons */
+.title-depth { margin: 12px 0 4px; text-align: center; }
+.title-depth .depth-col { margin-top: 0; }
+.title-depth .fine { margin: 6px 0 0; }
+
+/* The profile's "Your name on the boards" card, and the title chips */
+.name-card { text-align: left; }
+.name-card-head { font-family: var(--gothic); font-size: 24px; color: var(--gold); text-align: center; }
+.ns-preview .title-tag, .ns-preview .fine { display: block; margin-top: 6px; }
+.ns-titles { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.ns-title { padding: 6px 8px; border: 1px solid var(--line); background: var(--panel-2); color: var(--text); }
+.ns-title .title-tag { margin: 0; }
+.ns-title.on { border-color: var(--gold); box-shadow: 0 0 8px color-mix(in srgb, var(--gold) 35%, transparent); }
+.account-chip .pname { font: inherit; }

@@ -14,7 +14,7 @@ import { ACT1_QUESTS } from './story';
 import { heroSprite } from './hero';
 import { equipTitle, meta, setAllHallShown, setHallShown, setRival, titleUnlocked, type Meta } from './meta';
 import { showWardrobe } from './wardrobe';
-import { DEPTH_INKS, EFFECTS, INKS, myNameStyle, needHave, needMet, needText, setNameStyle, styleClass, type StyleDef } from './name-style';
+import { namePickerHtml, namePreviewHtml, wireNamePicker } from './name-picker';
 import { ONLINE, loadHall } from './online';
 import {
   AURA_BY_ID, FEAT_DECOR, FEAT_DECOR_BY_ID, RAID_DECOR, RAID_DECOR_BY_ID, BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, TITLE_FX, titleFxClass, HEAD_BY_ID, LOOK_BY_ID, TITLES, TITLE_BY_ID, TITLE_TIER, bestiaryTiers, rankFor, rankProgress,
@@ -1591,33 +1591,8 @@ function trophiesBody(d: HallData): string {
 
 /** The Name tab: how your name looks on the leaderboards, and what earns the rest. */
 function nameBody(name: string): string {
-  const mine = myNameStyle();
-  const opt = (part: 'ink' | 'fx', d: StyleDef | null) => {
-    const id = d?.id ?? '';
-    const has = !d || needMet(d.need);
-    const on = mine[part] === id;
-    const look = part === 'ink' ? styleClass({ ink: id, fx: '' }) : styleClass({ ink: '', fx: id });
-    return `<button class="ns-opt ${on ? 'on' : ''}" data-ns="${part}:${id}" ${has ? '' : 'disabled'} aria-pressed="${on}">
-      <span class="pname ${look}">${d ? esc(d.name) : part === 'ink' ? 'Rank' : 'None'}</span>
-      <small>${has ? (d ? (d.need.kind === 'start' ? 'Start' : esc(needText(d.need))) : part === 'ink' ? 'Soul rank colour' : 'Start') : `🔒 ${esc(needText(d!.need))}`}</small>
-    </button>`;
-  };
-  const dailies = needHave({ kind: 'dailies', n: 0 });
-  const next = INKS.find((d) => !needMet(d.need));
-  const nextNeed = next?.need.kind === 'dailies' ? next.need.n : 0;
-  const prev = [...INKS].reverse().find((d) => needMet(d.need) && d.need.kind === 'dailies');
-  const from = prev?.need.kind === 'dailies' ? prev.need.n : 0;
-  const pct = nextNeed ? Math.round(((dailies - from) / (nextNeed - from)) * 100) : 100;
-  return `
-    <p class="sub">How your name looks on every leaderboard. Earn more by playing the Daily, going deep and keeping a streak.</p>
-    <div class="ns-preview"><small>PREVIEW</small><span class="pname ${styleClass(mine)}" style="${mine.ink ? '' : `color:${rankFor(meta.earned).color}`}">${esc(name || 'You')}</span></div>
-    <h3 class="shop-head">Ink <small>Dailies played: ${dailies}</small></h3>
-    <div class="ns-grid">${opt('ink', null)}${INKS.map((d) => opt('ink', d)).join('')}</div>
-    ${next ? `<div class="rank-track small"><span style="width:${Math.max(0, Math.min(100, pct))}%"></span></div><p class="fine">${nextNeed - dailies} more ${nextNeed - dailies === 1 ? 'Daily' : 'Dailies'} to ${esc(next.name)}</p>` : ''}
-    <h3 class="shop-head">Depth inks <small>Reach it once, any mode</small></h3>
-    <div class="ns-grid">${DEPTH_INKS.map((d) => opt('ink', d)).join('')}</div>
-    <h3 class="shop-head">Effect <small>Streaks, bosses, depth and wins</small></h3>
-    <div class="ns-grid">${opt('fx', null)}${EFFECTS.map((d) => opt('fx', d)).join('')}</div>`;
+  return `<p class="sub">How your name looks on every leaderboard. You can also change it by tapping your name on the title screen.</p>
+    ${namePreviewHtml(name)}${namePickerHtml()}`;
 }
 
 function titlesBody(): string {
@@ -1765,15 +1740,7 @@ export function showHall(name: string, back: () => void, tab: HallTab = 'trophie
       again('titles');
     }),
   );
-  overlay.querySelectorAll<HTMLButtonElement>('[data-ns]').forEach((b) =>
-    b.addEventListener('click', () => {
-      const [part, id] = (b.dataset.ns ?? '').split(':');
-      setNameStyle(part as 'ink' | 'fx', id ?? '');
-      sfx.relic();
-      changed?.();
-      again('name');
-    }),
-  );
+  if (tab === 'name') wireNamePicker(() => again('name'), changed);
   overlay.querySelectorAll<HTMLButtonElement>('[data-decor]').forEach((b) =>
     b.addEventListener('click', () => {
       const id = b.dataset.decor ?? '';
