@@ -31,7 +31,7 @@ export const NEWS: NewsDay[] = [
       '🔔 The Bell Tolls is now a daily world boss: a new boss rises at midnight Central and stays up all day, so you can fight it whenever you play. Every hit lands on one shared health bar, and when it falls everyone who fought it that day earns the next Bell-Breaker reward, even if they join after it has fallen.',
       '⛏️ After a run, see how deep you went: a cross-section of the crypt with your hero where they fell, your best and today\'s deepest run beside it. The crypt now has five named depths: The Shallows, The Deep, The Underdeep, Death\'s Reach and The Bottomless. Tap Share image to post it.',
       '🖋️ Style your name on the leaderboards: 12 inks earned by playing Dailies and reaching each depth, and 9 effects (Drip, Glow, Flame, Frost, Embers, Haunted, Shadow, Starfall and Gilded) earned by streaks, world bosses, depth and winning a Daily. Tap your name at the top of the title screen to pick your ink, effect and title. You start with everything your past runs have earned.',
-      '🗺️ The title screen now shows how deep you went: today\'s Daily once you\'ve played it, or your deepest descent before you do.',
+      '🗺️ The title screen now shows how deep you went: your deepest descent before today\'s Daily, then today\'s run in the Daily card, with Copy result and Share image right under it.',
     ],
     fixes: ['🪦 The results now say you were slain by "an" Ember Imp, not "a".'],
     go: ['settings'],

@@ -6793,3 +6793,7 @@ body.menu:has(#overlay[data-screen='title']:not([hidden])) #ghosts { opacity: 0.
 .ns-title .title-tag { margin: 0; }
 .ns-title.on { border-color: var(--gold); box-shadow: 0 0 8px color-mix(in srgb, var(--gold) 35%, transparent); }
 .account-chip .pname { font: inherit; }
+
+/* Today's Daily, done: its depth column with the ways to share it */
+.card.daily-done .depth-col { margin: 8px auto 6px; }
+.card.daily-done .share-row { margin-top: 8px; }

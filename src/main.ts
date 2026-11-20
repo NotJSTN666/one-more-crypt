@@ -1934,10 +1934,14 @@ function showTitle() {
   const raid = raidPhase();
   const heroToday = HERO_BY_ID[dailyHero(today)].name;
   const dailyBlock = done
-    ? `<div class="card">
+    ? `<div class="card daily-done">
         <div>Daily #${today} conquered</div>
-        <div class="sub" style="margin:0">Floor ${done.floor} · ${done.kills} kills</div>
-        <button class="btn share-btn" id="copy-daily">📋 Copy today's result</button>
+        <canvas class="depth-col" id="title-depth" role="img" aria-label="Floor ${done.floor}, ${esc(depthAt(done.floor).name)}"></canvas>
+        <div class="sub" style="margin:0">Floor ${done.floor} · ${esc(depthAt(done.floor).name)} · ${done.kills} kills</div>
+        <div class="row grid2 share-row">
+          <button class="btn share-btn" id="copy-daily">📋 Copy result</button>
+          ${PORTAL ? '' : '<button class="btn share-btn" id="share-daily">📷 Share image</button>'}
+        </div>
         <div class="sub" style="margin:6px 0 0">Next crypt opens in <span class="countdown">--:--:--</span></div>
       </div>`
     : resumable?.mode === 'daily'
@@ -2024,7 +2028,12 @@ function showTitle() {
     });
   }
   titleScene();
-  drawTitleDepth(done, today);
+  const titleDepth = drawTitleDepth(done, today);
+  on('#share-daily', () => {
+    if (!done || !titleDepth) return;
+    const hero = HERO_BY_ID[dailyHero(today)].name.toUpperCase();
+    void shareDepth(done, `DAILY #${today} · THE ${hero}`, titleDepth(), lastLabel === `Daily #${today}` ? lastBeat : null);
+  });
   // The runs playing behind the title are live: say what the one behind the logo is doing.
   const live = overlay.querySelector<HTMLElement>('#title-live');
   const tellLive = () => {
@@ -2962,7 +2971,10 @@ function showDeath(r: RunResult, best: boolean) {
   if (ch) void fillChallengeBoard(ch);
   animateResults();
   const depth = depthColumn(r, daily);
-  on('#share-img', () => void shareDepth(r, daily, depth()));
+  on('#share-img', () => {
+    const hero = HERO_BY_ID[game.hero].name.toUpperCase();
+    void shareDepth(r, daily ? `DAILY #${game.dailyNo} · THE ${hero}` : `ENDLESS · THE ${hero}`, depth(), daily ? lastBeat : null);
+  });
   on('#copy', async () => toast((await copyText(shareText(r, lastLabel, beat()) + (PORTAL ? '' : '\n' + siteUrl()))) ? 'Copied!' : 'Copy failed'));
   // After the Daily, Endless is a new choice (pick a hero); after Endless, Retry is straight back in.
   on('#again', () => (daily ? showHeroSelect(() => startRun('endless'), backHere) : quickRestart()));
@@ -3062,7 +3074,9 @@ function fetchDeepest(key: string, load: () => Promise<{ rows: { floor: number }
 
 /** The title screen's column: today's Daily once it's done, or else your deepest descent. Empty before a first run. */
 function titleDepthHtml(done: RunResult | undefined): string {
-  const floor = done ? done.floor : deepestFloor();
+  // (once today's Daily is done, its card carries the column instead)
+  if (done) return '';
+  const floor = deepestFloor();
   if (floor < 1) return '';
   const d = depthAt(floor);
   return `<div class="title-depth">
@@ -3071,21 +3085,26 @@ function titleDepthHtml(done: RunResult | undefined): string {
   </div>`;
 }
 
-function drawTitleDepth(done: RunResult | undefined, today: number) {
+function drawTitleDepth(done: RunResult | undefined, today: number): (() => ColumnRun) | null {
   const cv = document.getElementById('title-depth') as HTMLCanvasElement | null;
-  if (!cv) return;
+  if (!cv) return null;
   const hero = done ? dailyHero(today) : meta.hero;
   const fit = outfitFor(hero);
   const key = `daily:${today}`;
-  const update = showColumn(cv, {
+  let run: ColumnRun = {
     floor: done ? done.floor : deepestFloor(),
     best: done ? save.totals.bestDaily : undefined,
     deepest: todayDeepest?.key === key ? todayDeepest.floor : undefined,
     hero: heroSprite(hero, {}, [], fit.look, fit.head),
     reaper: sprites().reaper.normal,
     theme: theme().id,
-  }, false);
-  fetchDeepest(key, () => dailyBoard(today, null, 1), (floor) => update({ deepest: floor }));
+  };
+  const update = showColumn(cv, run, false);
+  fetchDeepest(key, () => dailyBoard(today, null, 1), (floor) => {
+    run = { ...run, deepest: floor };
+    update({ deepest: floor });
+  });
+  return () => run;
 }
 
 /** The results screen's cross-section: the hero falls to where they died, beside your best and today's deepest. Returns the run as drawn. */
@@ -3113,14 +3132,13 @@ function depthColumn(r: RunResult, daily: boolean): () => ColumnRun {
 }
 
 /** Share the run as a picture: the column and the numbers, through the phone's share sheet or as a download. */
-async function shareDepth(r: RunResult, daily: boolean, run: ColumnRun) {
+async function shareDepth(r: RunResult, kicker: string, run: ColumnRun, beat: number | null) {
   await document.fonts?.ready;
-  const hero = HERO_BY_ID[game.hero].name.toUpperCase();
   const card = shareCard({
     ...run,
-    kicker: daily ? `DAILY #${game.dailyNo} · THE ${hero}` : `ENDLESS · THE ${hero}`,
+    kicker,
     stats: [`${r.kills} KILLS`, r.seconds ? playTime(r.seconds) : '', `SLAIN BY ${r.killedBy.toUpperCase()}`].filter(Boolean).join(' · '),
-    beat: daily ? lastBeat : null,
+    beat,
     site: 'ONEMORECRYPT.COM',
   });
   const blob = await new Promise<Blob | null>((done) => card.toBlob(done, 'image/png'));
