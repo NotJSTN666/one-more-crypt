@@ -265,9 +265,14 @@ const theme = (id) => p.evaluate(async (id) => (await import('/src/themes.ts')).
 /** Start an Endless run (from the title), off camera. */
 const startEndless = async () => {
   await press('#delve'); await tick(40);
-  await press('#endless'); await tick(60);
   await p.evaluate(() => { window.__was = window.cryptfall.game; });
-  await press('.hero-card.selected'); await tick(120);
+  // (a run from earlier in the take is waiting to be continued: that will do)
+  if (await has('#continue')) await click('#continue');
+  else {
+    await press('#endless'); await tick(60);
+    await press('.hero-card.selected');
+  }
+  await tick(120);
   await sure(() => { const g = window.cryptfall.game; return g !== window.__was && g.phase === 'play' && document.querySelector('#overlay')?.hidden; }, 'the Endless run to start');
 };
 /** Jump the run to a floor (its events played, so the board shows what it should). */
