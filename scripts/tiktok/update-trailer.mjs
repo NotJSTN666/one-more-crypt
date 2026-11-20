@@ -94,7 +94,7 @@ const stage = async (url = PAGE) => {
   await p.waitForTimeout(2500);
   await p.evaluate(() => document.fonts.ready);
   await p.evaluate(() => window.__freeze());
-  await p.addStyleTag({ content: '#toast, .back-top, .install-bar, .tester-ask, .invite-ask, #theme-fx { display: none !important; }' });
+  await p.addStyleTag({ content: '#toast, .back-top, .install-bar, .tester-ask, .invite-ask, #theme-fx, #sound-hint { display: none !important; }' });
 };
 
 // ---- the clock: game time and CSS animations both move one frame at a time ----
@@ -142,7 +142,7 @@ const dress = () => p.evaluate((shape) => {
     #tt-cap.tall { left: 16px; right: 16px; bottom: 26px; text-align: center; }
     #tt-cap.wide { left: 0; right: 0; bottom: 34px; text-align: center; font-size: 30px; }
     #tt-cap span { display: inline-block; padding: 10px 26px; background: rgba(7,4,11,0.82); border: 2px solid rgba(242,193,78,0.55); }
-    #tt-kick { position: fixed; z-index: 9999; left: 0; right: 0; top: 18px; text-align: center; pointer-events: none; opacity: 0;
+    #tt-kick { position: fixed; z-index: 9999; left: 0; right: 0; top: ${shape === 'tall' ? 70 : 92}px; text-align: center; pointer-events: none; opacity: 0;
       font: ${shape === 'tall' ? 12 : 18}px Silkscreen, monospace; letter-spacing: 4px; color: #f2c14e; text-shadow: 0 2px 0 #000, 0 0 10px #000; }
     #tt-black { position: fixed; inset: 0; z-index: 10001; background: #07040b; pointer-events: none; }
     #tt-end { position: fixed; inset: 0; z-index: 10000; display: flex; opacity: 0; flex-direction: column; align-items: center; justify-content: center; gap: 14px; pointer-events: none;
@@ -279,9 +279,8 @@ await stage();
 await dress();
 await hookSfx();
 blackWant = 0;
-kickWant = 1;
 await tick(30);
-caption('Yesterday\'s <b>Daily champion</b> now stands on the title screen');
+caption('<b>New</b>: yesterday\'s Daily champion now stands on the title screen');
 await hold(3.4);
 kickWant = 0;
 
