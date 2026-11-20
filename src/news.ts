@@ -35,6 +35,7 @@ export const NEWS: NewsDay[] = [
       '👑 Yesterday\'s Daily champion now stands on the title screen for everyone: their hero in their own cloak, headwear and aura, their name in its style, their title and how deep they went. Tap them to visit their Hall.',
       '💬 Chat now plays a small ping when someone else posts, so you know without opening it. Mute sound in Settings to silence it.',
       '🧹 The More menu is tidier: the day\'s bounties, the Weekly Trial, Seven Nights and the rest now fold away under one Challenges bar, which shows what\'s left at a glance. Crypt Race has its own crossed-swords icon.',
+      '👗 The Wardrobe is tidier: headwear, cloaks, auras, companions, trails and finishers each fold into their own dropdown that shows what you\'re wearing, with the pieces you own listed first.',
     ],
     fixes: ['🪦 The results now say you were slain by "an" Ember Imp, not "a".'],
     go: ['settings'],

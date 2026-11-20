@@ -7130,3 +7130,25 @@ body.menu:has(#overlay[data-screen='title']:not([hidden])) #ghosts { opacity: 0.
 .title-challenges[open] > summary { border-color: var(--gold); }
 .title-challenges .challenges-body { padding-top: 8px; }
 .title-challenges .challenges-body > :first-child { margin-top: 0; }
+
+/* Wardrobe: each kind of piece in its own dropdown */
+.ward-section { margin: 8px 0; text-align: left; }
+.ward-section > summary {
+  list-style: none;
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  cursor: pointer;
+}
+.ward-section > summary::-webkit-details-marker { display: none; }
+.ward-sec-title { font-family: var(--gothic); font-size: 20px; color: var(--gold); }
+.ward-sec-worn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--read); font-size: 13px; color: var(--text); }
+.ward-section > summary small { font-size: 10px; color: var(--muted); }
+.ward-section > summary i { font-style: normal; color: var(--muted); transition: transform 0.15s; }
+.ward-section[open] > summary { border-color: var(--gold-dim); }
+.ward-section[open] > summary i { transform: rotate(180deg); }
+.ward-sec-body { padding: 6px 2px 2px; }
