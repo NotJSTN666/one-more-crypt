@@ -339,6 +339,15 @@ export async function loadRemoteMeta(userId: string): Promise<Record<string, unk
   return (data.meta as Record<string, unknown>) ?? null;
 }
 
+/** Players' name styles (from their saved progress), by name, for the leaderboards. */
+export async function nameStyles(names: string[]): Promise<Record<string, unknown>> {
+  if (!names.length) return {};
+  const sb = await client();
+  const { data, error } = await sb.from('profiles').select('name, style:meta->nameStyle').in('name', names);
+  if (error) return {};
+  return Object.fromEntries(((data ?? []) as { name: string; style: unknown }[]).map((r) => [r.name, r.style]));
+}
+
 /** Is this account on the patrons list (supporters, added by hand)? */
 export async function isPatron(userId: string): Promise<boolean> {
   const sb = await client();

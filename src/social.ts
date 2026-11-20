@@ -45,7 +45,9 @@ import {
   type Board,
   type BoardRow,
   type RunSubmission,
+  nameStyles,
 } from './online';
+import { paintNames } from './name-style';
 import { showPublicHall, titleName } from './hall';
 import { HEAD_BY_ID, LOOK_BY_ID, PODIUM, WEEKLY, rankFor, titleFxClass } from './progression';
 import { HERO_BY_ID, dailyHero, type HeroId } from './content';
@@ -966,6 +968,7 @@ export function showLeaderboard(back: () => void, tab: Tab = 'today', limit = BO
         const body = document.getElementById('board-body');
         if (screen !== 'board' || !body) return;
         body.innerHTML = nightBoardHtml(rows ?? [], p);
+        paintBoardNames(body);
         body.querySelectorAll<HTMLElement>('[data-hall]').forEach((li) =>
           li.addEventListener('click', () => showPublicHall(li.dataset.hall!, () => showLeaderboard(back, 'night', BOARD_FIRST, p))),
         );
@@ -982,6 +985,7 @@ export function showLeaderboard(back: () => void, tab: Tab = 'today', limit = BO
         const body = document.getElementById('board-body');
         if (screen !== 'board' || !body) return;
         body.innerHTML = hordeBoardHtml(rows ?? []);
+        paintBoardNames(body);
         body.querySelectorAll<HTMLElement>('[data-hall]').forEach((li) =>
           li.addEventListener('click', () => showPublicHall(li.dataset.hall!, () => showLeaderboard(back, 'horde'))),
         );
@@ -1001,6 +1005,7 @@ export function showLeaderboard(back: () => void, tab: Tab = 'today', limit = BO
         const body = document.getElementById('board-body');
         if (!body) return;
         body.innerHTML = boardHtml(b, uid, tab, n < BOARD_MORE, champs, period);
+        paintBoardNames(body);
         body.querySelectorAll<HTMLElement>('[data-hall]').forEach((li) =>
           li.addEventListener('click', () => showPublicHall(li.dataset.hall!, () => showLeaderboard(back, tab, n, period))),
         );
@@ -1017,6 +1022,11 @@ export function showLeaderboard(back: () => void, tab: Tab = 'today', limit = BO
       });
   };
   void fill(limit);
+}
+
+/** Dress the names on a board in their players' name styles. */
+export function paintBoardNames(root: ParentNode) {
+  paintNames(root, playerName(), ONLINE ? nameStyles : null);
 }
 
 const portraits = new Map<string, string>();
@@ -1049,7 +1059,7 @@ function hordeBoardHtml(rows: HordeRow[]): string {
         return `<li class="${r.name === me ? 'me' : ''}" data-hall="${esc(r.name)}" tabindex="0" title="Visit ${esc(r.name)}'s Hall">
           <span class="rank">${i < 3 ? ['🥇', '🥈', '🥉'][i] : `#${i + 1}`}</span>
           <img class="board-hero ${aura.cls}" style="${aura.style}" src="${boardPortrait({ hero, outfit_look: r.outfit_look, outfit_head: r.outfit_head })}" alt="" width="24" height="24" />
-          <span class="who"><span style="color:${rankFor(Number(r.earned) || 0).color}">${esc(r.name)}</span>${title ? ` <em class="title-tag ${titleFxClass(r.title)}">${esc(title)}</em>` : ''}<small>${esc(HERO_BY_ID[hero].name)}</small></span>
+          <span class="who"><span data-pname="${esc(r.name)}" style="color:${rankFor(Number(r.earned) || 0).color}">${esc(r.name)}</span>${title ? ` <em class="title-tag ${titleFxClass(r.title)}">${esc(title)}</em>` : ''}<small>${esc(HERO_BY_ID[hero].name)}</small></span>
           <span class="depth">${r.score.toLocaleString()}<small>wave ${r.wave} · ${r.kills} kills</small></span>
         </li>`;
       })
@@ -1071,7 +1081,7 @@ function nightBoardHtml(rows: NightRow[], period: 'all' | 'week'): string {
         return `<li class="${r.name === me ? 'me' : ''}" data-hall="${esc(r.name)}" tabindex="0" title="Visit ${esc(r.name)}'s Hall">
           <span class="rank">${i < 3 ? ['🥇', '🥈', '🥉'][i] : `#${i + 1}`}</span>
           <img class="board-hero ${aura.cls}" style="${aura.style}" src="${boardPortrait({ hero, outfit_look: r.outfit_look, outfit_head: r.outfit_head })}" alt="" width="24" height="24" />
-          <span class="who"><span style="color:${rankFor(Number(r.earned) || 0).color}">${esc(r.name)}</span>${title ? ` <em class="title-tag ${titleFxClass(r.title)}">${esc(title)}</em>` : ''}<small>${esc(HERO_BY_ID[hero].name)}</small></span>
+          <span class="who"><span data-pname="${esc(r.name)}" style="color:${rankFor(Number(r.earned) || 0).color}">${esc(r.name)}</span>${title ? ` <em class="title-tag ${titleFxClass(r.title)}">${esc(title)}</em>` : ''}<small>${esc(HERO_BY_ID[hero].name)}</small></span>
           <span class="depth">💀 ${r.kills.toLocaleString()}<small>${time(r.seconds)} · level ${r.level}</small></span>
         </li>`;
       })
@@ -1087,7 +1097,7 @@ function boardHtml(b: Board, uid: string | null, tab: Tab, canShowMore: boolean,
     <li class="${r.user_id === uid ? 'me' : ''}" data-hall="${esc(r.name)}" tabindex="0" title="Visit ${esc(r.name)}'s Hall">
       <span class="rank">${r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : `#${r.rank}`}</span>
       <img class="board-hero ${auraClass(r.outfit_aura).cls}" style="${auraClass(r.outfit_aura).style}" src="${boardPortrait(r)}" alt="" width="24" height="24" />
-      <span class="who"><span style="color:${rankFor(Number(r.earned) || 0).color}">${esc(r.name)}</span>${champs.has(r.user_id) ? ' <span class="reigning" title="Reigning champion: won yesterday\'s Daily Descent">👑</span>' : ''}${titleName(r.title) ? ` <em class="title-tag ${titleFxClass(r.title)}">${esc(titleName(r.title))}</em>` : ''}<small>${iconsFromEmoji(String(r.relics ?? ''))}</small></span>
+      <span class="who"><span data-pname="${esc(r.name)}" style="color:${rankFor(Number(r.earned) || 0).color}">${esc(r.name)}</span>${champs.has(r.user_id) ? ' <span class="reigning" title="Reigning champion: won yesterday\'s Daily Descent">👑</span>' : ''}${titleName(r.title) ? ` <em class="title-tag ${titleFxClass(r.title)}">${esc(titleName(r.title))}</em>` : ''}<small>${iconsFromEmoji(String(r.relics ?? ''))}</small></span>
       <span class="depth">F${r.floor}<small>${r.kills} kills${r.seconds ? ` · ⏱ ${playTime(r.seconds)}` : ''}</small></span>
     </li>`;
   const meOutside = b.me && !b.rows.some((r) => r.user_id === b.me!.user_id);

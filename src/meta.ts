@@ -118,6 +118,8 @@ export interface Meta {
   nightShrine: { vigor: number; reroll: number; banish: number; arsenal: boolean; start: string; companion?: string; blade?: number; banner?: number; bond?: number; charm?: number; oath?: number; hero?: string };
   /** Dailies played in all, in a row or not (the most any device has counted). */
   dailyTotal: number;
+  /** How your name looks on the leaderboards (name-style.ts): an ink and an effect, '' for none. */
+  nameStyle: { ink: string; fx: string };
   /** Runs finished today (by Daily number), for the one-more-run bonus. */
   runsToday: { day: number; n: number };
   /** This week's trial, and how many weekly trials have been completed in all. */
@@ -183,7 +185,7 @@ function empty(): Meta {
     podiums: {}, podiumChecked: 0, bought: [], streak: { best: 0, count: 0, last: 0 },
     bounties: { day: 0, ids: [], progress: [], done: [] },
     weekly: {}, weeklyChecked: '',
-    story: emptyStory(), pet: '', pets: [], summonsSeen: '', summonsTotal: 0, patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null, raid: { joined: [], won: [], lost: [] }, invite: { from: '', claimed: false, friends: 0 }, pyre: {}, race: { laurels: 0, races: 0, wins: 0, trail: '', finisher: '' }, horde: { day: 0, best: 0, wave: 0 }, gifts: [], hallHidden: [], nightShrine: { vigor: 0, reroll: 0, banish: 0, arsenal: false, start: '' }, dailyTotal: 0, runsToday: { day: 0, n: 0 }, trialsDone: 0, rival: '', playedMonths: [],
+    story: emptyStory(), pet: '', pets: [], summonsSeen: '', summonsTotal: 0, patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null, raid: { joined: [], won: [], lost: [] }, invite: { from: '', claimed: false, friends: 0 }, pyre: {}, race: { laurels: 0, races: 0, wins: 0, trail: '', finisher: '' }, horde: { day: 0, best: 0, wave: 0 }, gifts: [], hallHidden: [], nightShrine: { vigor: 0, reroll: 0, banish: 0, arsenal: false, start: '' }, dailyTotal: 0, nameStyle: { ink: '', fx: '' }, runsToday: { day: 0, n: 0 }, trialsDone: 0, rival: '', playedMonths: [],
   };
 }
 
@@ -323,6 +325,9 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   // The isle is one layout: whichever device changed it last wins.
   if (other.isle && (Number(other.isle.at) || 0) > meta.isle.at) meta.isle = cleanIsle(other.isle);
   meta.title ||= other.title ?? '';
+  // (the device that already has a name style keeps it; a new device takes the account's)
+  const ns = other.nameStyle as { ink?: unknown; fx?: unknown } | undefined;
+  if (!meta.nameStyle?.ink && !meta.nameStyle?.fx && ns) meta.nameStyle = { ink: typeof ns.ink === 'string' ? ns.ink : '', fx: typeof ns.fx === 'string' ? ns.fx : '' };
   meta.look ||= other.look ?? '';
   meta.looksSeen = [...new Set([...meta.looksSeen, ...(other.looksSeen ?? [])])];
   meta.headsSeen = [...new Set([...meta.headsSeen, ...(other.headsSeen ?? [])])];

@@ -73,7 +73,10 @@ export function setCalm(on: boolean) {
   } catch {
     /* this visit only */
   }
+  document.documentElement.classList.toggle('calm', on);
 }
+// (the stylesheet stills its own small animations, like name effects, under .calm)
+document.documentElement.classList.toggle('calm', calmChosen());
 
 /** Soften small movement: when the player chose calm motion, or the device asks for it. */
 export const calmMotion = () => calmChosen() || calm.matches;

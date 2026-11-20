@@ -3,6 +3,8 @@ import { relicIcon, boonIcon, iconCanvas, iconsFromEmoji } from './relic-icons';
 import { installPixelIcons, pxi } from './pixel-icons';
 import { THEMES, applyTheme, loadThemeFonts, savedTheme, theme, type ThemeId } from './themes';
 import { installThemeFx } from './theme-fx';
+import { depthAt, shareCard, showColumn, type ColumnRun } from './depth';
+import { earnedStyles, styleName } from './name-style';
 import './themes.css';
 import { PORTAL, initPortal, portalHappy, portalLoaded, portalPlaying } from './portal';
 import { audioRunning, fusionSound, isMusicEnabled, isMuted, onAudioState, setMusicDepth, setMusicEnabled, setMusicMood, setMuted, sfx, unlockAudio } from './audio';
@@ -42,7 +44,7 @@ import { installMode, onInstallChange, promptInstall, setupInstall } from './ins
 import { bountiesHtml, progressBounties } from './bounties';
 import { enableReminders, loadReminders, reminderPrefs, remindersAvailable, remindersNeedInstall, timeZone } from './push';
 import { onAccountSynced, claimPodiums, claimWeekly, clearBeat, lastBeat, type PodiumFinish, type WeeklyFinish } from './social';
-import { claimInlineHtml, wireClaimInline, keepNameHtml, wireKeepName, endlessRecord, ensureGuest, initSocial, needsName, unclaimed, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
+import { paintBoardNames, claimInlineHtml, wireClaimInline, keepNameHtml, wireKeepName, endlessRecord, ensureGuest, initSocial, needsName, unclaimed, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
 import { currentStreak, loadSave, recordDaily, streakStats, WARD_EVERY, writeSave, type RunResult } from './storage';
 import { $, calmChosen, calmMotion, esc, formStatus, hideOverlay, on, onSubmit, overlay, overlayShownAt, screen, setCalm, showOverlay, toast } from './ui';
 import { showTesterAsk, testerAskDue, testerOffer } from './testers';
@@ -600,7 +602,7 @@ function resumeRun(g: Game) {
 }
 
 function killedByPhrase(name: string): string {
-  return /^(the|their|a|an) /i.test(name) || name === 'Death' ? name : `a ${name}`;
+  return /^(the|their|a|an) /i.test(name) || name === 'Death' ? name : `${/^[aeiou]/i.test(name) ? 'an' : 'a'} ${name}`;
 }
 
 function finishRun(abandoned = false) {
@@ -635,9 +637,15 @@ function finishRun(abandoned = false) {
   if (game.mode === 'daily' || game.mode === 'endless') noteRun(game.mode, 'end', game.floor, signedIn());
   // Record the daily first, so today counts toward the streak and its rewards.
   if (game.mode === 'daily') recordDaily(save, game.dailyNo, result);
+  const stylesBefore = earnedStyles();
   const streak = streakStats(save, dailyNumber());
   noteStreak(streak);
+  noteDeepest(result.floor);
   lastReward = finishRunMeta(game, streak.current);
+  // New name inks and effects this run earned (Dailies played, depth, streak)
+  for (const key of earnedStyles()) {
+    if (!stylesBefore.includes(key)) lastReward.unlocks.push({ icon: '🖋️', title: `Name ${key.startsWith('ink:') ? 'ink' : 'effect'}: ${styleName(key)}`, detail: 'Wear it from the Name tab in your Hall' });
+  }
   const bounty = progressBounties(game, dailyNumber());
   lastReward.souls += bounty.souls;
   lastReward.lines.push(...bounty.lines);
@@ -1869,15 +1877,6 @@ function animateResults() {
   });
 }
 
-/** The descent strip, each floor its own cell so they can drop in one by one. */
-function stripCells(floor: number): string {
-  type Seg = { segment(t: string): Iterable<{ segment: string }> };
-  const Segmenter = (Intl as unknown as { Segmenter?: new (l: undefined, o: { granularity: string }) => Seg }).Segmenter;
-  const text = descentStrip(floor);
-  const cells = Segmenter ? [...new Segmenter(undefined, { granularity: 'grapheme' }).segment(text)].map((x) => x.segment) : [...text];
-  return cells.map((c, i) => `<i style="--i:${i}">${c}</i>`).join('');
-}
-
 const DRAWER_KEY = 'omc:title-more';
 function drawerOpen(): boolean {
   try {
@@ -2883,7 +2882,7 @@ function showDeath(r: RunResult, best: boolean) {
         <p class="sub">${lastLabel} · slain by ${r.killedBy}</p>
       </div>
     </div>
-    <div class="strip fill-in">${stripCells(r.floor)}</div>
+    <canvas class="depth-col" id="depth-col" role="img" aria-label="Floor ${r.floor}, ${esc(depthAt(r.floor).name)}"></canvas>
     <div class="big-stats">
       <div><b data-n="${r.floor}">${r.floor}</b>FLOOR</div>
       <div><b data-n="${r.kills}">${r.kills}</b>KILLS</div>
@@ -2901,6 +2900,7 @@ function showDeath(r: RunResult, best: boolean) {
     ${keepNameHtml()}
     <div class="row grid2 share-row">
       <button class="btn share-btn" id="copy">📋 Copy result</button>
+      ${PORTAL ? '' : '<button class="btn share-btn" id="share-img">📷 Share image</button>'}
       ${ch ? (PORTAL ? '' : '<button class="btn" id="pass-challenge">' + pxi('letter') + ' Pass it on</button>') : ONLINE && !PORTAL ? '<button class="btn challenge-btn" id="challenge">' + pxi('sword') + ' Challenge a friend</button>' : ''}
     </div>
     <div class="row grid2 nav-row">
@@ -2960,6 +2960,8 @@ function showDeath(r: RunResult, best: boolean) {
   on('#pass-challenge', () => ch && showChallengeShare(ch.code, `${ch.name} reached floor ${ch.floor}`, backHere, true));
   if (ch) void fillChallengeBoard(ch);
   animateResults();
+  const depth = depthColumn(r, daily);
+  on('#share-img', () => void shareDepth(r, daily, depth()));
   on('#copy', async () => toast((await copyText(shareText(r, lastLabel, beat()) + (PORTAL ? '' : '\n' + siteUrl()))) ? 'Copied!' : 'Copy failed'));
   // After the Daily, Endless is a new choice (pick a hero); after Endless, Retry is straight back in.
   on('#again', () => (daily ? showHeroSelect(() => startRun('endless'), backHere) : quickRestart()));
@@ -3036,6 +3038,73 @@ function showDeath(r: RunResult, best: boolean) {
     });
   });
   tickCountdowns();
+}
+
+// ---------- how deep you went ----------
+
+/** The run whose column has already played its drop (so coming back to the results doesn't replay it). */
+let depthShown: RunResult | null = null;
+/** Today's deepest run on the board for this mode, once fetched. */
+let todayDeepest: { key: string; floor: number } | null = null;
+
+/** The results screen's cross-section: the hero falls to where they died, beside your best and today's deepest. Returns the run as drawn. */
+function depthColumn(r: RunResult, daily: boolean): () => ColumnRun {
+  const fit = outfitFor(game.hero);
+  let run: ColumnRun = {
+    floor: r.floor,
+    best: daily ? save.totals.bestDaily : save.bestEndless,
+    hero: heroSprite(game.hero, game.relics, game.relicLog, fit.look, fit.head),
+    reaper: sprites().reaper.normal,
+    theme: theme().id,
+  };
+  const cv = document.getElementById('depth-col') as HTMLCanvasElement | null;
+  if (!cv) return () => run;
+  const key = daily ? `daily:${game.dailyNo}` : `endless:${dailyNumber()}`;
+  if (todayDeepest?.key === key) run.deepest = todayDeepest.floor;
+  const update = showColumn(cv, run, depthShown !== r && !calmMotion());
+  depthShown = r;
+  if (ONLINE && todayDeepest?.key !== key) {
+    void (daily ? dailyBoard(game.dailyNo, null, 1) : endlessBoard(null, 1, 'day'))
+      .then((b) => {
+        const floor = Math.max(r.floor, b.rows[0]?.floor ?? 0);
+        todayDeepest = { key, floor };
+        run = { ...run, deepest: floor };
+        update({ deepest: floor });
+      })
+      .catch(() => undefined);
+  }
+  return () => run;
+}
+
+/** Share the run as a picture: the column and the numbers, through the phone's share sheet or as a download. */
+async function shareDepth(r: RunResult, daily: boolean, run: ColumnRun) {
+  await document.fonts?.ready;
+  const hero = HERO_BY_ID[game.hero].name.toUpperCase();
+  const card = shareCard({
+    ...run,
+    kicker: daily ? `DAILY #${game.dailyNo} · THE ${hero}` : `ENDLESS · THE ${hero}`,
+    stats: [`${r.kills} KILLS`, r.seconds ? playTime(r.seconds) : '', `SLAIN BY ${r.killedBy.toUpperCase()}`].filter(Boolean).join(' · '),
+    beat: daily ? lastBeat : null,
+    site: 'ONEMORECRYPT.COM',
+  });
+  const blob = await new Promise<Blob | null>((done) => card.toBlob(done, 'image/png'));
+  if (!blob) return toast('Could not make the picture');
+  const file = new File([blob], `one-more-crypt-floor-${r.floor}.png`, { type: 'image/png' });
+  const nav = navigator as Navigator & { canShare?: (d: { files: File[] }) => boolean };
+  if (nav.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], text: `Floor ${r.floor} · ${depthAt(r.floor).name} · One More Crypt\n${siteUrl()}` });
+    } catch {
+      /* closed the share sheet */
+    }
+    return;
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = file.name;
+  a.click();
+  window.setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  toast('Picture saved');
 }
 
 /** Now and then after a run (the 5th, then every 10th), a quiet thank-you with the tip jar. Never for patrons. */
@@ -3181,11 +3250,12 @@ async function fillChallengeBoard(c: Challenge) {
         .slice(0, 10)
         .map(
           (row) => `<li class="${row.user_id === me ? 'me' : ''}"><span>${row.rank <= 3 ? ['🥇', '🥈', '🥉'][row.rank - 1] : `#${row.rank}`}</span>
-            <span class="who">${esc(row.name)}${row.creator ? ' <em class="title-tag">challenger</em>' : ''}</span>
+            <span class="who"><span data-pname="${esc(row.name)}">${esc(row.name)}</span>${row.creator ? ' <em class="title-tag">challenger</em>' : ''}</span>
             <span class="fl">F${row.floor}<small>${row.kills} kills</small></span></li>`,
         )
         .join('')
     : '<li class="fine">No board yet.</li>';
+  paintBoardNames(el);
 }
 
 /** Make a challenge from the run just finished, then share it. */
