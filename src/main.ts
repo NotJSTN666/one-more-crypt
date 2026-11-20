@@ -24,7 +24,7 @@ import { Renderer } from './render';
 import { enemyFrames, resetCanvases, sprites } from './sprites';
 import { RAID_TURNS, currentRaid, nextRaid, raidBossName, raidConfig, raidJoinable, type RaidSlot } from './raid';
 import { hashSeed } from './rng';
-import { ONLINE, loadCloudRuns, saveCloudRuns, type CloudRuns, communityKills, loadHall, submitHorde, hordeBoard, claimInvite, myInvites, raidHit, raidPlayer, raidState, type RaidState, challengeBoard, emailReminderOff, sendFeedback, setEmailReminder, type FeedbackKind, challengeNews, createChallenge, dailyBoard, endlessBoard, getChallenge, mySummons, noteRun, noteSummon, pingActivity, setPresenceSource, startActivityPings, waitingGifts, claimGift, submitChallengeRun, type Challenge, type ChallengeRow } from './online';
+import { ONLINE, loadCloudRuns, saveCloudRuns, type CloudRuns, communityKills, loadHall, submitHorde, hordeBoard, claimInvite, myInvites, raidHit, raidPlayer, raidState, type RaidState, challengeBoard, type BoardRow, emailReminderOff, sendFeedback, setEmailReminder, type FeedbackKind, challengeNews, createChallenge, dailyBoard, endlessBoard, getChallenge, mySummons, noteRun, noteSummon, pingActivity, setPresenceSource, startActivityPings, waitingGifts, claimGift, submitChallengeRun, type Challenge, type ChallengeRow } from './online';
 import {
   ACT2_MAIN, ACT2_QUESTS, ACT2_TITLE, act2Open, ACT_TITLE, ACT1_QUESTS, LORE, LORE_COUNT, MAIN_QUESTS, QUESTS, QUEST_BY_N, SPEAKERS, conversation, facePortrait, houndStats, npcMarker, npcPresent, petName, questStatus,
   type Line, type NpcId, type Quest, type StoryState,
@@ -199,7 +199,7 @@ function startRun(mode: Mode) {
   sfx.stairs();
   // Yesterday's champion is heralded as everyone else enters today's crypt.
   if (mode === 'daily' && champion?.day === dailyNumber() && !champion.me) {
-    window.setTimeout(() => game?.mode === 'daily' && game.floor === 1 && renderer.banner(`${champion!.name.toUpperCase()} REIGNS`, '#f2c14e'), 1700);
+    window.setTimeout(() => game?.mode === 'daily' && game.floor === 1 && renderer.banner(`${champion!.row.name.toUpperCase()} REIGNS`, '#f2c14e'), 1700);
   }
 }
 
@@ -2029,6 +2029,7 @@ function showTitle() {
   }
   titleScene();
   const titleDepth = drawTitleDepth(done, today);
+  wireChampion();
   on('#share-daily', () => {
     if (!done || !titleDepth) return;
     const hero = HERO_BY_ID[dailyHero(today)].name.toUpperCase();
@@ -2107,8 +2108,13 @@ const ORDINAL = ['', '1st', '2nd', '3rd'];
  * Yesterday's Daily champion, for everyone to see today: named on the title screen, and heralded
  * as each player enters today's crypt. Asked for once a day.
  */
-let champion: { day: number; name: string; floor: number; me: boolean } | null = null;
+let champion: { day: number; row: BoardRow; me: boolean } | null = null;
 let championAsked = 0;
+
+/**
+ * Yesterday's Daily champion, on show on the title: their hero as they dress it (outfit and
+ * aura), their name in its style, their title and how deep they went. Tap to visit their Hall.
+ */
 function championHtml(): string {
   const today = dailyNumber();
   if (ONLINE && championAsked !== today) {
@@ -2116,17 +2122,41 @@ function championHtml(): string {
     void dailyBoard(today - 1, null, 1)
       .then((b) => {
         const top = b.rows[0];
-        champion = top ? { day: today, name: top.name, floor: top.floor, me: top.user_id === session.account?.id } : null;
+        champion = top ? { day: today, row: top, me: top.user_id === session.account?.id } : null;
         // (shown once known, if the title is still up)
         const slot = document.getElementById('champion-line');
-        if (slot && champion) slot.outerHTML = championHtml();
+        if (slot && champion) {
+          slot.outerHTML = championHtml();
+          wireChampion();
+        }
       })
       .catch(() => undefined);
   }
-  if (!champion || champion.day !== today) return '<p class="champion-line" id="champion-line" hidden></p>';
-  return champion.me
-    ? `<p class="champion-line me" id="champion-line">👑 <b>You won yesterday's crypt.</b> Every player sees your name today.</p>`
-    : `<p class="champion-line" id="champion-line">👑 Yesterday's champion: <b>${esc(champion.name)}</b> · floor ${champion.floor}. Can you go deeper?</p>`;
+  if (!champion || champion.day !== today) return '<div class="champion-card" id="champion-line" hidden></div>';
+  const r = champion.row;
+  const hero = (r.hero && HERO_BY_ID[r.hero as HeroId] ? r.hero : dailyHero(today - 1)) as HeroId;
+  const look = r.outfit_look && LOOK_BY_ID[r.outfit_look] ? r.outfit_look : '';
+  const head = r.outfit_head && HEAD_BY_ID[r.outfit_head] ? r.outfit_head : '';
+  const aura = auraClass(r.outfit_aura);
+  const title = titleName(r.title);
+  return `<button class="champion-card ${champion.me ? 'me' : ''}" id="champion-line" data-champ="${esc(r.name)}" aria-label="Yesterday's champion ${esc(r.name)}, floor ${r.floor}. Visit their Hall">
+    <span class="champ-stage"><img class="champ-hero ${aura.cls}" style="${aura.style}" src="${heroPortrait(hero, {}, [], 6, look, head)}" alt="" width="72" height="72" /></span>
+    <span class="champ-info">
+      <small>👑 ${champion.me ? 'You won yesterday\'s crypt' : `Yesterday's champion · Daily #${today - 1}`}</small>
+      <span class="champ-name" data-pname="${esc(r.name)}" style="color:${rankFor(Number(r.earned) || 0).color}">${esc(r.name)}</span>
+      ${title ? `<em class="title-tag ${titleFxClass(r.title)}">${esc(title)}</em>` : ''}
+      <span class="champ-run">Floor ${r.floor} · ${esc(depthAt(r.floor).name)} · the ${esc(HERO_BY_ID[hero].name)}</span>
+      <span class="champ-cta">${champion.me ? 'Every player sees you here today' : 'Can you go deeper today?'}</span>
+    </span>
+  </button>`;
+}
+
+/** The champion card: their name in its style, and a tap to their Hall. */
+function wireChampion() {
+  const card = document.querySelector<HTMLElement>('#champion-line[data-champ]');
+  if (!card) return;
+  paintBoardNames(card);
+  card.addEventListener('click', () => showPublicHall(card.dataset.champ!, showTitle));
 }
 
 /** The reward screen for finishing in the top 3 of a Daily Descent. */

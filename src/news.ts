@@ -32,6 +32,7 @@ export const NEWS: NewsDay[] = [
       '⛏️ After a run, see how deep you went: a cross-section of the crypt with your hero where they fell, your best and today\'s deepest run beside it. The crypt now has five named depths: The Shallows, The Deep, The Underdeep, Death\'s Reach and The Bottomless. Tap Share image to post it.',
       '🖋️ Style your name on the leaderboards: 12 inks earned by playing Dailies and reaching each depth, and 9 effects (Drip, Glow, Flame, Frost, Embers, Haunted, Shadow, Starfall and Gilded) earned by streaks, world bosses, depth and winning a Daily. Tap your name at the top of the title screen to pick your ink, effect and title. You start with everything your past runs have earned.',
       '🗺️ The title screen now shows how deep you went: your deepest descent before today\'s Daily, then today\'s run in the Daily card, with Copy result and Share image right under it.',
+      '👑 Yesterday\'s Daily champion now stands on the title screen for everyone: their hero in their own cloak, headwear and aura, their name in its style, their title and how deep they went. Tap them to visit their Hall.',
     ],
     fixes: ['🪦 The results now say you were slain by "an" Ember Imp, not "a".'],
     go: ['settings'],

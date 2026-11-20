@@ -6797,3 +6797,35 @@ body.menu:has(#overlay[data-screen='title']:not([hidden])) #ghosts { opacity: 0.
 /* Today's Daily, done: its depth column with the ways to share it */
 .card.daily-done .depth-col { margin: 8px auto 6px; }
 .card.daily-done .share-row { margin-top: 8px; }
+
+/* Yesterday's Daily champion, on show on the title */
+.champion-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin: 2px 0 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--gold-dim);
+  background: radial-gradient(circle at 18% 50%, color-mix(in srgb, var(--gold) 22%, transparent), transparent 55%), linear-gradient(90deg, color-mix(in srgb, var(--gold) 6%, transparent), color-mix(in srgb, var(--gold) 14%, transparent));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--gold) 25%, transparent);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.champion-card[hidden] { display: none; }
+.champion-card.me { border-color: var(--gold); box-shadow: 0 0 16px color-mix(in srgb, var(--gold) 30%, transparent); }
+.champ-stage { position: relative; flex: none; width: 72px; height: 72px; }
+/* a little gold plinth under the champion */
+.champ-stage::after { content: ''; position: absolute; left: 10px; right: 10px; bottom: -2px; height: 6px; border-radius: 50%; background: radial-gradient(ellipse, color-mix(in srgb, var(--gold) 55%, transparent), transparent 70%); }
+.champ-hero { position: relative; z-index: 1; width: 72px; height: 72px; image-rendering: pixelated; animation: champ-bob 2.4s ease-in-out infinite; }
+@keyframes champ-bob { 50% { transform: translateY(-3px); } }
+.champ-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.champ-info small { font-size: 9px; letter-spacing: 1px; color: var(--gold); }
+.champ-name { align-self: flex-start; max-width: 100%; font-family: var(--read); font-weight: 600; font-size: 20px; line-height: 1.1; overflow-wrap: anywhere; }
+.champ-info .title-tag { align-self: flex-start; }
+.champ-info .title-tag { font-size: 10px; }
+.champ-run { font-family: var(--read); font-size: 12px; color: var(--muted); }
+.champ-cta { font-family: var(--read); font-size: 12px; color: var(--gold); }
+:root.calm .champ-hero { animation: none; }
+@media (prefers-reduced-motion: reduce) { .champ-hero { animation: none; } }
