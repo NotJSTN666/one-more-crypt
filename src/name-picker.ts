@@ -3,7 +3,7 @@
 
 import { sfx } from './audio';
 import { equipTitle, meta, unlockedTitles } from './meta';
-import { DEPTH_INKS, EFFECTS, INKS, myNameStyle, needHave, needMet, needText, setNameStyle, styleClass, type StyleDef } from './name-style';
+import { DEPTH_INKS, EFFECTS, INKS, myNameStyle, needHave, needMet, needText, setNameStyle, styledName, type NameStyle, type StyleDef } from './name-style';
 import { TITLE_BY_ID, rankFor, titleFxClass } from './progression';
 import { esc, overlay } from './ui';
 
@@ -12,7 +12,7 @@ export function namePreviewHtml(name: string): string {
   const mine = myNameStyle();
   const title = (meta.title && TITLE_BY_ID[meta.title]?.name) || '';
   return `<div class="ns-preview"><small>HOW OTHERS SEE YOU</small>
-    <span class="pname ${styleClass(mine)}" style="${mine.ink ? '' : `color:${rankFor(meta.earned).color}`}">${esc(name || 'You')}</span>
+    ${styledName(name || 'You', mine, mine.ink ? '' : `style="color:${rankFor(meta.earned).color}"`)}
     ${title ? `<em class="title-tag ${titleFxClass(meta.title)}">${esc(title)}</em>` : '<em class="fine">No title</em>'}
   </div>`;
 }
@@ -24,10 +24,10 @@ export function namePickerHtml(): string {
     const id = d?.id ?? '';
     const has = !d || needMet(d.need);
     const on = mine[part] === id;
-    const look = part === 'ink' ? styleClass({ ink: id, fx: '' }) : styleClass({ ink: '', fx: id });
+    const look: NameStyle = part === 'ink' ? { ink: id, fx: '' } : { ink: '', fx: id };
     const note = !has ? `🔒 ${esc(needText(d!.need))}` : !d ? (part === 'ink' ? 'Soul rank colour' : 'Start') : d.need.kind === 'start' ? 'Start' : esc(needText(d.need));
     return `<button class="ns-opt ${on ? 'on' : ''}" data-ns="${part}:${id}" ${has ? '' : 'disabled'} aria-pressed="${on}">
-      <span class="pname ${look}">${d ? esc(d.name) : part === 'ink' ? 'Rank' : 'None'}</span><small>${note}</small>
+      ${styledName(d ? d.name : part === 'ink' ? 'Rank' : 'None', look)}<small>${note}</small>
     </button>`;
   };
   const dailies = needHave({ kind: 'dailies', n: 0 });

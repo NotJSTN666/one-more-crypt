@@ -4,7 +4,7 @@ import { installPixelIcons, pxi } from './pixel-icons';
 import { THEMES, applyTheme, loadThemeFonts, savedTheme, theme, type ThemeId } from './themes';
 import { installThemeFx } from './theme-fx';
 import { depthAt, shareCard, showColumn, type ColumnRun } from './depth';
-import { earnedStyles, myNameStyle, styleClass, styleName } from './name-style';
+import { earnedStyles, myNameStyle, styledName, styleName } from './name-style';
 import './themes.css';
 import { PORTAL, initPortal, portalHappy, portalLoaded, portalPlaying } from './portal';
 import { audioRunning, fusionSound, isMusicEnabled, isMuted, onAudioState, setMusicDepth, setMusicEnabled, setMusicMood, setMuted, sfx, unlockAudio } from './audio';
@@ -2281,7 +2281,7 @@ function accountChip(): string {
   const title = titleName(meta.title);
   // A guest on the boards under a placeholder is nudged to pick a real name.
   if (unclaimed()) return `<div class="account-row">${mute}<button class="account-chip claim-chip" id="account">✍️ Claim your name</button></div>`;
-  return `<div class="account-row">${mute}<button class="account-chip" id="account" aria-label="${name ? `${esc(name)}: your name, title and profile` : 'Sign in'}">👤 ${name ? `<span class="pname ${styleClass(myNameStyle())}">${esc(name)}</span>` : 'Sign in'}${name && title ? ` <small class="${titleFxClass(meta.title)}">${esc(title)}</small>` : ''}</button></div>`;
+  return `<div class="account-row">${mute}<button class="account-chip" id="account" aria-label="${name ? `${esc(name)}: your name, title and profile` : 'Sign in'}">👤 ${name ? styledName(name, myNameStyle()) : 'Sign in'}${name && title ? ` <small class="${titleFxClass(meta.title)}">${esc(title)}</small>` : ''}</button></div>`;
 }
 
 // ---------- the Hollow ----------

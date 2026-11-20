@@ -133,6 +133,18 @@ export function styleClass(s: NameStyle | null): string {
   return [s.ink ? `ns-ink-${s.ink}` : '', s.fx ? `ns-fx-${s.fx}` : ''].filter(Boolean).join(' ');
 }
 
+/** Escape text for HTML (names come from players). */
+const html = (t: string) => t.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+/**
+ * A name dressed in a style, as HTML: the effect on the outside, the ink (its material) on an
+ * inner layer, so a textured, moving ink and a moving effect can run together. The text is
+ * also kept on data-ns-text, for the effects that echo the name (Haunted, Shadow).
+ */
+export function styledName(text: string, s: NameStyle | null, attrs = ''): string {
+  return `<span class="pname ${styleClass(s)}" data-ns-text="${html(text)}" ${attrs}><span class="ns-ink">${html(text)}</span></span>`;
+}
+
 /** Every style earned so far, as "ink:gold" / "fx:drip" keys (to spot new ones after a run). */
 export function earnedStyles(): string[] {
   return [...ALL_INKS.filter((s) => needMet(s.need)).map((s) => `ink:${s.id}`), ...EFFECTS.filter((s) => needMet(s.need)).map((s) => `fx:${s.id}`)];
@@ -152,6 +164,15 @@ const FRESH_MS = 5 * 60_000;
 
 function dress(el: HTMLElement, s: NameStyle | null) {
   el.classList.add('pname');
+  // the ink goes on an inner layer (see styledName)
+  if (!el.querySelector(':scope > .ns-ink')) {
+    const text = el.textContent ?? '';
+    const inner = document.createElement('span');
+    inner.className = 'ns-ink';
+    inner.textContent = text;
+    el.replaceChildren(inner);
+    el.dataset.nsText = text;
+  }
   if (!s) return;
   for (const c of [...el.classList]) if (c.startsWith('ns-')) el.classList.remove(c);
   const cls = styleClass(s);

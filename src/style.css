@@ -6627,144 +6627,387 @@ body.menu:has(#overlay[data-screen='title']:not([hidden])) #ghosts { opacity: 0.
 }
 
 /* ---------- name styles (src/name-style.ts) ---------- */
-/* An ink colours a name (--ns-c is its colour, for the effects that glow in it); an effect makes it do something. */
+/* A styled name is two layers: .pname (the effect) around .ns-ink (the ink). Inks are materials
+   painted into the letters (moss, metal, coals, water...); effects play around them. Sizes are
+   in em so a style looks the same on a leaderboard row and in a big preview. --ns-c is the
+   ink's main colour, for effects that glow in it. */
 
-.pname {
-  display: inline-block;
-  position: relative;
-}
-
-.ns-ink-bone { color: #e8dcc4; --ns-c: #e8dcc4; }
-.ns-ink-gold { color: #f2c14e; --ns-c: #f2c14e; }
-.ns-ink-ember { color: #ff8a2a; --ns-c: #ff8a2a; }
-.ns-ink-wisp { color: #9fe8ff; --ns-c: #9fe8ff; }
-.ns-ink-moss { color: #8fe36b; --ns-c: #8fe36b; }
-.ns-ink-blood { color: #ff4d5a; --ns-c: #ff4d5a; }
-.ns-ink-hex { color: #c49bff; --ns-c: #c49bff; }
-.ns-ink-deep { color: #5fe3ff; --ns-c: #5fe3ff; }
-.ns-ink-under { color: #b5e07a; --ns-c: #b5e07a; }
-.ns-ink-pyre {
-  --ns-c: #ff6a3a;
-  background: linear-gradient(90deg, #ffd36a, #ff6a3a, #d23a46);
+.pname { display: inline-block; position: relative; isolation: isolate; }
+.pname > .ns-ink { display: inline-block; position: relative; }
+.pname[class*='ns-ink-'] > .ns-ink {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  -webkit-text-fill-color: transparent;
 }
-.ns-ink-reaper {
-  --ns-c: #d23a46;
-  color: #f2e6e0;
-  text-shadow: 1px 0 #d23a46, -1px 0 #d23a46, 0 1px #d23a46, 0 -1px #d23a46;
-}
-.ns-ink-starless {
-  --ns-c: #9a7cff;
+.ns-ink::before, .ns-ink::after { pointer-events: none; }
+
+/* Bone: ivory, pitted, with a dark underside */
+.ns-ink-bone { --ns-c: #e8dcc4; }
+.ns-ink-bone > .ns-ink {
   background:
-    radial-gradient(circle at 20% 40%, #fff 0 1px, transparent 1.6px),
-    radial-gradient(circle at 70% 60%, #d0b8ff 0 1px, transparent 1.6px),
-    linear-gradient(90deg, #4a3a8a, #8b6cff, #4a3a8a);
-  background-size: 11px 9px, 15px 12px, 100% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+    radial-gradient(circle at 30% 40%, rgba(110, 90, 60, 0.5) 0 0.04em, transparent 0.07em) 0 0 / 0.26em 0.22em,
+    radial-gradient(circle at 70% 70%, rgba(110, 90, 60, 0.35) 0 0.035em, transparent 0.06em) 0.1em 0.1em / 0.36em 0.3em,
+    linear-gradient(180deg, #fffaf0 0%, #efe4cc 45%, #cdbd9c 80%, #a8977a 100%);
+  filter: drop-shadow(0 0.06em 0 rgba(60, 45, 30, 0.85));
 }
 
-/* Drip: blood hanging under the letters, a drop falling now and then */
+/* Gold: polished metal, bright above and deep below, with a shine passing over */
+.ns-ink-gold { --ns-c: #f2c14e; }
+.ns-ink-gold > .ns-ink {
+  background:
+    linear-gradient(100deg, transparent 40%, rgba(255, 255, 255, 0.75) 50%, transparent 60%) 0 0 / 300% 100%,
+    linear-gradient(180deg, #fff8d0 0%, #ffe08a 22%, #f2c14e 40%, #a8781f 52%, #f7d778 68%, #ffe9a8 82%, #8a5a12 100%);
+  filter: drop-shadow(0 0.06em 0 #4a3008);
+  animation: ns-shine 4.5s ease-in-out infinite;
+}
+@keyframes ns-shine { 0% { background-position: 120% 0, 0 0; } 55%, 100% { background-position: -40% 0, 0 0; } }
+
+/* Ember: glowing coals with charred flecks, breathing with heat */
+.ns-ink-ember { --ns-c: #ff8a2a; }
+.ns-ink-ember > .ns-ink {
+  background:
+    radial-gradient(circle, rgba(30, 6, 0, 0.8) 0 0.045em, transparent 0.08em) 0 0 / 0.28em 0.24em,
+    radial-gradient(circle, rgba(255, 245, 190, 0.95) 0 0.03em, transparent 0.06em) 0.12em 0.1em / 0.42em 0.38em,
+    linear-gradient(0deg, #7a1606 0%, #e0401a 30%, #ff8a2a 60%, #ffd36a 100%) 0 0 / 100% 200%;
+  filter: drop-shadow(0 0 0.12em rgba(255, 90, 20, 0.75));
+  animation: ns-coal 1.6s ease-in-out infinite alternate;
+}
+@keyframes ns-coal { to { background-position: 0 0, 0.12em 0.1em, 0 100%; } }
+
+/* Wisp: ghost-light, pale and drifting */
+.ns-ink-wisp { --ns-c: #9fe8ff; }
+.ns-ink-wisp > .ns-ink {
+  background: linear-gradient(90deg, rgba(159, 232, 255, 0.3) 0%, #e6fbff 25%, rgba(159, 232, 255, 0.5) 50%, #ffffff 75%, rgba(159, 232, 255, 0.3) 100%) 0 0 / 200% 100%;
+  filter: drop-shadow(0 0 0.16em rgba(159, 232, 255, 0.85));
+  animation: ns-wisp 4s linear infinite;
+}
+@keyframes ns-wisp { to { background-position: 200% 0; } }
+
+/* Moss: mottled living green, tufts growing on top and strands hanging under */
+.ns-ink-moss { --ns-c: #8fe36b; }
+.ns-ink-moss > .ns-ink {
+  background:
+    radial-gradient(circle, #d4ff96 0 0.03em, transparent 0.055em) 0 0 / 0.2em 0.18em,
+    radial-gradient(circle, #1a4218 0 0.055em, transparent 0.085em) 0.07em 0.05em / 0.3em 0.26em,
+    radial-gradient(ellipse at 50% 0, #a6eb68 0 0.09em, transparent 0.13em) 0 0 / 0.32em 0.3em,
+    linear-gradient(180deg, #9be35f 0%, #5fae3c 30%, #3f7a30 65%, #25421d 100%);
+  filter: drop-shadow(0 0.05em 0 #122810);
+}
+.ns-ink-moss > .ns-ink::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0.17em;
+  height: 0.16em;
+  background:
+    radial-gradient(ellipse at 50% 100%, #6dbf4c 0 0.05em, transparent 0.075em) 0 0 / 0.23em 0.16em,
+    radial-gradient(ellipse at 50% 100%, #a6eb68 0 0.04em, transparent 0.06em) 0.11em 0.03em / 0.37em 0.16em,
+    radial-gradient(ellipse at 50% 100%, #3d7f35 0 0.035em, transparent 0.055em) 0.05em 0.05em / 0.53em 0.16em;
+}
+.ns-ink-moss > .ns-ink::after {
+  content: '';
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  top: 0.86em;
+  height: 0.34em;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 0.16em, #4f9a3c 0.16em 0.2em, transparent 0.2em 0.43em) 0 0 / 100% 100%,
+    repeating-linear-gradient(90deg, transparent 0 0.31em, #2a5f26 0.31em 0.34em, transparent 0.34em 0.61em) 0 0 / 100% 65% no-repeat;
+  -webkit-mask: linear-gradient(#000, transparent);
+  mask: linear-gradient(#000, transparent);
+  transform-origin: 50% 0;
+  animation: ns-sway 3.2s ease-in-out infinite alternate;
+}
+@keyframes ns-sway { from { transform: skewX(-8deg); } to { transform: skewX(8deg); } }
+
+/* Blood: wet and dark, with a glossy sheen running across */
+.ns-ink-blood { --ns-c: #ff4d5a; }
+.ns-ink-blood > .ns-ink {
+  background:
+    linear-gradient(100deg, transparent 35%, rgba(255, 225, 225, 0.75) 45%, transparent 55%) 0 0 / 300% 100%,
+    linear-gradient(180deg, #ff8a8a 0%, #e0303f 28%, #a3101f 62%, #5a0510 100%);
+  filter: drop-shadow(0 0.06em 0 #2a0206);
+  animation: ns-shine 3.4s ease-in-out infinite;
+}
+
+/* Hex: arcane light swirling through the letters, with stray sparks */
+.ns-ink-hex { --ns-c: #c49bff; }
+.ns-ink-hex > .ns-ink {
+  background:
+    radial-gradient(circle, #ffffff 0 0.03em, transparent 0.06em) 0 0 / 0.5em 0.45em,
+    linear-gradient(120deg, #5a2ad8, #c49bff, #ff7ad8, #7b5cff, #5a2ad8) 0 0 / 300% 100%;
+  filter: drop-shadow(0 0 0.14em rgba(170, 120, 255, 0.8));
+  animation: ns-hex 5s linear infinite;
+}
+@keyframes ns-hex { to { background-position: 0.5em 0.9em, 300% 0; } }
+
+/* Pyre: the letters burn from the bottom up */
+.ns-ink-pyre { --ns-c: #ff6a3a; }
+.ns-ink-pyre > .ns-ink {
+  background: linear-gradient(0deg, #8a1020 0%, #d23a46 18%, #ff6a3a 40%, #ffb02a 62%, #fff2a0 85%, #ffffff 100%) 0 0 / 100% 250%;
+  filter: drop-shadow(0 -0.06em 0.1em rgba(255, 110, 40, 0.75));
+  animation: ns-pyre 0.9s ease-in-out infinite alternate;
+}
+@keyframes ns-pyre { to { background-position: 0 70%; } }
+
+/* Deep: water, with ripples running through it */
+.ns-ink-deep { --ns-c: #5fe3ff; }
+.ns-ink-deep > .ns-ink {
+  background:
+    repeating-linear-gradient(165deg, rgba(255, 255, 255, 0.5) 0 0.04em, transparent 0.04em 0.26em) 0 0 / 1.2em 100%,
+    linear-gradient(180deg, #d8f8ff 0%, #5fe3ff 35%, #2a9ac8 70%, #11506e 100%);
+  filter: drop-shadow(0 0.06em 0 #062a3a);
+  animation: ns-water 3s linear infinite;
+}
+@keyframes ns-water { to { background-position: 1.2em 0, 0 0; } }
+
+/* Under: blight, sickly green with spores rising through it */
+.ns-ink-under { --ns-c: #b5e07a; }
+.ns-ink-under > .ns-ink {
+  background:
+    radial-gradient(circle, #f6ffc0 0 0.035em, transparent 0.065em) 0 0 / 0.34em 0.3em,
+    radial-gradient(circle, rgba(60, 80, 10, 0.65) 0 0.055em, transparent 0.085em) 0.12em 0.1em / 0.4em 0.36em,
+    linear-gradient(180deg, #e8f7a0 0%, #b5e07a 35%, #7a9a32 70%, #3f5214 100%);
+  filter: drop-shadow(0 0 0.1em rgba(180, 230, 100, 0.55));
+  animation: ns-blight 2.6s ease-in-out infinite alternate;
+}
+@keyframes ns-blight { to { background-position: 0 -0.3em, 0.12em 0.2em, 0 0; } }
+
+/* Reaper: bone-pale letters edged in blood, a red haze curling under them */
+.ns-ink-reaper { --ns-c: #d23a46; }
+.pname.ns-ink-reaper > .ns-ink {
+  background: none;
+  color: #f2e6e0;
+  -webkit-text-fill-color: #f2e6e0;
+  text-shadow: 0.03em 0 #c0182a, -0.03em 0 #c0182a, 0 0.03em #c0182a, 0 -0.03em #c0182a, 0 0 0.25em rgba(210, 58, 70, 0.55);
+}
+.ns-ink-reaper > .ns-ink::after {
+  content: '';
+  position: absolute;
+  left: -0.1em;
+  right: -0.1em;
+  top: 0.55em;
+  height: 0.55em;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse at 20% 100%, rgba(140, 10, 30, 0.35), transparent 65%),
+    radial-gradient(ellipse at 70% 100%, rgba(110, 0, 40, 0.3), transparent 60%);
+  filter: blur(0.04em);
+  animation: ns-smoke 3s ease-in-out infinite alternate;
+}
+@keyframes ns-smoke { from { transform: translateY(0.05em) scaleX(1); opacity: 0.7; } to { transform: translateY(-0.12em) scaleX(1.12); opacity: 1; } }
+
+/* Starless: the night sky, slowly turning */
+.ns-ink-starless { --ns-c: #9a7cff; }
+.ns-ink-starless > .ns-ink {
+  background:
+    radial-gradient(circle at 20% 40%, #ffffff 0 0.035em, transparent 0.06em) 0 0 / 0.55em 0.45em,
+    radial-gradient(circle at 70% 60%, #d0b8ff 0 0.03em, transparent 0.055em) 0 0 / 0.75em 0.6em,
+    linear-gradient(180deg, #d8ccff 0%, #9a7cff 45%, #5a3fc8 100%);
+  filter: drop-shadow(0 0 0.12em rgba(160, 130, 255, 0.7));
+  animation: ns-stars 7s linear infinite;
+}
+@keyframes ns-stars { to { background-position: 0.55em 0.45em, -0.75em 0.6em, 0 0; } }
+
+/* ----- effects, around the ink ----- */
+
+/* Glow: a halo in the name's own colour, breathing */
+.ns-fx-glow { filter: drop-shadow(0 0 0.12em var(--ns-c, currentColor)) drop-shadow(0 0 0.3em var(--ns-c, currentColor)); animation: ns-glow 2.4s ease-in-out infinite; }
+@keyframes ns-glow { 50% { filter: drop-shadow(0 0 0.2em var(--ns-c, currentColor)) drop-shadow(0 0 0.55em var(--ns-c, currentColor)); } }
+
+/* Drip: blood running off the letters, a drop falling now and then */
 .ns-fx-drip::after {
   content: '';
   position: absolute;
-  left: 10%;
-  right: 10%;
-  bottom: -4px;
-  height: 5px;
+  left: 6%;
+  right: 6%;
+  top: 0.86em;
+  height: 0.38em;
   background:
-    radial-gradient(circle at 12% 0, #d23a46 0 1.6px, transparent 2px),
-    radial-gradient(circle at 48% 0, #d23a46 0 1.2px, transparent 1.7px),
-    radial-gradient(circle at 82% 0, #d23a46 0 1.6px, transparent 2px);
-  animation: ns-drip 2.6s ease-in infinite;
+    radial-gradient(ellipse 0.05em 0.16em at 50% 0, #d23a46 96%, transparent) 12% 0 / 0.14em 0.3em no-repeat,
+    radial-gradient(ellipse 0.04em 0.1em at 50% 0, #b01828 96%, transparent) 47% 0 / 0.12em 0.2em no-repeat,
+    radial-gradient(ellipse 0.05em 0.2em at 50% 0, #d23a46 96%, transparent) 81% 0 / 0.14em 0.38em no-repeat;
+  transform-origin: 50% 0;
+  animation: ns-ooze 3s ease-in-out infinite;
   pointer-events: none;
 }
-@keyframes ns-drip { 0%, 55% { transform: translateY(0); opacity: 1; } 85% { transform: translateY(3px); opacity: 0.9; } 100% { transform: translateY(5px); opacity: 0; } }
+.ns-fx-drip::before {
+  content: '';
+  position: absolute;
+  left: 81%;
+  top: 1.05em;
+  width: 0.09em;
+  height: 0.12em;
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  background: #d23a46;
+  animation: ns-fall 3s ease-in infinite;
+  pointer-events: none;
+}
+@keyframes ns-ooze { 0%, 100% { transform: scaleY(0.75); } 60% { transform: scaleY(1.1); } }
+@keyframes ns-fall { 0%, 55% { transform: translateY(0); opacity: 0; } 60% { opacity: 1; } 100% { transform: translateY(0.7em); opacity: 0; } }
 
-/* Glow: a soft halo in the name's own colour */
-.ns-fx-glow { filter: drop-shadow(0 0 3px var(--ns-c, currentColor)); animation: ns-glow 2.4s ease-in-out infinite; }
-@keyframes ns-glow { 50% { filter: drop-shadow(0 0 7px var(--ns-c, currentColor)); } }
+/* Flame: real tongues of fire licking up behind the letters (edged dark, so they read over it) */
+.ns-fx-flame { filter: drop-shadow(0 -0.04em 0.08em rgba(255, 120, 40, 0.8)); }
+.pname.ns-fx-flame > .ns-ink { filter: drop-shadow(0.04em 0 0 #2a0800) drop-shadow(-0.04em 0 0 #2a0800) drop-shadow(0 0.05em 0 #2a0800); }
+.ns-fx-flame::before {
+  content: '';
+  position: absolute;
+  left: -3%;
+  right: -3%;
+  top: -0.32em;
+  height: 1.1em;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse 28% 62% at 50% 100%, rgba(255, 245, 170, 0.95) 0 45%, transparent 75%) 0 100% / 0.32em 100% repeat-x,
+    radial-gradient(ellipse 36% 82% at 50% 100%, rgba(255, 150, 30, 0.9) 0 45%, transparent 74%) 0.09em 100% / 0.37em 100% repeat-x,
+    radial-gradient(ellipse 44% 100% at 50% 100%, rgba(225, 55, 20, 0.75) 0 50%, transparent 76%) 0.2em 100% / 0.5em 100% repeat-x;
+  -webkit-mask: linear-gradient(transparent, #000 30%);
+  mask: linear-gradient(transparent, #000 30%);
+  transform-origin: 50% 100%;
+  animation: ns-flicker 0.42s steps(2) infinite alternate;
+  pointer-events: none;
+}
+@keyframes ns-flicker {
+  0% { transform: scaleY(0.88); background-position: 0 100%, 0.09em 100%, 0.2em 100%; }
+  100% { transform: scaleY(1.1); background-position: 0.1em 100%, 0.02em 100%, 0.32em 100%; }
+}
 
-/* Flame: fire licking up off the letters */
-.ns-fx-flame { filter: drop-shadow(0 -2px 2px #ff8a2a) drop-shadow(0 -3px 4px rgba(255, 80, 30, 0.6)); animation: ns-flame 0.9s steps(3) infinite alternate; }
-@keyframes ns-flame { 100% { filter: drop-shadow(0 -3px 3px #ffb24a) drop-shadow(0 -5px 5px rgba(255, 60, 20, 0.5)); } }
-
-/* Frost: an icy rim, and a sparkle running across */
-.ns-fx-frost { filter: drop-shadow(0 0 2px #bfe6ff) drop-shadow(0 0 1px #ffffff); }
+/* Frost: rime along the tops of the letters, icicles hanging under, a cold glint */
+.ns-fx-frost { filter: drop-shadow(0 0 0.06em rgba(191, 230, 255, 0.9)); }
+.ns-fx-frost::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0.25em;
+  height: 0.1em;
+  background:
+    radial-gradient(circle, #ffffff 0 0.022em, transparent 0.04em) 0 0 / 0.17em 0.1em,
+    linear-gradient(rgba(225, 248, 255, 0.45), rgba(225, 248, 255, 0));
+  animation: ns-rime 2.8s ease-in-out infinite alternate;
+  pointer-events: none;
+}
 .ns-fx-frost::after {
   content: '';
   position: absolute;
-  top: 1px;
-  left: 0;
-  width: 3px;
-  height: 3px;
-  background: #ffffff;
-  transform: rotate(45deg);
-  box-shadow: 0 0 4px #bfe6ff;
-  animation: ns-frost 3.2s ease-in-out infinite;
+  left: 3%;
+  right: 3%;
+  top: 0.86em;
+  height: 0.32em;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 0.11em, rgba(225, 248, 255, 0.9) 0.11em 0.15em, transparent 0.15em 0.33em),
+    repeating-linear-gradient(90deg, transparent 0 0.24em, rgba(190, 230, 255, 0.8) 0.24em 0.27em, transparent 0.27em 0.52em) 0 0 / 100% 70% no-repeat;
+  -webkit-mask: linear-gradient(#000 20%, transparent);
+  mask: linear-gradient(#000 20%, transparent);
   pointer-events: none;
 }
-@keyframes ns-frost { 0% { left: 0; opacity: 0; } 15% { opacity: 1; } 70% { opacity: 1; } 100% { left: calc(100% - 3px); opacity: 0; } }
+@keyframes ns-rime { from { opacity: 0.6; } to { opacity: 1; } }
 
-/* Embers: sparks drifting up off the name */
+/* Embers: a stream of sparks drifting up off the name */
 .ns-fx-embers::before,
 .ns-fx-embers::after {
   content: '';
   position: absolute;
-  bottom: 2px;
-  width: 2px;
-  height: 2px;
-  background: #ffb24a;
-  box-shadow: 0 0 3px #ff6a1a;
-  animation: ns-ember 1.8s linear infinite;
+  left: 12%;
+  top: 0.75em;
+  width: 0.09em;
+  height: 0.09em;
+  border-radius: 50%;
+  background: #ffd36a;
+  box-shadow: 0.55em -0.1em 0 #ff8a2a, 1.3em 0.05em 0 #ffb24a, 2.1em -0.05em 0 #ff6a1a, 2.9em 0.08em 0 #ffd36a, 3.7em -0.02em 0 #ff8a2a;
+  filter: drop-shadow(0 0 0.06em #ff6a1a);
+  animation: ns-rise 1.9s linear infinite;
   pointer-events: none;
 }
-.ns-fx-embers::before { left: 25%; }
-.ns-fx-embers::after { left: 70%; animation-delay: 0.9s; }
-@keyframes ns-ember { 0% { transform: translate(0, 0); opacity: 0; } 15% { opacity: 1; } 100% { transform: translate(3px, -10px); opacity: 0; } }
+.ns-fx-embers::after { left: 30%; animation-delay: 0.95s; box-shadow: 0.8em 0.06em 0 #ffb24a, 1.7em -0.08em 0 #ffd36a, 2.5em 0.02em 0 #ff6a1a; }
+@keyframes ns-rise { 0% { transform: translate(0, 0); opacity: 0; } 15% { opacity: 1; } 100% { transform: translate(0.15em, -0.85em); opacity: 0; } }
 
-/* Haunted: the letters flicker like a ghost */
+/* Haunted: a ghost of the name drifts off it and fades, and the name itself flickers */
 .ns-fx-haunted { animation: ns-haunt 3.4s steps(1) infinite; }
-@keyframes ns-haunt { 0%, 100% { opacity: 1; transform: none; } 8% { opacity: 0.35; transform: translateX(1px); } 10% { opacity: 1; transform: none; } 52% { opacity: 0.55; } 54% { opacity: 1; } 56% { opacity: 0.25; transform: translateX(-1px); } 58% { opacity: 1; transform: none; } }
+.ns-fx-haunted::after {
+  content: attr(data-ns-text);
+  position: absolute;
+  left: 0;
+  top: 0;
+  white-space: nowrap;
+  color: rgba(200, 245, 255, 0.6);
+  -webkit-text-fill-color: rgba(200, 245, 255, 0.6);
+  filter: blur(0.02em) drop-shadow(0 0 0.1em rgba(160, 230, 255, 0.6));
+  animation: ns-ghost 3.4s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes ns-ghost { 0%, 100% { transform: translate(0, 0); opacity: 0; } 30% { transform: translate(0.16em, -0.14em); opacity: 0.8; } 65% { transform: translate(-0.1em, -0.24em); opacity: 0.3; } }
+@keyframes ns-haunt { 0%, 100% { opacity: 1; } 8% { opacity: 0.4; } 10% { opacity: 1; } 56% { opacity: 0.3; } 58% { opacity: 1; } }
 
-/* Shadow: a dark echo trailing behind */
-.ns-fx-shadow { filter: drop-shadow(2px 1px 0 rgba(0, 0, 0, 0.75)) drop-shadow(3px 2px 0 rgba(110, 30, 140, 0.45)); animation: ns-shadow 2.8s ease-in-out infinite; }
-@keyframes ns-shadow { 50% { filter: drop-shadow(3px 1px 0 rgba(0, 0, 0, 0.75)) drop-shadow(6px 2px 0 rgba(110, 30, 140, 0.3)); } }
+/* Shadow: dark echoes of the name trailing behind it */
+.ns-fx-shadow::before,
+.ns-fx-shadow::after {
+  content: attr(data-ns-text);
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: -1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.ns-fx-shadow::before { color: rgba(20, 0, 30, 0.85); -webkit-text-fill-color: rgba(20, 0, 30, 0.85); animation: ns-echo1 2.8s ease-in-out infinite; }
+.ns-fx-shadow::after { color: rgba(120, 40, 160, 0.45); -webkit-text-fill-color: rgba(120, 40, 160, 0.45); filter: blur(0.02em); animation: ns-echo2 2.8s ease-in-out infinite; }
+@keyframes ns-echo1 { 0%, 100% { transform: translate(0.08em, 0.06em); } 50% { transform: translate(0.14em, 0.08em); } }
+@keyframes ns-echo2 { 0%, 100% { transform: translate(0.16em, 0.12em); } 50% { transform: translate(0.3em, 0.14em); } }
 
-/* Starfall: stars twinkling in the name */
+/* Starfall: shooting stars falling across the name, and a twinkle */
+.ns-fx-starfall { filter: drop-shadow(0 0 0.06em rgba(208, 184, 255, 0.6)); }
+.ns-fx-starfall::before,
 .ns-fx-starfall::after {
   content: '';
   position: absolute;
-  inset: -3px -2px;
-  background:
-    radial-gradient(circle at 15% 30%, #fff 0 1px, transparent 1.5px),
-    radial-gradient(circle at 55% 80%, #d0b8ff 0 1px, transparent 1.5px),
-    radial-gradient(circle at 85% 20%, #fff 0 1px, transparent 1.5px);
-  animation: ns-twinkle 2.2s ease-in-out infinite alternate;
+  top: 0;
+  width: 0.08em;
+  height: 0.08em;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: -0.06em -0.06em 0 rgba(255, 255, 255, 0.5), -0.13em -0.13em 0 rgba(208, 184, 255, 0.3);
+  animation: ns-star 2.6s linear infinite;
   pointer-events: none;
 }
-@keyframes ns-twinkle { 0% { opacity: 0.2; transform: translateY(0); } 100% { opacity: 1; transform: translateY(2px); } }
+.ns-fx-starfall::before { left: 20%; }
+.ns-fx-starfall::after { left: 65%; animation-delay: 1.3s; }
+@keyframes ns-star { 0% { transform: translate(0, 0); opacity: 0; } 10% { opacity: 1; } 70% { opacity: 1; } 100% { transform: translate(0.6em, 1.4em); opacity: 0; } }
 
-/* Gilded: a gold shine sweeping across (a Daily won) */
-.ns-fx-gilded {
-  background-image: linear-gradient(100deg, var(--ns-c, #f2c14e) 38%, #fff6c8 50%, var(--ns-c, #f2c14e) 62%);
-  background-size: 300% 100%;
+/* Gilded: gold leaf over the name, with a shine sweeping across and a glint */
+.pname.ns-fx-gilded > .ns-ink {
+  background: linear-gradient(100deg, var(--ns-c, #f2c14e) 38%, #fff6c8 50%, var(--ns-c, #f2c14e) 62%) 0 0 / 300% 100%;
   -webkit-background-clip: text;
   background-clip: text;
-  color: transparent !important;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
   text-shadow: none;
+  filter: drop-shadow(0 0.06em 0 #4a3008);
   animation: ns-gild 3.6s linear infinite;
 }
+.ns-fx-gilded::after {
+  content: '';
+  position: absolute;
+  right: -0.1em;
+  top: 0.12em;
+  width: 0.24em;
+  height: 0.24em;
+  background:
+    linear-gradient(#fff6c8, #fff6c8) 50% 0 / 0.04em 100% no-repeat,
+    linear-gradient(#fff6c8, #fff6c8) 0 50% / 100% 0.04em no-repeat;
+  filter: drop-shadow(0 0 0.06em #ffd36a);
+  animation: ns-glint 3.6s ease-in-out infinite;
+  pointer-events: none;
+}
 @keyframes ns-gild { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+@keyframes ns-glint { 0%, 60%, 100% { transform: scale(0); } 75% { transform: scale(1) rotate(45deg); } }
 
-:root.calm .pname,
-:root.calm .pname::before,
-:root.calm .pname::after { animation: none !important; }
+:root.calm .pname, :root.calm .pname *, :root.calm .pname::before, :root.calm .pname::after, :root.calm .pname *::before, :root.calm .pname *::after { animation: none !important; }
 @media (prefers-reduced-motion: reduce) {
-  .pname, .pname::before, .pname::after { animation: none !important; }
+  .pname, .pname *, .pname::before, .pname::after, .pname *::before, .pname *::after { animation: none !important; }
 }
 
 /* The Hall's Name tab */
