@@ -318,6 +318,8 @@ await p.evaluate(() => {
   const g = window.cryptfall.game;
   const P = g.player;
   for (const e of g.enemies) e.dead = true;
+  // (the hero in the middle of the board, clear of the caption along the bottom)
+  for (const [x, y] of [[3, 2], [3, 3], [2, 2], [4, 2], [2, 3], [4, 3]]) if (!g.isWall(x, y) && !g.isLava?.(x, y)) { P.x = x; P.y = y; break; }
   const kinds = ['archer', 'bat', 'ghoul', 'brute', 'wraith', 'imp'];
   const free = (x, y) => x >= 0 && y >= 0 && x < 7 && y < 7 && !(x === P.x && y === P.y) && !g.isWall(x, y) && !g.isLava?.(x, y) && !(x === g.stairs.x && y === g.stairs.y);
   const spots = [];
