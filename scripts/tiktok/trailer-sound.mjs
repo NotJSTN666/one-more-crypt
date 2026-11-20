@@ -63,11 +63,14 @@ await browser.close();
 for (const k of ['music', 'forge', 'sfx']) writeFileSync(`${dir}/${k}.wav`, Buffer.from(tracks[k], 'base64'));
 console.log('sound effects:', JSON.stringify(tracks.counts));
 
+// (a take with a fusion in it dips the music under the Soul Forge's sound; one without just plays)
 const F = marks.fuse;
-const duck = `if(between(t,${F - 0.4},${F}),1-0.55*(t-${F - 0.4})/0.4,if(between(t,${F},${F + 3.6}),0.45,if(between(t,${F + 3.6},${F + 4.6}),0.45+0.55*(t-${F + 3.6}),1)))`;
+const fps = String(marks.fps ?? 60);
 const fade = `afade=t=in:d=0.5,afade=t=out:st=${(marks.end + 0.8).toFixed(2)}:d=2.1`;
-execFileSync('ffmpeg', ['-y', '-v', 'error', '-framerate', '60', '-i', `${dir}/frames/%05d.jpg`, '-i', `${dir}/music.wav`, '-i', `${dir}/forge.wav`, '-i', `${dir}/sfx.wav`,
-  '-filter_complex',
-  `[1:a]volume=4.0,volume='${duck}':eval=frame,${fade}[m];[2:a]adelay=${Math.round(F * 1000)}|${Math.round(F * 1000)},volume=1.1[f];[3:a]volume=2.6,${fade}[s];[m][f][s]amix=inputs=3:normalize=0:duration=first,alimiter=limit=0.95[a]`,
+const filter = F === undefined
+  ? `[1:a]volume=4.0,${fade}[m];[3:a]volume=2.6,${fade}[s];[m][s]amix=inputs=2:normalize=0:duration=first,alimiter=limit=0.95[a]`
+  : `[1:a]volume=4.0,volume='if(between(t,${F - 0.4},${F}),1-0.55*(t-${F - 0.4})/0.4,if(between(t,${F},${F + 3.6}),0.45,if(between(t,${F + 3.6},${F + 4.6}),0.45+0.55*(t-${F + 3.6}),1)))':eval=frame,${fade}[m];[2:a]adelay=${Math.round(F * 1000)}|${Math.round(F * 1000)},volume=1.1[f];[3:a]volume=2.6,${fade}[s];[m][f][s]amix=inputs=3:normalize=0:duration=first,alimiter=limit=0.95[a]`;
+execFileSync('ffmpeg', ['-y', '-v', 'error', '-framerate', fps, '-i', `${dir}/frames/%05d.jpg`, '-i', `${dir}/music.wav`, '-i', `${dir}/forge.wav`, '-i', `${dir}/sfx.wav`,
+  '-filter_complex', filter,
   '-map', '0:v', '-map', '[a]', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '17', '-preset', 'slow', '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', out]);
 console.log(`wrote ${out}`);
