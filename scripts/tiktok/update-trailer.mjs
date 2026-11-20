@@ -308,24 +308,42 @@ await theme('classic');
 caption('Every foe now <b>dies its own way</b>');
 await toFloor(5);
 await tick(10);
+// six of the dead around the hero, held still, then struck down one by one
 await p.evaluate(() => {
-  // a ring of the different dead around the hero, one blow from death each
   const g = window.cryptfall.game;
   const P = g.player;
+  for (const e of g.enemies) e.dead = true;
   const kinds = ['archer', 'bat', 'ghoul', 'brute', 'wraith', 'imp'];
-  const spots = [[1, 0], [-1, 0], [0, -1], [1, -1], [-1, -1], [0, 1]];
-  const free = (x, y) => x >= 0 && y >= 0 && x < 7 && y < 7 && !g.isWall(x, y) && !g.isLava?.(x, y);
-  const keep = g.enemies.filter((e) => !e.dead).slice(0, kinds.length);
-  let n = 0;
-  for (const [dx, dy] of spots) {
-    const e = keep[n];
-    if (!e || !free(P.x + dx, P.y + dy)) continue;
-    e.kind = kinds[n]; e.x = P.x + dx; e.y = P.y + dy; e.hp = 1; e.softened = true; e.dmg = 1; e.elite = null;
-    n++;
-  }
-  for (const e of g.enemies.slice(n)) e.dead = true;
+  const free = (x, y) => x >= 0 && y >= 0 && x < 7 && y < 7 && !(x === P.x && y === P.y) && !g.isWall(x, y) && !g.isLava?.(x, y) && !(x === g.stairs.x && y === g.stairs.y);
+  const spots = [];
+  for (let r = 1; r <= 3 && spots.length < kinds.length; r++)
+    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++)
+      if (Math.max(Math.abs(dx), Math.abs(dy)) === r && free(P.x + dx, P.y + dy) && spots.length < kinds.length) spots.push([P.x + dx, P.y + dy]);
+  window.__ring = kinds.slice(0, spots.length).map((k, i) => {
+    const e = g.makeEnemy(k, spots[i][0], spots[i][1]);
+    e.asleep = true;
+    e.elite = null;
+    g.enemies.push(e);
+    return e.id;
+  });
+  g.stairsOpen = false;
 });
-await play(5.0);
+await hold(1.0);
+const strike = () => p.evaluate(() => {
+  const g = window.cryptfall.game;
+  const id = window.__ring.shift();
+  const e = g.enemies.find((x) => x.id === id);
+  if (!e) return false;
+  g.killEnemy(e);
+  window.omcSfx?.kill?.();
+  window.cryptfall.renderer.consume(g.events.splice(0));
+  return true;
+});
+for (let i = 0; i < 6; i++) {
+  if (!(await strike())) break;
+  await hold(0.6);
+}
+await hold(1.0);
 
 // ============ 4. the Burning Depths ============
 caption('Candlelight, shadows, and <b>walls lit by lava</b>');
@@ -375,7 +393,7 @@ await p.evaluate(() => { document.getElementById('tt-black').style.opacity = 1; 
 await startEndless();
 await hookSfx();
 await toFloor(157);
-await p.evaluate(() => { const g = window.cryptfall.game; g.player.hp = 1; g.player.maxHp = 40; g.abyssDamage = undefined; });
+await p.evaluate(() => { const g = window.cryptfall.game; g.player.hp = 1; g.player.maxHp = 40; delete g.abyssDamage; });
 for (let i = 0; i < 200; i++) {
   const dead = await p.evaluate(() => { const g = window.cryptfall.game; if (g.phase !== 'dead') { g.player.hp = 1; window.cryptfall.act(0, 0); } return g.phase === 'dead'; });
   if (dead) break;
