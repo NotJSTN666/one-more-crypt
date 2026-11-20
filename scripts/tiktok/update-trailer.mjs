@@ -141,6 +141,7 @@ const dress = () => p.evaluate((shape) => {
     #tt-cap b { color: #f2c14e; font-weight: 600; }
     #tt-cap.tall { left: 16px; right: 16px; bottom: 26px; text-align: center; }
     #tt-cap.wide { left: 0; right: 0; bottom: 34px; text-align: center; font-size: 30px; }
+    #tt-cap.up { bottom: auto; top: 24px; }
     #tt-cap span { display: inline-block; padding: 10px 26px; background: rgba(7,4,11,0.82); border: 2px solid rgba(242,193,78,0.55); }
     #tt-kick { position: fixed; z-index: 9999; left: 0; right: 0; top: ${shape === 'tall' ? 70 : 92}px; text-align: center; pointer-events: none; opacity: 0;
       font: ${shape === 'tall' ? 12 : 18}px Silkscreen, monospace; letter-spacing: 4px; color: #f2c14e; text-shadow: 0 2px 0 #000, 0 0 10px #000; }
@@ -305,6 +306,8 @@ await theme('classic');
 
 // ============ 3. deaths ============
 caption('Every foe now <b>dies its own way</b>');
+await toFloor(5);
+await tick(10);
 await p.evaluate(() => {
   // a ring of the different dead around the hero, one blow from death each
   const g = window.cryptfall.game;
@@ -335,6 +338,7 @@ await play(3.2);
 
 // ============ 5. a new zone ============
 caption('Cross into a new zone and <b>watch how far you\'ve fallen</b>');
+await p.evaluate(() => document.getElementById('tt-cap').classList.add('up'));
 blackWant = 1;
 await hold(0.4);
 await toFloor(80);
@@ -344,6 +348,7 @@ blackWant = 0;
 await hold(2.6);
 await play(0.8);
 await keepSfx();
+await p.evaluate(() => document.getElementById('tt-cap').classList.remove('up'));
 
 // ============ 6. the daily world boss ============
 caption('');
@@ -364,8 +369,9 @@ caption('');
 blackWant = 1;
 await hold(0.4);
 await keepSfx();
-await press('#back');
-await tick(30);
+await stage();
+await dress();
+await p.evaluate(() => { document.getElementById('tt-black').style.opacity = 1; });
 await startEndless();
 await hookSfx();
 await toFloor(157);
