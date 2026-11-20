@@ -14,6 +14,8 @@ import { SPRITE_SIZE, enemyFrames, sprites } from './sprites';
 import { deepLook, zoneAt, zoneLook, zoneTitle, type Weather } from './zones';
 import { boardBack, gradeGround, theme, themedDark, themedLight, type ThemeWeather } from './themes';
 import { hasBoardArt, paintBoard } from './theme-art';
+import { COL_H, COL_W, SHAFT, depthAt, depthY, paintColumn } from './depth';
+import { calmMotion } from './ui';
 
 export const TILE = 16;
 /** Blend two #rrggbb colours: 0 gives a, 1 gives b. */
@@ -34,6 +36,18 @@ interface Candle { x: number; y: number; phase: number }
 interface Mote { x: number; y: number; vx: number; vy: number; t: number; life: number }
 interface Line { from: Pos; to: Pos; t: number; life: number; color: string }
 interface Corpse { kind: EnemyKind; x: number; y: number; t: number }
+/** How each kind of foe dies (bosses, and any kind not listed, shatter into pixels). */
+type DeathStyle = 'collapse' | 'dissolve' | 'spiral' | 'melt' | 'burst' | 'topple';
+const DEATH_STYLE: Partial<Record<EnemyKind, DeathStyle>> = {
+  archer: 'collapse', boneknight: 'collapse', thrall: 'collapse',
+  wraith: 'dissolve', voideye: 'dissolve', lich: 'dissolve',
+  bat: 'spiral',
+  ghoul: 'melt', drowned: 'melt',
+  imp: 'burst',
+  brute: 'topple', hound: 'topple', monk: 'topple', abbot: 'topple',
+};
+/** A death playing out on the board: (x, y) is the sprite's top-left, in board pixels. */
+interface Death { kind: EnemyKind; style: DeathStyle; x: number; y: number; face: number; t: number; puffed?: boolean }
 interface Lunge { dx: number; dy: number; t: number }
 /** A blade's arc across a struck foe, and the ring of a blow landing. */
 interface Slash { x: number; y: number; ang: number; t: number; crit: boolean }
@@ -121,7 +135,10 @@ export class Renderer {
   /** The Bell-Ringer's tolls: rings spreading out from the hero. */
   private rings: { x: number; y: number; t: number }[] = [];
   private corpses: Corpse[] = [];
+  private deaths: Death[] = [];
   private bannerText: { text: string; color: string; t: number } | null = null;
+  /** Crossing into a new zone: a cut down the depth column, from where the last zone began to here (then the zone's banner). */
+  private zoneTrans: { from: number; to: number; t: number; title: string; color: string; banner: { text: string; color: string; t: number } } | null = null;
   /** Banners waiting their turn, so two at once (a key's two boons) are both read. */
   private bannerQueue: { text: string; color: string; t: number }[] = [];
   private shake = 0;
@@ -192,6 +209,7 @@ export class Renderer {
     this.particles = [];
     this.lines = [];
     this.corpses = [];
+    this.deaths = [];
     this.bgKey = '';
   }
 
@@ -235,7 +253,10 @@ export class Renderer {
             // Crossing into a new depth zone gets its name across the board.
             const zone = zoneAt(ev.floor);
             if (zone.start === ev.floor && ev.floor > 1) {
-              this.bannerText = { text: zoneTitle(zone).toUpperCase(), color: zoneLook(zone).color, t: -0.35 };
+              const banner = { text: zoneTitle(zone).toUpperCase(), color: zoneLook(zone).color, t: -0.35 };
+              if (!this.quiet && !calmMotion() && g.mode !== 'story' && g.mode !== 'horde') {
+                this.zoneTrans = { from: Math.max(1, ev.floor - 20), to: ev.floor, t: 0, title: zoneTitle(zone).toUpperCase(), color: zoneLook(zone).color, banner };
+              } else this.bannerText = banner;
             }
           }
           break;
@@ -309,7 +330,7 @@ export class Renderer {
         case 'kill': {
           const d = this.disp.get(ev.id) ?? { x: ev.x, y: ev.y };
           this.corpses.push({ kind: ev.kind, x: d.x, y: d.y, t: 0 });
-          this.shatter(ev.kind, d, this.facing.get(ev.id) ?? 1, isBoss(ev) ? 1.6 : 1);
+          this.dieFx(ev.kind, d, this.facing.get(ev.id) ?? 1, isBoss(ev));
           this.burstParticles(ev.x, ev.y, ev.ally ? '#7ee081' : ev.kind === 'wraith' ? '#9fe8ff' : '#e8dcc4', 6);
           if (!ev.ally && !this.quiet) this.finish(ev.x, ev.y, isBoss(ev));
           // Every kill lands with a blink of stillness; a boss gets a long one.
@@ -568,6 +589,59 @@ export class Renderer {
     for (let i = 0; i < 4; i++) this.burstParticles(1 + i * 1.6, 3, color, 10, 1.6);
   }
 
+  private drawZoneTrans(dt: number) {
+    const z = this.zoneTrans;
+    const g = this.game;
+    if (!z || !g) return;
+    z.t += dt;
+    const LIFE = 2.2;
+    if (z.t > LIFE) {
+      this.zoneTrans = null;
+      this.bannerText = { ...z.banner, t: 0.1 };
+      return;
+    }
+    const ctx = this.ctx;
+    const a = z.t < 0.3 ? z.t / 0.3 : z.t > LIFE - 0.4 ? (LIFE - z.t) / 0.4 : 1;
+    // the hero drops down the shaft from where the last zone began to the new one
+    const p = Math.max(0, Math.min(1, (z.t - 0.3) / 1.2));
+    const ease = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+    const floor = Math.round(z.from + (z.to - z.from) * ease);
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.fillStyle = '#07040b';
+    ctx.fillRect(-10, -10, BOARD_W + 20, BOARD_H + 20);
+    // the column, zoomed in and kept centred on the hero
+    const s = (BOARD_W * 1.5) / COL_W;
+    const ox = BOARD_W / 2 - (SHAFT + 1.5) * s;
+    const oy = Math.min(0, Math.max(BOARD_H - 26 - COL_H * s, BOARD_H * 0.42 - depthY(floor) * s));
+    ctx.beginPath();
+    ctx.rect(0, 0, BOARD_W, BOARD_H - 24);
+    ctx.clip();
+    paintColumn(ctx, ox, oy, s, {
+      floor,
+      hero: heroSprite(g.hero, g.relics, g.relicLog, this.outfit.look, this.outfit.head),
+      reaper: sprites().reaper.normal,
+      theme: theme().id,
+    });
+    ctx.restore();
+    // and under it, where you are now
+    ctx.save();
+    ctx.globalAlpha = a * Math.min(1, Math.max(0, (z.t - 1.1) / 0.3));
+    ctx.textAlign = 'center';
+    ctx.font = '5px Silkscreen, monospace';
+    ctx.fillStyle = '#9a8fa8';
+    ctx.fillText(`ENTERING · ${depthAt(z.to).name.toUpperCase()}`, BOARD_W / 2, BOARD_H - 15);
+    ctx.font = '11px "Pirata One", serif';
+    const fit = Math.min(1, (BOARD_W - 8) / ctx.measureText(z.title).width);
+    ctx.translate(BOARD_W / 2, BOARD_H - 4);
+    ctx.scale(fit, fit);
+    ctx.fillStyle = '#000';
+    ctx.fillText(z.title, 0.6, 0.6);
+    ctx.fillStyle = z.color;
+    ctx.fillText(z.title, 0, 0);
+    ctx.restore();
+  }
+
   private drawBanner(dt: number) {
     const b = this.bannerText;
     if (!b || this.quiet) return;
@@ -721,6 +795,118 @@ export class Renderer {
   }
 
   /** Break a slain foe into its own pixels, which scatter and fall. */
+  /** A foe dies its own way: bones collapse, spirits rise away, bats spiral down, the dead melt, imps burst, the big ones topple. */
+  private dieFx(kind: EnemyKind, d: Pos, face: number, boss: boolean) {
+    const style = boss ? undefined : DEATH_STYLE[kind];
+    if (!style) return this.shatter(kind, d, face, boss ? 1.6 : 1);
+    const x = d.x * TILE + PAD;
+    const y = d.y * TILE + PAD;
+    if (style === 'dissolve') {
+      // the spirit lifts off pixel by pixel, top rows first, and thins to nothing
+      for (const p of spritePixels(kind)) {
+        const px = x + (face < 0 ? SPRITE_SIZE - 1 - p.x : p.x);
+        this.particles.push({ x: px, y: y + p.y, vx: (Math.random() - 0.5) * 5, vy: -10 - Math.random() * 10 - (SPRITE_SIZE - p.y) * 0.8, color: Math.random() < 0.35 ? '#e8fbff' : p.c, t: -p.y * 0.012, life: 0.9 + Math.random() * 0.5, size: 1, grav: -0.12 });
+      }
+      return;
+    }
+    if (style === 'burst') {
+      // a flash, then the imp goes up in fire and embers
+      this.shatter(kind, d, face, 1.3);
+      this.burstParticles(d.x, d.y, '#ff8a2a', 14, 1.6);
+      this.burstParticles(d.x, d.y, '#ffd36a', 8, 1.1);
+      this.impacts.push({ x: d.x, y: d.y, t: 0, life: 0.25, color: '#ff8a2a', r: 12 });
+      return;
+    }
+    this.deaths.push({ kind, style, x, y, face, t: 0 });
+  }
+
+  /** Deaths that play out over a moment (see dieFx). */
+  private drawDeaths(dt: number) {
+    if (!this.deaths.length) return;
+    const ctx = this.ctx;
+    const LIFE: Record<DeathStyle, number> = { collapse: 1.5, dissolve: 0, spiral: 0.55, melt: 1.4, burst: 0, topple: 1.2 };
+    this.deaths = this.deaths.filter((d) => (d.t += dt) < LIFE[d.style]);
+    for (const d of this.deaths) {
+      const img = sprites()[d.kind].normal;
+      const S = SPRITE_SIZE;
+      // draw part of the sprite (rows sy..sy+sh), mirrored if it faced left
+      const part = (sy: number, sh: number, x: number, y: number, w = S, h = sh) => {
+        if (d.face < 0) {
+          ctx.save();
+          ctx.translate(x + w, y);
+          ctx.scale(-1, 1);
+          ctx.drawImage(img, 0, sy, S, sh, 0, 0, w, h);
+          ctx.restore();
+        } else ctx.drawImage(img, 0, sy, S, sh, x, y, w, h);
+      };
+      const fade = (from: number, life: number) => (d.t < from ? 1 : Math.max(0, 1 - (d.t - from) / (life - from)));
+      if (d.style === 'collapse') {
+        // the bones drop in three pieces and settle into a heap, then crumble away
+        ctx.globalAlpha = fade(1.0, 1.5);
+        const fall = (i: number) => Math.min(1, Math.max(0, (d.t - i * 0.04) / 0.32));
+        const ends = [[-3 * d.face, 7], [2 * d.face, 5], [0, 0]];
+        for (let i = 0; i < 3; i++) {
+          const p = fall(i);
+          const drop = ends[i][1] * p * p;
+          const slide = ends[i][0] * p;
+          part(i * 4, 4, Math.round(d.x + slide), Math.round(d.y + i * 4 + drop));
+        }
+        if (d.t > 0.32 && !d.puffed) {
+          d.puffed = true;
+          for (let k = 0; k < 6; k++) this.particles.push({ x: d.x + Math.random() * S, y: d.y + S - 1, vx: (Math.random() - 0.5) * 18, vy: -6 - Math.random() * 8, color: '#9a8f7a', t: 0, life: 0.4, size: 1 });
+        }
+      } else if (d.style === 'spiral') {
+        // the bat tumbles, spinning smaller as it drops, and is gone in a puff
+        const p = d.t / 0.55;
+        ctx.save();
+        ctx.globalAlpha = 1 - p * 0.6;
+        ctx.translate(d.x + S / 2 + Math.sin(p * 9) * 2, d.y + S / 2 + p * p * 8);
+        ctx.rotate(p * Math.PI * 3 * d.face);
+        const sc = 1 - p * 0.75;
+        ctx.scale(sc * (d.face < 0 ? -1 : 1), sc);
+        ctx.drawImage(img, -S / 2, -S / 2);
+        ctx.restore();
+        if (p > 0.85 && !d.puffed) {
+          d.puffed = true;
+          for (let k = 0; k < 7; k++) this.particles.push({ x: d.x + S / 2, y: d.y + S / 2 + 7, vx: (Math.random() - 0.5) * 30, vy: (Math.random() - 0.5) * 20 - 6, color: Math.random() < 0.5 ? '#5a3a7a' : '#b07cff', t: 0, life: 0.35, size: 1 });
+        }
+      } else if (d.style === 'melt') {
+        // the body slumps into the floor and leaves a puddle that dries away
+        const p = Math.min(1, d.t / 0.5);
+        const pool = d.kind === 'drowned' ? '58, 106, 122' : '74, 98, 46';
+        ctx.globalAlpha = 0.55 * fade(0.6, 1.4);
+        ctx.fillStyle = `rgb(${pool})`;
+        ctx.beginPath();
+        ctx.ellipse(d.x + S / 2, d.y + S - 1, 2 + p * 5, 1 + p * 1.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1 - p;
+        if (p < 1) {
+          const h = Math.max(1, Math.round(S * (1 - p)));
+          const w = Math.round(S * (1 + p * 0.35));
+          part(0, S, Math.round(d.x - (w - S) / 2), Math.round(d.y + S - h), w, h);
+        }
+      } else if (d.style === 'topple') {
+        // it keels over sideways with a thud of dust, lies a moment, and fades
+        const p = Math.min(1, d.t / 0.32);
+        const ang = p * p * (Math.PI / 2) * -d.face;
+        ctx.save();
+        ctx.globalAlpha = fade(0.75, 1.2);
+        const pivotX = d.x + (d.face < 0 ? S : 0);
+        ctx.translate(pivotX, d.y + S);
+        ctx.rotate(ang);
+        if (d.face < 0) ctx.scale(-1, 1);
+        ctx.drawImage(img, d.face < 0 ? 0 : 0, -S);
+        ctx.restore();
+        if (p >= 1 && !d.puffed) {
+          d.puffed = true;
+          this.shake = Math.max(this.shake, 1.2);
+          for (let k = 0; k < 8; k++) this.particles.push({ x: d.x + (Math.random() - 0.5) * S * 1.5 + S / 2, y: d.y + S - 1, vx: (Math.random() - 0.5) * 24, vy: -4 - Math.random() * 6, color: '#8a7f6a', t: 0, life: 0.45, size: 1 });
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
   private shatter(kind: EnemyKind | HTMLCanvasElement, d: Pos, face: number, power: number) {
     const px = spritePixels(kind);
     const x0 = d.x * TILE + PAD;
@@ -832,6 +1018,7 @@ export class Renderer {
     this.drawSparks(g, dt);
     this.drawTelegraphs(g);
     this.updateCorpses(dt);
+    this.drawDeaths(dt);
 
     const k = 1 - Math.exp(-dt * 22);
     const seen = new Set<number>([PLAYER_ID]);
@@ -892,6 +1079,7 @@ export class Renderer {
     this.drawDread(g);
     this.drawWeather(g, dt);
     this.drawFloaters(dt);
+    this.drawZoneTrans(dt);
     this.drawBanner(dt);
     this.drawDeathWash();
     this.drawReaped(g, realDt);
@@ -937,6 +1125,26 @@ export class Renderer {
     return d;
   }
 
+  /** The nearest light to a point (wall candles, and for foes the hero's own light): the way away from it, and how strongly it falls (0-1). */
+  private lightNear(x: number, y: number, id: number): { ux: number; uy: number; k: number } | null {
+    const REACH = 72;
+    let best: { ux: number; uy: number; k: number } | null = null;
+    const consider = (lx: number, ly: number, power = 1) => {
+      const dx = x - lx;
+      const dy = y - ly;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 3 || dist > REACH) return;
+      const k = (1 - dist / REACH) * power;
+      if (!best || k > best.k) best = { ux: dx / dist, uy: dy / dist, k };
+    };
+    for (const c of this.candles) consider(c.x + 1, c.y + 2);
+    if (id !== PLAYER_ID && this.game) {
+      const h = this.disp.get(PLAYER_ID) ?? this.game.player;
+      consider(h.x * TILE + TILE / 2, h.y * TILE + TILE / 2, 0.8);
+    }
+    return best;
+  }
+
   private drawSprite(id: number, sprite: { normal: HTMLCanvasElement; white: HTMLCanvasElement }, d: Pos, dt: number, alpha: number, bob = 0, outline = false) {
     const ctx = this.ctx;
     let ox = 0;
@@ -976,17 +1184,33 @@ export class Renderer {
       if (land <= 0) this.landing.delete(id);
       else this.landing.set(id, land);
     }
-    const squash = land > 0 ? 1 : !hop && !bob && Math.sin(this.time * 2.6 + id * 1.7) > 0.55 ? 1 : 0;
+    // The hero at rest breathes (the chest rises a pixel) and their cloak hem stirs; others squash.
+    const idleHero = id === PLAYER_ID && !hop && !tilt && land <= 0 && !recoil && !this.quiet && !this.contrast;
+    const breath = idleHero && Math.sin(this.time * 2.2) > 0.3 ? 1 : 0;
+    const swayV = Math.sin(this.time * 1.4 + 0.6);
+    const sway = idleHero ? (swayV > 0.75 ? 1 : swayV < -0.75 ? -1 : 0) : 0;
+    const squash = idleHero ? 0 : land > 0 ? 1 : !hop && !bob && Math.sin(this.time * 2.6 + id * 1.7) > 0.55 ? 1 : 0;
     // Recoil: a hit shudders the sprite for a moment.
     if (this.flashes.has(id) && id !== PLAYER_ID) ox += Math.round((Math.random() - 0.5) * 2);
     const x = Math.round(d.x * TILE + PAD + ox);
     const y = Math.round(d.y * TILE + PAD + oy + bob - hop);
     // soft shadow, smaller while airborne
     const sw = SPRITE_SIZE - 3 - Math.round(hop) - (bob ? 2 : 0);
+    const footX = Math.round(d.x * TILE + PAD + ox) + SPRITE_SIZE / 2;
+    const footY = Math.round(d.y * TILE + PAD + oy) + SPRITE_SIZE - 0.5;
+    // and a longer shadow thrown away from the nearest light (a wall candle, or the hero's own light)
+    const lit = this.contrast || this.quiet ? null : this.lightNear(footX, footY, id);
+    if (lit) {
+      ctx.globalAlpha = 0.45 * lit.k * alpha;
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.ellipse(footX + lit.ux * (2 + 3 * lit.k), footY + lit.uy * (1 + 2 * lit.k), sw / 2 + 3 * lit.k, 1.4, Math.atan2(lit.uy, lit.ux), 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.globalAlpha = 0.55 * alpha;
     ctx.fillStyle = '#000';
     ctx.beginPath();
-    ctx.ellipse(Math.round(d.x * TILE + PAD + ox) + SPRITE_SIZE / 2, Math.round(d.y * TILE + PAD + oy) + SPRITE_SIZE - 0.5, sw / 2, 1.5, 0, 0, Math.PI * 2);
+    ctx.ellipse(footX, footY, sw / 2, 1.5, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = alpha;
     // (the background ghosts never blink white: a page of them flickering is hard on the eyes)
@@ -996,7 +1220,25 @@ export class Renderer {
     const h = SPRITE_SIZE - squash;
     const dx = x - (w - SPRITE_SIZE) / 2;
     const dy = y + squash;
+    // (rows sy..sy+sh of the sprite, nudged by ox3/oy3 and mirrored if it faces left)
+    const rows = (image: HTMLCanvasElement, sy: number, sh: number, ox3: number, oy3: number) => {
+      if (face < 0) {
+        ctx.save();
+        ctx.translate(dx + w, dy);
+        ctx.scale(-1, 1);
+        ctx.drawImage(image, 0, sy, SPRITE_SIZE, sh, -ox3, sy + oy3, SPRITE_SIZE, sh);
+        ctx.restore();
+      } else ctx.drawImage(image, 0, sy, SPRITE_SIZE, sh, dx + ox3, dy + sy + oy3, SPRITE_SIZE, sh);
+    };
     const put = (image: HTMLCanvasElement, ox2 = 0, oy2 = 0) => {
+      if (idleHero) {
+        // feet still; cloak hem swaying; head and chest rising with the breath (the gap filled by the chest's last row)
+        rows(image, 10, 2, ox2, oy2);
+        rows(image, 8, 2, ox2 + sway, oy2);
+        if (breath) rows(image, 7, 1, ox2, oy2);
+        rows(image, 0, 8, ox2, oy2 - breath);
+        return;
+      }
       if (tilt) {
         ctx.save();
         ctx.translate(dx + w / 2 + ox2, dy + h + oy2);
@@ -1023,10 +1265,25 @@ export class Renderer {
       ctx.globalAlpha = alpha;
     }
     put(img);
+    // The hero's light: a small warm glow that flickers like a carried flame.
+    if (id === PLAYER_ID && !this.quiet && !this.contrast) {
+      const fl = 0.5 + 0.3 * Math.sin(this.time * 9.1) + 0.2 * Math.sin(this.time * 23.7);
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 1;
+      const gx = dx + SPRITE_SIZE / 2;
+      const gy = dy + SPRITE_SIZE / 2;
+      const glow = ctx.createRadialGradient(gx, gy, 1, gx, gy, 10 + fl * 2);
+      glow.addColorStop(0, `rgba(255, 170, 80, ${(0.07 + 0.05 * fl) * alpha})`);
+      glow.addColorStop(1, 'rgba(255, 140, 60, 0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(gx - 14, gy - 14, 28, 28);
+      ctx.restore();
+    }
     // The hero blinks now and then (a hooded face with two bright eyes: they close for a moment).
     if (id === PLAYER_ID && !tilt && !hop && w === SPRITE_SIZE && img === sprite.normal && (this.time + 0.4) % 3.7 < 0.13) {
       ctx.fillStyle = '#0d0812';
-      const ey = dy + (squash ? 3 : 4);
+      const ey = dy + (squash ? 3 : 4) - breath;
       for (const ex of [5, 7]) ctx.fillRect(dx + (face < 0 ? SPRITE_SIZE - 1 - ex : ex), ey, 1, 1);
     }
     ctx.globalAlpha = 1;
@@ -2807,6 +3064,7 @@ export class Renderer {
         ctx.globalCompositeOperation = 'source-over';
       }
     }
+    this.lavaGlow(ctx, g, wallAt);
     this.drawStaticGround(ctx, g);
     this.deepDetail(ctx, g, wallAt);
     if (this.harvest) this.harvestDetail(ctx, g, wallAt);
@@ -3182,6 +3440,34 @@ export class Renderer {
   }
 
   /** Water, lava beds, bone piles and the cracked wall, baked into the background. */
+  /** Walls beside lava catch its light: a hot glow on the sides that face it. */
+  private lavaGlow(ctx: CanvasRenderingContext2D, g: Game, wallAt: (x: number, y: number) => boolean) {
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (!wallAt(x, y)) continue;
+        const px = x * TILE;
+        const py = y * TILE;
+        for (const [nx, ny] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const lx = x + nx;
+          const ly = y + ny;
+          if (lx < 0 || ly < 0 || lx >= W || ly >= H || !g.isLava(lx, ly)) continue;
+          // a gradient from the lava side into the wall
+          const x0 = nx > 0 ? px + TILE : nx < 0 ? px : px + TILE / 2;
+          const y0 = ny > 0 ? py + TILE : ny < 0 ? py : py + TILE / 2;
+          const x1 = nx ? px + TILE / 2 : x0;
+          const y1 = ny ? py + TILE / 2 : y0;
+          const grad = ctx.createLinearGradient(x0, y0, x1, y1);
+          grad.addColorStop(0, 'rgba(255, 120, 40, 0.45)');
+          grad.addColorStop(1, 'rgba(255, 90, 30, 0)');
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.fillStyle = grad;
+          ctx.fillRect(px, py, TILE, TILE);
+          ctx.globalCompositeOperation = 'source-over';
+        }
+      }
+    }
+  }
+
   private drawStaticGround(ctx: CanvasRenderingContext2D, g: Game) {
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {

@@ -2958,6 +2958,10 @@ function showDeath(r: RunResult, best: boolean) {
       <div><b data-n="${r.turns}">${r.turns}</b>TURNS</div>
       ${r.seconds ? `<div><b>${playTime(r.seconds)}</b>TIME</div>` : ''}
     </div>
+    <div class="row grid2 share-row">
+      <button class="btn share-btn" id="copy">📋 Copy result</button>
+      ${PORTAL ? '' : '<button class="btn share-btn" id="share-img">📷 Share image</button>'}
+    </div>
     ${best ? '<p class="streak">New deepest descent!</p>' : ''}
     ${ONLINE && !ch ? `<p class="rank-line ${daily ? 'daily-rank' : ''}" id="rank">${signedIn() ? 'Carving your name into the crypt…' : daily ? 'Counting the fallen…' : ''}</p>` : ''}
     ${lastReward ? `<p class="earned-line"><b>+${lastReward.souls.toLocaleString()} Souls</b><span>💀 ${meta.souls.toLocaleString()} to spend</span></p>` : ''}
@@ -2967,11 +2971,7 @@ function showDeath(r: RunResult, best: boolean) {
     ${daily ? `${tomorrowHtml()}${reminderPromptHtml()}${keepGoingHtml()}` : ch ? '<button class="btn primary retry-btn" id="retry-challenge">↻ Retry<small>Same crypt, same hero</small></button>' : `<button class="btn primary retry-btn" id="again">↻ Retry<small>Straight back in as the ${esc(HERO_BY_ID[game.hero].name)}<span class="keys-hint"> · Enter or R</span></small></button>`}
     ${askName ? claimInlineHtml(claimText) : ''}
     ${keepNameHtml()}
-    <div class="row grid2 share-row">
-      <button class="btn share-btn" id="copy">📋 Copy result</button>
-      ${PORTAL ? '' : '<button class="btn share-btn" id="share-img">📷 Share image</button>'}
-      ${ch ? (PORTAL ? '' : '<button class="btn" id="pass-challenge">' + pxi('letter') + ' Pass it on</button>') : ONLINE && !PORTAL ? '<button class="btn challenge-btn" id="challenge">' + pxi('sword') + ' Challenge a friend</button>' : ''}
-    </div>
+    ${ch ? (PORTAL ? '' : '<button class="btn" id="pass-challenge">' + pxi('letter') + ' Pass it on</button>') : ONLINE && !PORTAL ? '<button class="btn challenge-btn" id="challenge">' + pxi('sword') + ' Challenge a friend</button>' : ''}
     <div class="row grid2 nav-row">
       ${ONLINE ? '<button class="btn" id="leaderboard">' + pxi('trophy') + ' Leaderboard</button>' : ''}
       <button class="btn" id="hall">🏰 Hall</button>

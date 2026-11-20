@@ -23,6 +23,17 @@ export interface NewsDay {
 
 export const NEWS: NewsDay[] = [
   {
+    date: '2026-11-20',
+    title: 'Deaths, light and a deeper descent',
+    notes: [
+      '💀 Every foe now dies its own way: skeletons collapse into a heap of bones, wraiths and other spirits drift apart upward, bats spiral down, ghouls and the drowned melt into a puddle, imps burst into flame, and brutes, hounds and monks topple over with a thud.',
+      '🕯️ Foes and your hero now cast longer shadows away from wall candles and your own light, and walls beside lava glow with its heat.',
+      '🧍 Your hero breathes while waiting, their cloak stirs, and the light they carry flickers.',
+      '⛏️ Crossing into a new zone now cuts to the depth map: your hero drops down the shaft to the new zone and its name rises underneath.',
+      '📷 Copy result and Share image now sit right under your run on the results screen.',
+    ],
+  },
+  {
     date: '2026-11-19',
     title: 'Themes, depths, name styles and a daily world boss',
     notes: [

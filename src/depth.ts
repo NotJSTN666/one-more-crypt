@@ -47,7 +47,7 @@ export const COL_H = 170;
 const SURF = 22;
 const BAND = (COL_H - SURF) / DEPTHS.length;
 /** Where the shaft runs down from the crypt door. */
-const SHAFT = 88;
+export const SHAFT = 88;
 
 /**
  * A floor's height in the column. Each depth gets the same height whatever its floors, so a
