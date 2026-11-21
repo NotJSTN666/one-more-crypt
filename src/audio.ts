@@ -466,39 +466,44 @@ function schedule() {
 }
 
 function tempo(): number {
-  return mood === 'fallen' ? FALLEN_TEMPO : isNight() ? NIGHT_TEMPO[level] : TEMPO[level];
+  return mood === 'fallen' ? FALLEN_TEMPO : isNight() ? NIGHT_TEMPO[level] : TEMPO[level] * (style.tempo ?? 1);
 }
 
 function playStep(i: number, t: number) {
   if (isNight()) return nightStep(i, t);
   const s = i % 16;
   const bar = Math.floor(i / 16);
-  const chords = CHORDS[mood === 'boss' ? 'boss' : mood === 'fallen' ? 'fallen' : 'crypt'];
+  const chords = mood === 'boss' ? CHORDS.boss : mood === 'fallen' ? CHORDS.fallen : style.chords ?? CHORDS.crypt;
   if (s === 0) key = mood === 'fallen' ? 0 : zoneKey;
   const chord = chords[bar % chords.length].map((n) => n + key);
   const s16 = 60 / tempo() / 4;
   const L = level;
+  const sy = mood === 'fallen' ? CLASSIC : style;
+  if (s === 0 && bus && sy.wet !== undefined && Math.abs(bus.wet.gain.value - sy.wet) > 0.01) bus.wet.gain.setTargetAtTime(sy.wet, t, 0.5);
 
-  if (s === 0) pad(chord, t, s16 * 16, L === 0 ? 0.045 : 0.035);
+  if (s === 0) padBy(sy.pad, chord, t, s16 * 16, L === 0 ? 0.045 : 0.035);
   // Bass: long notes in the menus, driving eighths and sixteenths in the crypt.
   if (L === 0) {
-    if (s === 0) bassNote(midi(chord[0] - 12), t, s16 * 14, 0.5);
+    if (s === 0) bassBy(sy.bass, midi(chord[0] - 12), t, s16 * 14, 0.5);
   } else if (L === 1) {
-    if (s % 2 === 0) bassNote(midi(chord[0] - 12), t, s16 * 1.8, 0.9);
+    if (s % 2 === 0) bassBy(sy.bass, midi(chord[0] - 12), t, s16 * 1.8, 0.9);
   } else {
-    bassNote(midi(chord[0] - (s % 4 === 2 ? 0 : 12)), t, s16 * 0.95, 0.9);
+    bassBy(sy.bass, midi(chord[0] - (s % 4 === 2 ? 0 : 12)), t, s16 * 0.95, 0.9);
   }
   // Arpeggio: soft in the menus, the lead from floor 20, an octave up in the Abyss.
-  const arpNote = midi(chord[ARP[s % 8]] + (L === 4 ? 24 : 12));
-  if (L === 0 && s % 2 === 0) lead(arpNote, t, s16 * 1.8, 0.018, s);
-  if (L >= 3) lead(arpNote, t, s16 * 0.9, 0.03, s);
+  const arp = sy.arpPattern ?? ARP;
+  const arpNote = midi(chord[arp[s % arp.length] % chord.length] + (L === 4 ? 24 : 12) + (sy.arpUp ?? 0));
+  if (L === 0 && s % 2 === 0) leadBy(sy.lead, arpNote, t, s16 * 1.8, 0.018, s);
+  if (L >= 3) leadBy(sy.lead, arpNote, t, s16 * 0.9, 0.03, s);
   // Drums.
-  if (L >= 1 && s % 4 === 0) kick(t, 0.9);
+  if (L >= 1 && s % 4 === 0) kickBy(sy.kick, t, 0.9);
   if (L >= 2) {
-    hat(t, s % 2 ? (L === 4 ? 0.07 : 0.04) : 0.09, s);
-    if (s === 4 || s === 12) snare(t, L === 4 ? 0.45 : 0.38);
-    if (s === 14) kick(t, 0.6);
+    hatBy(sy.hat, t, s % 2 ? (L === 4 ? 0.07 : 0.04) : 0.09, s);
+    if (s === 4 || s === 12) snareBy(sy.snare, t, L === 4 ? 0.45 : 0.38);
+    if (s === 14) kickBy(sy.kick, t, 0.6);
   }
+  // The theme's own touch: a bell, bubbles, an anvil, a music box...
+  sy.extra?.({ bar, s, t, chord, L, s16, boss: mood === 'boss' });
   if (L === 4) {
     if (s % 4 === 2) kick(t, 0.5);
     if (s >= 12) tom(t, [130, 110, 95, 80][s - 12], 0.4);
@@ -870,6 +875,364 @@ function tom(t: number, f0: number, vol: number) {
   o.start(t);
   o.stop(t + 0.4);
   burst(t, 0.12, 'lowpass', 1800, vol * 0.5);
+}
+
+// ---------- theme music ----------
+// Each theme (themes.ts) plays the crypt's score in its own way: its own chords and tempo, a pad,
+// bass, arpeggio and drums of its own, how much room it rings in, and a touch only it has. The
+// song's shape stays the same, so it still builds with depth and turns dark on a boss floor
+// (boss floors keep the shared dread progression; the lament on death is the same for all).
+
+type PadKind = 'saw' | 'organ' | 'choir' | 'glass' | 'drone' | 'warm';
+type BassKind = 'saw' | 'sub' | 'dist' | 'pluck';
+type LeadKind = 'square' | 'pluck' | 'musicbox' | 'harpsi' | 'flute' | 'oud' | 'saw' | 'bell';
+type HatKind = 'hat' | 'crackle' | 'chime' | 'click' | 'bubble' | 'shaker' | 'none';
+type SnareKind = 'snare' | 'anvil' | 'gated' | 'clap' | 'frame' | 'soft';
+type KickKind = 'kick' | 'deep' | 'soft';
+interface Beat { bar: number; s: number; t: number; chord: number[]; L: number; s16: number; boss: boolean }
+interface MusicStyle {
+  /** The crypt's progression, a bar each (MIDI triads around D). */
+  chords?: number[][];
+  tempo?: number;
+  /** Reverb send (Classic: 0.35). */
+  wet?: number;
+  pad?: PadKind;
+  bass?: BassKind;
+  lead?: LeadKind;
+  hat?: HatKind;
+  snare?: SnareKind;
+  kick?: KickKind;
+  /** Which chord notes the arpeggio walks, and how far up it sits. */
+  arpPattern?: number[];
+  arpUp?: number;
+  extra?: (b: Beat) => void;
+}
+const CLASSIC: MusicStyle = {};
+let style: MusicStyle = CLASSIC;
+
+const STYLES: Record<string, MusicStyle> = {
+  // bone and ash: slow and sparse, a drone, embers crackling, a far-off bell
+  ashen: {
+    chords: [[50, 53, 57], [50, 53, 57], [46, 50, 53], [45, 48, 52]], tempo: 0.86, wet: 0.5,
+    pad: 'drone', bass: 'sub', lead: 'flute', hat: 'crackle', snare: 'soft', kick: 'soft', arpPattern: [0, 2, 1, 2],
+    extra: ({ bar, s, t, chord }) => { if (s === 0 && bar % 4 === 0) bell(midi(chord[0] + 12), t, 0.05); },
+  },
+  // moss and copper: Dorian, warm, a plucked dulcimer and hand drums
+  verdigris: {
+    chords: [[50, 53, 57], [43, 47, 50], [50, 53, 57], [48, 52, 55]], tempo: 0.95, wet: 0.4,
+    pad: 'warm', bass: 'pluck', lead: 'pluck', hat: 'shaker', snare: 'frame', kick: 'soft', arpPattern: [0, 1, 2, 1, 0, 2, 1, 2],
+    extra: ({ s, t, chord, L }) => { if (L >= 1 && s === 10) tom(t, midi(chord[0] - 12) * 2, 0.18); },
+  },
+  // rime and glass: lighter chords, a music box, chimes for hats, a long icy pad
+  frost: {
+    chords: [[50, 53, 57], [46, 50, 53], [41, 45, 48], [48, 52, 55]], wet: 0.55,
+    pad: 'glass', bass: 'sub', lead: 'musicbox', hat: 'chime', snare: 'soft', kick: 'soft', arpUp: 12,
+    extra: ({ s, t, chord, L }) => { if (L === 0 && s % 4 === 3 && Math.random() < 0.4) musicBox(midi(chord[Math.floor(Math.random() * 3)] + 36), t, 0.012); },
+  },
+  // velvet and blood: harmonic minor, a harpsichord over an organ, a waltz-like lilt
+  crimson: {
+    chords: [[50, 53, 57], [43, 46, 50], [45, 49, 52], [50, 53, 57]], tempo: 0.92, wet: 0.45,
+    pad: 'organ', bass: 'saw', lead: 'harpsi', hat: 'hat', snare: 'clap', arpPattern: [0, 2, 1, 2, 0, 2],
+  },
+  // sandstone and gold: Phrygian dominant, an oud over a drone and frame drums
+  gilded: {
+    chords: [[50, 54, 57], [51, 55, 58], [50, 54, 57], [48, 51, 55]], tempo: 0.94, wet: 0.4,
+    pad: 'drone', bass: 'pluck', lead: 'oud', hat: 'shaker', snare: 'frame', kick: 'deep', arpPattern: [0, 1, 0, 2, 1, 0, 2, 1],
+  },
+  // the drowned temple: slow and dreamy, washed in echo, bubbles for hats, a whale's call now and then
+  sunken: {
+    chords: [[50, 53, 57], [41, 45, 48], [46, 50, 53], [45, 48, 52]], tempo: 0.82, wet: 0.7,
+    pad: 'warm', bass: 'sub', lead: 'flute', hat: 'bubble', snare: 'soft', kick: 'soft', arpPattern: [0, 1, 2, 1],
+    extra: ({ bar, s, t, s16 }) => {
+      if (s === 0 && bar % 8 === 4) whale(t, s16 * 16);
+      if (s % 4 === 1 && Math.random() < 0.3) bubble(t, 0.03);
+    },
+  },
+  // the forge: heavy and driving, distorted bass, anvils on the backbeat, a furnace roar on a boss
+  infernal: {
+    chords: [[50, 53, 57], [51, 55, 58], [50, 53, 57], [48, 51, 55]], tempo: 1.05, wet: 0.25,
+    pad: 'organ', bass: 'dist', lead: 'saw', hat: 'crackle', snare: 'anvil', kick: 'deep', arpPattern: [0, 0, 1, 0, 2, 0, 1, 0],
+    extra: ({ bar, s, t, s16, boss, L }) => {
+      if (L === 0 && s === 8 && bar % 2 === 1) anvil(t, 0.08);
+      if (boss && s === 0 && bar % 4 === 3) riser(t, s16 * 16);
+    },
+  },
+  // the haunted wood: whole-tone and eerie, a wavering flute, wooden clicks, a music box in the quiet
+  witchwood: {
+    chords: [[50, 54, 58], [48, 52, 56], [46, 50, 54], [52, 56, 60]], tempo: 0.9, wet: 0.5,
+    pad: 'choir', bass: 'pluck', lead: 'flute', hat: 'click', snare: 'soft', kick: 'soft', arpPattern: [0, 1, 2, 1, 2, 0],
+    extra: ({ bar, s, t, chord, L }) => {
+      if (L <= 1 && bar % 4 === 2 && s % 2 === 0 && s < 8) musicBox(midi(chord[(s / 2) % 3] + 24 - s), t, 0.02);
+    },
+  },
+  // the observatory: Lydian, a soft choir, twinkling bell arpeggios, very little drum
+  astral: {
+    chords: [[50, 54, 57], [52, 56, 59], [47, 50, 54], [45, 49, 52]], tempo: 0.9, wet: 0.65,
+    pad: 'choir', bass: 'sub', lead: 'bell', hat: 'chime', snare: 'soft', kick: 'soft', arpUp: 12, arpPattern: [0, 1, 2, 1],
+    extra: ({ s, t, chord }) => { if (s % 2 === 1 && Math.random() < 0.25) musicBox(midi(chord[Math.floor(Math.random() * 3)] + 36), t, 0.01); },
+  },
+  // synthwave: pulsing bass, a bright saw lead, a big gated snare, a touch faster
+  neon: {
+    chords: [[50, 53, 57], [46, 50, 53], [41, 45, 48], [48, 52, 55]], tempo: 1.08, wet: 0.35,
+    pad: 'saw', bass: 'saw', lead: 'saw', hat: 'hat', snare: 'gated', kick: 'kick', arpPattern: [0, 1, 2, 1, 0, 1, 2, 1],
+  },
+};
+
+/** Play the crypt's score in a theme's style (unknown ids, and 'classic', play it as written). */
+export function setMusicStyle(id: string) {
+  style = STYLES[id] ?? CLASSIC;
+}
+
+function padBy(kind: PadKind | undefined, chord: number[], t: number, dur: number, vol: number) {
+  if (!kind || kind === 'saw') return pad(chord, t, dur, vol);
+  const c = ctx!;
+  const g = c.createGain();
+  const attack = kind === 'choir' || kind === 'glass' ? Math.min(0.6, dur * 0.3) : 0.08;
+  const level = vol * (kind === 'drone' ? 1.6 : kind === 'glass' ? 0.9 : kind === 'organ' ? 0.75 : 1.4);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(level, t + attack);
+  g.gain.setValueAtTime(level, t + dur - 0.1);
+  g.gain.linearRampToValueAtTime(0.0001, t + dur + 0.05);
+  const f = c.createBiquadFilter();
+  f.type = kind === 'choir' ? 'bandpass' : 'lowpass';
+  f.frequency.value = kind === 'choir' ? 1100 : kind === 'glass' ? 5200 : kind === 'organ' ? 2200 : 1100;
+  f.Q.value = kind === 'choir' ? 0.8 : 0.7;
+  f.connect(g);
+  g.connect(bus!.dry);
+  g.connect(bus!.wet);
+  const notes = kind === 'drone' ? [chord[0], chord[0] + 7] : chord;
+  for (const n of notes) {
+    if (kind === 'organ') {
+      osc('square', midi(n + 12), t, dur, f, 0);
+      osc('sine', midi(n + 24), t, dur, f, 4);
+    } else if (kind === 'choir') {
+      for (const det of [-14, 0, 14]) {
+        const o = osc('triangle', midi(n + 12), t, dur, f, det);
+        const lfo = c.createOscillator();
+        const d = c.createGain();
+        lfo.frequency.value = 4.6 + Math.random();
+        d.gain.value = 12;
+        lfo.connect(d).connect(o.detune);
+        lfo.start(t);
+        lfo.stop(t + dur + 0.1);
+      }
+    } else if (kind === 'glass') {
+      osc('sine', midi(n + 24), t, dur, f, -6);
+      osc('triangle', midi(n + 24), t, dur, f, 6);
+    } else if (kind === 'drone') {
+      osc('sawtooth', midi(n), t, dur, f, -5);
+      osc('sine', midi(n - 12), t, dur, f, 0);
+    } else {
+      // warm: soft triangles, slightly spread
+      osc('triangle', midi(n + 12), t, dur, f, -8);
+      osc('triangle', midi(n + 12), t, dur, f, 8);
+    }
+  }
+}
+
+function bassBy(kind: BassKind | undefined, freq: number, t: number, dur: number, vol: number) {
+  if (!kind || kind === 'saw') return bassNote(freq, t, dur, vol);
+  const g = ctx!.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(vol * (kind === 'sub' ? 1.6 : kind === 'dist' ? 1.15 : 1.3), t + 0.005);
+  g.gain.exponentialRampToValueAtTime(0.02, t + (kind === 'pluck' ? Math.min(dur, 0.22) : dur));
+  g.connect(bus!.bass);
+  if (kind === 'sub') osc('sine', freq, t, dur, g);
+  else if (kind === 'pluck') {
+    osc('triangle', freq, t, dur, g);
+    osc('sine', freq * 2, t, Math.min(dur, 0.1), g);
+  } else {
+    // dist: two saws and a square, hard into the bass channel's clipper
+    osc('sawtooth', freq, t, dur, g, -12);
+    osc('sawtooth', freq, t, dur, g, 12);
+    osc('square', freq / 2, t, dur, g);
+  }
+}
+
+function leadBy(kind: LeadKind | undefined, freq: number, t: number, dur: number, vol: number, s: number) {
+  if (!kind || kind === 'square') return lead(freq, t, dur, vol, s);
+  if (kind === 'musicbox') return musicBox(freq * 2, t, vol * 1.1);
+  if (kind === 'bell') return bell(freq * 2, t, vol * 1.3);
+  const c = ctx!;
+  const g = c.createGain();
+  const f = c.createBiquadFilter();
+  const pan = c.createStereoPanner();
+  pan.pan.value = s % 2 ? -0.3 : 0.3;
+  g.connect(f).connect(pan);
+  pan.connect(bus!.dry);
+  pan.connect(bus!.wet);
+  if (kind === 'flute') {
+    // a breathy, wavering flute: a slow attack and a little vibrato
+    f.type = 'lowpass';
+    f.frequency.value = 2400;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol * 1.4, t + Math.min(0.08, dur * 0.4));
+    g.gain.linearRampToValueAtTime(0.0001, t + dur);
+    const o = osc('sine', freq, t, dur, g);
+    osc('triangle', freq * 2, t, dur, g, 3);
+    const lfo = c.createOscillator();
+    const d = c.createGain();
+    lfo.frequency.value = 5;
+    d.gain.value = 14;
+    lfo.connect(d).connect(o.detune);
+    lfo.start(t);
+    lfo.stop(t + dur + 0.05);
+    return;
+  }
+  const decay = kind === 'harpsi' ? 0.35 : kind === 'pluck' ? 0.3 : kind === 'oud' ? 0.4 : dur;
+  f.type = 'lowpass';
+  f.frequency.setValueAtTime(kind === 'harpsi' ? 6000 : kind === 'saw' ? 3200 : 3600, t);
+  f.frequency.exponentialRampToValueAtTime(kind === 'saw' ? 1800 : 700, t + Math.max(0.05, decay));
+  g.gain.setValueAtTime(vol * (kind === 'saw' ? 1 : 1.5), t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + Math.max(0.05, decay));
+  if (kind === 'harpsi') {
+    osc('sawtooth', freq, t, decay, g);
+    osc('square', freq * 2, t, decay, g, 5);
+  } else if (kind === 'oud') {
+    const o = osc('sawtooth', freq * 1.02, t, decay, g);
+    o.frequency.setValueAtTime(freq * 1.03, t);
+    o.frequency.exponentialRampToValueAtTime(freq, t + 0.06);
+  } else if (kind === 'pluck') {
+    osc('triangle', freq, t, decay, g);
+    osc('sawtooth', freq, t, Math.min(decay, 0.08), g);
+  } else {
+    // saw: a bright detuned synthwave lead
+    osc('sawtooth', freq, t, dur, g, -9);
+    osc('sawtooth', freq, t, dur, g, 9);
+  }
+}
+
+function hatBy(kind: HatKind | undefined, t: number, vol: number, s: number) {
+  if (!kind || kind === 'hat') return hat(t, vol, s);
+  if (kind === 'none') return;
+  if (kind === 'crackle') {
+    if (Math.random() < 0.6) burst(t + Math.random() * 0.03, 0.015, 'bandpass', 2500 + Math.random() * 3000, vol * 0.9, 4, (Math.random() - 0.5) * 0.8);
+  } else if (kind === 'chime') {
+    if (s % 2 === 0) musicBox(midi(96 + [0, 3, 7, 10][(s / 2) % 4]), t, vol * 0.08);
+  } else if (kind === 'click') {
+    burst(t, 0.02, 'bandpass', 1800, vol * 1.2, 6, s % 2 ? -0.4 : 0.4);
+  } else if (kind === 'bubble') {
+    if (s % 2 === 0) bubble(t, vol * 0.25);
+  } else if (kind === 'shaker') {
+    burst(t, 0.07, 'bandpass', 6500, vol * 0.8, 1.5, s % 2 ? -0.3 : 0.3);
+  }
+}
+
+function snareBy(kind: SnareKind | undefined, t: number, vol: number) {
+  if (!kind || kind === 'snare') return snare(t, vol);
+  if (kind === 'anvil') return anvil(t, vol * 0.22);
+  if (kind === 'gated') {
+    // a big gated snare: bright noise held, then cut dead
+    const c = ctx!;
+    const src = c.createBufferSource();
+    src.buffer = noiseBuf;
+    const f = c.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = 1700;
+    f.Q.value = 0.6;
+    const g = c.createGain();
+    g.gain.setValueAtTime(vol * 1.1, t);
+    g.gain.setValueAtTime(vol * 0.9, t + 0.16);
+    g.gain.linearRampToValueAtTime(0.0001, t + 0.19);
+    src.connect(f).connect(g);
+    g.connect(bus!.dry);
+    g.connect(bus!.wet);
+    src.start(t, Math.random() * 0.5);
+    src.stop(t + 0.25);
+    return;
+  }
+  if (kind === 'clap') {
+    for (const d of [0, 0.012, 0.026]) burst(t + d, 0.06, 'bandpass', 1500, vol * 0.7, 1.2);
+    return;
+  }
+  if (kind === 'frame') {
+    tom(t, 140, vol * 0.7);
+    burst(t, 0.08, 'bandpass', 900, vol * 0.4, 1);
+    return;
+  }
+  burst(t, 0.12, 'bandpass', 1300, vol * 0.55, 0.9);
+}
+
+function kickBy(kind: KickKind | undefined, t: number, vol: number) {
+  if (!kind || kind === 'kick') return kick(t, vol);
+  const c = ctx!;
+  const o = c.createOscillator();
+  const g = c.createGain();
+  o.frequency.setValueAtTime(kind === 'deep' ? 120 : 110, t);
+  o.frequency.exponentialRampToValueAtTime(kind === 'deep' ? 32 : 50, t + (kind === 'deep' ? 0.18 : 0.1));
+  g.gain.setValueAtTime(vol * (kind === 'deep' ? 1 : 0.5), t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + (kind === 'deep' ? 0.55 : 0.3));
+  o.connect(g).connect(bus!.dry);
+  o.start(t);
+  o.stop(t + 0.6);
+}
+
+/** A music-box tine: a pure tone with a glassy overtone, gone in a moment. */
+function musicBox(freq: number, t: number, vol: number) {
+  const c = ctx!;
+  const g = c.createGain();
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+  g.connect(bus!.dry);
+  g.connect(bus!.wet);
+  osc('sine', freq, t, 0.9, g);
+  const g2 = c.createGain();
+  g2.gain.setValueAtTime(vol * 0.4, t);
+  g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
+  g2.connect(bus!.wet);
+  osc('sine', freq * 4.2, t, 0.25, g2);
+}
+
+/** A bubble: a quick upward blip. */
+function bubble(t: number, vol: number) {
+  const c = ctx!;
+  const o = c.createOscillator();
+  const g = c.createGain();
+  const f0 = 500 + Math.random() * 700;
+  o.type = 'sine';
+  o.frequency.setValueAtTime(f0, t);
+  o.frequency.exponentialRampToValueAtTime(f0 * 2.2, t + 0.07);
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+  o.connect(g);
+  g.connect(bus!.dry);
+  g.connect(bus!.wet);
+  o.start(t);
+  o.stop(t + 0.1);
+}
+
+/** A whale's call from far below: a slow sliding moan, mostly echo. */
+function whale(t: number, dur: number) {
+  const c = ctx!;
+  const o = c.createOscillator();
+  const g = c.createGain();
+  const f = c.createBiquadFilter();
+  f.type = 'lowpass';
+  f.frequency.value = 900;
+  o.type = 'triangle';
+  o.frequency.setValueAtTime(220, t);
+  o.frequency.linearRampToValueAtTime(330, t + dur * 0.4);
+  o.frequency.linearRampToValueAtTime(180, t + dur);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(0.03, t + dur * 0.3);
+  g.gain.linearRampToValueAtTime(0.0001, t + dur);
+  o.connect(f).connect(g).connect(bus!.wet);
+  o.start(t);
+  o.stop(t + dur + 0.05);
+}
+
+/** An anvil struck: inharmonic metal, ringing, with the clank on top. */
+function anvil(t: number, vol: number) {
+  const c = ctx!;
+  for (const [ratio, decay] of [[1, 0.7], [2.76, 0.4], [5.4, 0.25], [8.9, 0.15]]) {
+    const g = c.createGain();
+    g.gain.setValueAtTime(vol / ratio ** 0.4, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+    g.connect(bus!.dry);
+    g.connect(bus!.wet);
+    osc('square', 620 * ratio, t, decay, g);
+  }
+  burst(t, 0.05, 'highpass', 3000, vol * 2.5, 1);
 }
 
 // Pause audio while the tab is hidden; resume when it comes back.

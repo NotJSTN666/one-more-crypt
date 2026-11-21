@@ -6,6 +6,12 @@
 
 import { ornamentVars, setFx } from './theme-fx';
 
+/** How the music follows the theme (handed in by main.ts, so this module needs no audio of its own). */
+let setMusicStyle: (id: string) => void = () => undefined;
+export function onThemeMusic(set: (id: string) => void) {
+  setMusicStyle = set;
+}
+
 export type ThemeId = 'classic' | 'ashen' | 'verdigris' | 'frost' | 'crimson' | 'gilded' | 'sunken' | 'infernal' | 'witchwood' | 'astral' | 'neon';
 
 export interface Theme {
@@ -219,6 +225,7 @@ export function applyTheme(id: ThemeId, keep = true) {
   }
   for (const [name, value] of Object.entries(ornamentVars(current.id))) root.style.setProperty(name, value);
   setFx(current.weather ?? null);
+  setMusicStyle(themeMusicOn() ? current.id : 'classic');
   if (current.id === 'classic') delete root.dataset.theme;
   else root.dataset.theme = current.id;
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', current.vars['--bg'] ?? '#07040b');
@@ -229,6 +236,24 @@ export function applyTheme(id: ThemeId, keep = true) {
       /* this visit only */
     }
   }
+}
+
+const MUSIC_KEY = 'omc:theme-music';
+/** Whether the theme also changes the crypt's music (off until turned on in Settings, while it's being tried out). */
+export function themeMusicOn(): boolean {
+  try {
+    return localStorage.getItem(MUSIC_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+export function setThemeMusic(on: boolean) {
+  try {
+    localStorage.setItem(MUSIC_KEY, on ? '1' : '0');
+  } catch {
+    /* this visit only */
+  }
+  setMusicStyle(on ? current.id : 'classic');
 }
 
 const loaded = new Set<string>();

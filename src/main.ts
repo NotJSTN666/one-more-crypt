@@ -1,13 +1,13 @@
 import './style.css';
 import { relicIcon, boonIcon, iconCanvas, iconsFromEmoji } from './relic-icons';
 import { installPixelIcons, pxi } from './pixel-icons';
-import { THEMES, applyTheme, loadThemeFonts, savedTheme, theme, type ThemeId } from './themes';
+import { THEMES, applyTheme, loadThemeFonts, onThemeMusic, savedTheme, setThemeMusic, theme, themeMusicOn, type ThemeId } from './themes';
 import { installThemeFx } from './theme-fx';
 import { depthAt, shareCard, showColumn, type ColumnRun } from './depth';
 import { earnedStyles, myNameStyle, styledName, styleName } from './name-style';
 import './themes.css';
 import { PORTAL, initPortal, portalHappy, portalLoaded, portalPlaying } from './portal';
-import { audioRunning, fusionSound, isMusicEnabled, isMuted, onAudioState, setMusicDepth, setMusicEnabled, setMusicMood, setMuted, sfx, unlockAudio } from './audio';
+import { audioRunning, fusionSound, isMusicEnabled, isMuted, onAudioState, setMusicDepth, setMusicEnabled, setMusicMood, setMusicStyle, setMuted, sfx, unlockAudio } from './audio';
 import { centralDate, dailyNumber, formatCountdown, msUntilNextDaily, weekStart } from './daily';
 import { liveNews, unreadNews, type NewsGo } from './news';
 import { TRIAL_SOULS, trialProgressText, weekTrial } from './trials';
@@ -68,6 +68,7 @@ const PRIVACY_URL = 'https://onemorecrypt.com/privacy.html';
 const discordBtn = PORTAL ? '' : `<a class="btn discord" href="${DISCORD_URL}" target="_blank" rel="noopener">💬 Join the Discord<small>Post your result, compare builds, report bugs</small></a>`;
 
 setMusicEnabled(!save.musicOff);
+onThemeMusic(setMusicStyle);
 applyTheme(savedTheme(), false);
 installThemeFx(calmMotion, () => !overlay.hidden);
 
@@ -1189,6 +1190,7 @@ function showSettings(back: () => void, openThemes = false) {
     <h3 class="shop-head">Sound</h3>
     ${row('set-sound', '🔊', 'Sound effects', !isMuted(), 'Hits, steps, the bell and the rest')}
     ${row('set-music', '🎵', 'Music', isMusicEnabled(), 'The crypt\'s music, which changes with depth')}
+    ${row('set-theme-music', '🎼', 'Theme music', themeMusicOn(), 'Each theme plays the crypt\'s music in its own style')}
     <h3 class="shop-head">Display</h3>
     ${row('set-shake', '📳', 'Screen shake', !save.shakeOff, 'A short shake on big hits')}
     ${row('set-contrast', '🔲', 'High contrast', save.highContrast, 'Light walls with bright edges, a plain floor, outlined foes, no fog')}
@@ -1207,6 +1209,10 @@ function showSettings(back: () => void, openThemes = false) {
     setMusicEnabled(!isMusicEnabled());
     save.musicOff = !isMusicEnabled();
     writeSave(save);
+    again();
+  });
+  on('#set-theme-music', () => {
+    setThemeMusic(!themeMusicOn());
     again();
   });
   on('#set-shake', () => {
