@@ -4268,7 +4268,7 @@ body.tutorial #relic-bar {
   100% { text-shadow: 0 0 0 transparent; }
 }
 
-/* Relic cards deal in one after another, flipping up, each catching the light as it lands. */
+/* Relic cards flip up together, each catching the light as it lands. */
 .offer {
   perspective: 800px;
 }
@@ -4278,10 +4278,8 @@ body.tutorial #relic-bar {
   transform-origin: 50% 100%;
 }
 
-#overlay.enter .offer button:nth-child(1) { animation-delay: 0.16s; }
-#overlay.enter .offer button:nth-child(2) { animation-delay: 0.26s; }
-#overlay.enter .offer button:nth-child(3) { animation-delay: 0.36s; }
-#overlay.enter .offer button:nth-child(4) { animation-delay: 0.46s; }
+/* (all together: dealt one at a time, a fourth card from the Ferryman's Coin looked like it was added late) */
+#overlay.enter .offer button { animation-delay: 0.16s; }
 
 @keyframes card-in {
   0% { opacity: 0; transform: translateY(28px) rotateX(60deg) scale(0.92); }
@@ -4300,10 +4298,7 @@ body.tutorial #relic-bar {
   animation: card-sheen 0.7s ease-out both;
 }
 
-#overlay.enter .offer button:nth-child(1)::after { animation-delay: 0.5s; }
-#overlay.enter .offer button:nth-child(2)::after { animation-delay: 0.6s; }
-#overlay.enter .offer button:nth-child(3)::after { animation-delay: 0.7s; }
-#overlay.enter .offer button:nth-child(4)::after { animation-delay: 0.8s; }
+#overlay.enter .offer button::after { animation-delay: 0.5s; }
 
 @keyframes card-sheen {
   from { left: -50%; }

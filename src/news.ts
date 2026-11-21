@@ -23,6 +23,11 @@ export interface NewsDay {
 
 export const NEWS: NewsDay[] = [
   {
+    date: '2026-11-21',
+    title: 'Relic cards all at once',
+    notes: ['🃏 Relic cards now flip up all together, so with the Ferryman\'s Coin you see all four choices at once.'],
+  },
+  {
     date: '2026-11-20',
     title: 'Deaths, light and a deeper descent',
     notes: [
