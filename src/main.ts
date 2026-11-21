@@ -1140,22 +1140,52 @@ document.addEventListener('click', (e) => {
   if ((e.target as HTMLElement).closest?.('#title-settings')) showSettings(showTitle);
 });
 
+/** A theme as the picker shows it: a strip of its colours, its name in its own lettering, and what it is. */
+function themeOptionHtml(t: (typeof THEMES)[number], head: boolean): string {
+  const chosen = t.id === theme().id;
+  const look = `--pk-bg:${t.swatch[1]};--pk-acc:${t.swatch[2]};--pk-text:${t.swatch[3]};--pk-line:${t.vars['--line'] ?? '#3a2a4a'};--pk-font:${t.font?.family ?? "'Pirata One'"}`;
+  const inner = `<span class="theme-swatch">${t.swatch.map((c) => `<i style="background:${c}"></i>`).join('')}</span><span class="theme-words"><b>${t.name}</b><small>${t.blurb}</small></span>`;
+  if (head) return `<span class="theme-pick shut" style="${look}">${inner}</span>`;
+  return `<button class="theme-pick${chosen ? ' on' : ''}" role="option" data-theme-id="${t.id}" aria-selected="${chosen}" style="${look}">${inner}${chosen ? '<em>✓</em>' : ''}</button>`;
+}
+
+const THEMES_SEEN_KEY = 'omc:themes-seen';
+/** Whether this player has opened Settings since the themes came in (so the title stops pointing to them). */
+function themesSeen(): boolean {
+  try {
+    return localStorage.getItem(THEMES_SEEN_KEY) === '2';
+  } catch {
+    return true;
+  }
+}
+function noteThemesSeen() {
+  try {
+    localStorage.setItem(THEMES_SEEN_KEY, '2');
+  } catch {
+    /* asked again next visit */
+  }
+}
+
+/** On the title, until Settings has been opened: there are themes, and where to find them. */
+function themeNudgeHtml(): string {
+  if (themesSeen() || tutorial || runsPlayed() < 1) return '';
+  return `<button class="theme-nudge" id="theme-nudge"><span class="theme-nudge-swatch">${THEMES.slice(1, 6).map((t) => `<i style="background:${t.swatch[2]}"></i>`).join('')}</span><span><b>🎨 Reskin the crypt</b><small>${THEMES.length - 1} themes to choose from in Settings. Tap to try them</small></span></button>`;
+}
+
 /** Sound, music and display settings, saved on this device. */
-function showSettings(back: () => void) {
+function showSettings(back: () => void, openThemes = false) {
   loadThemeFonts();
+  noteThemesSeen();
   const row = (id: string, icon: string, name: string, on: boolean, note: string) =>
     `<button class="btn setting-row ${on ? 'on' : ''}" id="${id}" aria-pressed="${on}"><span>${icon} ${name}</span><b>${on ? 'On' : 'Off'}</b><small>${note}</small></button>`;
   showOverlay('settings', `
     <h2>⚙️ Settings</h2>
     <p class="sub">Saved on this device.</p>
-    <h3 class="shop-head">Theme</h3>
-    <div class="theme-grid">${THEMES.map((t) => {
-      const chosen = t.id === theme().id;
-      const look = `--pk-bg:${t.swatch[1]};--pk-acc:${t.swatch[2]};--pk-text:${t.swatch[3]};--pk-line:${t.vars['--line'] ?? '#3a2a4a'};--pk-font:${t.font?.family ?? "'Pirata One'"}`;
-      return `<button class="theme-pick${chosen ? ' on' : ''}" data-theme-id="${t.id}" aria-pressed="${chosen}" style="${look}">`
-        + `<span class="theme-swatch">${t.swatch.map((c) => `<i style="background:${c}"></i>`).join('')}</span>`
-        + `<b>${t.name}</b><small>${t.blurb}</small></button>`;
-    }).join('')}</div>
+    <h3 class="shop-head">Theme <small>${THEMES.length} looks for the whole game</small></h3>
+    <details class="theme-select" id="theme-select"${openThemes ? ' open' : ''}>
+      <summary aria-label="Choose a theme">${themeOptionHtml(theme(), true)}<i aria-hidden="true">▾</i></summary>
+      <div class="theme-list" role="listbox">${THEMES.map((t) => themeOptionHtml(t, false)).join('')}</div>
+    </details>
     <h3 class="shop-head">Sound</h3>
     ${row('set-sound', '🔊', 'Sound effects', !isMuted(), 'Hits, steps, the bell and the rest')}
     ${row('set-music', '🎵', 'Music', isMusicEnabled(), 'The crypt\'s music, which changes with depth')}
@@ -1199,7 +1229,7 @@ function showSettings(back: () => void) {
     setDmgNumbers(!dmgNumbers());
     again();
   });
-  // A theme goes on at once, without redrawing the list (so it stays where it was scrolled to).
+  // A theme goes on at once, and the list stays open, so the next can be tried straight after.
   for (const pick of document.querySelectorAll<HTMLButtonElement>('.theme-pick')) {
     pick.addEventListener('click', () => {
       applyTheme(pick.dataset.themeId as ThemeId);
@@ -1207,9 +1237,17 @@ function showSettings(back: () => void) {
       for (const other of document.querySelectorAll<HTMLButtonElement>('.theme-pick')) {
         const chosen = other === pick;
         other.classList.toggle('on', chosen);
-        other.setAttribute('aria-pressed', String(chosen));
+        other.setAttribute('aria-selected', String(chosen));
+        other.querySelector('em')?.remove();
+        if (chosen) other.insertAdjacentHTML('beforeend', '<em>✓</em>');
       }
+      const shut = document.querySelector('#theme-select > summary');
+      if (shut) shut.innerHTML = `${themeOptionHtml(theme(), true)}<i aria-hidden="true">▾</i>`;
     });
+  }
+  if (openThemes) {
+    document.getElementById('theme-select')?.previousElementSibling?.scrollIntoView({ block: 'start' });
+    overlay.scrollTop -= 56; // (clear of the Back button pinned at the top)
   }
   on('#set-help', () => showHelp(again));
   on('#back', back);
@@ -2009,6 +2047,7 @@ function showTitle() {
     <button class="btn story-btn" id="story">${pxi('book')} Story<small>${storyProgress()}</small></button>
     ${streak > 1 ? `<div class="streak">${pxi('candle')} ${streak}-day streak</div>` : ''}
     </div>
+    ${themeNudgeHtml()}
     ${titleDepthHtml(done)}
     <details class="title-drawer" id="title-drawer"${drawerOpen() ? ' open' : ''}>
       <summary>${nudge ? '<span class="drawer-dot"></span>' : ''}${pxi('menu')} More<small>Challenges · your Hall · Ossuary · leaderboards</small></summary>
@@ -2081,6 +2120,7 @@ function showTitle() {
     toast((await copyText(text)) ? '📋 Copied! Paste it anywhere' : 'Copy failed');
   });
   on('#account', () => (unclaimed() ? showLogin(showTitle, 'claim') : showProfile(showTitle)));
+  on('#theme-nudge', () => showSettings(showTitle, true));
   on('#leaderboard', () => showLeaderboard(showTitle));
   on('#daily', () => withTutorialOffer(() => startRun('daily')));
   on('#continue', () => resumable && resumeRun(resumable));

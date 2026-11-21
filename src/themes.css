@@ -242,6 +242,206 @@
     0 0 60px rgba(255, 190, 80, 0.25);
 }
 
+/* ---------- Sunken Ruins: a drowned temple ---------- */
+
+:where(:root[data-theme='sunken']) .btn {
+  background: linear-gradient(180deg, rgba(160, 240, 230, 0.08), rgba(0, 20, 24, 0.3)), var(--panel-2);
+  border-color: #2f6a6a;
+  border-bottom-color: #031012;
+  box-shadow: inset 0 1px 0 rgba(200, 255, 245, 0.18), inset 0 -8px 14px -8px rgba(0, 40, 45, 0.7);
+}
+
+:root[data-theme='sunken'] .logo {
+  color: #9ff5ea;
+  letter-spacing: 1px;
+  text-shadow: 0 0 20px rgba(95, 224, 208, 0.55), 0 3px 0 #021a1e, 0 0 2px #000;
+  animation: sunken-sway 5s ease-in-out infinite;
+}
+
+@keyframes sunken-sway {
+  50% { transform: translateY(-3px); text-shadow: 0 0 30px rgba(95, 224, 208, 0.8), 0 3px 0 #021a1e, 0 0 2px #000; }
+}
+
+:root[data-theme='sunken'] h2,
+:root[data-theme='sunken'] .shop-head {
+  text-shadow: 0 3px 0 #021a1e, 0 0 12px rgba(95, 224, 208, 0.35);
+}
+
+:root[data-theme='sunken'] #board {
+  border-color: #021a1e;
+  border-radius: 3px;
+  box-shadow:
+    0 0 0 2px #3a6a68,
+    0 0 0 3px #9ff5ea,
+    0 0 0 5px #10302f,
+    0 0 0 7px #2a5050,
+    0 12px 40px rgba(0, 0, 0, 0.85),
+    0 0 70px rgba(95, 224, 208, 0.22);
+}
+
+/* ---------- Infernal Forge: black iron and lava ---------- */
+
+:where(:root[data-theme='infernal']) .btn {
+  background: linear-gradient(180deg, rgba(255, 120, 60, 0.07), rgba(0, 0, 0, 0.35)), #1a0d0a;
+  border: 1px solid #3a2a24;
+  border-bottom: 4px solid #050202;
+  box-shadow: inset 0 0 0 1px #050202, inset 0 -2px 0 rgba(255, 106, 26, 0.55), inset 0 1px 0 rgba(255, 200, 170, 0.1);
+}
+
+:root[data-theme='infernal'] .logo {
+  color: #ff8a2a;
+  text-shadow: 0 0 18px rgba(255, 90, 20, 0.7), 0 3px 0 #000, 0 0 2px #000;
+  animation: infernal-heat 1.8s ease-in-out infinite alternate;
+}
+
+@keyframes infernal-heat {
+  to { color: #ffb04a; text-shadow: 0 0 30px rgba(255, 120, 30, 0.95), 0 3px 0 #000, 0 0 2px #000; }
+}
+
+:root[data-theme='infernal'] h2,
+:root[data-theme='infernal'] .shop-head {
+  text-shadow: 0 3px 0 #000, 0 0 12px rgba(255, 90, 20, 0.45);
+}
+
+:root[data-theme='infernal'] #board {
+  border-color: #050202;
+  box-shadow:
+    0 0 0 2px #3a2a24,
+    0 0 0 3px #ff6a1a,
+    0 0 0 5px #1a0d0a,
+    0 0 0 7px #3a2a24,
+    0 12px 40px rgba(0, 0, 0, 0.9),
+    0 0 70px rgba(255, 90, 20, 0.3);
+}
+
+/* ---------- Witchwood: the haunted wood ---------- */
+
+:where(:root[data-theme='witchwood']) .btn {
+  background: linear-gradient(180deg, rgba(199, 155, 255, 0.07), rgba(0, 0, 0, 0.25)), var(--panel-2);
+  border-color: #4a3a2a;
+  border-bottom-color: #0d0618;
+  border-radius: 2px 10px 2px 10px;
+  box-shadow: inset 0 1px 0 rgba(216, 255, 122, 0.12), inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+:root[data-theme='witchwood'] .logo {
+  color: #c79bff;
+  text-shadow: 0 0 20px rgba(199, 155, 255, 0.55), 0 3px 0 #0d0618, 0 0 2px #000;
+  animation: witch-flicker 4s steps(1) infinite;
+}
+
+@keyframes witch-flicker {
+  0%, 100% { opacity: 1; }
+  46% { opacity: 0.75; }
+  48% { opacity: 1; }
+  80% { opacity: 0.85; }
+}
+
+:root[data-theme='witchwood'] h2,
+:root[data-theme='witchwood'] .shop-head {
+  text-shadow: 0 3px 0 #0d0618, 0 0 12px rgba(216, 255, 122, 0.3);
+}
+
+:root[data-theme='witchwood'] #board {
+  border-color: #0d0618;
+  border-radius: 4px;
+  box-shadow:
+    0 0 0 2px #3a2820,
+    0 0 0 4px #5a3a2a,
+    0 0 0 5px #8fbf4a,
+    0 0 0 7px #1e1630,
+    0 12px 40px rgba(0, 0, 0, 0.85),
+    0 0 70px rgba(199, 155, 255, 0.2);
+}
+
+/* ---------- Astral Observatory: navy and brass ---------- */
+
+:where(:root[data-theme='astral']) .btn {
+  background: radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.5) 0 1px, transparent 1.5px) 0 0 / 34px 26px, linear-gradient(180deg, rgba(184, 200, 255, 0.08), rgba(0, 0, 0, 0.25)), var(--panel-2);
+  border: 1px solid #a8884a;
+  border-bottom: 4px solid #05071a;
+  box-shadow: inset 0 0 0 2px #0c1028, inset 0 0 0 3px rgba(230, 194, 122, 0.3);
+}
+
+:root[data-theme='astral'] .logo {
+  color: transparent;
+  background: linear-gradient(180deg, #ffffff 0%, #c8d4ff 45%, #e6c27a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  text-shadow: none !important;
+  filter: drop-shadow(0 3px 0 #05071a) drop-shadow(0 0 16px rgba(170, 190, 255, 0.5));
+  animation: none;
+}
+
+:root[data-theme='astral'] h2,
+:root[data-theme='astral'] .shop-head {
+  text-shadow: 0 3px 0 #05071a, 0 0 12px rgba(170, 190, 255, 0.35);
+}
+
+:root[data-theme='astral'] #board {
+  border-color: #05071a;
+  box-shadow:
+    0 0 0 2px #e6c27a,
+    0 0 0 3px #8a6a2a,
+    0 0 0 5px #141a40,
+    0 0 0 6px #c8d4ff,
+    0 12px 40px rgba(0, 0, 0, 0.85),
+    0 0 60px rgba(170, 190, 255, 0.3);
+}
+
+/* ---------- Neon Tomb: glowing tubes in the dark ---------- */
+
+:where(:root[data-theme='neon']) .btn {
+  background: rgba(20, 8, 40, 0.85);
+  border: 1px solid #ff3ad8;
+  border-bottom: 2px solid #3af0ff;
+  box-shadow: 0 0 10px rgba(255, 58, 216, 0.35), inset 0 0 10px rgba(58, 240, 255, 0.15);
+}
+
+:where(:root[data-theme='neon']) .btn.primary {
+  background: linear-gradient(var(--primary), var(--primary-dark));
+}
+
+:root[data-theme='neon'] .logo {
+  color: #ffe8fb;
+  letter-spacing: 0;
+  text-shadow: 0 0 4px #fff, 0 0 12px #ff3ad8, 0 0 28px #ff3ad8, 0 0 44px #c21ab0;
+  animation: neon-buzz 3.6s steps(1) infinite;
+}
+
+@keyframes neon-buzz {
+  0%, 100% { opacity: 1; }
+  61% { opacity: 0.55; }
+  62% { opacity: 1; }
+  64% { opacity: 0.7; }
+  65% { opacity: 1; }
+}
+
+:root[data-theme='neon'] h2,
+:root[data-theme='neon'] .shop-head {
+  color: #3af0ff;
+  text-shadow: 0 0 8px rgba(58, 240, 255, 0.8), 0 0 18px rgba(58, 240, 255, 0.4);
+}
+
+:root[data-theme='neon'] h2 {
+  font-size: 30px;
+}
+
+:root[data-theme='neon'] .shop-head {
+  font-size: 18px;
+}
+
+:root[data-theme='neon'] #board {
+  border-color: #05020c;
+  box-shadow:
+    0 0 0 2px #ff3ad8,
+    0 0 0 4px #05020c,
+    0 0 0 5px #3af0ff,
+    0 0 18px rgba(255, 58, 216, 0.6),
+    0 12px 40px rgba(0, 0, 0, 0.85),
+    0 0 70px rgba(58, 240, 255, 0.3);
+}
+
 @media (prefers-reduced-motion: reduce) {
   :root[data-theme] .logo { animation: none; }
 }
@@ -266,7 +466,8 @@
   opacity: 0.8;
 }
 
-.theme-pick.on[style*='--pk-bg'] {
+.theme-pick.on[style*='--pk-bg'],
+.theme-pick.shut[style*='--pk-bg'] {
   border-color: var(--pk-acc);
   box-shadow: 0 0 12px color-mix(in srgb, var(--pk-acc) 45%, transparent);
 }

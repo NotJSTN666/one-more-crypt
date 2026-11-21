@@ -6,7 +6,7 @@
 
 import { ornamentVars, setFx } from './theme-fx';
 
-export type ThemeId = 'classic' | 'ashen' | 'verdigris' | 'frost' | 'crimson' | 'gilded';
+export type ThemeId = 'classic' | 'ashen' | 'verdigris' | 'frost' | 'crimson' | 'gilded' | 'sunken' | 'infernal' | 'witchwood' | 'astral' | 'neon';
 
 export interface Theme {
   id: ThemeId;
@@ -26,7 +26,7 @@ export interface Theme {
   font?: { family: string; css: string };
 }
 
-export type ThemeWeather = 'ash' | 'spores' | 'snow' | 'petals' | 'dust';
+export type ThemeWeather = 'ash' | 'spores' | 'snow' | 'petals' | 'dust' | 'bubbles' | 'embers' | 'fireflies' | 'starlight' | 'neonrain';
 
 export const THEMES: Theme[] = [
   {
@@ -109,6 +109,81 @@ export const THEMES: Theme[] = [
     flame: { flame: '#ffb02a', tip: '#fff6c8', spark: '#ffd36a', glow: '255, 190, 80' },
     weather: 'dust',
     font: { family: "'Cinzel Decorative'", css: 'Cinzel+Decorative:wght@700' },
+  },
+  {
+    id: 'sunken',
+    name: 'Sunken Ruins',
+    blurb: 'A drowned temple: wet stone, kelp and rising bubbles',
+    swatch: ['#020b0e', '#0a1c22', '#5fe0d0', '#d6f2ee'],
+    vars: {
+      '--bg': '#020b0e', '--panel': '#0a1c22', '--panel-2': '#10272f', '--line': '#1f4a52',
+      '--text': '#d6f2ee', '--muted': '#86aaa8', '--gold': '#5fe0d0', '--spectral': '#9ff5ea', '--bg-glow': '#0a2a30',
+      '--primary': '#1f8a8a', '--primary-dark': '#0c3a40', '--primary-edge': '#5fe0d0', '--primary-base': '#031215', '--primary-ink': '#d8fbf6',
+    },
+    board: { tint: '#2a8a90', mix: 0.6, glow: '#9ff5ea' },
+    flame: { flame: '#5fe0d0', tip: '#e8fffb', spark: '#9ff5ea', glow: '110, 230, 215' },
+    weather: 'bubbles',
+    font: { family: "'Metamorphous'", css: 'Metamorphous' },
+  },
+  {
+    id: 'infernal',
+    name: 'Infernal Forge',
+    blurb: 'Black iron and obsidian, split by seams of lava',
+    swatch: ['#0a0303', '#1a0907', '#ff6a1a', '#f7ddc8'],
+    vars: {
+      '--bg': '#0a0303', '--panel': '#1a0907', '--panel-2': '#26100b', '--line': '#5a2414',
+      '--text': '#f7ddc8', '--muted': '#b0907e', '--gold': '#ff8a2a', '--bg-glow': '#2e0c05',
+      '--primary': '#d2501a', '--primary-dark': '#5a1806', '--primary-edge': '#ffb04a', '--primary-base': '#1a0502', '--primary-ink': '#fff0d8',
+    },
+    board: { tint: '#b8401a', mix: 0.55, glow: '#ff9a4a' },
+    flame: { flame: '#ff6a1a', tip: '#fff2a0', spark: '#ffb04a', glow: '255, 120, 40' },
+    weather: 'embers',
+    font: { family: "'New Rocker'", css: 'New+Rocker' },
+  },
+  {
+    id: 'witchwood',
+    name: 'Witchwood',
+    blurb: 'A crypt grown through by a haunted wood, lit by fireflies',
+    swatch: ['#07050c', '#151022', '#c79bff', '#e6dcf2'],
+    vars: {
+      '--bg': '#07050c', '--panel': '#151022', '--panel-2': '#1e1630', '--line': '#3c2c58',
+      '--text': '#e6dcf2', '--muted': '#9a8cb0', '--gold': '#d8ff7a', '--spectral': '#c79bff', '--bg-glow': '#1c1230',
+      '--primary': '#6a3fb0', '--primary-dark': '#2a1650', '--primary-edge': '#c79bff', '--primary-base': '#0d0618', '--primary-ink': '#efe2ff',
+    },
+    board: { tint: '#5a3a8a', mix: 0.5, glow: '#d8ff9a' },
+    flame: { flame: '#d8ff7a', tip: '#ffffff', spark: '#e8ffb0', glow: '210, 255, 140' },
+    weather: 'fireflies',
+    font: { family: "'Mystery Quest'", css: 'Mystery+Quest' },
+  },
+  {
+    id: 'astral',
+    name: 'Astral Observatory',
+    blurb: 'Navy marble and brass star charts under a turning sky',
+    swatch: ['#03040c', '#0c1028', '#e6c27a', '#e6e8f6'],
+    vars: {
+      '--bg': '#03040c', '--panel': '#0c1028', '--panel-2': '#131838', '--line': '#2c3466',
+      '--text': '#e6e8f6', '--muted': '#9298c0', '--gold': '#e6c27a', '--spectral': '#b8c8ff', '--bg-glow': '#141a40',
+      '--primary': '#3a4aa8', '--primary-dark': '#161c50', '--primary-edge': '#e6c27a', '--primary-base': '#05071a', '--primary-ink': '#eef0ff',
+    },
+    board: { tint: '#3a4a9a', mix: 0.6, glow: '#c8d4ff' },
+    flame: { flame: '#b8c8ff', tip: '#ffffff', spark: '#e6c27a', glow: '170, 190, 255' },
+    weather: 'starlight',
+    font: { family: "'Marcellus SC'", css: 'Marcellus+SC' },
+  },
+  {
+    id: 'neon',
+    name: 'Neon Tomb',
+    blurb: 'Glowing grid lines and tube-lit walls in the rain',
+    swatch: ['#05020c', '#120828', '#ff3ad8', '#e8f6ff'],
+    vars: {
+      '--bg': '#05020c', '--panel': '#120828', '--panel-2': '#1a0c38', '--line': '#4a1e7a',
+      '--text': '#e8f6ff', '--muted': '#9a8ac8', '--gold': '#3af0ff', '--spectral': '#ff3ad8', '--bg-glow': '#1e0a40',
+      '--primary': '#c21ab0', '--primary-dark': '#4a0a5a', '--primary-edge': '#ff6ae8', '--primary-base': '#14021c', '--primary-ink': '#ffe8fb',
+    },
+    board: { tint: '#6a2ab8', mix: 0.55, glow: '#ff7ae8' },
+    flame: { flame: '#3af0ff', tip: '#ffffff', spark: '#ff3ad8', glow: '90, 230, 255' },
+    weather: 'neonrain',
+    font: { family: "'Monoton'", css: 'Monoton' },
   },
 ];
 

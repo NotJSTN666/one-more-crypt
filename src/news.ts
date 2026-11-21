@@ -24,8 +24,13 @@ export interface NewsDay {
 export const NEWS: NewsDay[] = [
   {
     date: '2026-11-21',
-    title: 'Relic cards all at once',
-    notes: ['🃏 Relic cards now flip up all together, so with the Ferryman\'s Coin you see all four choices at once.'],
+    title: 'Five more themes',
+    notes: [
+      '🎨 Five new themes, each its own crypt: Sunken Ruins (wet stone, kelp and rising bubbles), Infernal Forge (black iron split by seams of lava, with embers), Witchwood (roots, toadstools and fireflies), Astral Observatory (navy marble, brass star charts and twinkling stars) and Neon Tomb (glowing grid lines, tube-lit walls and neon rain).',
+      '⚙️ Themes now pick from a dropdown in Settings that shows each one in its own colours and lettering, and the title screen points you to them until you\'ve had a look.',
+      '🃏 Relic cards now flip up all together, so with the Ferryman\'s Coin you see all four choices at once.',
+    ],
+    go: ['settings'],
   },
   {
     date: '2026-11-20',

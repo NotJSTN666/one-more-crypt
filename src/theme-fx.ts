@@ -68,6 +68,31 @@ const ORNAMENTS: Record<string, Record<string, string>> = {
     ['GGGGGGGG', 'GYYYYYY.', 'GY......', 'GY.tt...', 'GY.tT...', 'GY......', 'GY......', 'G.......'],
     { G: '#ffd36a', Y: '#b8862a', t: '#2fa8a0', T: '#9ff5ec' },
   ),
+  // barnacles and a curl of kelp
+  sunken: corners(
+    ['.bb.....', 'bBBb.k..', 'bBBb.k..', '.bb..kk.', '..b...k.', '.bBb..k.', '.bb.....', '........'],
+    { b: '#6aa8a0', B: '#c8f0e8', k: '#2a8a6a' },
+  ),
+  // riveted iron with a glowing seam
+  infernal: corners(
+    ['IIIIIIII', 'IrI.....', 'III.....', 'Io......', 'Io......', 'I.......', 'I.......', 'I.......'],
+    { I: '#3a2a24', r: '#8a7a70', o: '#ff6a1a' },
+  ),
+  // a twist of root and a hanging leaf
+  witchwood: corners(
+    ['RRR.....', 'R.RR....', 'R..R.L..', 'RR.RLL..', '.R......', '.R......', 'R.......', '........'],
+    { R: '#5a3a2a', L: '#8fbf4a' },
+  ),
+  // a brass corner and a star
+  astral: corners(
+    ['BBBBBBB.', 'B.......', 'B..s....', 'B.sSs...', 'B..s....', 'B.......', 'B.......', '........'],
+    { B: '#e6c27a', s: '#9aa8ff', S: '#ffffff' },
+  ),
+  // neon tube corners, pink and cyan
+  neon: corners(
+    ['PPPPPP..', 'P.......', 'P.CCC...', 'P.C.....', 'P.C.....', 'P.......', '........', '........'],
+    { P: '#ff3ad8', C: '#3af0ff' },
+  ),
 };
 
 const ORN_VARS = ['--orn-tl', '--orn-tr', '--orn-bl', '--orn-br', '--orn-top', '--orn-bottom'];
@@ -80,7 +105,7 @@ export function ornamentVars(id: string): Record<string, string> {
 
 // ---------- particles over the menus ----------
 
-export type FxKind = 'ash' | 'spores' | 'snow' | 'petals' | 'dust' | null;
+export type FxKind = 'ash' | 'spores' | 'snow' | 'petals' | 'dust' | 'bubbles' | 'embers' | 'fireflies' | 'starlight' | 'neonrain' | null;
 
 interface Mote { x: number; y: number; vx: number; vy: number; s: number; t: number; c: string; spin: number }
 
@@ -90,7 +115,14 @@ const COLORS: Record<Exclude<FxKind, null>, string[]> = {
   snow: ['#ffffff', '#e6f4ff', '#cfe8ff'],
   petals: ['#a3182e', '#c8263f', '#7a1020', '#e04a5e'],
   dust: ['#ffd36a', '#ffe39a', '#d9a83a'],
+  bubbles: ['#bff8f0', '#9ff5ea', '#e8fffb'],
+  embers: ['#ff6a1a', '#ffb04a', '#ffd36a'],
+  fireflies: ['#eaffb0', '#d8ff7a'],
+  starlight: ['#dfe6ff', '#ffffff', '#e6c27a'],
+  neonrain: ['#ff3ad8', '#3af0ff'],
 };
+/** Kinds that hang about and fade rather than cross the screen: how long each lives. */
+const LIFE: Partial<Record<Exclude<FxKind, null>, number>> = { fireflies: 7, starlight: 3.5 };
 
 let kind: FxKind = null;
 let motes: Mote[] = [];
@@ -123,6 +155,9 @@ function spawn(w: number, h: number, scatter: boolean): Mote {
   const k = kind!;
   const c = COLORS[k][Math.floor(r() * COLORS[k].length)];
   const y = scatter ? r() * h : -6;
+  if (k === 'bubbles' || k === 'embers') return { x: r() * w, y: scatter ? r() * h : h + 6, vx: (r() - 0.5) * 4, vy: -(k === 'bubbles' ? 14 + r() * 18 : 18 + r() * 26), s: r() < 0.3 ? 4 : 2, t: r() * 2, c, spin: r() * 6 };
+  if (k === 'fireflies' || k === 'starlight') return { x: r() * w, y: r() * h, vx: k === 'fireflies' ? (r() - 0.5) * 14 : 0, vy: k === 'fireflies' ? (r() - 0.5) * 10 : 0, s: r() < 0.25 ? 3 : 2, t: scatter ? r() * (LIFE[k] ?? 4) : 0, c, spin: r() * 6 };
+  if (k === 'neonrain') return { x: r() * (w + 60), y: scatter ? r() * h : -14, vx: -16, vy: 260 + r() * 120, s: 2, t: 0, c, spin: 0 };
   if (k === 'dust') return { x: scatter ? r() * w : -6, y: r() * h, vx: 14 + r() * 22, vy: (r() - 0.5) * 4, s: r() < 0.3 ? 3 : 2, t: r() * 9, c, spin: 0 };
   if (k === 'spores') return { x: r() * w, y: scatter ? r() * h : h + 6, vx: (r() - 0.5) * 6, vy: -(6 + r() * 10), s: r() < 0.3 ? 3 : 2, t: r() * 9, c, spin: 0 };
   const fall = k === 'snow' ? 18 + r() * 26 : k === 'ash' ? 10 + r() * 14 : 16 + r() * 16;
@@ -161,13 +196,34 @@ function start() {
         m.y += m.vy * dt;
         ctx.globalAlpha = kind === 'dust' || kind === 'spores' ? 0.35 + 0.35 * Math.sin(m.t * 3) : kind === 'ash' ? 0.5 : 0.65;
         ctx.fillStyle = m.c;
-        if (kind === 'petals') {
+        const life = LIFE[kind];
+        if (life) {
+          // fade in and out over its life; fireflies blink as well
+          const f = Math.sin(Math.min(1, m.t / life) * Math.PI);
+          ctx.globalAlpha = kind === 'fireflies' ? f * (0.3 + 0.7 * Math.max(0, Math.sin(m.t * 2.6 + m.spin))) : f * 0.8;
+        }
+        if (kind === 'bubbles') {
+          ctx.globalAlpha = 0.45;
+          ctx.strokeStyle = m.c;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.arc(m.x, m.y, m.s, 0, Math.PI * 2);
+          ctx.stroke();
+        } else if (kind === 'neonrain') {
+          ctx.globalAlpha = 0.4;
+          ctx.fillRect(Math.round(m.x), Math.round(m.y), 2, 12);
+        } else if (kind === 'fireflies') {
+          ctx.fillRect(Math.round(m.x) - 2, Math.round(m.y) - 2, 6, 6);
+          ctx.globalAlpha = Math.min(1, ctx.globalAlpha * 1.6);
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(Math.round(m.x), Math.round(m.y), 2, 2);
+        } else if (kind === 'petals') {
           const flip = Math.sin(m.t * 4 + m.spin) > 0;
           ctx.fillRect(Math.round(m.x), Math.round(m.y), flip ? m.s * 2 : m.s, flip ? m.s : m.s * 2);
         } else ctx.fillRect(Math.round(m.x), Math.round(m.y), m.s, m.s);
       }
       ctx.globalAlpha = 1;
-      motes = motes.filter((m) => m.y < h + 10 && m.y > -20 && m.x < w + 10 && m.x > -20);
+      motes = motes.filter((m) => m.y < h + 10 && m.y > -20 && m.x < w + 10 && m.x > -20 && (!LIFE[kind!] || m.t < LIFE[kind!]!));
     }
     requestAnimationFrame(tick);
   };

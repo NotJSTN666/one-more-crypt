@@ -3293,12 +3293,22 @@ export class Renderer {
       this.weatherKind = kind;
     }
     const ctx = this.ctx;
-    const cap = { spores: 18, snow: 34, rain: 26, stars: 22, sparks: 16, leaves: 8, ash: 26, petals: 10, dust: 22 }[kind];
-    const rate = { spores: 4, snow: 12, rain: 30, stars: 6, sparks: 5, leaves: 4, ash: 7, petals: 4, dust: 6 }[kind];
+    const cap = { spores: 18, snow: 34, rain: 26, stars: 22, sparks: 16, leaves: 8, ash: 26, petals: 10, dust: 22, bubbles: 14, embers: 18, fireflies: 12, starlight: 26, neonrain: 30 }[kind];
+    const rate = { spores: 4, snow: 12, rain: 30, stars: 6, sparks: 5, leaves: 4, ash: 7, petals: 4, dust: 6, bubbles: 4, embers: 6, fireflies: 3, starlight: 8, neonrain: 30 }[kind];
     if (this.weather.length < cap && Math.random() < dt * rate) {
       const r = Math.random;
       const p =
-        kind === 'snow'
+        kind === 'bubbles'
+          ? { x: r() * BOARD_W, y: BOARD_H + 2, vx: 0, vy: -(8 + r() * 8), life: 30, size: r() < 0.3 ? 3 : 2 }
+          : kind === 'embers'
+            ? { x: r() * BOARD_W, y: BOARD_H + 2, vx: (r() - 0.5) * 4, vy: -(10 + r() * 12), life: 30, size: r() < 0.25 ? 2 : 1 }
+          : kind === 'fireflies'
+            ? { x: r() * BOARD_W, y: r() * BOARD_H, vx: (r() - 0.5) * 6, vy: (r() - 0.5) * 6, life: 4 + r() * 4, size: 1 }
+          : kind === 'starlight'
+            ? { x: r() * BOARD_W, y: r() * BOARD_H, vx: 0, vy: 0, life: 1.2 + r() * 2.2, size: r() < 0.2 ? 2 : 1 }
+          : kind === 'neonrain'
+            ? { x: r() * (BOARD_W + 30), y: -4, vx: -6, vy: 80 + r() * 30, life: 3, size: Math.floor(r() * 2) }
+          : kind === 'snow'
           ? { x: r() * (BOARD_W + 20) - 10, y: -2, vx: -2 + r() * 4, vy: 6 + r() * 6, life: 30, size: r() < 0.25 ? 2 : 1 }
           : kind === 'leaves' || kind === 'petals'
             ? { x: r() * (BOARD_W + 20) - 20, y: -2, vx: 2 + r() * 4, vy: 5 + r() * 4, life: 40, size: Math.floor(r() * 4) }
@@ -3313,13 +3323,49 @@ export class Renderer {
               : { x: r() * BOARD_W, y: BOARD_H * (0.4 + r() * 0.6), vx: (r() - 0.5) * 3, vy: -(3 + r() * 4), life: 4 + r() * 3, size: 1 };
       this.weather.push({ ...p, t: 0 });
     }
-    this.weather = this.weather.filter((p) => (p.t += dt) < p.life && p.y < BOARD_H + 6 && p.x < BOARD_W + 8);
+    this.weather = this.weather.filter((p) => (p.t += dt) < p.life && p.y < BOARD_H + 6 && p.y > -8 && p.x < BOARD_W + 8);
     for (const p of this.weather) {
-      const sway = kind === 'snow' || kind === 'spores' || kind === 'leaves' || kind === 'petals' || kind === 'ash';
+      const sway = kind === 'snow' || kind === 'spores' || kind === 'leaves' || kind === 'petals' || kind === 'ash' || kind === 'bubbles' || kind === 'embers' || kind === 'fireflies';
       p.x += (p.vx + (sway ? Math.sin(this.time * 1.3 + p.life * 7 + p.size) * (kind === 'leaves' || kind === 'petals' ? 5 : 2) : 0)) * dt;
       p.y += p.vy * dt;
       const fade = Math.sin(Math.min(1, p.t / p.life) * Math.PI);
-      if (kind === 'petals') {
+      if (kind === 'bubbles') {
+        // a bubble rising: a pale ring with a glint
+        ctx.globalAlpha = 0.55;
+        ctx.strokeStyle = '#bff8f0';
+        ctx.lineWidth = 0.6;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size / 2 + 0.3, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(Math.round(p.x - p.size / 4), Math.round(p.y - p.size / 4), 1, 1);
+      } else if (kind === 'embers') {
+        ctx.globalAlpha = 0.5 + 0.5 * Math.sin(this.time * 9 + p.vx * 5);
+        ctx.fillStyle = p.size === 2 ? '#ffd36a' : '#ff6a1a';
+        ctx.fillRect(Math.round(p.x), Math.round(p.y), p.size, p.size);
+      } else if (kind === 'fireflies') {
+        // a firefly drifting, its light blinking on and off
+        const on = Math.max(0, Math.sin(this.time * 2.4 + p.vx * 3 + p.vy * 2));
+        ctx.globalAlpha = 0.25 + 0.75 * on;
+        ctx.fillStyle = 'rgba(216,255,122,0.25)';
+        ctx.fillRect(Math.round(p.x) - 1, Math.round(p.y) - 1, 3, 3);
+        ctx.fillStyle = '#eaffb0';
+        ctx.fillRect(Math.round(p.x), Math.round(p.y), 1, 1);
+      } else if (kind === 'starlight') {
+        // stars that twinkle in and out, the bright ones with a cross of light
+        ctx.globalAlpha = fade;
+        ctx.fillStyle = p.size === 2 ? '#e6c27a' : '#dfe6ff';
+        ctx.fillRect(Math.round(p.x), Math.round(p.y), 1, 1);
+        if (p.size === 2) {
+          ctx.globalAlpha = fade * 0.6;
+          ctx.fillRect(Math.round(p.x) - 1, Math.round(p.y), 3, 1);
+          ctx.fillRect(Math.round(p.x), Math.round(p.y) - 1, 1, 3);
+        }
+      } else if (kind === 'neonrain') {
+        ctx.globalAlpha = 0.5;
+        ctx.fillStyle = p.size ? '#ff3ad8' : '#3af0ff';
+        ctx.fillRect(Math.round(p.x), Math.round(p.y), 1, 4);
+      } else if (kind === 'petals') {
         // a rose petal, turning as it drifts down
         ctx.globalAlpha = 0.7;
         ctx.fillStyle = ['#a3182e', '#c8263f', '#7a1020', '#e04a5e'][p.size];
