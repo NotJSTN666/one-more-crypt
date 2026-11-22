@@ -396,13 +396,12 @@ await p.evaluate(({ fade, black }) => {
   if (!black) document.getElementById('tt-hook').style.display = 'none';
   const e = document.getElementById('tt-end');
   e.style.display = 'flex';
-  if (black) {
-    e.classList.add('black');
-    // (the results screen, if it comes up under the fade, stays out of sight)
-    const st = document.createElement('style');
-    st.textContent = '#overlay { visibility: hidden !important; }';
-    document.head.appendChild(st);
-  }
+  // (a screen that comes up under the end card, the results or a cleared floor's relic offer,
+  // stays out of sight: the card is see-through as it fades in)
+  const st = document.createElement('style');
+  st.textContent = '#overlay, .overlay-ghost { visibility: hidden !important; }';
+  document.head.appendChild(st);
+  if (black) e.classList.add('black');
   if (fade) e.classList.add('fade');
 }, { fade: Boolean(idea.jumps), black: Boolean(idea.jumps?.some((j) => j.death) && !idea.deathScreen) });
 // (end: false leaves the end card off, for a clip that's one part of a longer video)
