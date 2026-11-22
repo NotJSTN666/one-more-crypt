@@ -4314,9 +4314,9 @@ body.tutorial #relic-bar {
 @keyframes glow-cursed { 40% { box-shadow: 0 0 18px color-mix(in srgb, var(--blood) 60%, transparent); } }
 @keyframes glow-boon { 40% { box-shadow: 0 0 18px rgba(176, 124, 255, 0.6); } }
 
-/* The buttons under the cards follow them in. */
+/* The buttons under the cards (Reroll, Rest) come in with them, so the screen arrives whole. */
 #overlay.enter:not(.menu) > .panel > .btn {
-  animation: rise 0.4s ease-out 0.5s both;
+  animation: rise 0.5s ease-out 0.16s both;
 }
 
 /* ---------- leaving ---------- */

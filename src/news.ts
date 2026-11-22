@@ -30,6 +30,7 @@ export const NEWS: NewsDay[] = [
       '🔥 The Soul Forge fuses relics in each theme\'s voice too, from shattering ice to an anvil blow to a laser drop. Turn Theme music off in Settings to keep the classic sound with any theme.',
       '🎨 Opening the theme list in Settings no longer switches you back to Classic.',
       '🪦 The lament that plays when you fall is in your theme\'s style too.',
+      '✨ When a floor is cleared, the Reroll and Rest buttons now arrive with the relic cards instead of popping in after them.',
     ],
     go: ['settings'],
   },
