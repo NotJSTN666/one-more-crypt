@@ -152,6 +152,18 @@ const shot = async () => {
   await tick();
   await p.screenshot({ path: `${OUT}/frames/${String(frame++).padStart(5, '0')}.jpg`, type: 'jpeg', quality: 92 });
 };
+/**
+ * The relic screen between floors is cut: while it's up, nothing is filmed; a relic is taken
+ * and the clock runs on until the next floor is back on the board.
+ */
+const overlayUp = () => p.evaluate(() => !document.querySelector('#overlay')?.hidden);
+const offCamera = async () => {
+  for (let i = 0; i < 400 && (await overlayUp()); i++) {
+    if (await has('.offer button')) await p.keyboard.press('1');
+    else if (await has('#fused-ok')) await p.evaluate(() => document.getElementById('fused-ok').click());
+    await tick(3);
+  }
+};
 const NAMES = { classic: 'Classic', ashen: 'Ashen', verdigris: 'Verdigris', frost: 'Frostbound', crimson: 'Crimson Court', gilded: 'Gilded Tomb', sunken: 'Sunken Ruins', infernal: 'Infernal Forge', witchwood: 'Witchwood', astral: 'Astral Observatory', neon: 'Neon Tomb' };
 
 // ---- record: a few steps in each theme ----
@@ -164,17 +176,13 @@ for (const [n, id] of THEMES.entries()) {
   }, [id, NAMES[id], n + 1, THEMES.length]);
   for (let s = 0; s < STEPS; s++) {
     await keepAlive();
-    if (await has('.offer button')) await p.keyboard.press('1');
-    else {
+    await offCamera();
+    {
       const d = await botDir();
       await p.keyboard.press(d ? KEY[d.join(',')] : ' ');
     }
     for (let f = 0; f < Math.round(STEP_S * FPS); f++) {
-      // (a cleared floor's relic offer is taken at once, so it never covers a theme's turn)
-      if (await has('.offer button')) {
-        await p.keyboard.press('1');
-        await tick(10);
-      }
+      await offCamera();
       await shot();
     }
   }
