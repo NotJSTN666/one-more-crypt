@@ -31,6 +31,7 @@ export const NEWS: NewsDay[] = [
       '🎨 Opening the theme list in Settings no longer switches you back to Classic.',
       '🪦 The lament that plays when you fall is in your theme\'s style too.',
       '✨ When a floor is cleared, the Reroll and Rest buttons now arrive with the relic cards instead of popping in after them.',
+      '🔤 A newly fused relic\'s name now appears in your theme\'s lettering from the start, instead of switching over when its card comes up.',
     ],
     go: ['settings'],
   },

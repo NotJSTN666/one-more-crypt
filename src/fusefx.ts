@@ -207,6 +207,8 @@ export function playFusion(opts: { a: string; b: string; out: string; name: stri
   // The forge's own colour (blue, or gold when ascended) lights the new relic; the two relics
   // going in each bring their own colour to the circle, their trails, the sparks and the waves.
   const color = opts.ascended ? '#f2c14e' : '#7fb4ff';
+  // The name is set in the theme's own lettering, the same as the card it lands on.
+  const nameFont = getComputedStyle(document.documentElement).getPropertyValue('--gothic').trim() || '"Pirata One", Georgia, serif';
   const glowRGB = opts.ascended ? '242,193,78' : '127,180,255';
   const colA = emojiColor(opts.a, color, opts.aImg);
   let colB = emojiColor(opts.b, opts.ascended ? '#ffb35a' : '#c9a8ff', opts.bImg);
@@ -653,7 +655,9 @@ export function playFusion(opts: { a: string; b: string; out: string; name: stri
       const q = clamp((after - 0.42) / 0.25);
       if (q > 0) {
         const scale = 1 + (1 - easeOut(q)) * 1.2;
-        const burstSize = Math.min(64, w * 0.12);
+        // (a wide theme lettering is brought down to fit across the screen)
+        ctx.font = `64px ${nameFont}`;
+        const burstSize = Math.min(64, w * 0.12, (64 * w * 0.86) / Math.max(1, ctx.measureText(opts.name).width));
         // As the light fades the name glides up to its line on the card beneath, shrinking to
         // the card's lettering and taking its colour, so it never blinks out and back.
         const spotN = handed ? opts.nameTarget?.() : null;
@@ -672,7 +676,7 @@ export function playFusion(opts: { a: string; b: string; out: string; name: stri
         ctx.translate(nx, ny);
         ctx.scale(scale, scale);
         ctx.textAlign = 'center';
-        ctx.font = `${nameSize}px "Pirata One", Georgia, serif`;
+        ctx.font = `${nameSize}px ${nameFont}`;
         const bw = Math.min(w / scale, ctx.measureText(opts.name).width + nameSize * 3);
         const band = ctx.createLinearGradient(-bw / 2, 0, bw / 2, 0);
         band.addColorStop(0, 'rgba(6,3,12,0)');
@@ -684,7 +688,7 @@ export function playFusion(opts: { a: string; b: string; out: string; name: stri
         ctx.fillStyle = color;
         ctx.font = `${Math.min(16, w * 0.036)}px Silkscreen, monospace`;
         ctx.fillText(opts.ascended ? '· ASCENDED ·' : '· FUSED ·', 0, -Math.min(52, w * 0.1));
-        ctx.font = `${nameSize}px "Pirata One", Georgia, serif`;
+        ctx.font = `${nameSize}px ${nameFont}`;
         ctx.lineJoin = 'round';
         ctx.lineWidth = Math.max(3, nameSize * 0.14);
         ctx.strokeStyle = '#0a0612';
