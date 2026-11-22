@@ -1247,10 +1247,50 @@ document.addEventListener('visibilitychange', () => {
  * relics are drawn together, a sucked-in silence, a huge impact, then a shimmering chord
  * as the new relic appears. `impactAt` is when the collision lands, in seconds.
  */
+// ---------- the Soul Forge's sound, per theme ----------
+// Each theme fuses relics in its own voice, in three parts like Classic's: the charge (a rising
+// sweep under a beat that quickens), the impact, and the reveal (a chord blooming, with sparkles).
+type ForgeBeat = 'thump' | 'anvil' | 'bubble' | 'tick' | 'chime' | 'drum';
+type ForgeImpact = 'boom' | 'anvil' | 'splash' | 'glass' | 'gong' | 'zap';
+type ForgeSparkle = 'tri' | 'musicbox' | 'bubble' | 'ember' | 'bell' | 'neon';
+interface ForgeStyle {
+  /** The rising tone under the charge, and how high it climbs. */
+  charge: OscillatorType;
+  top: number;
+  beat: ForgeBeat;
+  impact: ForgeImpact;
+  /** The reveal chord (ratios over the root) and its voice. */
+  chord: number[];
+  wave: OscillatorType;
+  sparkle: ForgeSparkle;
+  /** Wobble on the charge (Hz, 0 for none). */
+  wobble?: number;
+}
+const FORGE_CLASSIC: ForgeStyle = { charge: 'sawtooth', top: 660, beat: 'thump', impact: 'boom', chord: [1, 1.25, 1.5, 2, 2.5, 3], wave: 'triangle', sparkle: 'tri' };
+const FORGE_STYLES: Record<string, ForgeStyle> = {
+  ashen: { charge: 'triangle', top: 440, beat: 'thump', impact: 'gong', chord: [1, 1.2, 1.5, 2, 2.4], wave: 'sine', sparkle: 'ember' },
+  verdigris: { charge: 'triangle', top: 620, beat: 'drum', impact: 'boom', chord: [1, 1.2, 1.5, 1.68, 2, 3], wave: 'triangle', sparkle: 'tri' },
+  frost: { charge: 'sine', top: 1320, beat: 'chime', impact: 'glass', chord: [1, 1.5, 2, 3, 4], wave: 'sine', sparkle: 'musicbox' },
+  crimson: { charge: 'sawtooth', top: 560, beat: 'thump', impact: 'boom', chord: [1, 1.2, 1.5, 1.875, 2, 2.4], wave: 'square', sparkle: 'bell' },
+  gilded: { charge: 'sawtooth', top: 700, beat: 'drum', impact: 'gong', chord: [1, 1.06, 1.26, 1.5, 2, 2.52], wave: 'triangle', sparkle: 'tri' },
+  sunken: { charge: 'sine', top: 520, beat: 'bubble', impact: 'splash', chord: [1, 1.25, 1.5, 2, 2.5], wave: 'sine', sparkle: 'bubble', wobble: 6 },
+  infernal: { charge: 'sawtooth', top: 330, beat: 'anvil', impact: 'anvil', chord: [1, 1.5, 2, 3, 4], wave: 'sawtooth', sparkle: 'ember' },
+  witchwood: { charge: 'triangle', top: 600, beat: 'tick', impact: 'boom', chord: [1, 1.12, 1.26, 1.41, 1.59, 2], wave: 'triangle', sparkle: 'musicbox', wobble: 4 },
+  astral: { charge: 'sine', top: 990, beat: 'chime', impact: 'gong', chord: [1, 1.26, 1.41, 1.5, 2, 2.52], wave: 'sine', sparkle: 'bell' },
+  neon: { charge: 'square', top: 880, beat: 'thump', impact: 'zap', chord: [1, 1.19, 1.5, 2, 2.38, 3], wave: 'sawtooth', sparkle: 'neon' },
+};
+let forge: ForgeStyle = FORGE_CLASSIC;
+
+/** Fuse relics in a theme's voice ('classic', or an unknown id, plays the original). */
+export function setForgeStyle(id: string) {
+  forge = FORGE_STYLES[id] ?? FORGE_CLASSIC;
+}
+
 export function fusionSound(ascended: boolean, impactAt = 1.9, into?: BaseAudioContext) {
   // `into` renders it somewhere else (an OfflineAudioContext, e.g. for promo videos).
   const ctx = into ?? liveCtx();
   if (!ctx || (!into && muted)) return;
+  const F = forge;
   const t0 = ctx.currentTime + 0.02;
   const out = ctx.createGain();
   out.gain.value = 0.9;
@@ -1264,88 +1304,142 @@ export function fusionSound(ascended: boolean, impactAt = 1.9, into?: BaseAudioC
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     return b;
   };
+  /** A tone with a quick attack and an exponential fade. */
+  const ping = (type: OscillatorType, freq: number, at: number, dur: number, vol: number, slideTo?: number) => {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, at);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, at + dur);
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(vol, at + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    o.connect(g).connect(out);
+    o.start(at);
+    o.stop(at + dur + 0.02);
+  };
+  /** Filtered noise, fading out. */
+  const hiss = (at: number, dur: number, type: BiquadFilterType, f0: number, vol: number, f1 = f0) => {
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuf(dur);
+    const f = ctx.createBiquadFilter();
+    f.type = type;
+    f.frequency.setValueAtTime(f0, at);
+    if (f1 !== f0) f.frequency.exponentialRampToValueAtTime(f1, at + dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(vol, at);
+    g.gain.exponentialRampToValueAtTime(0.001, at + dur);
+    src.connect(f).connect(g).connect(out);
+    src.start(at);
+  };
+  /** Struck metal: inharmonic partials ringing out. */
+  const metal = (at: number, base: number, vol: number, decay: number) => {
+    [[1, 1], [2.76, 0.6], [5.4, 0.4], [8.9, 0.25]].forEach(([r, d]) => ping('square', base * r, at, decay * d, vol / r ** 0.5));
+  };
 
-  // 1. The charge: a noise sweep and two detuned saws rising together.
+  // 1. The charge: a noise sweep and two detuned tones rising together.
   const sweep = ctx.createBufferSource();
   sweep.buffer = noiseBuf(impactAt);
   const bp = ctx.createBiquadFilter();
   bp.type = 'bandpass';
   bp.Q.value = 2.5;
   bp.frequency.setValueAtTime(250, t0);
-  bp.frequency.exponentialRampToValueAtTime(7000, hit - 0.05);
+  bp.frequency.exponentialRampToValueAtTime(F.impact === 'splash' ? 2400 : 7000, hit - 0.05);
   const sg = ctx.createGain();
   sg.gain.setValueAtTime(0.02, t0);
-  sg.gain.exponentialRampToValueAtTime(0.5, hit - 0.08);
+  sg.gain.exponentialRampToValueAtTime(F.impact === 'glass' || F.charge === 'sine' ? 0.3 : 0.5, hit - 0.08);
   sg.gain.linearRampToValueAtTime(0, hit - 0.04);
   sweep.connect(bp).connect(sg).connect(out);
   sweep.start(t0);
   for (const detune of [-14, 9]) {
     const o = ctx.createOscillator();
-    o.type = 'sawtooth';
+    o.type = F.charge;
     o.detune.value = detune;
     o.frequency.setValueAtTime(82, t0);
-    o.frequency.exponentialRampToValueAtTime(ascended ? 990 : 660, hit - 0.05);
+    o.frequency.exponentialRampToValueAtTime(ascended ? F.top * 1.5 : F.top, hit - 0.05);
+    if (F.wobble) {
+      const lfo = ctx.createOscillator();
+      const depth = ctx.createGain();
+      lfo.frequency.value = F.wobble;
+      depth.gain.value = 40;
+      lfo.connect(depth).connect(o.detune);
+      lfo.start(t0);
+      lfo.stop(hit);
+    }
     const lp = ctx.createBiquadFilter();
     lp.type = 'lowpass';
     lp.frequency.setValueAtTime(300, t0);
     lp.frequency.exponentialRampToValueAtTime(5000, hit - 0.05);
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.001, t0);
-    g.gain.exponentialRampToValueAtTime(0.09, hit - 0.1);
+    g.gain.exponentialRampToValueAtTime(F.charge === 'sine' || F.charge === 'triangle' ? 0.14 : 0.09, hit - 0.1);
     g.gain.linearRampToValueAtTime(0, hit - 0.04);
     o.connect(lp).connect(g).connect(out);
     o.start(t0);
     o.stop(hit);
   }
-  // Heartbeat thumps that speed up toward the collision.
+  // A beat that speeds up toward the collision: heartbeat thumps, or the theme's own.
   let at = 0;
-  for (let gap = 0.42; at < impactAt - 0.12; gap *= 0.8) {
-    const k = ctx.createOscillator();
-    const kg = ctx.createGain();
-    k.frequency.setValueAtTime(140, t0 + at);
-    k.frequency.exponentialRampToValueAtTime(45, t0 + at + 0.12);
-    kg.gain.setValueAtTime(0.45, t0 + at);
-    kg.gain.exponentialRampToValueAtTime(0.001, t0 + at + 0.16);
-    k.connect(kg).connect(out);
-    k.start(t0 + at);
-    k.stop(t0 + at + 0.18);
+  for (let gap = 0.42, n = 0; at < impactAt - 0.12; gap *= 0.8, n++) {
+    const tb = t0 + at;
+    if (F.beat === 'thump') ping('sine', 140, tb, 0.16, 0.45, 45);
+    else if (F.beat === 'anvil') metal(tb, 520 + n * 12, 0.05, 0.35);
+    else if (F.beat === 'bubble') ping('sine', 400 + Math.random() * 500, tb, 0.09, 0.12, 1200);
+    else if (F.beat === 'tick') {
+      ping('square', n % 2 ? 1800 : 1400, tb, 0.025, 0.06);
+      hiss(tb, 0.02, 'bandpass', 2200, 0.15);
+    } else if (F.beat === 'chime') ping('sine', 1046 * 2 ** ((n % 5) / 5), tb, 0.4, 0.05);
+    else {
+      // drum: a hand drum, low and skin-soft
+      ping('sine', 170, tb, 0.18, 0.35, 90);
+      hiss(tb, 0.05, 'lowpass', 900, 0.15);
+    }
     at += Math.max(0.06, gap);
   }
 
-  // 2. The impact: a deep drop, a burst and a long crash.
-  const boom = ctx.createOscillator();
-  const bg = ctx.createGain();
-  boom.frequency.setValueAtTime(95, hit);
-  boom.frequency.exponentialRampToValueAtTime(28, hit + 1.3);
-  bg.gain.setValueAtTime(0.9, hit);
-  bg.gain.exponentialRampToValueAtTime(0.001, hit + 1.4);
-  boom.connect(bg).connect(out);
-  boom.start(hit);
-  boom.stop(hit + 1.45);
-  const burst = ctx.createBufferSource();
-  burst.buffer = noiseBuf(1.6);
-  const blp = ctx.createBiquadFilter();
-  blp.type = 'lowpass';
-  blp.frequency.setValueAtTime(5000, hit);
-  blp.frequency.exponentialRampToValueAtTime(300, hit + 1.5);
-  const burstG = ctx.createGain();
-  burstG.gain.setValueAtTime(0.8, hit);
-  burstG.gain.exponentialRampToValueAtTime(0.001, hit + 1.5);
-  burst.connect(blp).connect(burstG).connect(out);
-  burst.start(hit);
+  // 2. The impact.
+  const boom = (f0: number, vol: number) => ping('sine', f0, hit, 1.4, vol, 28);
+  if (F.impact === 'boom') {
+    boom(95, 0.9);
+    hiss(hit, 1.5, 'lowpass', 5000, 0.8, 300);
+  } else if (F.impact === 'anvil') {
+    boom(80, 1);
+    metal(hit, 330, 0.18, 1.6);
+    hiss(hit, 1.2, 'lowpass', 3000, 0.7, 200);
+    hiss(hit + 0.05, 0.9, 'bandpass', 600, 0.25, 150); // the furnace breathing out
+  } else if (F.impact === 'splash') {
+    boom(70, 0.7);
+    hiss(hit, 1.2, 'lowpass', 1800, 0.7, 200);
+    for (let i = 0; i < 10; i++) ping('sine', 300 + Math.random() * 900, hit + 0.05 + Math.random() * 0.6, 0.1, 0.08, 1400);
+  } else if (F.impact === 'glass') {
+    boom(110, 0.5);
+    hiss(hit, 0.8, 'highpass', 6000, 0.5, 4000);
+    for (let i = 0; i < 14; i++) ping('sine', 2000 + Math.random() * 4000, hit + Math.random() * 0.4, 0.3 + Math.random() * 0.4, 0.03);
+  } else if (F.impact === 'gong') {
+    boom(85, 0.7);
+    [[1, 2.6], [1.48, 2.2], [2.04, 1.8], [2.56, 1.3], [3.1, 1]].forEach(([r, d]) => ping('sine', 110 * r, hit, d, 0.12 / r));
+    hiss(hit, 1.2, 'bandpass', 900, 0.3, 400);
+  } else {
+    // zap: a laser dropping out of the sky into a synth boom
+    boom(90, 0.8);
+    ping('sawtooth', 2400, hit - 0.02, 0.5, 0.12, 60);
+    ping('square', 1800, hit, 0.35, 0.06, 90);
+    hiss(hit, 1, 'lowpass', 6000, 0.5, 400);
+  }
 
-  // 3. The reveal: a bright chord blooming and a few sparkles.
+  // 3. The reveal: a chord blooming in the theme's harmony, and a few sparkles.
   const root = ascended ? 293.66 : 261.63;
-  [1, 1.25, 1.5, 2, 2.5, 3].forEach((m, i) => {
-    for (const det of [-6, 6]) {
+  F.chord.forEach((m, i) => {
+    for (const det of F.wave === 'sawtooth' ? [-9, 9] : [-6, 6]) {
       const o = ctx.createOscillator();
       const g = ctx.createGain();
-      o.type = i < 3 ? 'triangle' : 'sine';
+      o.type = i < 3 ? F.wave : F.wave === 'square' || F.wave === 'sawtooth' ? 'triangle' : 'sine';
       o.frequency.value = root * m;
       o.detune.value = det;
       const s0 = hit + 0.12 + i * 0.05;
+      const vol = F.wave === 'square' || F.wave === 'sawtooth' ? 0.025 : 0.05;
       g.gain.setValueAtTime(0.001, s0);
-      g.gain.exponentialRampToValueAtTime(0.05, s0 + 0.08);
+      g.gain.exponentialRampToValueAtTime(vol, s0 + 0.08);
       g.gain.exponentialRampToValueAtTime(0.001, s0 + 1.6);
       o.connect(g).connect(out);
       o.start(s0);
@@ -1353,16 +1447,18 @@ export function fusionSound(ascended: boolean, impactAt = 1.9, into?: BaseAudioC
     }
   });
   for (let i = 0; i < 6; i++) {
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
     const s0 = hit + 0.3 + i * 0.11;
-    o.type = 'triangle';
-    o.frequency.value = 1568 * (1 + (i % 3) * 0.25);
-    g.gain.setValueAtTime(0.035, s0);
-    g.gain.exponentialRampToValueAtTime(0.0001, s0 + 0.18);
-    o.connect(g).connect(out);
-    o.start(s0);
-    o.stop(s0 + 0.2);
+    const f = 1568 * (1 + (i % 3) * 0.25);
+    if (F.sparkle === 'tri') ping('triangle', f, s0, 0.18, 0.035);
+    else if (F.sparkle === 'musicbox') {
+      ping('sine', f, s0, 0.7, 0.03);
+      ping('sine', f * 4.2, s0, 0.2, 0.012);
+    } else if (F.sparkle === 'bubble') ping('sine', 500 + i * 120, s0, 0.09, 0.08, 1500 + i * 200);
+    else if (F.sparkle === 'ember') hiss(s0 + Math.random() * 0.05, 0.03, 'bandpass', 2500 + Math.random() * 3000, 0.25);
+    else if (F.sparkle === 'bell') {
+      ping('sine', f / 2, s0, 1, 0.03);
+      ping('sine', (f / 2) * 2.76, s0, 0.4, 0.012);
+    } else ping('square', f * (i % 2 ? 1.5 : 1), s0, 0.12, 0.02);
   }
 }
 

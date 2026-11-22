@@ -8,8 +8,10 @@ import { ornamentVars, setFx } from './theme-fx';
 
 /** How the music follows the theme (handed in by main.ts, so this module needs no audio of its own). */
 let setMusicStyle: (id: string) => void = () => undefined;
-export function onThemeMusic(set: (id: string) => void) {
+let setForgeStyle: (id: string) => void = () => undefined;
+export function onThemeMusic(set: (id: string) => void, forge?: (id: string) => void) {
   setMusicStyle = set;
+  if (forge) setForgeStyle = forge;
 }
 
 export type ThemeId = 'classic' | 'ashen' | 'verdigris' | 'frost' | 'crimson' | 'gilded' | 'sunken' | 'infernal' | 'witchwood' | 'astral' | 'neon';
@@ -228,6 +230,7 @@ export function applyTheme(id: ThemeId, keep = true) {
   for (const [name, value] of Object.entries(ornamentVars(current.id))) root.style.setProperty(name, value);
   setFx(current.weather ?? null);
   setMusicStyle(themeMusicOn() ? current.id : 'classic');
+  setForgeStyle(themeMusicOn() ? current.id : 'classic');
   if (current.id === 'classic') delete root.dataset.theme;
   else root.dataset.theme = current.id;
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', current.vars['--bg'] ?? '#07040b');
@@ -256,6 +259,7 @@ export function setThemeMusic(on: boolean) {
     /* this visit only */
   }
   setMusicStyle(on ? current.id : 'classic');
+  setForgeStyle(on ? current.id : 'classic');
 }
 
 const loaded = new Set<string>();
