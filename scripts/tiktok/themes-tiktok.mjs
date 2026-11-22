@@ -169,7 +169,14 @@ for (const [n, id] of THEMES.entries()) {
       const d = await botDir();
       await p.keyboard.press(d ? KEY[d.join(',')] : ' ');
     }
-    for (let f = 0; f < Math.round(STEP_S * FPS); f++) await shot();
+    for (let f = 0; f < Math.round(STEP_S * FPS); f++) {
+      // (a cleared floor's relic offer is taken at once, so it never covers a theme's turn)
+      if (await has('.offer button')) {
+        await p.keyboard.press('1');
+        await tick(10);
+      }
+      await shot();
+    }
   }
 }
 // the end card
