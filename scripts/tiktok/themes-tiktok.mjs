@@ -48,7 +48,7 @@ await p.goto(PAGE);
 await p.waitForTimeout(2500);
 await p.evaluate(() => document.fonts.ready);
 await p.evaluate(() => window.__freeze());
-await p.addStyleTag({ content: '#toast, .back-top, .install-bar, .tester-ask, .invite-ask, #sound-hint, .ns-pad, .touch-pad, .dpad, #pad { display: none !important; }' });
+await p.addStyleTag({ content: '#toast, .back-top, .install-bar, .tester-ask, .invite-ask, #sound-hint, .ns-pad, .touch-pad, .dpad, #pad { display: none !important; } #tip, #relic-bar, #controls, #dpad, .floor-tip { visibility: hidden !important; }' });
 
 const STEP = 1000 / FPS;
 const tick = async (n = 1) => {
