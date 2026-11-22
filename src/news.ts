@@ -24,8 +24,9 @@ export interface NewsDay {
 export const NEWS: NewsDay[] = [
   {
     date: '2026-11-22',
-    title: 'Every theme has its own music',
+    title: 'Every theme has its own music, and a streak flame',
     notes: [
+      '🕯️ Your Daily streak now burns as a candle on the title screen. It grows taller and changes colour the longer your streak runs, burns low when today\'s Daily is still waiting, and shows your Grave Wards and the next streak reward.',
       '🎼 Each theme now plays the crypt\'s music in its own style: a slow drone and a distant bell in Ashen, a music box in Frostbound, a harpsichord and organ in Crimson Court, an oud and frame drums in the Gilded Tomb, bubbles and a whale\'s call in Sunken Ruins, anvils in the Infernal Forge, an eerie flute in Witchwood, a soft choir in the Astral Observatory and synthwave in the Neon Tomb. It still builds as you go deeper.',
       '🔥 The Soul Forge fuses relics in each theme\'s voice too, from shattering ice to an anvil blow to a laser drop. Turn Theme music off in Settings to keep the classic sound with any theme.',
       '🎨 Opening the theme list in Settings no longer switches you back to Classic.',

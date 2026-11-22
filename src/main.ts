@@ -45,7 +45,8 @@ import { bountiesHtml, bountyList, progressBounties } from './bounties';
 import { enableReminders, loadReminders, reminderPrefs, remindersAvailable, remindersNeedInstall, timeZone } from './push';
 import { onAccountSynced, claimPodiums, claimWeekly, clearBeat, lastBeat, type PodiumFinish, type WeeklyFinish } from './social';
 import { paintBoardNames, claimInlineHtml, wireClaimInline, keepNameHtml, wireKeepName, endlessRecord, ensureGuest, initSocial, needsName, unclaimed, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
-import { currentStreak, loadSave, recordDaily, streakStats, WARD_EVERY, writeSave, type RunResult } from './storage';
+import { loadSave, recordDaily, streakStats, WARD_EVERY, writeSave, type RunResult } from './storage';
+import { flameView, runStreakFlame } from './streak-flame';
 import { $, calmChosen, calmMotion, esc, formStatus, hideOverlay, on, onSubmit, overlay, overlayShownAt, screen, setCalm, showOverlay, toast } from './ui';
 import { showTesterAsk, testerAskDue, testerOffer } from './testers';
 import { PODIUM_PRIZES, RACE_PRIZES } from './race-prizes';
@@ -1981,7 +1982,6 @@ function showTitle() {
   setMusicMood('crypt');
   const today = dailyNumber();
   const done = save.daily[today];
-  const streak = currentStreak(save, today);
   const resumable = savedRun();
   const raid = raidPhase();
   const heroToday = HERO_BY_ID[dailyHero(today)].name;
@@ -2044,6 +2044,7 @@ function showTitle() {
     <p class="title-live" id="title-live" aria-hidden="true"><i></i><span></span></p>
     ${onlineCountHtml()}
     <div class="title-play">
+    ${streakFlameHtml(today)}
     ${continueBlock}
     ${dailyBlock}
     ${championHtml()}
@@ -2051,7 +2052,6 @@ function showTitle() {
     ${delveBtn}
     ${raceBtn}
     <button class="btn story-btn" id="story">${pxi('book')} Story<small>${storyProgress()}</small></button>
-    ${streak > 1 ? `<div class="streak">${pxi('candle')} ${streak}-day streak</div>` : ''}
     </div>
     ${themeNudgeHtml()}
     ${titleDepthHtml(done)}
@@ -2102,6 +2102,9 @@ function showTitle() {
     });
   }
   titleScene();
+  const flameCanvas = overlay.querySelector<HTMLCanvasElement>('#streak-flame');
+  const flame = flameView(streakStats(save, today), today);
+  if (flameCanvas && flame) runStreakFlame(flameCanvas, flame, calmMotion(), () => screen === 'title');
   const titleDepth = drawTitleDepth(done, today);
   wireChampion();
   on('#share-daily', () => {
@@ -3521,11 +3524,40 @@ function tomorrowHtml(): string {
     </div>`;
 }
 
+/** What the streak earns next: a streak helm, else a Grave Ward. */
+function streakGoal(current: number): string {
+  const next = STREAK_HELMS.find(([n]) => n > meta.streak.best);
+  return next ? `${next[0] - current} more for the ${esc(next[2])}` : current < WARD_EVERY ? `${WARD_EVERY - current} more for a Grave Ward` : 'keep it burning';
+}
+
+/**
+ * The streak flame on the title: a candle that grows with the streak, the days in a row, the
+ * Grave Wards ready, and what today asks of it. Nothing for someone who has never played a Daily.
+ */
+function streakFlameHtml(today: number): string {
+  const v = flameView(streakStats(save, today), today);
+  if (!v) return '';
+  const wards = v.state === 'out'
+    ? ''
+    : v.wards
+      ? `<span class="sf-wards" title="Each Grave Ward covers one missed day">${v.wards > 3 ? `🛡️×${v.wards}` : '🛡️'.repeat(v.wards)}<small>${v.wards === 1 ? 'Grave Ward' : 'Grave Wards'}</small></span>`
+      : `<span class="sf-wards none" title="Every ${WARD_EVERY} days in a row earns a Grave Ward, which covers one missed day">🛡️<small>in ${v.wardIn} ${v.wardIn === 1 ? 'day' : 'days'}</small></span>`;
+  const goal = v.state === 'out' ? '' : `<span class="sf-goal">${streakGoal(v.days)}</span>`;
+  return `<div class="streak-flame ${v.state} tier-${v.tier}" role="status">
+      <canvas id="streak-flame" width="20" height="30" aria-hidden="true"></canvas>
+      <div class="sf-text">
+        ${v.state === 'out' ? '<b class="sf-days">No streak</b>' : `<b class="sf-days"><span>${v.days}</span> day streak</b>`}
+        <span class="sf-line">${v.line}</span>
+        ${goal}
+      </div>
+      ${wards}
+    </div>`;
+}
+
 /** The streak in one line, for the Tomorrow card: where it stands and what coming back earns. */
 function streakShortHtml(): string {
   const { current } = streakStats(save, dailyNumber());
-  const next = STREAK_HELMS.find(([n]) => n > meta.streak.best);
-  const goal = next ? `${next[0] - current} more for the ${esc(next[2])}` : current < WARD_EVERY ? `${WARD_EVERY - current} more for a Grave Ward` : 'keep it burning';
+  const goal = streakGoal(current);
   return `<span class="tomorrow-streak">🕯️ ${current <= 1 ? 'Day 1 of your streak' : `${current}-day streak`} · ${goal}</span>`;
 }
 
