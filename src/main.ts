@@ -5618,6 +5618,7 @@ setRaceHost({
     showTitle();
   },
   backToMenu: () => showTitle(),
+  bestEndless: () => save.bestEndless,
 });
 // onemorecrypt.com/?race=CODE joins a friend's race room.
 const raceCode = raceFromLink();

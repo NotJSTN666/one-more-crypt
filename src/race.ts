@@ -17,6 +17,7 @@
 
 import { HERO_BY_ID } from './content';
 import { Game } from './game';
+import { ghostOrder } from './ghost-match';
 import { ONLINE, raceGhosts, raceLink, type RaceLink } from './online';
 import { Renderer } from './render';
 import { copyText, siteUrl } from './share';
@@ -48,6 +49,8 @@ export interface RaceHost {
   prizes(): { laurels: number; list: { emoji: string; name: string; what: string; at: number; owned: boolean }[] };
   showTitle(): void;
   backToMenu(): void;
+  /** This player's deepest Endless floor (0 if none), to pick a ghost near their level. */
+  bestEndless(): number;
 }
 
 interface Result { floor: number; kills: number; dead: boolean }
@@ -415,7 +418,8 @@ async function startGhostRace() {
   if (race !== r) return;
   // Only a run this version of the game replays to the floor it was recorded at will do.
   let pick: (typeof all)[number] | null = null;
-  for (const g of all.sort(() => Math.random() - 0.5).slice(0, 12)) {
+  // Nearest the player's own level first (a touch past their best Endless floor), so it's a close race.
+  for (const g of ghostOrder(all, host.bestEndless()).slice(0, 12)) {
     try {
       if (Game.replay('endless', g.seed, 0, g.log).floor === g.floor) {
         pick = g;

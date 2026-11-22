@@ -613,7 +613,7 @@ export async function raceLink(code: string, id: string, onMsg: (from: string, m
 
 export interface RaceGhost { name: string; seed: number; log: string; floor: number; kills: number; turns: number; seconds: number }
 
-/** A few recent Endless runs by real players, with their input logs, to race against when nobody is waiting. */
+/** Recent Endless runs by real players, with their input logs, to race against when nobody is waiting (the race picks one near the player's level). */
 export async function raceGhosts(): Promise<RaceGhost[]> {
   if (!ONLINE) return [];
   try {
@@ -623,10 +623,10 @@ export async function raceGhosts(): Promise<RaceGhost[]> {
       .select('user_id, seed, floor, kills, turns, log, seconds')
       .eq('mode', 'endless')
       .gte('floor', 4)
-      .lte('floor', 40)
+      .lte('floor', 150)
       .gt('seconds', 30)
       .order('created_at', { ascending: false })
-      .limit(40);
+      .limit(120);
     if (error || !Array.isArray(data)) return [];
     const rows = (data as Record<string, unknown>[]).filter((r) => typeof r.log === 'string' && (r.log as string).startsWith('#'));
     const ids = [...new Set(rows.map((r) => String(r.user_id)))];
