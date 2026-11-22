@@ -39,7 +39,7 @@ import { showWardrobe } from './wardrobe';
 import { IMPACT, animateReveal, playFusion, tintOf } from './fusefx';
 import { howToHtml, startHowTo } from './howto';
 import { RELIC_COACH, TUTORIAL } from './tutorial';
-import { DISCORD_URL, KOFI_URL, copyText, discordHtml, followXHtml, kofiHtml, playTime, shareText, siteUrl } from './share';
+import { DISCORD_URL, KOFI_URL, canMessage, copyText, messageHref, messageText, discordHtml, followXHtml, kofiHtml, playTime, shareText, siteUrl } from './share';
 import { installMode, onInstallChange, promptInstall, setupInstall } from './install';
 import { bountiesHtml, bountyList, progressBounties } from './bounties';
 import { enableReminders, loadReminders, reminderPrefs, remindersAvailable, remindersNeedInstall, timeZone } from './push';
@@ -1985,12 +1985,15 @@ function showTitle() {
   const resumable = savedRun();
   const raid = raidPhase();
   const heroToday = HERO_BY_ID[dailyHero(today)].name;
+  // On a phone, a Message button opens the Messages app with the result and a link, to pick a friend.
+  const textable = !PORTAL && canMessage();
   const dailyBlock = done
     ? `<div class="card daily-done">
         <div>Daily #${today} conquered</div>
         <canvas class="depth-col" id="title-depth" role="img" aria-label="Floor ${done.floor}, ${esc(depthAt(done.floor).name)}"></canvas>
         <div class="sub" style="margin:0">Floor ${done.floor} · ${esc(depthAt(done.floor).name)} · ${done.kills} kills</div>
-        <div class="row grid2 share-row">
+        <div class="row ${textable ? 'grid3' : 'grid2'} share-row">
+          ${textable ? `<a class="btn share-btn" id="text-daily" href="${esc(messageHref(messageText(done, true)))}">💬 Message</a>` : ''}
           <button class="btn share-btn" id="copy-daily">📋 Copy result</button>
           ${PORTAL ? '' : '<button class="btn share-btn" id="share-daily">📷 Share image</button>'}
         </div>
@@ -3007,7 +3010,8 @@ function showDeath(r: RunResult, best: boolean) {
       <div><b data-n="${r.turns}">${r.turns}</b>TURNS</div>
       ${r.seconds ? `<div><b>${playTime(r.seconds)}</b>TIME</div>` : ''}
     </div>
-    <div class="row grid2 share-row">
+    <div class="row ${!PORTAL && canMessage() ? 'grid3' : 'grid2'} share-row">
+      ${!PORTAL && canMessage() ? `<a class="btn share-btn" id="text-result" href="${esc(messageHref(messageText(r, daily)))}">💬 Message</a>` : ''}
       <button class="btn share-btn" id="copy">📋 Copy result</button>
       ${PORTAL ? '' : '<button class="btn share-btn" id="share-img">📷 Share image</button>'}
     </div>

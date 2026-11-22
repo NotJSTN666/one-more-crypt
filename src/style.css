@@ -2111,6 +2111,15 @@ body.tutorial #relic-bar {
   grid-template-columns: 1fr 1fr;
 }
 
+.row.grid3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+}
+
+/* A Message link sits in the share row as one of its buttons. */
+a.btn.share-btn { text-decoration: none; display: flex; align-items: center; justify-content: center; }
+
 .ascend-note {
   color: #fff2c0;
 }

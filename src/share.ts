@@ -46,6 +46,25 @@ export function shareText(r: RunResult, label: string, beat: number | null = nul
 
 export const X_HANDLE = 'OneMoreCrypt';
 
+/** The short note a Message button sends: how deep, a dare, and the link (tagged, so these visits count). */
+export function messageText(r: RunResult, daily: boolean): string {
+  const where = daily ? "today's One More Crypt Daily" : 'One More Crypt';
+  return `I made it to floor ${r.floor} in ${where}. Think you can go deeper? 🕯️\n${siteUrl()}?ref=sms`;
+}
+
+/**
+ * A link that opens the phone's Messages app with the note filled in, ready to pick a contact.
+ * ("sms:?&body=" is read by both iPhones, which want "&body", and Android, which wants "?body".)
+ */
+export function messageHref(body: string): string {
+  return `sms:?&body=${encodeURIComponent(body)}`;
+}
+
+/** Only phones and tablets get a Message button: a computer has no Messages app to open, or picks the wrong one. */
+export function canMessage(): boolean {
+  return typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+}
+
 /** "Follow us on X" link for the title and results screens. */
 export const followXHtml = PORTAL ? '' : `<a class="follow-x" href="https://x.com/${X_HANDLE}" target="_blank" rel="noopener">𝕏 Follow @${X_HANDLE}</a>`;
 
