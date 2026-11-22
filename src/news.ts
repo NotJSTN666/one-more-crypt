@@ -24,8 +24,13 @@ export interface NewsDay {
 export const NEWS: NewsDay[] = [
   {
     date: '2026-11-22',
-    title: 'A theme fix',
-    notes: ['🎨 Opening the theme list in Settings no longer switches you back to Classic.'],
+    title: 'Every theme has its own music',
+    notes: [
+      '🎼 Each theme now plays the crypt\'s music in its own style: a slow drone and a distant bell in Ashen, a music box in Frostbound, a harpsichord and organ in Crimson Court, an oud and frame drums in the Gilded Tomb, bubbles and a whale\'s call in Sunken Ruins, anvils in the Infernal Forge, an eerie flute in Witchwood, a soft choir in the Astral Observatory and synthwave in the Neon Tomb. It still builds as you go deeper.',
+      '🔥 The Soul Forge fuses relics in each theme\'s voice too, from shattering ice to an anvil blow to a laser drop. Turn Theme music off in Settings to keep the classic sound with any theme.',
+      '🎨 Opening the theme list in Settings no longer switches you back to Classic.',
+    ],
+    go: ['settings'],
   },
   {
     date: '2026-11-21',

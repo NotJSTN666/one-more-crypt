@@ -244,12 +244,12 @@ export function applyTheme(id: ThemeId, keep = true) {
 }
 
 const MUSIC_KEY = 'omc:theme-music';
-/** Whether the theme also changes the crypt's music (off until turned on in Settings, while it's being tried out). */
+/** Whether the theme also changes the crypt's music and the Soul Forge's sound (on unless turned off in Settings). */
 export function themeMusicOn(): boolean {
   try {
-    return localStorage.getItem(MUSIC_KEY) === '1';
+    return localStorage.getItem(MUSIC_KEY) !== '0';
   } catch {
-    return false;
+    return true;
   }
 }
 export function setThemeMusic(on: boolean) {
