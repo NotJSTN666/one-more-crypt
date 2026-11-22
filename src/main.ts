@@ -2039,7 +2039,7 @@ function showTitle() {
   // A gift to claim or a name to keep: worth a dot on the closed drawer.
   const nudge = /gift waiting|keep-name/i.test(welcomeTitleHtml() + keepNameHtml(false));
   showOverlay('title', `
-    ${accountChip()}
+    ${accountChip(streakChipHtml(today))}
     <h1 class="logo">One More Crypt</h1>
     <canvas class="title-scene" id="title-scene" width="132" height="22" aria-hidden="true"></canvas>
     <div class="title-scene-name" id="title-scene-name" aria-hidden="true"></div>
@@ -2047,7 +2047,6 @@ function showTitle() {
     <p class="title-live" id="title-live" aria-hidden="true"><i></i><span></span></p>
     ${onlineCountHtml()}
     <div class="title-play">
-    ${streakFlameHtml(today)}
     ${continueBlock}
     ${dailyBlock}
     ${championHtml()}
@@ -2108,6 +2107,15 @@ function showTitle() {
   const flameCanvas = overlay.querySelector<HTMLCanvasElement>('#streak-flame');
   const flame = flameView(streakStats(save, today), today);
   if (flameCanvas && flame) runStreakFlame(flameCanvas, flame, calmMotion(), () => screen === 'title');
+  // The streak details close on a tap anywhere else.
+  const streakChip = overlay.querySelector<HTMLDetailsElement>('#streak-chip');
+  if (streakChip) {
+    const shut = (e: Event) => {
+      if (!streakChip.isConnected) return document.removeEventListener('pointerdown', shut);
+      if (streakChip.open && !streakChip.contains(e.target as Node)) streakChip.open = false;
+    };
+    document.addEventListener('pointerdown', shut);
+  }
   const titleDepth = drawTitleDepth(done, today);
   wireChampion();
   on('#share-daily', () => {
@@ -2320,8 +2328,9 @@ function muteChipHtml(): string {
   return `<button class="account-chip mute-chip" id="title-mute" aria-label="${isMuted() ? 'Sound off. Turn it on' : 'Sound on. Mute'}">${pxi(isMuted() ? 'mute' : 'sound')}</button>`;
 }
 
-function accountChip(): string {
-  const mute = muteChipHtml()
+/** The chips along the top of the title. `lead` sits alone at the left (the streak candle). */
+function accountChip(lead = ''): string {
+  const mute = lead + muteChipHtml()
     + `<button class="account-chip mute-chip news-chip" id="title-news" aria-label="What's new${newsUnread() ? `, ${newsUnread()} unread` : ''}">${pxi('scroll')}${newsUnread() ? '<i class="news-dot"></i>' : ''}</button>`
     + chatChipHtml()
     + `<button class="account-chip mute-chip" id="title-settings" aria-label="Settings">${pxi('gear')}</button>`
@@ -3535,27 +3544,31 @@ function streakGoal(current: number): string {
 }
 
 /**
- * The streak flame on the title: a candle that grows with the streak, the days in a row, the
- * Grave Wards ready, and what today asks of it. Nothing for someone who has never played a Daily.
+ * The streak candle in the title's top-left corner: a small flame that grows with the streak and
+ * the days in a row. Tapping it opens what today asks of it, the Grave Wards ready and the next
+ * reward. Nothing for someone who has never played a Daily.
  */
-function streakFlameHtml(today: number): string {
+function streakChipHtml(today: number): string {
   const v = flameView(streakStats(save, today), today);
   if (!v) return '';
   const wards = v.state === 'out'
     ? ''
     : v.wards
-      ? `<span class="sf-wards" title="Each Grave Ward covers one missed day">${v.wards > 3 ? `🛡️×${v.wards}` : '🛡️'.repeat(v.wards)}<small>${v.wards === 1 ? 'Grave Ward' : 'Grave Wards'}</small></span>`
-      : `<span class="sf-wards none" title="Every ${WARD_EVERY} days in a row earns a Grave Ward, which covers one missed day">🛡️<small>in ${v.wardIn} ${v.wardIn === 1 ? 'day' : 'days'}</small></span>`;
+      ? `<span class="sf-wards">${v.wards > 3 ? `🛡️×${v.wards}` : '🛡️'.repeat(v.wards)} ${v.wards === 1 ? 'Grave Ward ready' : 'Grave Wards ready'}: each covers one missed day</span>`
+      : `<span class="sf-wards none">🛡️ A Grave Ward in ${v.wardIn} ${v.wardIn === 1 ? 'day' : 'days'}: it covers one missed day</span>`;
   const goal = v.state === 'out' ? '' : `<span class="sf-goal">${streakGoal(v.days)}</span>`;
-  return `<div class="streak-flame ${v.state} tier-${v.tier}" role="status">
-      <canvas id="streak-flame" width="20" height="30" aria-hidden="true"></canvas>
-      <div class="sf-text">
-        ${v.state === 'out' ? '<b class="sf-days">No streak</b>' : `<b class="sf-days"><span>${v.days}</span> day streak</b>`}
+  const label = v.state === 'out' ? 'No streak' : `${v.days}-day streak`;
+  return `<details class="streak-chip-wrap" id="streak-chip">
+      <summary class="account-chip streak-chip ${v.state} tier-${v.tier}" aria-label="${label}. ${esc(v.line)}">
+        <canvas id="streak-flame" width="20" height="30" aria-hidden="true"></canvas><b>${v.days}</b>
+      </summary>
+      <div class="streak-pop" role="status">
+        <b class="sf-days">${label}</b>
         <span class="sf-line">${v.line}</span>
         ${goal}
+        ${wards}
       </div>
-      ${wards}
-    </div>`;
+    </details>`;
 }
 
 /** The streak in one line, for the Tomorrow card: where it stands and what coming back earns. */
