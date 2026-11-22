@@ -1236,11 +1236,11 @@ function showSettings(back: () => void, openThemes = false) {
     again();
   });
   // A theme goes on at once, and the list stays open, so the next can be tried straight after.
-  for (const pick of document.querySelectorAll<HTMLButtonElement>('.theme-pick')) {
+  for (const pick of document.querySelectorAll<HTMLButtonElement>('.theme-list .theme-pick')) {
     pick.addEventListener('click', () => {
       applyTheme(pick.dataset.themeId as ThemeId);
       sfx.step();
-      for (const other of document.querySelectorAll<HTMLButtonElement>('.theme-pick')) {
+      for (const other of document.querySelectorAll<HTMLButtonElement>('.theme-list .theme-pick')) {
         const chosen = other === pick;
         other.classList.toggle('on', chosen);
         other.setAttribute('aria-selected', String(chosen));

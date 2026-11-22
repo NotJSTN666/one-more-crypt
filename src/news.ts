@@ -23,6 +23,11 @@ export interface NewsDay {
 
 export const NEWS: NewsDay[] = [
   {
+    date: '2026-11-22',
+    title: 'A theme fix',
+    notes: ['🎨 Opening the theme list in Settings no longer switches you back to Classic.'],
+  },
+  {
     date: '2026-11-21',
     title: 'Five more themes',
     notes: [

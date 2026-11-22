@@ -214,6 +214,8 @@ export function savedTheme(): ThemeId {
 
 /** Put a theme on: the page's colours now, the boards the next time they draw their ground. */
 export function applyTheme(id: ThemeId, keep = true) {
+  // (nothing to put on: keep the theme worn rather than falling back to Classic)
+  if (!THEMES.some((t) => t.id === id)) return;
   current = THEMES.find((t) => t.id === id) ?? THEMES[0];
   const root = document.documentElement;
   for (const t of THEMES) for (const name of Object.keys(t.vars)) root.style.removeProperty(name);
