@@ -466,7 +466,7 @@ function schedule() {
 }
 
 function tempo(): number {
-  return mood === 'fallen' ? FALLEN_TEMPO : isNight() ? NIGHT_TEMPO[level] : TEMPO[level] * (style.tempo ?? 1);
+  return mood === 'fallen' ? FALLEN_TEMPO * Math.min(1, style.tempo ?? 1) : isNight() ? NIGHT_TEMPO[level] : TEMPO[level] * (style.tempo ?? 1);
 }
 
 function playStep(i: number, t: number) {
@@ -478,7 +478,8 @@ function playStep(i: number, t: number) {
   const chord = chords[bar % chords.length].map((n) => n + key);
   const s16 = 60 / tempo() / 4;
   const L = level;
-  const sy = mood === 'fallen' ? CLASSIC : style;
+  // (the lament keeps its own chords and pace, played on the theme's instruments)
+  const sy = style;
   if (s === 0 && bus && sy.wet !== undefined && Math.abs(bus.wet.gain.value - sy.wet) > 0.01) bus.wet.gain.setTargetAtTime(sy.wet, t, 0.5);
 
   if (s === 0) padBy(sy.pad, chord, t, s16 * 16, L === 0 ? 0.045 : 0.035);
