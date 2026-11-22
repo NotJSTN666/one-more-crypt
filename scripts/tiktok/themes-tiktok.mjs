@@ -150,13 +150,21 @@ const keepAlive = () => p.evaluate(() => { const g = window.cryptfall.game; g.pl
 let frame = 0;
 const shot = async () => {
   await tick();
-  await p.screenshot({ path: `${OUT}/frames/${String(frame++).padStart(5, '0')}.jpg`, type: 'jpeg', quality: 92 });
+  // (the relic screen can open on this very tick: take it off camera before the frame is shot)
+  if (await overlayUp()) await offCamera();
+  await p.screenshot({ path: `${OUT}/frames/${String(frame).padStart(5, '0')}.jpg`, type: 'jpeg', quality: 92 });
+  // (and it can open while the shot is taken: then that frame is dropped and shot again)
+  if (await overlayUp()) {
+    await offCamera();
+    return shot();
+  }
+  frame++;
 };
 /**
- * The relic screen between floors is cut: while it's up, nothing is filmed; a relic is taken
+ * The relic screen between floors is cut: while it's up (or its copy is still fading out), nothing is filmed; a relic is taken
  * and the clock runs on until the next floor is back on the board.
  */
-const overlayUp = () => p.evaluate(() => !document.querySelector('#overlay')?.hidden);
+const overlayUp = () => p.evaluate(() => !document.querySelector('#overlay')?.hidden || !!document.querySelector('.overlay-ghost'));
 const offCamera = async () => {
   for (let i = 0; i < 400 && (await overlayUp()); i++) {
     if (await has('.offer button')) await p.keyboard.press('1');
