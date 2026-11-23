@@ -388,6 +388,18 @@ for (let i = 0; i < (idea.jumps?.some((j) => j.death) ? total + 30 * FPS : total
     await p.keyboard.press('e');
   }
   await tick();
+  // A cleared floor's relic offer is cut: taken off camera, and the clock runs on until the next
+  // floor is back on the board (and the offer's fading copy has gone). `showOffers: true` keeps it.
+  if (idea.scene !== 'night' && !idea.showOffers) {
+    const offerUp = () => p.evaluate(() => {
+      const o = document.getElementById('overlay');
+      return Boolean((o && !o.hidden && o.dataset.screen === 'choose') || document.querySelector('.overlay-ghost.screen-choose'));
+    });
+    for (let k = 0; k < 400 && (await offerUp()); k++) {
+      if (await p.evaluate(() => !!document.querySelector('.offer button'))) await p.keyboard.press('1');
+      await tick(3);
+    }
+  }
   await shot();
 }
 marks.end = frame / FPS;
