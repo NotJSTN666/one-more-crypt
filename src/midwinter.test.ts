@@ -62,10 +62,10 @@ describe('Act III: The Long Night', () => {
     vi.useRealTimers();
   });
 
-  it('ends with a choice: Mortimer goes with the Guest only if it had the chair', () => {
+  it('ends with a choice, and Mortimer stays in Gravesend either way', () => {
     const done = ACT3_QUESTS.map((q) => q.n);
     expect(npcPresent('gravedigger', state(done, { guest: 'bell' }))).toBe(true);
-    expect(npcPresent('gravedigger', state(done, { guest: 'chair' }))).toBe(false);
+    expect(npcPresent('gravedigger', state(done, { guest: 'chair' }))).toBe(true);
   });
 
   it('ends at the Midwinter Guest, twenty floors down', () => {

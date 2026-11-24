@@ -788,9 +788,11 @@ export const QUESTS: Quest[] = [
             then: [
               { who: 'narrator', text: 'You lead it up through the ice, and Mortimer carries the soup the whole way, and does not spill a drop.' },
               { who: 'narrator', text: 'At the Last Orders, Bess has set the chair by the fire. The Guest sits. It is shy about the soup, and then it is not. The whole village stays up. Somebody plays a fiddle badly, and nobody minds.' },
-              { who: 'narrator', text: 'Near dawn, Mortimer sits down by the fire, just for a moment, to rest his knees. He puts his head back. He smiles at the ceiling like a boy who carried the bowl all the way.' },
-              { who: 'guest', text: 'He is very tired. He has been on his errand a long time. May I take him with me, when I go? I will see that he is warm.' },
-              { who: 'narrator', text: 'When the sun comes up, the chair is empty, and so is the one beside it. The snow has stopped. On the table are two clean bowls and one wooden spoon.' },
+              { who: 'narrator', text: 'Near dawn, Mortimer sits down by the fire, just for a moment, to rest his knees.' },
+              { who: 'guest', text: 'He is very tired. He has been on his errand a long time. Shall I take him with me, when I go? I would see that he is warm.' },
+              { who: 'gravedigger', text: "That's kind. It really is. But not yet. Someone's got to dig, and someone's got to carry the soup next year, and I've only just got the hang of it." },
+              { who: 'guest', text: 'Next year, then. I shall look forward to it. I have never looked forward to anything before.' },
+              { who: 'narrator', text: 'When the sun comes up, the chair by the fire is empty and the snow has stopped. Mortimer is asleep in the chair beside it, holding an empty bowl, smiling like a boy who carried it all the way.' },
             ],
           },
           {
@@ -817,8 +819,8 @@ export const QUESTS: Quest[] = [
             label: '',
             value: 'chair',
             then: [
-              { who: 'bess', text: "He left his kettle on. I've brought it here. I'll keep it on. Somebody should." },
-              { who: 'bess', text: "Four hundred years, carrying that bowl around inside him. And he got there in the end. That's more than most of us manage, love." },
+              { who: 'bess', text: "He slept right through till noon in that chair. First proper sleep in four hundred years, he says. Woke up asking for breakfast and his shovel." },
+              { who: 'bess', text: "The Guest asked to take him, you know. He said not yet. I've never been so glad to hear a man turn down a lift." },
               { who: 'bess', text: 'The Guest left this on the chair for you. Ice that will not melt. It said thank you for the soup, and that you were the first to say good evening.' },
             ],
           },
@@ -933,8 +935,6 @@ export function npcPresent(npc: NpcId, s: StoryState): boolean {
   // ...and comes home to it once the bells are quiet (straight away, if you cut his rope).
   if (npc === 'aldric') return (s.done.includes(2) && !s.done.includes(4)) || s.done.includes(25) || (s.done.includes(24) && s.choices?.aldric === 'free');
   if (npc === 'ambrose') return s.done.includes(21);
-  // Act III: if the Guest had the chair by the fire, Mortimer went with it at dawn.
-  if (npc === 'gravedigger') return !(s.done.includes(44) && s.choices?.guest === 'chair');
   return true;
 }
 
@@ -964,11 +964,15 @@ function chatter(npc: NpcId, s: StoryState): Line[] {
   const guest = s.choices?.guest;
   switch (npc) {
     case 'gravedigger':
-      // (after the longest night he is only here if the Guest went back down: see npcPresent)
-      if (has(44)) return [
-        { who: 'gravedigger', text: "Two spoons. I've practised. Good evening. Good evening. Good EVENING. Bess says I'm doing it too loud." },
-        { who: 'gravedigger', text: "Next Midwinter I'm carrying that bowl all the way. Four hundred years late, but you can't rush soup." },
-      ];
+      if (has(44)) return guest === 'chair'
+        ? [
+          { who: 'gravedigger', text: "It asked to take me with it. Kind of it. I said I'd a few graves in me yet, and next year's soup." },
+          { who: 'gravedigger', text: "I've moved the kettle off the trapdoor. Nothing down there to keep out any more. Just a friend, waiting for next year." },
+        ]
+        : [
+          { who: 'gravedigger', text: "Two spoons. I've practised. Good evening. Good evening. Good EVENING. Bess says I'm doing it too loud." },
+          { who: 'gravedigger', text: "Next Midwinter I'm carrying that bowl all the way. Four hundred years late, but you can't rush soup." },
+        ];
       if (has(43)) return [{ who: 'gravedigger', text: "Every hearth in the village is warm, and I'm sat here shivering anyway. That's not the cold. That's nerves. Four hundred years of them." }];
       if (has(42)) return [{ who: 'gravedigger', text: "Bess told you, then. I can see it on your face. Go on. Ask me how old I am. No. Don't." }];
       if (has(41)) return [{ who: 'gravedigger', text: "I've moved the kettle back onto the trapdoor. Habit. It doesn't stop the knocking. It never did. It just made me feel better." }];
@@ -995,14 +999,14 @@ function chatter(npc: NpcId, s: StoryState): Line[] {
       ];
       return [{ who: 'gravedigger', text: 'Tea? No? More for me.' }];
     case 'aldric':
-      if (has(44)) return [{ who: 'aldric', text: guest === 'chair' ? 'I saw them go at dawn, the Guest and the gravedigger, out across the mere, arm in arm. He was walking like a boy. I saluted. It seemed right.' : 'Snow on the chapel floor, and the stars through the roof. A knight could keep a worse vigil.' }];
+      if (has(44)) return [{ who: 'aldric', text: guest === 'chair' ? 'I saw the Guest go at dawn, alone across the mere, walking lighter than it came. The gravedigger waved it off from the inn door. I saluted. It seemed right.' : 'Snow on the chapel floor, and the stars through the roof. A knight could keep a worse vigil.' }];
       if (has(41)) return [{ who: 'aldric', text: 'The bells kept something else below, all those years. I felt it under the ropes. Cold. Patient. Very well brought up.' }];
       if (has(25)) return [{ who: 'aldric', text: 'It is quiet. I keep waiting for midnight, and then midnight comes, and nothing happens. It is the best thing that has ever not happened to me.' }];
       if (has(24)) return [{ who: 'aldric', text: 'I am home. The roof is still off. Finish it, friend. He is at the bottom, where the mist comes from.' }];
       return [{ who: 'aldric', text: 'The bell is quiet tonight. I do not trust it when it is quiet.' }];
     case 'bess':
       if (has(44)) return guest === 'chair'
-        ? [{ who: 'bess', text: "I've kept his chair by the fire, and his kettle on the hob. Nobody sits in the chair. Nobody needs telling." }]
+        ? [{ who: 'bess', text: "Mortimer's claimed the chair next to the Guest's. Says he's keeping it warm for next year. He keeps it warm by sleeping in it." }]
         : [{ who: 'bess', text: "Mortimer's in every night now, practising good evening at the fire. The fire's got very polite." }];
       if (has(43)) return [{ who: 'bess', text: "Fire's warm! Ale's flowing! I've a chair by the hearth that nobody's to sit in, so of course everyone wants to." }];
       if (has(42)) return [{ who: 'bess', text: "I've read Gran's book cover to cover. There's a recipe for the soup. There's also a recipe for a pie that I think is mostly a threat." }];
