@@ -37,6 +37,13 @@ export const NEWS: NewsDay[] = [
     go: ['story', 'daily'],
   },
   {
+    date: '2026-11-24',
+    title: 'No moving blind',
+    notes: [
+      '⛏️ When you cross into a new zone and the depth map plays, your hero now waits for it to finish instead of moving unseen underneath. Thanks to the player in the Discord who spotted it.',
+    ],
+  },
+  {
     date: '2026-11-22',
     title: 'Every theme has its own music, and a streak flame',
     notes: [

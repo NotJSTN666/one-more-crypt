@@ -761,7 +761,8 @@ function setRank(text: string) {
 
 function act(dx: number, dy: number) {
   unlockAudio();
-  if (!game || game.phase !== 'play' || !overlay.hidden || tutorial?.busy || fusionPlaying || raceHalt) return;
+  // (nor while the depth-map cut into a new zone covers the board: no moving blind)
+  if (!game || game.phase !== 'play' || !overlay.hidden || tutorial?.busy || fusionPlaying || raceHalt || renderer.cutting) return;
   clockInput();
   // The first input of the tutorial, to tell "never touched it" from "tried and left".
   if (tutorial && !tutorialTouched) {
@@ -1347,7 +1348,7 @@ function updateBow() {
 
 /** Lower or raise the Ranger's bow (no turn passes). */
 function toggleBow() {
-  if (!game || !overlay.hidden || tutorial || !game.toggleBow()) return;
+  if (!game || !overlay.hidden || tutorial || renderer.cutting || !game.toggleBow()) return;
   sfx.step();
   // A word over the hero, not a toast: a toast would cover the d-pad on phones.
   renderer.heroNote(game.bowDown ? 'BOW LOWERED' : 'BOW READY', game.bowDown ? '#9aa3b5' : '#7ee081');

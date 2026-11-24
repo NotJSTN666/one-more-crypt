@@ -139,6 +139,10 @@ export class Renderer {
   private bannerText: { text: string; color: string; t: number } | null = null;
   /** Crossing into a new zone: a cut down the depth column, from where the last zone began to here (then the zone's banner). */
   private zoneTrans: { from: number; to: number; t: number; title: string; color: string; banner: { text: string; color: string; t: number } } | null = null;
+  /** The depth-map cut into a new zone is playing: the board is hidden, so input waits. */
+  get cutting(): boolean {
+    return this.zoneTrans !== null;
+  }
   /** Banners waiting their turn, so two at once (a key's two boons) are both read. */
   private bannerQueue: { text: string; color: string; t: number }[] = [];
   private shake = 0;
