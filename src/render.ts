@@ -193,6 +193,7 @@ export class Renderer {
     const dress = seasonDress(centralDate());
     this.seasonWeather = dress === 'midwinter' ? 'snow' : dress === 'harvest' ? 'leaves' : null;
     this.harvest = dress === 'harvest';
+    this.midwinter = dress === 'midwinter';
     this.petAt = null;
     this.heroAt = null;
     this.disp.clear();
@@ -2032,17 +2033,33 @@ export class Renderer {
   private drawTelegraphs(g: Game) {
     const ctx = this.ctx;
     const pulse = 0.25 + 0.2 * Math.sin(this.time * 10);
-    // Boss attacks landing next turn: plague (green) and bolts (violet).
+    // Boss attacks landing next turn: plague (green), bolts (violet) and the Guest's frost (ice blue).
+    const WARN = {
+      plague: { fill: '127, 154, 82', edge: '#b5e07a' },
+      bolt: { fill: '155, 107, 214', edge: '#d3b0ff' },
+      frost: { fill: '150, 205, 245', edge: '#e6f6ff' },
+    };
     for (const w of g.warnings) {
       const px = w.x * TILE;
       const py = w.y * TILE;
-      ctx.fillStyle = w.kind === 'plague' ? `rgba(127, 154, 82, ${pulse + 0.1})` : `rgba(155, 107, 214, ${pulse + 0.1})`;
+      const c = WARN[w.kind];
+      ctx.fillStyle = `rgba(${c.fill}, ${pulse + 0.1})`;
       ctx.fillRect(px + 1, py + 1, TILE - 2, TILE - 2);
-      ctx.strokeStyle = w.kind === 'plague' ? '#b5e07a' : '#d3b0ff';
+      ctx.strokeStyle = c.edge;
       ctx.lineWidth = 1;
       ctx.strokeRect(px + 1.5, py + 1.5, TILE - 3, TILE - 3);
+      if (w.kind === 'frost') {
+        // a snowflake forming in the middle of the tile
+        ctx.fillStyle = c.edge;
+        ctx.fillRect(px + 7, py + 4, 2, 8);
+        ctx.fillRect(px + 4, py + 7, 8, 2);
+        ctx.fillRect(px + 5, py + 5, 1, 1);
+        ctx.fillRect(px + 10, py + 5, 1, 1);
+        ctx.fillRect(px + 5, py + 10, 1, 1);
+        ctx.fillRect(px + 10, py + 10, 1, 1);
+      }
       if (Math.random() < 0.05) {
-        this.particles.push({ x: px + 3 + Math.random() * 10, y: py + 12, vx: 0, vy: -14, color: w.kind === 'plague' ? '#b5e07a' : '#d3b0ff', t: 0, life: 0.4, size: 1 });
+        this.particles.push({ x: px + 3 + Math.random() * 10, y: py + (w.kind === 'frost' ? 2 : 12), vx: 0, vy: w.kind === 'frost' ? 10 : -14, color: c.edge, t: 0, life: 0.4, size: 1 });
       }
     }
     for (const e of g.enemies) {
@@ -3068,6 +3085,7 @@ export class Renderer {
     this.drawStaticGround(ctx, g);
     this.deepDetail(ctx, g, wallAt);
     if (this.harvest) this.harvestDetail(ctx, g, wallAt);
+    if (this.midwinter) this.winterDetail(ctx, g, wallAt);
     return c;
   }
 
@@ -3161,6 +3179,100 @@ export class Renderer {
           const n = 1;
           for (let k = 0; k < n; k++) leaf(px + 1 + Math.floor(rng() * 12), py + 2 + Math.floor(rng() * 11));
         }
+      }
+    }
+  }
+
+  /**
+   * Midwinter in the crypt: icicles hanging from the front of the walls, snow drifted against
+   * them, frost creeping in from the corners, sprigs of holly, and here and there a red candle
+   * in a holly wreath. Muted, so the lit candles, the stairs and the hero still stand out.
+   */
+  private winterDetail(ctx: CanvasRenderingContext2D, g: Game, wallAt: (x: number, y: number) => boolean) {
+    // Its own random stream, so the rest of the decoration stays as it was.
+    const rng = mulberry32(hashSeed(g.seed, 'midwinter', g.lookFloor));
+    const icicle = (x: number, y: number, len: number) => {
+      ctx.fillStyle = 'rgba(200, 235, 255, 0.75)';
+      ctx.fillRect(x, y, 2, Math.max(1, len - 2));
+      ctx.fillStyle = 'rgba(230, 246, 255, 0.85)';
+      ctx.fillRect(x, y + len - 2, 1, 2);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.fillRect(x, y, 1, 1);
+    };
+    const holly = (x: number, y: number) => {
+      ctx.fillStyle = '#2e5a2e';
+      ctx.fillRect(x, y + 1, 3, 1);
+      ctx.fillRect(x + 1, y, 1, 3);
+      ctx.fillStyle = '#3f7a3a';
+      ctx.fillRect(x + 3, y + 2, 2, 1);
+      ctx.fillRect(x + 4, y + 1, 1, 3);
+      ctx.fillStyle = '#c0392b';
+      ctx.fillRect(x + 2, y + 2, 1, 1);
+      ctx.fillRect(x + 3, y + 3, 1, 1);
+    };
+    const wreathCandle = (x: number, y: number) => {
+      // a ring of holly on the floor, a red candle standing in it (unlit: the board's own candles are the light)
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+      ctx.fillRect(x, y + 8, 8, 1);
+      ctx.fillStyle = '#2e5a2e';
+      ctx.fillRect(x, y + 6, 8, 2);
+      ctx.fillStyle = '#3f7a3a';
+      ctx.fillRect(x + 1, y + 5, 6, 1);
+      ctx.fillStyle = '#c0392b';
+      ctx.fillRect(x + 1, y + 6, 1, 1);
+      ctx.fillRect(x + 6, y + 7, 1, 1);
+      ctx.fillRect(x + 4, y + 7, 1, 1);
+      ctx.fillStyle = '#a0222a';
+      ctx.fillRect(x + 3, y, 2, 6);
+      ctx.fillStyle = '#d8483a';
+      ctx.fillRect(x + 3, y, 1, 5);
+      ctx.fillStyle = '#2a1e18';
+      ctx.fillRect(x + 3, y - 1, 1, 1);
+    };
+    const flake = (x: number, y: number) => {
+      ctx.fillStyle = 'rgba(220, 238, 250, 0.35)';
+      ctx.fillRect(x, y + 1, 3, 1);
+      ctx.fillRect(x + 1, y, 1, 3);
+    };
+    const stairs = g.stairs;
+    // Snow lying along the tops of the walls, lumpy at the edge, with a few bright crystals.
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (!wallAt(x, y) || (y > 0 && wallAt(x, y - 1))) continue;
+        const px = x * TILE;
+        const py = y * TILE;
+        ctx.fillStyle = 'rgba(225, 240, 252, 0.8)';
+        ctx.fillRect(px, py, TILE, 2);
+        for (let k = 0; k < TILE; k += 2) {
+          const d = Math.floor(rng() * 3);
+          if (d) ctx.fillRect(px + k, py + 2, 2, d);
+        }
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        for (let k = 0; k < 2; k++) ctx.fillRect(px + 1 + Math.floor(rng() * 14), py, 1, 1);
+      }
+    }
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (wallAt(x, y) || g.isWater(x, y) || g.isLava(x, y) || g.bones[y * W + x]) continue;
+        const px = x * TILE;
+        const py = y * TILE;
+        const onStairs = stairs && stairs.x === x && stairs.y === y;
+        if (y > 0 && wallAt(x, y - 1)) {
+          // icicles hanging from the front of the wall behind
+          for (let k = 0; k < 3; k++) if (rng() < 0.6) icicle(px + 1 + Math.floor(rng() * 13), py, 2 + Math.floor(rng() * 4));
+          const r = rng();
+          if (!onStairs && r < 0.05) wreathCandle(px + 4, py + 5);
+          else if (!onStairs && r < 0.16) holly(px + 2 + Math.floor(rng() * 9), py + 6 + Math.floor(rng() * 3));
+        }
+        // snow blown in along the walls to either side
+        if (!onStairs && ((x > 0 && wallAt(x - 1, y)) || (x < W - 1 && wallAt(x + 1, y))) && rng() < 0.5) {
+          const left = x > 0 && wallAt(x - 1, y);
+          ctx.fillStyle = 'rgba(220, 238, 250, 0.4)';
+          ctx.fillRect(left ? px : px + TILE - 2, py + 3 + Math.floor(rng() * 6), 2, 4 + Math.floor(rng() * 4));
+        }
+        // a few flakes settled on the floor, and once in a while a lone sprig of holly
+        if (!onStairs && rng() < 0.18) flake(px + 2 + Math.floor(rng() * 10), py + 3 + Math.floor(rng() * 9));
+        if (!onStairs && rng() < 0.03) holly(px + 3 + Math.floor(rng() * 7), py + 4 + Math.floor(rng() * 7));
       }
     }
   }
@@ -3278,6 +3390,8 @@ export class Renderer {
   private seasonWeather: 'snow' | 'leaves' | null = null;
   /** The Harvest Feast is on: leaf litter, drifts and gourds on the crypt floor. */
   private harvest = false;
+  /** Midwinter: icicles, snow drifts, holly and festive candles in every crypt. */
+  private midwinter = false;
 
   /** Spores, snow, red rain, twinkling stars or rising gold, over everything. */
   private drawWeather(g: Game, dt: number) {
@@ -3468,6 +3582,29 @@ export class Renderer {
       } else {
         ctx.fillStyle = '#7a5532';
         ctx.fillRect(ox, oy, 2, 2);
+      }
+    } else if (zone === 'frozen') {
+      // a drift of snow, frost feathers, or a crack in the ice
+      const r = rng();
+      if (r < 0.4) {
+        ctx.fillStyle = 'rgba(230, 246, 255, 0.55)';
+        ctx.fillRect(ox - 1, oy + 2, 6, 2);
+        ctx.fillRect(ox, oy + 1, 4, 1);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.fillRect(ox + 1, oy + 1, 2, 1);
+      } else if (r < 0.75) {
+        ctx.fillStyle = 'rgba(190, 232, 255, 0.45)';
+        ctx.fillRect(ox + 2, oy, 1, 5);
+        ctx.fillRect(ox, oy + 2, 5, 1);
+        ctx.fillRect(ox + 1, oy + 1, 1, 1);
+        ctx.fillRect(ox + 3, oy + 3, 1, 1);
+      } else {
+        ctx.fillStyle = 'rgba(140, 200, 240, 0.35)';
+        let cx = ox;
+        for (let i = 0; i < 6; i++) {
+          ctx.fillRect(cx, oy + i, 1, 1);
+          cx += rng() < 0.5 ? 1 : -1;
+        }
       }
     } else if (zone === 'burning') {
       // a seam of embers

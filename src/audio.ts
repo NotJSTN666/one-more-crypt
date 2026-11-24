@@ -505,12 +505,29 @@ function playStep(i: number, t: number) {
   }
   // The theme's own touch: a bell, bubbles, an anvil, a music box...
   sy.extra?.({ bar, s, t, chord, L, s16, boss: mood === 'boss' });
+  // Midwinter: sleigh bells shaking on the beat, and now and then a high bell, like a sleigh far off.
+  if (midwinterBells && mood !== 'fallen' && mood !== 'boss') {
+    if (L === 0 ? s === 0 || s === 8 : s % 4 === 0) jingle(t, L === 0 ? 0.07 : 0.09, s);
+    if (L >= 2 && s % 4 === 2) jingle(t, 0.05, s);
+    if (s === 0 && bar % 2 === 0) bell(midi(chord[2] + 24), t, 0.03);
+  }
   if (L === 4) {
     if (s % 4 === 2) kick(t, 0.5);
     if (s >= 12) tom(t, [130, 110, 95, 80][s - 12], 0.4);
   } else if (L >= 2 && bar % 2 === 1 && s >= 12) {
     tom(t, [130, 110, 95, 80][s - 12], 0.4);
   }
+}
+
+/** Midwinter's sleigh bells, over the crypt's music while the season lasts. */
+let midwinterBells = false;
+export function setMidwinterBells(on: boolean) {
+  midwinterBells = on;
+}
+
+/** A shake of sleigh bells: a few bright little bursts, one after another. */
+function jingle(t: number, vol: number, s: number) {
+  for (let k = 0; k < 4; k++) burst(t + k * 0.014, 0.07, 'bandpass', 6500 + ((k * 1300 + s * 170) % 3200), vol * (1 - k * 0.18), 3, k % 2 ? -0.35 : 0.35);
 }
 
 /** A step of the Night Shift's score. */

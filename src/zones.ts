@@ -5,7 +5,9 @@
 export type ZoneId =
   | 'crypt' | 'flooded' | 'ossuary' | 'burning' | 'abyss'
   // Story dungeons that are somewhere in particular.
-  | 'kennel' | 'well' | 'mine' | 'cellar' | 'cloister';
+  | 'kennel' | 'well' | 'mine' | 'cellar' | 'cloister'
+  // Act III: under the Frozen Mere.
+  | 'frozen';
 
 export interface ZoneDef {
   id: ZoneId;
@@ -153,6 +155,18 @@ export const ZONES: Record<ZoneId, ZoneDef> = {
     wall: { base: '#323c34', top: '#526256', face: '#3f4c42', front: '#232b25', edge: '#111712', brick: '#29322b', moss: '#5a8a3a' },
     light: ['rgba(170, 230, 120, 0.07)', 'rgba(2, 8, 3, 0.66)'],
     mote: '#9be36a',
+  },
+  frozen: {
+    id: 'frozen',
+    name: 'The Frozen Mere',
+    color: '#bfe8ff',
+    hint: 'Four hundred winters of cold. Something below is knocking, very politely.',
+    key: -5,
+    floor: ['#1a2230', '#1d2636', '#172030'],
+    bossFloor: ['#151c2c', '#182032', '#121828'],
+    wall: { base: '#3a4c62', top: '#a8c8e0', face: '#4f6680', front: '#26344a', edge: '#121a28', brick: '#304258', moss: '#e6f6ff' },
+    light: ['rgba(190, 230, 255, 0.08)', 'rgba(4, 8, 18, 0.66)'],
+    mote: '#e6f6ff',
   },
 };
 

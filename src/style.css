@@ -6587,6 +6587,9 @@ body.menu:has(#overlay[data-screen='title']:not([hidden])) #ghosts { opacity: 0.
 .wmap-road.v1, .wmap-road.v2 { width: 2px; background: repeating-linear-gradient(180deg, #4a4038 0 5px, transparent 5px 9px); }
 .wmap-road.v1 { left: 62.5%; top: 18%; height: 32%; }
 .wmap-road.v2 { left: 87.5%; top: 50%; height: 32%; }
+/* Act III: from the village down to the Frozen Mere. */
+.wmap-road.v1, .wmap-road.v2, .wmap-road.v3 { width: 2px; background: repeating-linear-gradient(180deg, #4a4038 0 5px, transparent 5px 9px); }
+.wmap-road.v3 { left: 62.5%; top: 50%; height: 32%; }
 .wmap-spot { position: relative; z-index: 1; min-height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 6px 4px; text-align: center; background: #150e1c; border: 1px solid #3a3044; }
 .wmap-spot b { font-family: var(--pixel); font-weight: normal; font-size: 9px; letter-spacing: 0.5px; color: var(--text); }
 .wmap-spot small { margin-top: 3px; font-family: var(--read); font-size: 11px; color: var(--muted); }
@@ -7257,3 +7260,88 @@ body.menu:has(#overlay[data-screen='title']:not([hidden])) #ghosts { opacity: 0.
   .streak-chip.low, .streak-chip.warded { animation: none; }
 }
 :root.calm .streak-chip { animation: none; }
+
+/* ---------- Act III: The Long Night ---------- */
+.act3-art { border-color: #3a4c62; }
+.act3-kicker { color: #bfe8ff; }
+.act3-title { color: #e6f6ff; text-shadow: 0 0 12px rgba(159, 232, 255, 0.45); }
+.tile.act3-tile { border-color: #4f6680; box-shadow: 0 0 12px rgba(159, 232, 255, 0.18); }
+.act-done.midwinter {
+  border-color: #6f8fb0;
+  background: radial-gradient(ellipse at 50% 30%, rgba(159, 232, 255, 0.16), transparent 70%), var(--panel);
+}
+.act-done.midwinter > b { color: #bfe8ff; }
+
+/* ---------- Midwinter ---------- */
+/* The title's Midwinter card: icy, with the season's gift waiting. */
+.btn.midwinter-btn {
+  position: relative;
+  border-color: #6f8fb0;
+  background: linear-gradient(180deg, rgba(120, 170, 220, 0.22), rgba(20, 30, 50, 0.4)), var(--panel);
+  box-shadow: 0 0 14px rgba(159, 232, 255, 0.18), inset 0 1px 0 rgba(230, 246, 255, 0.25);
+  color: #e6f6ff;
+}
+.btn.midwinter-btn small { color: #bfe8ff; }
+.midwinter-btn .new-tag { position: absolute; top: 8px; right: 8px; padding: 2px 6px; background: #5fb2ff; color: #07040b; font-size: 9px; }
+
+/* The Twelve Gifts: two rows of six. */
+.midwinter-track { border-color: #4f6680; background: linear-gradient(180deg, rgba(159, 232, 255, 0.1), transparent), var(--panel); }
+.midwinter-track > b { color: #bfe8ff; }
+.wn-slots.twelve { display: grid; grid-template-columns: repeat(6, 36px); justify-content: center; }
+.midwinter-track .wn-slot.got { color: #bfe8ff; }
+.midwinter-track .wn-slot.today { background: #bfe8ff; border-color: #bfe8ff; box-shadow: 0 0 12px rgba(159, 232, 255, 0.55); }
+
+/* A garland of lights over the title, twinkling in turn. */
+.mw-garland {
+  position: relative;
+  height: 18px;
+  margin: -4px -6px 2px;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 22px 9px at 18px 0, transparent 60%, #2e6b3a 62%, #3f8a4a 75%, transparent 78%) 0 0 / 36px 18px repeat-x;
+}
+.mw-garland i,
+.mw-garland::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+  background:
+    radial-gradient(circle 2.5px at 6px 8px, #ff4d5a 90%, transparent),
+    radial-gradient(circle 2.5px at 18px 11px, #ffd23f 90%, transparent),
+    radial-gradient(circle 2.5px at 30px 8px, #5fb2ff 90%, transparent) 0 0 / 36px 18px repeat-x;
+  background-size: 36px 18px;
+  background-repeat: repeat-x;
+  filter: drop-shadow(0 0 3px rgba(255, 230, 160, 0.8));
+  animation: mw-twinkle 1.8s steps(2) infinite;
+}
+.mw-garland::after {
+  background:
+    radial-gradient(circle 2.5px at 12px 10px, #7cf5a0 90%, transparent),
+    radial-gradient(circle 2.5px at 24px 10px, #ff8a2a 90%, transparent);
+  background-size: 36px 18px;
+  background-repeat: repeat-x;
+  animation-delay: 0.9s;
+}
+@keyframes mw-twinkle { 50% { opacity: 0.35; } }
+
+/* Snow lying along the top of the logo. */
+body.midwinter #overlay[data-screen='title'] .logo { position: relative; }
+body.midwinter #overlay[data-screen='title'] .logo::before {
+  content: '';
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  top: -4px;
+  height: 10px;
+  pointer-events: none;
+  background:
+    radial-gradient(circle 6px at 6px 9px, #f2f8ff 92%, transparent) 0 0 / 11px 10px repeat-x,
+    radial-gradient(circle 4px at 3px 9px, #dbe9f7 92%, transparent) 5px 1px / 13px 10px repeat-x;
+  opacity: 0.85;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.5));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mw-garland i, .mw-garland::after { animation: none; }
+}
+:root.calm .mw-garland i, :root.calm .mw-garland::after { animation: none; }

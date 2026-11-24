@@ -175,7 +175,14 @@ export const TITLES: TitleDef[] = [
   { id: 'story:24', name: 'Hymn-Ringer', how: 'Finish Three Notes in Act II of the story.' },
   { id: 'story:25', name: 'Bellbreaker', how: 'Finish The Plague Abbot in Act II of the story.' },
   { id: 'story:34', name: 'Bell-Founder', how: 'Finish Bell Metal in Act II of the story.' },
+  { id: 'story:41', name: 'Answered the Door', how: 'Finish Three Knocks in Act III of the story.' },
+  { id: 'story:42', name: 'Keeper of the Hearth Book', how: 'Finish The Hearth Book in Act III of the story.' },
+  { id: 'story:43', name: 'Beacon-Lighter', how: "Finish Mortimer's Errand in Act III of the story." },
+  { id: 'story:44', name: 'Guest of Honour', how: 'Finish The Longest Night in Act III of the story.' },
+  { id: 'story:51', name: 'Salt Runner', how: 'Finish Rime-Salt in Act III of the story.' },
+  { id: 'story:52', name: 'One of the Waits', how: 'Finish The Waits in Act III of the story.' },
   { id: 'welcome:7', name: 'Keeper of Seven Nights', how: 'Play on seven different days (Seven Nights).' },
+  { id: 'midwinter:12', name: 'Keeper of Midwinter', how: 'Open all Twelve Gifts of Midwinter.' },
   { id: 'invite:10', name: 'The Crypt Crier', how: 'Bring 10 friends to the crypt.' },
   // Given by hand to supporters (the patrons table), never sold in the game.
   { id: 'patron:1', name: 'Patron of the Crypt', how: 'Helped keep the crypt open. Thank you.', secret: true },
@@ -240,7 +247,7 @@ export interface LookDef {
   /** Colour of the drifting aura motes, if any. */
   aura: string | null;
   /** What unlocks it: an achievement, a Soul Rank (index) or a Bestiary tier. */
-  unlock: { feat: string } | { rank: number } | { beast: EnemyKind; tier: number } | { costume: string } | { podium: number } | { cost: number; season?: SeasonId; market?: true } | { streak: number } | { weekly: number } | { story: number } | { season: SeasonId } | { shame: number } | { welcome: number } | { raid: number } | { invite: number } | { gift: string };
+  unlock: { feat: string } | { rank: number } | { beast: EnemyKind; tier: number } | { costume: string } | { podium: number } | { cost: number; season?: SeasonId; market?: true } | { streak: number } | { weekly: number } | { story: number } | { season: SeasonId } | { shame: number } | { welcome: number } | { raid: number } | { invite: number } | { gift: string } | { midwinter: number };
   how: string;
 }
 
@@ -258,6 +265,9 @@ export const LOOKS: LookDef[] = [
   { id: 'godforged', name: 'Godforged', cloak: { p: '#e8dcc4', P: '#a8894a' }, aura: '#fff2c0', unlock: { feat: 'ascend' }, how: 'Forge an ascended relic.' },
   { id: 'soulfire', name: 'Soulfire', cloak: { p: '#1d3b4a', P: '#0e1f28' }, aura: '#5fe3ff', unlock: { rank: 4 }, how: 'Reach the Lich Lord Soul Rank.' },
   // Seven Nights: a gift for each of a player's first seven days.
+  // The Twelve Gifts of Midwinter
+  { id: 'twelfthnight', name: 'Twelfth Night', cloak: { p: '#2a3a7a', P: '#141c3a' }, aura: '#f2c14e', unlock: { midwinter: 2 }, how: 'The Twelve Gifts, gift 2: play on a second day of Midwinter.' },
+  { id: 'firsthearth', name: 'First Hearth', cloak: { p: '#b8461c', P: '#5a1f0c' }, aura: '#ffb35a', unlock: { midwinter: 8 }, how: 'The Twelve Gifts, gift 8: play on an eighth day of Midwinter.' },
   { id: 'gravewalker', name: 'Gravewalker', cloak: { p: '#3d5a6c', P: '#1d2c36' }, aura: '#9fe8ff', unlock: { welcome: 2 }, how: 'Seven Nights, day 2: come back on a second day.' },
 ];
 
@@ -274,6 +284,10 @@ LOOKS.push(
   { id: 'founderapron', name: "Founder's Apron", cloak: { p: '#6b4a2a', P: '#b5651c' }, aura: '#ff8a2a', unlock: { story: 34 }, how: 'Bring Pip bell-bronze in Act II of the story (Bell Metal).' },
   { id: 'choirrobe', name: 'Choir Robe', cloak: { p: '#d8d2c2', P: '#7a2a2a' }, aura: '#fff2c0', unlock: { story: 33 }, how: 'Bring back the lost hymn in Act II of the story (The Silent Choir).' },
   { id: 'houndhide', name: 'Houndhide', cloak: { p: '#3a3029', P: '#1c1714' }, aura: '#a8894a', unlock: { story: 2 }, how: 'Bring the crypt hound home in the story (The Kennel).' },
+  // Act III: The Long Night
+  { id: 'rimewalker', name: 'The Rimewalker', cloak: { p: '#a8c8e0', P: '#4f6680' }, aura: '#e6f6ff', unlock: { story: 41 }, how: 'Go down under the cottage in Act III of the story (Three Knocks).' },
+  { id: 'hearthkeeper', name: 'The Hearthkeeper', cloak: { p: '#8a2a2a', P: '#4a1818' }, aura: '#ff8a2a', unlock: { story: 42 }, how: 'Bring Bess the Hearth Book in Act III of the story.' },
+  { id: 'carolscarf', name: "Harold's Scarf", cloak: { p: '#2e6b3a', P: '#8a1f2c' }, aura: '#fff2c0', unlock: { story: 52 }, how: 'Bring the waits home in Act III of the story (The Waits).' },
 );
 
 // The Bell Tolls: earned only by felling world bosses together, one piece per boss felled.
@@ -622,6 +636,8 @@ export const HEADS: HeadDef[] = [
   { id: 'bellhelm', name: 'The Bell Helm', unlock: { story: STORY_ALL }, how: 'Finish every quest in Act I of the story.', pixels: [[5, 0, '#5d4a2a'], [6, 0, '#5d4a2a'], ...row(1, 4, 7, '#c9a24a'), ...row(2, 3, 8, '#c9a24a'), ...row(3, 3, 8, '#8a6a2a'), [4, 1, '#fff2c0'], [3, 2, '#fff2c0'], [2, 3, '#8a6a2a'], [9, 3, '#8a6a2a']] },
   { id: 'tavernkerchief', name: "Bess's Kerchief", unlock: { story: 13 }, how: "Get Bess's Best back from the tavern cellar in the story.", pixels: [...row(1, 4, 7, '#c0392b'), ...row(2, 3, 8, '#c0392b'), [4, 1, '#ffffff'], [7, 2, '#ffffff'], [5, 2, '#ffffff'], [9, 3, '#c0392b']] },
   { id: 'physicianmask', name: "Physician's Mask", unlock: { story: 32 }, how: "Cure Pip's cough in Act II of the story.", pixels: [...row(1, 3, 8, '#e8dcc4'), ...row(2, 2, 9, '#c9b99a'), [3, 3, '#c9a24a'], [4, 3, '#1a1520'], [5, 3, '#c9a24a'], [6, 3, '#c9a24a'], [7, 3, '#1a1520'], [8, 3, '#c9a24a'], ...row(4, 6, 9, '#e8dcc4'), ...row(5, 7, 10, '#c9b99a'), [5, 0, '#c9b99a'], [6, 0, '#c9b99a']] },
+  { id: 'rimecrown', name: 'The Crown of Rime', unlock: { story: 44 }, how: 'See the longest night through in Act III of the story.', pixels: [...row(2, 3, 8, '#bfe8ff'), [3, 1, '#e6f6ff'], [5, 0, '#ffffff'], [5, 1, '#e6f6ff'], [6, 0, '#ffffff'], [6, 1, '#e6f6ff'], [8, 1, '#e6f6ff'], [4, 2, '#5fb2ff'], [7, 2, '#5fb2ff']] },
+  { id: 'pipmuffs', name: "Pip's Earmuffs", unlock: { story: 51 }, how: 'Bring Pip the rime-salt in Act III of the story.', pixels: [...row(0, 4, 7, '#5d667a'), [3, 1, '#5d667a'], [8, 1, '#5d667a'], [2, 2, '#c0392b'], [2, 3, '#c0392b'], [3, 2, '#e05a4a'], [3, 3, '#c0392b'], [8, 2, '#e05a4a'], [8, 3, '#c0392b'], [9, 2, '#c0392b'], [9, 3, '#c0392b']] },
   { id: 'wardenkeys', name: "The Warden's Keys", unlock: { story: 4 }, how: 'Finish Act I of the story.', pixels: [...row(2, 3, 8, '#8a4a2a'), [3, 1, '#8a4a2a'], [8, 1, '#8a4a2a'], [4, 1, GOLD], [5, 0, GOLD], [6, 0, GOLD], [7, 1, GOLD], [4, 3, GOLD], [7, 3, GOLD]] },
   { id: 'endlesscrown', name: 'Crown of the Endless', unlock: { weekly: 1 }, how: 'Win a week on the Endless leaderboard.', pixels: [[3, 0, '#b07cff'], [5, 0, '#5fe3ff'], [6, 0, '#5fe3ff'], [8, 0, '#b07cff'], ...row(1, 3, 8, '#7b5cff'), ...row(2, 3, 8, '#311854'), [4, 2, '#5fe3ff'], [7, 2, '#5fe3ff']] },
   { id: 'silvercirclet', name: 'Silver Circlet', unlock: { podium: 2 }, how: 'Finish 2nd in a Daily Descent.', pixels: [...row(2, 3, 8, '#c9d1e0'), [5, 1, '#eef3fb'], [6, 1, '#eef3fb'], [5, 2, '#9fe8ff'], [6, 2, '#7fb4ff']] },
@@ -755,6 +771,9 @@ export const HEADS: HeadDef[] = [
   { id: 'watchlantern', name: "Watchman's Lantern", unlock: { feat: 'ns1k' }, how: 'Put down 1,000 in one Night Shift.', pixels: [...row(0, 4, 7, '#2a2433'), ...row(1, 3, 8, '#2a2433'), ...row(2, 2, 9, '#3d3546'), [2, 3, '#3d3546'], [9, 3, '#3d3546'], [10, 1, '#5d5568'], [10, 2, '#5d5568'], [10, 3, '#ffb35a'], [11, 3, '#ff8a2a'], [10, 4, '#ffd23f'], [11, 4, '#5d5568']] },
   { id: 'bonecrown', name: 'Bone Crown', unlock: { feat: 'ns10k' }, how: 'Put down 10,000 in one Night Shift.', pixels: [[3, 0, BONE], [5, 0, BONE], [6, 0, BONE], [8, 0, BONE], ...row(1, 3, 8, BONE), ...row(2, 3, 8, '#c9c3b2'), [5, 1, '#d23a46'], [6, 1, '#d23a46'], [4, 2, '#8f8672'], [7, 2, '#8f8672']] },
   // Seven Nights: the last day's gift.
+  { id: 'giftbow', name: 'Gift Bow', unlock: { midwinter: 4 }, how: 'The Twelve Gifts, gift 4: play on a fourth day of Midwinter.', pixels: [[3, 1, RED], [4, 1, RED], [4, 2, '#a0222a'], [5, 2, '#ffd23f'], [6, 2, '#ffd23f'], [7, 2, '#a0222a'], [7, 1, RED], [8, 1, RED], [3, 0, '#e05a4a'], [8, 0, '#e05a4a'], [5, 3, RED], [6, 3, RED]] },
+  { id: 'candlewreath', name: 'Candle Wreath', unlock: { midwinter: 10 }, how: 'The Twelve Gifts, gift 10: play on a tenth day of Midwinter.', pixels: [...row(2, 3, 8, '#2e6b3a'), [4, 2, RED], [7, 2, RED], [4, 1, '#f2f2f2'], [6, 1, '#f2f2f2'], [8, 1, '#f2f2f2'], [4, 0, '#ffd23f'], [6, 0, '#ffd23f'], [8, 0, '#ffd23f']] },
+  { id: 'twelfthcrown', name: 'The Twelfth Crown', unlock: { midwinter: 12 }, how: 'The Twelve Gifts, gift 12: play on twelve days of Midwinter.', pixels: [...row(2, 3, 8, GOLD), [3, 1, GOLD], [5, 1, GOLD], [6, 1, GOLD], [8, 1, GOLD], [5, 0, '#fff2c0'], [6, 0, '#fff2c0'], [4, 2, '#2e8a4c'], [7, 2, '#2e8a4c'], [5, 2, RED], [6, 2, '#9fe8ff']] },
   { id: 'sevennights', name: 'Crown of Seven Nights', unlock: { welcome: 7 }, how: 'Seven Nights, day 7: play on seven different days.', pixels: [...row(2, 3, 8, '#2a3d4a'), [4, 2, '#7cf5c4'], [7, 2, '#7cf5c4'], [3, 1, '#c9d1e0'], [5, 1, '#c9d1e0'], [6, 1, '#c9d1e0'], [8, 1, '#c9d1e0'], [3, 0, '#9fe8ff'], [5, 0, '#7cf5c4'], [6, 0, '#7cf5c4'], [8, 0, '#9fe8ff']] },
 ];
 
@@ -823,6 +842,7 @@ export type AuraUnlock =
   | { rank: number }
   | { patron: true }
   | { welcome: number }
+  | { midwinter: number }
   | { story: number }
   | { raid: number }
   | { invite: number }
@@ -869,6 +889,9 @@ export const AURAS: AuraDef[] = [
   { id: 'threenotes', name: 'Three Notes', style: 'bell', color: '#9fe8ff', unlock: { story: 24 }, how: 'Ring the lost hymn in Act II of the story (Three Notes).' },
   { id: 'silentbell', name: 'The Silent Bell', style: 'mist', color: '#e8dcc4', unlock: { story: 25 }, how: 'Lay the Plague Abbot to rest in Act II of the story.' },
   { id: 'vespercandles', name: 'Vespers Candles', style: 'vespers', color: '#9be36a', unlock: { story: 22 }, how: 'Break up Vespers in Act II of the story.' },
+  { id: 'beaconfire', name: 'Beacon Fire', style: 'candle', color: '#ff8a2a', unlock: { story: 43 }, how: 'Light the Midwinter Beacon in Act III of the story.' },
+  { id: 'longnight', name: 'The Long Night', style: 'snow', color: '#e6f6ff', unlock: { story: 44 }, how: 'See the longest night through in Act III of the story.' },
+  { id: 'silentnight', name: 'Silent Night', style: 'snow', color: '#ffffff', unlock: { midwinter: 6 }, how: 'The Twelve Gifts, gift 6: play on a sixth day of Midwinter.' },
   { id: 'homecoming', name: 'Homecoming', style: 'souls', color: '#7cf5c4', unlock: { welcome: 5 }, how: 'Seven Nights, day 5: come back on a fifth day.' },
   { id: 'kindredflame', name: 'Kindred Flame', style: 'candle', color: '#ff8a2a', unlock: { invite: 3 }, how: 'Bring 3 friends to the crypt.' },
   // Horde: earned holding the crypt, never sold.
@@ -963,6 +986,31 @@ export function welcomeLabel(r: WelcomeReward): { icon: string; name: string } {
   if ('look' in r) return { icon: '🧥', name: `${LOOK_BY_ID[r.look]?.name ?? r.look} cloak` };
   if ('aura' in r) return { icon: '✨', name: `${AURA_BY_ID[r.aura]?.name ?? r.aura} aura` };
   return { icon: '👑', name: `${HEAD_BY_ID[r.head]?.name ?? r.head} + a title` };
+}
+
+// ---------- The Twelve Gifts of Midwinter ----------
+// A gift for each day you finish a run while Midwinter is open, twelve in all, one a day.
+// Missing a day doesn't matter: the next gift simply waits for the next day you play.
+
+export const MIDWINTER_GIFTS: WelcomeReward[] = [
+  { souls: 150 },
+  { look: 'twelfthnight' },
+  { souls: 200 },
+  { head: 'giftbow', title: '' },
+  { souls: 250 },
+  { aura: 'silentnight' },
+  { souls: 300 },
+  { look: 'firsthearth' },
+  { souls: 400 },
+  { head: 'candlewreath', title: '' },
+  { souls: 500 },
+  { head: 'twelfthcrown', title: 'midwinter:12' },
+];
+
+/** A gift's label for the track (headwear alone, or with its title on the last day). */
+export function midwinterLabel(r: WelcomeReward): { icon: string; name: string } {
+  if ('head' in r && !r.title) return { icon: '🎩', name: HEAD_BY_ID[r.head]?.name ?? r.head };
+  return welcomeLabel(r);
 }
 
 // ---------- The Bell Tolls rewards ----------

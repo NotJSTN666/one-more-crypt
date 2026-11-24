@@ -23,6 +23,20 @@ export interface NewsDay {
 
 export const NEWS: NewsDay[] = [
   {
+    date: '2026-11-27',
+    title: 'Midwinter, and Act III: The Long Night',
+    notes: [
+      '❄️ Midwinter is here until January 6. Snow is falling on Gravesend for the first time in four hundred years, and over the menus too.',
+      '📖 Act III of the story, The Long Night: something under everything is knocking, three times a night, very politely. Four quests and two side quests take you to the Frozen Mere, a new place south of the village, deeper than ever (floors 11 to 20), with the Midwinter Guest waiting at the bottom and a choice to make at the end of the longest night. Finish Act II to begin.',
+      '🎁 The Twelve Gifts of Midwinter: finish a run on any day of Midwinter, in any mode, to open the next of twelve gifts. Souls, two cloaks, a gift bow, a candle wreath, the Silent Night aura, and on the twelfth day the Twelfth Crown and the title Keeper of Midwinter.',
+      '🎄 Every crypt is dressed for the season: snow on the walls, icicles, holly, and red candles in holly wreaths.',
+      '🎶 Sleigh bells in the crypt\'s music while Midwinter lasts.',
+      '🏛️ Winter cloaks, headwear, auras and Hall pieces are in the Ossuary, this season only. The Midwinter Mantle is yours just for playing a run.',
+      '✨ Act III\'s own rewards, never sold: the Rimewalker, the Hearthkeeper and Harold\'s Scarf cloaks, the Crown of Rime, Pip\'s Earmuffs, the Beacon Fire and Long Night auras, and six titles.',
+    ],
+    go: ['story', 'daily'],
+  },
+  {
     date: '2026-11-22',
     title: 'Every theme has its own music, and a streak flame',
     notes: [

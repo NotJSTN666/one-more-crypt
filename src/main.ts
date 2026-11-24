@@ -1,32 +1,32 @@
 import './style.css';
 import { relicIcon, boonIcon, iconCanvas, iconsFromEmoji } from './relic-icons';
 import { installPixelIcons, pxi } from './pixel-icons';
-import { THEMES, applyTheme, loadThemeFonts, onThemeMusic, savedTheme, setThemeMusic, theme, themeMusicOn, type ThemeId } from './themes';
+import { THEMES, applyTheme, loadThemeFonts, onThemeMusic, savedTheme, setSeasonWeather, setThemeMusic, theme, themeMusicOn, type ThemeId } from './themes';
 import { installThemeFx } from './theme-fx';
 import { depthAt, shareCard, showColumn, type ColumnRun } from './depth';
 import { earnedStyles, myNameStyle, styledName, styleName } from './name-style';
 import './themes.css';
 import { PORTAL, initPortal, portalHappy, portalLoaded, portalPlaying } from './portal';
-import { audioRunning, fusionSound, isMusicEnabled, isMuted, onAudioState, setMusicDepth, setMusicEnabled, setMusicMood, setMusicStyle, setForgeStyle, setMuted, sfx, unlockAudio } from './audio';
+import { audioRunning, fusionSound, isMusicEnabled, isMuted, onAudioState, setMusicDepth, setMusicEnabled, setMusicMood, setMidwinterBells, setMusicStyle, setForgeStyle, setMuted, sfx, unlockAudio } from './audio';
 import { centralDate, dailyNumber, formatCountdown, msUntilNextDaily, weekStart } from './daily';
 import { liveNews, unreadNews, type NewsGo } from './news';
 import { TRIAL_SOULS, trialProgressText, weekTrial } from './trials';
 import { ACHIEVEMENT_BY_ID, DAILY_TOTALS, ELITES, FEATURES, HERO_BY_ID, HEROES, dailyHero, hordeHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait, heroSprite } from './hero';
 import { BOON_BY_ID, ENEMY_INFO, W, MIST_BITE, REAPER_FLOOR, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode, type EnemyKind } from './game';
-import { deepestFloor, podiumCount, acceptQuest, checkRun, grantFeats, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, rerollCost, spendSouls, finishRace, racePrizeOwned, acceptPlayerGift, INVITE_SOULS, INVITE_PETS, type InviteGain, finishHordeMeta, receiveGift, equipTitle, FAIR_DAILY, LEAN_DAILY, MISSILE_DAILY, type RunReward } from './meta';
+import { deepestFloor, podiumCount, acceptQuest, checkRun, grantFeats, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, claimMidwinter, midwinterOpened, midwinterWaiting, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, rerollCost, spendSouls, finishRace, racePrizeOwned, acceptPlayerGift, INVITE_SOULS, INVITE_PETS, type InviteGain, finishHordeMeta, receiveGift, equipTitle, FAIR_DAILY, LEAN_DAILY, MISSILE_DAILY, type RunReward } from './meta';
 import { drawGhosts, startGhosts, watching } from './ghosts';
 import { celebrate, celebrateNotes, holdCelebrations, setHallOpener, setOssuaryHost, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
 import { hallFromLink, onVisitIsle, showHall, showPublicHall, soulRankHtml, titleName } from './hall';
-import { AURA_BY_ID, BESTIARY_KINDS, COMMUNITY_GOAL, MASTERY_SOULS, soulSurge, beastPlural, bestiaryTiers, featCosmetics, marketPiece, masteryRank, GIFT_BY_ID, TITLE_BY_ID, HEAD_BY_ID, LOOK_BY_ID, PODIUM, RAID_DECOR_BY_ID, RAID_KIND_LABEL, RAID_REWARDS, STORY_ALL, STREAK_HELMS, WEEKLY, WELCOME, rankFor, titleFxClass, welcomeLabel, type WelcomeReward } from './progression';
+import { AURA_BY_ID, BESTIARY_KINDS, COMMUNITY_GOAL, MASTERY_SOULS, soulSurge, beastPlural, bestiaryTiers, featCosmetics, marketPiece, masteryRank, GIFT_BY_ID, TITLE_BY_ID, HEAD_BY_ID, LOOK_BY_ID, PODIUM, RAID_DECOR_BY_ID, RAID_KIND_LABEL, RAID_REWARDS, STORY_ALL, STREAK_HELMS, WEEKLY, WELCOME, MIDWINTER_GIFTS, midwinterLabel, rankFor, seasonOpen, titleFxClass, welcomeLabel, type WelcomeReward } from './progression';
 import { Renderer } from './render';
 import { enemyFrames, resetCanvases, sprites } from './sprites';
 import { RAID_TURNS, currentRaid, nextRaid, raidBossName, raidConfig, raidJoinable, type RaidSlot } from './raid';
 import { hashSeed } from './rng';
 import { ONLINE, loadCloudRuns, saveCloudRuns, type CloudRuns, communityKills, loadHall, submitHorde, hordeBoard, claimInvite, myInvites, raidHit, raidPlayer, raidState, type RaidState, challengeBoard, type BoardRow, emailReminderOff, sendFeedback, setEmailReminder, type FeedbackKind, challengeNews, createChallenge, dailyBoard, endlessBoard, getChallenge, mySummons, noteRun, noteSummon, pingActivity, setPresenceSource, startActivityPings, waitingGifts, claimGift, submitChallengeRun, type Challenge, type ChallengeRow } from './online';
 import {
-  ACT2_MAIN, ACT2_QUESTS, ACT2_TITLE, act2Open, ACT_TITLE, ACT1_QUESTS, LORE, LORE_COUNT, MAIN_QUESTS, QUESTS, QUEST_BY_N, SPEAKERS, conversation, facePortrait, houndStats, npcMarker, npcPresent, petName, questStatus,
+  ACT2_MAIN, ACT2_QUESTS, ACT2_TITLE, act2Open, ACT3_MAIN, ACT3_QUESTS, ACT3_TITLE, act3Open, ACT_TITLE, ACT1_QUESTS, LORE, LORE_COUNT, MAIN_QUESTS, QUESTS, QUEST_BY_N, SPEAKERS, conversation, facePortrait, houndStats, npcMarker, npcPresent, petName, questStatus,
   type Line, type NpcId, type Quest, type StoryState,
 } from './story';
 import { worldMapHtml, EPITAPHS, hollowKey, setHollowSpot, showHollow, showIsleVisit, type HollowHooks, type HollowPlace } from './hollow';
@@ -72,6 +72,13 @@ setMusicEnabled(!save.musicOff);
 onThemeMusic(setMusicStyle, setForgeStyle);
 applyTheme(savedTheme(), false);
 installThemeFx(calmMotion, () => !overlay.hidden);
+// Midwinter: snow over the menus (a theme with weather of its own keeps it), and the title dressed for it.
+const MIDWINTER = seasonOpen('midwinter', centralDate());
+if (MIDWINTER) {
+  setSeasonWeather('snow');
+  setMidwinterBells(true);
+  document.body.classList.add('midwinter');
+}
 
 /** The player's display settings, applied to the board. */
 function applyDisplay() {
@@ -85,6 +92,8 @@ let lastResult: RunResult | null = null;
 let lastReward: RunReward | null = null;
 /** The Seven Nights gift claimed by the run that just ended, if any. */
 let lastWelcome: { day: number; reward: WelcomeReward } | null = null;
+/** The Midwinter gift the last run opened, if any (shown on its results). */
+let lastMidwinter: { n: number; reward: WelcomeReward } | null = null;
 /** Set when a race stops the run on screen (time up, or decided), so no more moves are taken. */
 let raceHalt = false;
 /** Stops listening for who is waiting in the open race lobby (the title screen's count). */
@@ -662,6 +671,18 @@ function finishRun(abandoned = false) {
     } else {
       const label = welcomeLabel(r);
       lastReward.unlocks.push({ icon: label.icon, title: `Seven Nights, day ${lastWelcome.day}: ${label.name}`, detail: 'A gift for coming back. Wear it from the Wardrobe' });
+    }
+  }
+  // The Twelve Gifts of Midwinter: one a day for finishing any run while the season is open.
+  lastMidwinter = claimMidwinter(dailyNumber());
+  if (lastMidwinter) {
+    const r = lastMidwinter.reward;
+    if ('souls' in r) {
+      lastReward.souls += r.souls;
+      lastReward.lines.push([`Midwinter gift ${lastMidwinter.n}`, r.souls]);
+    } else {
+      const label = midwinterLabel(r);
+      lastReward.unlocks.push({ icon: label.icon, title: `Midwinter gift ${lastMidwinter.n}: ${label.name}`, detail: 'One of the Twelve Gifts. Wear it from the Wardrobe' });
     }
   }
   // A challenge run: its own board, not the Endless leaderboard or your Endless best.
@@ -1606,6 +1627,7 @@ function updateTip() {
     tip.innerHTML = '<b>Red tiles:</b> an arrow flies next turn. Step aside!';
   else if (boss?.kind === 'boss') tip.innerHTML = 'The <b>Bone Warden</b> raises ghouls every few turns. Strike fast.';
   else if (boss?.kind === 'abbot') tip.innerHTML = 'The <b>Plague Abbot</b> rains plague around you. Watch for green tiles.';
+  else if (boss?.kind === 'guest') tip.innerHTML = 'The <b>Midwinter Guest</b> knocks, then frost falls on you and the tiles diagonal to you. Step <b>straight</b> out of the blue.';
   else if (boss?.kind === 'lich') tip.innerHTML = 'The <b>Lich King</b> blinks away and fires along its row and column.';
   else if (game.shadowReady) tip.innerHTML = '<b>Shadowstep:</b> your next step goes unseen. Foes won\'t act.';
   else if (game.inMist(game.player.x, game.player.y)) tip.innerHTML = `You're in the <b>plague mist</b>. Every ${MIST_BITE}rd turn in it costs 1 health.`;
@@ -1755,6 +1777,17 @@ function titleScene() {
     }
     foes = foes.filter((f) => f.dead < 0.3);
     ctx.clearRect(0, 0, c.width, c.height);
+    // Midwinter: snow lying on the ground, and flakes drifting down through the scene
+    if (MIDWINTER) {
+      ctx.fillStyle = 'rgba(225, 240, 252, 0.55)';
+      ctx.fillRect(0, 20, c.width, 2);
+      ctx.fillStyle = 'rgba(240, 248, 255, 0.8)';
+      for (let k = 0; k < 14; k++) {
+        const fx = (k * 37 + Math.sin(t * 0.8 + k) * 4 + 132) % 132;
+        const fy = (k * 11 + t * (6 + (k % 4) * 2)) % 22;
+        ctx.fillRect(Math.round(fx), Math.round(fy), 1, 1);
+      }
+    }
     // the floor, and a pool of torchlight round the hero
     ctx.fillStyle = 'rgba(255, 190, 110, 0.10)';
     ctx.beginPath();
@@ -2040,6 +2073,7 @@ function showTitle() {
   const nudge = /gift waiting|keep-name/i.test(welcomeTitleHtml() + keepNameHtml(false));
   showOverlay('title', `
     ${accountChip(streakChipHtml(today))}
+    ${MIDWINTER ? '<div class="mw-garland" aria-hidden="true"><i></i></div>' : ''}
     <h1 class="logo">One More Crypt</h1>
     <canvas class="title-scene" id="title-scene" width="132" height="22" aria-hidden="true"></canvas>
     <div class="title-scene-name" id="title-scene-name" aria-hidden="true"></div>
@@ -2049,6 +2083,7 @@ function showTitle() {
     <div class="title-play">
     ${continueBlock}
     ${dailyBlock}
+    ${midwinterCardHtml()}
     ${championHtml()}
     ${raidFought(raid) ? '' : raidCardHtml(raid)}
     ${delveBtn}
@@ -2064,7 +2099,7 @@ function showTitle() {
       <h2 class="title-section">Adventure</h2>
       <div class="tiles">
         ${titleTile('hollow', pxi('moon'), 'The Hollow', 'Graveyard & your isle')}
-        ${titleTile('act2', pxi('bell'), 'Act II', act2Open() ? 'Part 1 open' : 'Opens Friday', 'act2-tile')}
+        ${act3Open() ? titleTile('act3', pxi('snowflake'), 'Act III', 'The Long Night', 'act2-tile act3-tile') : titleTile('act2', pxi('bell'), 'Act II', act2Open() ? 'Part 1 open' : 'Opens Friday', 'act2-tile')}
       </div>
       <h2 class="title-section">Your crypt</h2>
       <div class="tiles">
@@ -2161,6 +2196,8 @@ function showTitle() {
   });
   on('#story', () => playStory());
   on('#act2', () => showActTwo(showTitle));
+  on('#act3', () => showActThree(showTitle));
+  on('#midwinter', () => showMidwinter(showTitle));
   on('#raid', () => showRaid(showTitle));
   wireHordeButton();
   on('#invite', () => showInvite(showTitle));
@@ -2386,7 +2423,7 @@ function hollowHooks(): HollowHooks {
     enterDungeon: (n) => QUEST_BY_N[doorQuest(n)] && beginDungeon(QUEST_BY_N[doorQuest(n)]),
     gate: (n) => ['active', 'cleared', 'done'].includes(questStatus(QUEST_BY_N[n], storyState())),
     peace: () => meta.story.done.includes(25),
-    areaOpen: (id) => (id === 'farm' ? graveShiftOpen() : id !== 'cloister' || meta.story.done.includes(21)),
+    areaOpen: (id) => (id === 'farm' ? graveShiftOpen() : id === 'mere' ? meta.story.done.includes(41) : id !== 'cloister' || meta.story.done.includes(21)),
     lore: (id) => LORE[id] ?? null,
     readLore: (id) => {
       if (readLore(id)) sfx.relic();
@@ -3029,6 +3066,7 @@ function showDeath(r: RunResult, best: boolean) {
     ${lastReward ? `<p class="earned-line"><b>+${lastReward.souls.toLocaleString()} Souls</b><span>💀 ${meta.souls.toLocaleString()} to spend</span></p>` : ''}
     ${earned.length ? `<p class="earned-feats">${earned.slice(0, 3).map((e) => `<span>${e}</span>`).join('')}${earned.length > 3 ? `<span>+${earned.length - 3} more</span>` : ''}</p>` : ''}
     ${lastWelcome ? seven : ''}
+    ${lastMidwinter ? midwinterTrackHtml() : ''}
     ${ch ? challengeResultHtml(r, ch) : ''}
     ${daily ? `${tomorrowHtml()}${reminderPromptHtml()}${keepGoingHtml()}` : ch ? '<button class="btn primary retry-btn" id="retry-challenge">↻ Retry<small>Same crypt, same hero</small></button>' : `<button class="btn primary retry-btn" id="again">↻ Retry<small>Straight back in as the ${esc(HERO_BY_ID[game.hero].name)}<span class="keys-hint"> · Enter or R</span></small></button>`}
     ${askName ? claimInlineHtml(claimText) : ''}
@@ -3603,6 +3641,53 @@ function welcomeTrackHtml(): string {
       : 'All seven nights claimed. The crown and title are yours.';
   const head = lastWelcome ? `🎁 Seven Nights · day ${lastWelcome.day} claimed: ${esc(welcomeLabel(lastWelcome.reward).name)}` : '🎁 Seven Nights';
   return `<div class="welcome-track"><b>${head}</b><div class="wn-slots">${slots}</div><p>${line}</p></div>`;
+}
+
+/** The Twelve Gifts of Midwinter: twelve slots, today's opened (or waiting), and what's next. */
+function midwinterTrackHtml(): string {
+  const opened = midwinterOpened();
+  const slots = MIDWINTER_GIFTS.map((r, i) => {
+    const n = i + 1;
+    const state = n <= opened ? (lastMidwinter?.n === n ? 'today' : 'got') : n === opened + 1 ? 'next' : '';
+    return `<span class="wn-slot ${state}" title="Gift ${n}: ${esc(midwinterLabel(r).name)}"><i>${n <= opened ? '✓' : midwinterLabel(r).icon}</i><small>${n}</small></span>`;
+  }).join('');
+  const waiting = midwinterWaiting(dailyNumber());
+  const next = opened < MIDWINTER_GIFTS.length ? MIDWINTER_GIFTS[opened] : null;
+  const line = waiting
+    ? `Finish any run today to open gift ${waiting.n}: <b>${esc(midwinterLabel(waiting.reward).name)}</b>.`
+    : next
+      ? `Come back tomorrow for gift ${opened + 1}: <b>${esc(midwinterLabel(next).name)}</b>.`
+      : 'All twelve gifts opened. The Twelfth Crown and the title are yours.';
+  const head = lastMidwinter ? `❄️ The Twelve Gifts · gift ${lastMidwinter.n} opened: ${esc(midwinterLabel(lastMidwinter.reward).name)}` : '❄️ The Twelve Gifts of Midwinter';
+  return `<div class="welcome-track midwinter-track"><b>${head}</b><div class="wn-slots twelve">${slots}</div><p>${line}</p></div>`;
+}
+
+/** The Midwinter card on the title: today's gift, and Act III. */
+function midwinterCardHtml(): string {
+  if (!MIDWINTER) return '';
+  const opened = midwinterOpened();
+  const waiting = midwinterWaiting(dailyNumber());
+  const gift = waiting
+    ? `🎁 Gift ${waiting.n} of 12 waiting: finish any run`
+    : opened >= MIDWINTER_GIFTS.length ? '🎁 All twelve gifts opened' : `🎁 ${opened}/12 gifts · next one tomorrow`;
+  const story = act3Open() ? ' · 📖 Act III: The Long Night' : '';
+  return `<button class="btn midwinter-btn" id="midwinter">${pxi('snowflake')} Midwinter${waiting ? '<span class="new-tag">GIFT</span>' : ''}<small>${gift}${story}</small></button>`;
+}
+
+/** Midwinter: the Twelve Gifts in full, and the way into Act III. */
+function showMidwinter(back: () => void) {
+  showOverlay('midwinter', `
+    <p class="news-tag">❄️ Until January 6</p>
+    <h2>${pxi('snowflake')} Midwinter</h2>
+    <p class="sub">Snow on Gravesend for the first time in four hundred years. Every crypt is dressed for the season.</p>
+    ${midwinterTrackHtml()}
+    <p class="fine">One gift for each day you finish a run while Midwinter lasts, in any mode. Miss a day and the next gift simply waits. The cloaks, headwear and aura are yours to keep.</p>
+    ${act3Open() ? `<button class="btn act2-btn act3-btn story-btn" id="mw-act3">${pxi('book')} Act III: The Long Night<small>${meta.story.done.includes(25) ? 'Something is knocking under the kettle' : 'Finish Act II to begin'}</small></button>` : ''}
+    <button class="btn" id="mw-ossuary">🏛️ Midwinter in the Ossuary<small>Winter cloaks, headwear and Hall pieces, this season only</small></button>
+    <button class="btn" id="back">Back</button>`);
+  on('#mw-act3', () => showActThree(() => showMidwinter(back)));
+  on('#mw-ossuary', () => showOssuary(() => showMidwinter(back)));
+  on('#back', back);
 }
 
 /** Seven Nights on the title screen: a gift waiting today, or tomorrow's. */
@@ -4783,10 +4868,13 @@ function storyProgress(): string {
   const main = MAIN_QUESTS.filter((q) => meta.story.done.includes(q.n)).length;
   const next = MAIN_QUESTS.find((q) => !meta.story.done.includes(q.n));
   const two = ACT2_MAIN.filter((q) => meta.story.done.includes(q.n)).length;
+  const three = ACT3_MAIN.filter((q) => meta.story.done.includes(q.n)).length;
   const sub = next
     ? main ? `Act I · ${main}/${MAIN_QUESTS.length}` : 'Start Act I'
     : !act2Open() ? 'Act II opens Friday'
-    : two === ACT2_MAIN.length ? 'Act II · Part 2 soon' : two ? `Act II · ${two}/${ACT2_MAIN.length}` : 'Act II is open';
+    : two < ACT2_MAIN.length ? (two ? `Act II · ${two}/${ACT2_MAIN.length}` : 'Act II is open')
+    : !act3Open() ? 'Act II complete'
+    : three === ACT3_MAIN.length ? 'Act III complete' : three ? `Act III · ${three}/${ACT3_MAIN.length}` : '❄️ Act III is open';
   return sub;
 }
 
@@ -4896,6 +4984,129 @@ function animateActTwo(cv: HTMLCanvasElement) {
   requestAnimationFrame(frame);
 }
 
+/** Act III: the Long Night. What it is, and the way in (it needs Act II finished). */
+function showActThree(back: () => void) {
+  const ready = meta.story.done.includes(25);
+  const started = ACT3_QUESTS.some((q) => meta.story.done.includes(q.n) || meta.story.active.includes(q.n));
+  const three = ACT3_QUESTS.filter((q) => meta.story.done.includes(q.n)).length;
+  showOverlay('act3', `
+    <canvas class="act2-art act3-art" id="act3-art" width="320" height="200" aria-label="A tall figure in a crown of icicles stands at a black door in the ice, while snow falls"></canvas>
+    <p class="act2-kicker act3-kicker">❄️ Midwinter · ${three === ACT3_QUESTS.length ? 'Complete' : three ? `${three}/${ACT3_QUESTS.length} quests done` : 'Open now'}</p>
+    <h2 class="act2-title act3-title">Act III: The Long Night</h2>
+    <p class="act2-quote">"May I come in?"</p>
+    <p class="sub">It is snowing in Gravesend for the first time in four hundred years. Something under everything is knocking, three times every night, very politely. Mortimer knows what it is. Mortimer would rather not say.</p>
+    <ul class="act2-list">
+      <li>❄️ The Frozen Mere: a new place south of the village</li>
+      <li>📜 4 quests and 2 side quests, deeper than ever: floors 11 to 20</li>
+      <li>🕯️ Light the Midwinter Beacon and hold back the cold</li>
+      <li>🎶 Find the lost carollers asleep in the Carol Barrow</li>
+      <li>👑 The Midwinter Guest: a new boss, and a choice at the end of the longest night</li>
+      <li>✨ Story-only rewards: 3 cloaks, a crown, earmuffs, 2 auras and 6 titles</li>
+    </ul>
+    ${ready
+      ? `<p class="act2-ready">${started ? '❄️ Pick up where you left off.' : '❄️ Mortimer has something to show you. It is under the kettle.'}</p><button class="btn primary story-btn" id="act3-story">${pxi('book')} ${started ? 'Continue Act III' : 'Go to Mortimer'}</button>`
+      : `<p class="act2-ready">Finish Act II first: the Plague Abbot is waiting at the bottom of the Bell Shaft.</p><button class="btn story-btn" id="act3-story">${pxi('book')} Continue the story</button>`}
+    <button class="btn" id="back">Back</button>`);
+  on('#act3-story', () => {
+    if (ready && !started) placeAtCottage();
+    playStory();
+  });
+  on('#back', back);
+  animateActThree($('act3-art') as HTMLCanvasElement);
+}
+
+/** The Guest at its door in the ice, snow falling, the knocker lifting three times. */
+function animateActThree(cv: HTMLCanvasElement) {
+  const ctx = cv.getContext('2d')!;
+  const guest = sprites().guest.normal;
+  const W = cv.width, H = cv.height;
+  const flakes = Array.from({ length: 70 }, (_, i) => ({ x: (i * 47) % W, y: (i * 89) % H, v: 10 + (i % 7) * 5, d: (i % 5) * 0.7 }));
+  const t0 = performance.now();
+  const still = calmMotion();
+  const frame = (now: number) => {
+    if (screen !== 'act3' || !cv.isConnected) return;
+    const t = (now - t0) / 1000;
+    const sky = ctx.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, '#060a14');
+    sky.addColorStop(1, '#16233a');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, H);
+    // The black door in the ice, with the knocker on the wrong side.
+    ctx.fillStyle = '#26344a';
+    ctx.fillRect(W / 2 + 40, 50, 70, 130);
+    ctx.fillStyle = '#05070c';
+    ctx.fillRect(W / 2 + 48, 58, 54, 122);
+    const knock = still ? 0 : t % 4;
+    const lift = knock < 1.2 ? Math.max(0, Math.sin(knock * Math.PI * 2.5)) * 6 : 0;
+    ctx.fillStyle = '#c9a24a';
+    ctx.fillRect(W / 2 + 70, 104 - lift, 10, 3);
+    ctx.fillRect(W / 2 + 73, 96 - lift, 4, 10);
+    // Ice on the floor.
+    ctx.fillStyle = '#a8c8e0';
+    ctx.fillRect(0, 180, W, 20);
+    ctx.fillStyle = 'rgba(230, 246, 255, 0.5)';
+    for (let x = 0; x < W; x += 23) ctx.fillRect(x, 182 + ((x * 7) % 5), 9, 1);
+    // The Guest, tall and patient, a lantern glowing.
+    const s = 9;
+    const bob = still ? 0 : Math.sin(t * 1.4) * 2;
+    const gx = W / 2 - 90;
+    const glow = ctx.createRadialGradient(gx + 60, 120, 0, gx + 60, 120, 70);
+    glow.addColorStop(0, 'rgba(242, 193, 78, 0.22)');
+    glow.addColorStop(1, 'rgba(242, 193, 78, 0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(gx - 20, 40, 160, 150);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(guest, gx, 74 + bob, guest.width * s, guest.height * s);
+    // Snow.
+    ctx.fillStyle = '#e6f6ff';
+    for (const f of flakes) {
+      const y = still ? f.y : (f.y + t * f.v) % H;
+      const x = still ? f.x : (f.x + Math.sin(t + f.d) * 6 + W) % W;
+      ctx.fillRect(x, y, f.v > 30 ? 2 : 1, f.v > 30 ? 2 : 1);
+    }
+    if (!still) requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+}
+
+/** Midwinter is here: once a season, on opening the game, say what came with the snow. */
+function midwinterNewsWaiting(): boolean {
+  if (!act3Open() || !seasonOpen('midwinter', centralDate())) return false;
+  try {
+    return localStorage.getItem('omc:news-midwinter-2026') !== '1';
+  } catch {
+    return false;
+  }
+}
+
+function showMidwinterNews() {
+  try {
+    localStorage.setItem('omc:news-midwinter-2026', '1');
+  } catch {
+    // Private mode: it may show again, which is harmless.
+  }
+  const ready = meta.story.done.includes(25);
+  showOverlay('news', `
+    <p class="news-tag">❄️ Midwinter has come to the crypt</p>
+    <h2>${pxi('snowflake')} Midwinter</h2>
+    <p class="sub">Until January 6</p>
+    <img class="hero-portrait story-face" src="${facePortrait('guest')}" alt="The Midwinter Guest" width="96" height="96" />
+    <p class="fine">Snow is falling on Gravesend for the first time in four hundred years, and every crypt is dressed for the season. Under everything, something is knocking. Politely.</p>
+    <ul class="news-list">
+      <li>📖 <b>Act III: The Long Night</b>: the Frozen Mere, 4 quests and 2 side quests, and the Midwinter Guest${ready ? '' : ' (finish Act II to begin)'}</li>
+      <li>🎁 <b>The Twelve Gifts</b>: finish a run on any Midwinter day to open the next gift</li>
+      <li>❄️ Icicles, holly and festive candles in every crypt, and snow on the title</li>
+      <li>🧣 Midwinter cloaks and headwear in the Ossuary</li>
+    </ul>
+    ${ready ? `<button class="btn primary story-btn" id="news-play">${pxi('book')} Play Act III<small>Mortimer is under the kettle</small></button>` : `<button class="btn primary" id="news-play">${pxi('book')} Continue the story</button>`}
+    <button class="btn" id="news-later">Later</button>`);
+  on('#news-play', () => {
+    if (ready && !ACT3_QUESTS.some((q) => meta.story.done.includes(q.n) || meta.story.active.includes(q.n))) placeAtCottage();
+    playStory();
+  });
+  on('#news-later', showTitle);
+}
+
 /** Into the world for the story: straight to Mortimer's door the first time. */
 function playStory() {
   if (!meta.story.active.length && !meta.story.done.length) placeAtCottage();
@@ -4942,6 +5153,12 @@ function finishQuest(q: Quest, then: () => void) {
     : q.n === 24 ? '✨ Three Notes: a new aura. 📜 New title: Hymn-Ringer.'
     : q.n === 25 ? "🎨 The Abbot's Cope: a new cloak. ✨ The Silent Bell: a new aura. 📜 New title: Bellbreaker."
     : q.n === 34 ? "🎨 The Founder's Apron: a new cloak. 📜 New title: Bell-Founder."
+    : q.n === 41 ? '❄️ The Frozen Mere is open: take the path south out of the village. 🎨 The Rimewalker: a new cloak. 📜 New title: Answered the Door.'
+    : q.n === 42 ? '🎨 The Hearthkeeper: a new cloak. 📜 New title: Keeper of the Hearth Book.'
+    : q.n === 43 ? '✨ Beacon Fire: a new aura. 📜 New title: Beacon-Lighter.'
+    : q.n === 44 ? '🎩 The Crown of Rime: new headwear. ✨ The Long Night: a new aura. 📜 New title: Guest of Honour.'
+    : q.n === 51 ? "🎩 Pip's Earmuffs: new headwear. 📜 New title: Salt Runner."
+    : q.n === 52 ? "🎨 Harold's Scarf: a new cloak. 📜 New title: One of the Waits."
     : '';
   // The last quest of the act: the Bell-Ringer and everything that comes with them.
   const actDone = !q.act && storyDone(STORY_ALL);
@@ -4971,7 +5188,9 @@ function finishQuest(q: Quest, then: () => void) {
     ${act}
     ${q.n === 4 || actDone ? `<p class="talk-quip">${act2Open() ? 'Act II: The Plague Abbot is open. Mortimer has found a lid.' : 'Act II: The Plague Abbot opens this Friday.'}</p><button class="btn act2-btn" id="act2">🔔 About Act II</button>` : ''}
     ${q.n === 25 ? '<div class="act-done"><b>🔔 Act II complete</b><p>The bells of the Sunken Cloister are silent, and Gravesend sleeps through the night. Its people have come back out into the streets.</p><p class="fine">Something is knocking under the sanctum. Act III is on its way.</p></div>' : ''}
-    ${q.act && q.n !== 25 && ACT2_QUESTS.every((x) => meta.story.done.includes(x.n)) ? '<p class="talk-quip">That is every quest in Act II. Gravesend thanks you.</p>' : ''}
+    ${q.act === 2 && q.n !== 25 && ACT2_QUESTS.every((x) => meta.story.done.includes(x.n)) ? '<p class="talk-quip">That is every quest in Act II. Gravesend thanks you.</p>' : ''}
+    ${q.n === 44 ? `<div class="act-done midwinter"><b>❄️ Act III complete</b><p>${meta.story.choices.guest === 'chair' ? 'The Guest sat the longest night by the fire at the Last Orders, and at dawn it went home across the mere, and took Mortimer with it, warm at last.' : 'The Guest went back below the ice to wait for next Midwinter, and Mortimer is practising good evening for when it comes.'}</p><p class="fine">The longest night is over. Happy Midwinter.</p></div>` : ''}
+    ${q.act === 3 && q.n !== 44 && ACT3_QUESTS.every((x) => meta.story.done.includes(x.n)) ? '<p class="talk-quip">That is every quest in Act III. Gravesend is warm again.</p>' : ''}
     <button class="btn primary" id="back">Continue</button>`);
   on('#act2', () => showActTwo(then));
   on('#back', then);
@@ -5001,6 +5220,8 @@ function dungeonDoor(door: number): { open: boolean; title: string; text: string
   if (!q) return { open: false, title: 'Sealed', text: 'Nothing but stone.' };
   const status = questStatus(q, storyState());
   if (q.act === 2 && status === 'locked' && !act2Open()) return { open: false, title: q.dungeon.name, text: 'Something heavy shifts beneath the stone. Act II opens this Friday.' };
+  // (Act III's first door is a trapdoor in Mortimer's cottage: before Midwinter it is only floorboards)
+  if (q.act === 3 && status === 'locked' && !act3Open()) return { open: false, title: 'A loose floorboard', text: 'Just floorboards, under the rug, under the kettle. A draught comes up round the edges. Mortimer says to leave it.' };
   if (status === 'locked' || status === 'available') return { open: false, title: q.dungeon.name, text: q.barred };
   const [a, b] = q.dungeon.floors;
   const done = status === 'done' || status === 'cleared';
@@ -5041,13 +5262,13 @@ function showQuests(back: () => void = enterHollow) {
   const done = QUESTS.filter((q) => questStatus(q, s) === 'done');
   const lore = meta.story.journal.filter((id) => LORE[id]);
   showOverlay('quests', `
-    <h2>${esc(s.done.includes(4) && act2Open() ? ACT2_TITLE : ACT_TITLE)}</h2>
-    <p class="sub">${actCount('Act I', ACT1_QUESTS)}${s.done.includes(4) ? (act2Open() ? `<br>${actCount('Act II', ACT2_QUESTS)}` : '<br>Act II opens this Friday.') : ''}</p>
+    <h2>${esc(s.done.includes(25) && act3Open() ? ACT3_TITLE : s.done.includes(4) && act2Open() ? ACT2_TITLE : ACT_TITLE)}</h2>
+    <p class="sub">${actCount('Act I', ACT1_QUESTS)}${s.done.includes(4) ? (act2Open() ? `<br>${actCount('Act II', ACT2_QUESTS)}` : '<br>Act II opens this Friday.') : ''}${s.done.includes(25) && act3Open() ? `<br>${actCount('Act III', ACT3_QUESTS)}` : ''}</p>
     ${houndJoined() ? `<p class="fine">🐕 ${esc(petName(meta.story.choices.hound))} fights beside you in the story · bond ${meta.story.bond}</p>` : ''}
     ${worldMapHtml(
       current.filter((q) => questStatus(q, s) === 'active').map((q) => doorOf(q.n)),
       [...current.filter((q) => questStatus(q, s) === 'cleared' && q.turnIn), ...open].map((q) => q.giver),
-      (id) => id !== 'cloister' || s.done.includes(21),
+      (id) => (id === 'mere' ? s.done.includes(41) : id !== 'cloister' || s.done.includes(21)),
     )}
     <h3 class="shop-head">On the go</h3>
     <div class="quests">${current.length ? current.map(row).join('') : '<p class="fine">Nothing yet. Look for a ! over someone\'s head.</p>'}</div>
@@ -5287,7 +5508,7 @@ function chapterCard(q: Quest) {
   const el = document.createElement('div');
   el.className = 'chapter-card';
   const [a, b] = q.dungeon.floors;
-  el.innerHTML = `<small>${q.act === 2 ? 'Act II · The Plague Abbot' : 'Act I · The Bell Beneath'}${q.side ? ' · Side quest' : ''}</small><b>${esc(q.title)}</b><i></i><span>${esc(q.dungeon.name)} · floors ${a} to ${b}</span>`;
+  el.innerHTML = `<small>${q.act === 3 ? 'Act III · The Long Night' : q.act === 2 ? 'Act II · The Plague Abbot' : 'Act I · The Bell Beneath'}${q.side ? ' · Side quest' : ''}</small><b>${esc(q.title)}</b><i></i><span>${esc(q.dungeon.name)} · floors ${a} to ${b}</span>`;
   document.body.appendChild(el);
   window.setTimeout(() => el.remove(), 3400);
 }
@@ -5656,7 +5877,8 @@ if (unsub && ONLINE) {
 const playMode = visiting || challengeCode ? null : playFromLink();
 // Back again: tell them what's new (only on a plain visit, not a shared link).
 if (!visiting && !challengeCode && !unsub && !playMode && !savedRun()) {
-  if (actTwoNewsWaiting()) showActTwoNews();
+  if (midwinterNewsWaiting()) showMidwinterNews();
+  else if (actTwoNewsWaiting()) showActTwoNews();
   else if (bellNewsWaiting()) showBellNews();
   else if (newsWaiting()) showStoryNews();
 }

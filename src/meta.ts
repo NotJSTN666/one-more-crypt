@@ -12,7 +12,7 @@ import { TRIAL_FEATS, TRIAL_SOULS, advanceTrial, type TrialEvent, type TrialStat
 import { ACT1_QUESTS } from './story';
 import { FUSIONS, RELICS, UNLOCKABLE_RELICS, type FusedId, type RelicId } from './relics';
 import {
-  AURAS, AURA_BY_ID, DUNCE_AT, SHAME, BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, beastPlural, HEADS, HEAD_BY_ID, HERO_CLOAKS, HERO_COSTUMES, LOOKS, LOOK_BY_ID, SEASONS, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_BY_ID, TITLE_TIER, WELCOME, STORY_ALL, RAID_REWARDS,
+  AURAS, AURA_BY_ID, DUNCE_AT, SHAME, BESTIARY_KINDS, BESTIARY_TITLES, DECOR_BY_ID, beastPlural, HEADS, HEAD_BY_ID, HERO_CLOAKS, HERO_COSTUMES, LOOKS, LOOK_BY_ID, SEASONS, SOUL_RANKS, TIER_SOULS, TITLES, TITLE_BY_ID, TITLE_TIER, WELCOME, MIDWINTER_GIFTS, STORY_ALL, RAID_REWARDS,
   betterRun, bestiaryTiers, isMarket, shopPrice, marketPiece, marketPieces, masteryRank, MASTERY_SOULS, soulSurge, rankIndex, seasonOf, seasonOpen, type AuraDef, type BestRuns, type SeasonId, type HeadDef, type LookDef, type Outfit, type RunGoal, type Unlock, type WelcomeReward,
 } from './progression';
 import type { EnemyKind } from './game';
@@ -86,6 +86,11 @@ export interface Meta {
   vault: boolean;
   /** Seven Nights: gifts claimed so far (0-7) and the daily number of the last claim. */
   welcome: { claimed: number; last: number };
+  /**
+   * The Twelve Gifts of Midwinter: the season they're from (the year it began), gifts opened
+   * this season, the daily number of the last one, and the most ever opened (what stays unlocked).
+   */
+  midwinter: { year: number; opened: number; last: number; best: number };
   /** Your Isle: land cleared and everything built on it. */
   isle: IsleState;
   /** Seasons played in, e.g. 'halloween-2026', for their free pieces. */
@@ -185,7 +190,7 @@ function empty(): Meta {
     podiums: {}, podiumChecked: 0, bought: [], streak: { best: 0, count: 0, last: 0 },
     bounties: { day: 0, ids: [], progress: [], done: [] },
     weekly: {}, weeklyChecked: '',
-    story: emptyStory(), pet: '', pets: [], summonsSeen: '', summonsTotal: 0, patron: false, vault: false, welcome: { claimed: 0, last: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null, raid: { joined: [], won: [], lost: [] }, invite: { from: '', claimed: false, friends: 0 }, pyre: {}, race: { laurels: 0, races: 0, wins: 0, trail: '', finisher: '' }, horde: { day: 0, best: 0, wave: 0 }, gifts: [], hallHidden: [], nightShrine: { vigor: 0, reroll: 0, banish: 0, arsenal: false, start: '' }, dailyTotal: 0, nameStyle: { ink: '', fx: '' }, runsToday: { day: 0, n: 0 }, trialsDone: 0, rival: '', playedMonths: [],
+    story: emptyStory(), pet: '', pets: [], summonsSeen: '', summonsTotal: 0, patron: false, vault: false, welcome: { claimed: 0, last: 0 }, midwinter: { year: 0, opened: 0, last: 0, best: 0 }, isle: emptyIsle(), seasons: [], deepest: 0, shame: {}, duels: [], challengeSeen: '', grave: null, raid: { joined: [], won: [], lost: [] }, invite: { from: '', claimed: false, friends: 0 }, pyre: {}, race: { laurels: 0, races: 0, wins: 0, trail: '', finisher: '' }, horde: { day: 0, best: 0, wave: 0 }, gifts: [], hallHidden: [], nightShrine: { vigor: 0, reroll: 0, banish: 0, arsenal: false, start: '' }, dailyTotal: 0, nameStyle: { ink: '', fx: '' }, runsToday: { day: 0, n: 0 }, trialsDone: 0, rival: '', playedMonths: [],
   };
 }
 
@@ -225,6 +230,12 @@ function cleanWelcome(w: unknown): Meta['welcome'] {
   return { claimed: Math.max(0, Math.min(WELCOME.length, Math.floor(Number(o.claimed) || 0))), last: Math.max(0, Math.floor(Number(o.last) || 0)) };
 }
 
+function cleanMidwinter(w: unknown): Meta['midwinter'] {
+  const o = w && typeof w === 'object' ? (w as Record<string, unknown>) : {};
+  const n = (v: unknown, max: number) => Math.max(0, Math.min(max, Math.floor(Number(v) || 0)));
+  return { year: n(o.year, 9999), opened: n(o.opened, MIDWINTER_GIFTS.length), last: n(o.last, 1e7), best: n(o.best, MIDWINTER_GIFTS.length) };
+}
+
 function load(): Meta {
   try {
     const raw = localStorage.getItem(KEY);
@@ -233,6 +244,7 @@ function load(): Meta {
     // The story moved into the open world: earlier chapter progress starts over (the hound stays).
     m.isle = cleanIsle(m.isle);
     m.welcome = cleanWelcome(m.welcome);
+    m.midwinter = cleanMidwinter(m.midwinter);
     m.raid = cleanRaid(m.raid);
     m.invite = cleanInvite(m.invite);
     m.gifts = ids(m.gifts);
@@ -296,6 +308,12 @@ export function mergeMeta(other: Partial<Meta> | null | undefined): boolean {
   // Seven Nights: the device that got further wins.
   const ow = cleanWelcome(other.welcome);
   if (ow.claimed > meta.welcome.claimed || (ow.claimed === meta.welcome.claimed && ow.last > meta.welcome.last)) meta.welcome = ow;
+  // The Twelve Gifts: the later season, then the device that opened more; the best ever is kept either way.
+  const om = cleanMidwinter(other.midwinter);
+  const mm = meta.midwinter;
+  const best = Math.max(om.best, mm.best);
+  if (om.year > mm.year || (om.year === mm.year && (om.opened > mm.opened || (om.opened === mm.opened && om.last > mm.last)))) meta.midwinter = { ...om, best };
+  else meta.midwinter = { ...mm, best };
   meta.deepest = Math.max(meta.deepest, Number(other.deepest) || 0);
   const oi = cleanInvite(other.invite);
   meta.invite = { from: meta.invite.from || oi.from, claimed: meta.invite.claimed || oi.claimed, friends: Math.max(meta.invite.friends, oi.friends) };
@@ -908,6 +926,7 @@ function unlockMet(u: Unlock): boolean {
   if ('season' in u) return meta.seasons.some((x) => x.startsWith(`${u.season}-`));
   if ('shame' in u) return Object.keys(meta.shame).length >= u.shame;
   if ('welcome' in u) return meta.welcome.claimed >= u.welcome;
+  if ('midwinter' in u) return meta.midwinter.best >= u.midwinter;
   if ('raid' in u) return raidWins() >= u.raid;
   if ('invite' in u) return inviteMet(u.invite);
   if ('gift' in u) return meta.gifts.includes(u.gift);
@@ -1210,6 +1229,7 @@ export function titleUnlocked(id: string): boolean {
   if (kind === 'podium') return podiumCount(Number(key)) > 0;
   if (kind === 'patron') return meta.patron;
   if (kind === 'welcome') return meta.welcome.claimed >= Number(key);
+  if (kind === 'midwinter') return meta.midwinter.best >= Number(key);
   if (kind === 'invite') return inviteMet(Number(key));
   if (kind === 'pyre') return pyreGiven() >= Number(key);
   if (kind === 'race') return meta.race.laurels >= Number(key);
@@ -1275,6 +1295,7 @@ export function auraUnlocked(a: AuraDef): boolean {
   if ('rank' in u) return rankIndex(meta.earned) >= u.rank;
   if ('patron' in u) return meta.patron;
   if ('welcome' in u) return meta.welcome.claimed >= u.welcome;
+  if ('midwinter' in u) return meta.midwinter.best >= u.midwinter;
   if ('story' in u) return storyDone(u.story);
   if ('raid' in u) return raidWins() >= u.raid;
   if ('invite' in u) return inviteMet(u.invite);
@@ -1493,6 +1514,45 @@ export function claimWelcome(today: number): { day: number; reward: WelcomeRewar
   }
   meta.welcome = { claimed: gift.day, last: today };
   // Announced by Seven Nights itself, not again as a new unlock after the next run.
+  if ('look' in r && !meta.looksSeen.includes(r.look)) meta.looksSeen.push(r.look);
+  if ('aura' in r && !meta.looksSeen.includes(`aura:${r.aura}`)) meta.looksSeen.push(`aura:${r.aura}`);
+  if ('head' in r && !meta.headsSeen.includes(r.head)) meta.headsSeen.push(r.head);
+  saveMeta();
+  return gift;
+}
+
+// ---------- The Twelve Gifts of Midwinter ----------
+
+/** The Midwinter season a Central date belongs to, by the year it began (it runs over New Year). */
+export function midwinterYear(date: string): number {
+  const y = Number(date.slice(0, 4));
+  return Number(date.slice(5, 7)) >= 11 ? y : y - 1;
+}
+
+/** This season's gifts opened so far (a new season starts again from the first). */
+export function midwinterOpened(date = centralDate()): number {
+  return meta.midwinter.year === midwinterYear(date) ? meta.midwinter.opened : 0;
+}
+
+/** Today's gift, if Midwinter is open and one is waiting (claimed by finishing a run). */
+export function midwinterWaiting(today: number, date = centralDate()): { n: number; reward: WelcomeReward } | null {
+  if (!seasonOpen('midwinter', date)) return null;
+  const opened = midwinterOpened(date);
+  if (opened >= MIDWINTER_GIFTS.length || (meta.midwinter.year === midwinterYear(date) && meta.midwinter.last === today)) return null;
+  return { n: opened + 1, reward: MIDWINTER_GIFTS[opened] };
+}
+
+/** Open today's gift. Returns what was given, or null if there's nothing today. */
+export function claimMidwinter(today: number, date = centralDate()): { n: number; reward: WelcomeReward } | null {
+  const gift = midwinterWaiting(today, date);
+  if (!gift) return null;
+  const r = gift.reward;
+  if ('souls' in r) {
+    meta.souls += r.souls;
+    meta.earned += r.souls;
+  }
+  meta.midwinter = { year: midwinterYear(date), opened: gift.n, last: today, best: Math.max(meta.midwinter.best, gift.n) };
+  // Announced by the gift itself, not again as a new unlock after the next run.
   if ('look' in r && !meta.looksSeen.includes(r.look)) meta.looksSeen.push(r.look);
   if ('aura' in r && !meta.looksSeen.includes(`aura:${r.aura}`)) meta.looksSeen.push(`aura:${r.aura}`);
   if ('head' in r && !meta.headsSeen.includes(r.head)) meta.headsSeen.push(r.head);

@@ -214,6 +214,13 @@ export function savedTheme(): ThemeId {
   return 'classic';
 }
 
+/** What falls over the menus in a season (Midwinter's snow), for a theme with no weather of its own. */
+let seasonWeather: ThemeWeather | null = null;
+export function setSeasonWeather(w: ThemeWeather | null) {
+  seasonWeather = w;
+  if (!current.weather) setFx(w);
+}
+
 /** Put a theme on: the page's colours now, the boards the next time they draw their ground. */
 export function applyTheme(id: ThemeId, keep = true) {
   // (nothing to put on: keep the theme worn rather than falling back to Classic)
@@ -228,7 +235,7 @@ export function applyTheme(id: ThemeId, keep = true) {
     root.style.setProperty('--gothic', `${current.font.family}, 'Pirata One', Georgia, serif`);
   }
   for (const [name, value] of Object.entries(ornamentVars(current.id))) root.style.setProperty(name, value);
-  setFx(current.weather ?? null);
+  setFx(current.weather ?? seasonWeather);
   setMusicStyle(themeMusicOn() ? current.id : 'classic');
   setForgeStyle(themeMusicOn() ? current.id : 'classic');
   if (current.id === 'classic') delete root.dataset.theme;

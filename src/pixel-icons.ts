@@ -108,6 +108,25 @@ const ART = {
     '..kYYYYYYYYYkk..',
     '...kkkkkkkkk....',
   ],
+  // ❄️ Midwinter, and Act III: The Long Night
+  snowflake: [
+    '................',
+    '.......kk.......',
+    '....k..hh..k....',
+    '...khk.hh.khk...',
+    '....khkhhkhk....',
+    '.....khhhhk.....',
+    '..kk..khhk..kk..',
+    '.khhhhhcchhhhhk.',
+    '.khhhhhcchhhhhk.',
+    '..kk..khhk..kk..',
+    '.....khhhhk.....',
+    '....khkhhkhk....',
+    '...khk.hh.khk...',
+    '....k..hh..k....',
+    '.......kk.......',
+    '................',
+  ],
   // 🌙 The Hollow
   moon: [
     '................',

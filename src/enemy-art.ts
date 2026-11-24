@@ -345,6 +345,55 @@ export const ENEMY_ART: Record<EnemyKind, EnemyArt> = {
     ],
   },
 
+  // Act III: the Midwinter Guest. Tall, pale and very polite, in a robe of frost and a crown
+  // of icicles, carrying the lantern it has kept lit four hundred winters.
+  guest: {
+    idle: [
+      [
+        '..c..c..c...',
+        '..cwccwccw..',
+        '..kwwwwwwk..',
+        '..kwkwwkwk..',
+        '..kwwwwwwk..',
+        '..kwwkkwwk.k',
+        '.kccwwwwccky',
+        'kcCccsscCcck',
+        '.kCccccccCk.',
+        '.kCcacacaCk.',
+        '.kCccccccCk.',
+        '..kkkkkkkk..',
+      ],
+      [
+        '...c..c..c..',
+        '..cwccwccw..',
+        '..kwwwwwwk..',
+        '..kwkwwkwk..',
+        '..kwwwwwwk..',
+        '..kwwkkwwk..',
+        '.kccwwwwcckk',
+        'kcCccsscCcyk',
+        '.kCccccccCkk',
+        '.kCacacacCk.',
+        '.kCccccccCk.',
+        '..kkkkkkkk..',
+      ],
+    ],
+    attack: [
+      'c..c..c..c..',
+      '.cwccwccwc.w',
+      '..kwwwwwwk.c',
+      '..kwkwwkwkcw',
+      '..kwwwwwwkc.',
+      'w.kwwkkwwk..',
+      'ckccwwwwcck.',
+      'kcCccsscCcck',
+      '.kCccccccCk.',
+      '.kCcacacaCk.',
+      '.kCccccccCk.',
+      '..kkkkkkkk..',
+    ],
+  },
+
   // The Plague Abbot, swinging a smoking censer.
   abbot: {
     idle: [

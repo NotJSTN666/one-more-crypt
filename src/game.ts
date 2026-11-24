@@ -23,7 +23,9 @@ export type EnemyKind =
   // Depth-zone residents (log version 6 and later).
   | 'drowned' | 'boneknight' | 'imp' | 'voideye'
   // Act II of the story.
-  | 'monk';
+  | 'monk'
+  // Act III: the Midwinter Guest.
+  | 'guest';
 
 export interface Enemy {
   id: number;
@@ -79,6 +81,7 @@ export const ENEMY_INFO: Record<EnemyKind, { name: string; hp: number; dmg: numb
   imp: { name: 'Ember Imp', hp: 2, dmg: 1 },
   voideye: { name: 'Void Eye', hp: 2, dmg: 2 },
   monk: { name: 'Plague Monk', hp: 3, dmg: 1 },
+  guest: { name: 'The Midwinter Guest', hp: 16, dmg: 2 },
 };
 
 export const BOSS_KINDS: EnemyKind[] = ['boss', 'abbot', 'lich'];
@@ -87,7 +90,8 @@ export const UNDEAD: EnemyKind[] = ['ghoul', 'archer', 'brute', 'wraith', 'boss'
 export const FLYING: EnemyKind[] = ['bat', 'wraith', 'imp', 'voideye'];
 
 export function isBoss(e: { kind: EnemyKind }): boolean {
-  return BOSS_KINDS.includes(e.kind);
+  // (the Midwinter Guest is a boss of the story alone: never in the boss rotation or the world boss draw)
+  return BOSS_KINDS.includes(e.kind) || e.kind === 'guest';
 }
 
 export type HitKind =
@@ -207,7 +211,7 @@ export interface Feature extends Pos {
 /** A tile that will be struck at the start of the foes' next turn. */
 export interface Warning extends Pos {
   dmg: number;
-  kind: 'plague' | 'bolt';
+  kind: 'plague' | 'bolt' | 'frost';
   src: string;
 }
 
@@ -1064,7 +1068,7 @@ export class Game {
       frozen: 0,
       marked: false,
       aim: null,
-      rest: kind === 'brute' || kind === 'boss' || kind === 'abbot' ? 1 : 0,
+      rest: kind === 'brute' || kind === 'boss' || kind === 'abbot' || kind === 'guest' ? 1 : 0,
       turns: 0,
       dead: false,
       ally: false,
@@ -2541,6 +2545,9 @@ export class Game {
       case 'abbot':
         this.abbotAct(e, dist);
         break;
+      case 'guest':
+        this.guestAct(e, dist);
+        break;
       case 'lich':
         this.lichAct(e, dist);
         break;
@@ -2667,6 +2674,32 @@ export class Game {
       return;
     }
     if (e.turns % 5 === 0 && this.summonNear(e, 'bat')) return;
+    if (this.adjacentToPlayer(e)) return this.attackPlayer(e);
+    if (e.rest > 0) {
+      e.rest--;
+      return;
+    }
+    this.meleeOrMove(e, dist, false);
+    e.rest = 1;
+  }
+
+  /**
+   * The Midwinter Guest knocks three times, then the frost falls: on you and the four tiles
+   * diagonal to you (telegraphed, so step straight out). Now and then it calls up a drowned
+   * soul from under the ice. Otherwise it walks slowly, politely, and hits very hard.
+   */
+  private guestAct(e: Enemy, dist: number[]) {
+    if (e.turns % 3 === 0) {
+      const tiles: Pos[] = [{ x: this.player.x, y: this.player.y }];
+      for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+        const x = this.player.x + dx, y = this.player.y + dy;
+        if (x >= 0 && y >= 0 && x < W && y < H && !this.isWall(x, y)) tiles.push({ x, y });
+      }
+      for (const t of tiles) this.warnings.push({ ...t, dmg: e.dmg, kind: 'frost', src: ENEMY_INFO.guest.name });
+      this.events.push({ t: 'warn' });
+      return;
+    }
+    if (e.turns % 5 === 0 && this.summonNear(e, 'drowned')) return;
     if (this.adjacentToPlayer(e)) return this.attackPlayer(e);
     if (e.rest > 0) {
       e.rest--;

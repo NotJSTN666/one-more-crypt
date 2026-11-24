@@ -6,7 +6,7 @@ import type { EnemyKind } from './game';
 import type { ZoneId } from './zones';
 import { onCanvasReset } from './sprites';
 
-export type Speaker = 'gravedigger' | 'aldric' | 'warden' | 'hound' | 'bess' | 'agnes' | 'pip' | 'ambrose' | 'abbot' | 'hero' | 'narrator';
+export type Speaker = 'gravedigger' | 'aldric' | 'warden' | 'hound' | 'bess' | 'agnes' | 'pip' | 'ambrose' | 'abbot' | 'guest' | 'hero' | 'narrator';
 /** People you can talk to in the world. */
 export type NpcId = 'gravedigger' | 'aldric' | 'bess' | 'agnes' | 'pip' | 'ambrose';
 
@@ -49,7 +49,7 @@ export interface Quest {
   title: string;
   side?: boolean;
   /** Which act it belongs to (Act I unless said). */
-  act?: 2;
+  act?: 2 | 3;
   /** Who hands it out and who you report back to. */
   giver: NpcId;
   /** A quest that must be finished first. */
@@ -76,6 +76,11 @@ export const ACT2_TITLE = 'Act II: The Plague Abbot';
 export const ACT2_OPENS = Date.UTC(2026, 9, 30, 5);
 export const act2Open = (now = Date.now()) => now >= ACT2_OPENS;
 
+export const ACT3_TITLE = 'Act III: The Long Night';
+/** Act III opens with Midwinter: midnight Central on Friday 27 November 2026, the day after Thanksgiving. */
+export const ACT3_OPENS = Date.UTC(2026, 10, 27, 6);
+export const act3Open = (now = Date.now()) => now >= ACT3_OPENS;
+
 export const SPEAKERS: Record<Speaker, string> = {
   gravedigger: 'Mortimer',
   aldric: 'Sir Aldric',
@@ -86,6 +91,7 @@ export const SPEAKERS: Record<Speaker, string> = {
   pip: 'Pip',
   ambrose: 'Brother Ambrose',
   abbot: 'Abbot Ansel',
+  guest: 'The Guest',
   hero: 'You',
   narrator: '',
 };
@@ -632,6 +638,265 @@ export const QUESTS: Quest[] = [
       { who: 'pip', text: "Give me a week. Gravesend's getting a bell that never woke anybody who wasn't supposed to get up. Here, take the apron, I've got two and one's on fire." },
     ],
   },
+  // ---------- Act III: The Long Night (opens with Midwinter) ----------
+  {
+    n: 41,
+    act: 3,
+    title: 'Three Knocks',
+    giver: 'gravedigger',
+    needs: 25,
+    dungeon: { name: 'Under the Cottage', floors: [11, 15], gifts: 3, look: 'frozen' },
+    souls: 400,
+    reward: 'The Rimewalker cloak and a title',
+    hint: "Lift the rug in Mortimer's cottage: the trapdoor is under the kettle. Five floors down to whatever is knocking.",
+    barred: 'A trapdoor under the rug, with a kettle standing on it. Mortimer has kept a kettle on it for a very long time. Ask him why.',
+    offer: [
+      { who: 'gravedigger', text: "You'll have noticed it's snowing. It hasn't snowed in Gravesend since before I was digging. Not once. I thought snow was something that happened to other villages." },
+      { who: 'gravedigger', text: 'And there is the knocking. Three times, every night, polite as a vicar. It started under the Abbot\'s garden. Last night it came up under my floor. Under the kettle.' },
+      { who: 'hero', text: 'Something wants to come in.' },
+      { who: 'gravedigger', text: 'Everything wants to come in. That is what doors are for. But this one knocks like it was taught manners, and that frightens me more than the howling ever did.' },
+      { who: 'gravedigger', text: "There's a trapdoor under the rug. I put the kettle on it a long time ago and I've never once moved it. Go down. Have a look. And whatever you do, don't answer the door." },
+    ],
+    reminder: [{ who: 'gravedigger', text: 'Under the rug, under the kettle. Five floors. If anything knocks, you were never here.' }],
+    cleared: [
+      { who: 'narrator', text: 'At the bottom the crypt is rimed white. Your breath hangs in the air and does not fall.' },
+      { who: 'narrator', text: 'Set into the ice is a door, black and very old, with a brass knocker on the wrong side. Beside it stands a chair carved out of frost, and on the chair sits a wooden bowl, empty, with a child\'s spoon in it.' },
+      { who: 'narrator', text: 'As you watch, the knocker lifts on its own. Knock. Knock. Knock. Then, slowly, as if by a fingertip, words write themselves in the frost on the door:' },
+      { who: 'narrator', text: 'MAY I COME IN?' },
+      { who: 'narrator', text: '{pet} sits down and will not go any closer. You take the spoon. Mortimer will want to see it.' },
+    ],
+    turnIn: [
+      { who: 'gravedigger', text: "That's my spoon." },
+      { who: 'gravedigger', text: "...I mean, it's a spoon. Lots of people have spoons. Spoons are very common." },
+      { who: 'gravedigger', text: "Look. There's an old Midwinter custom. Older than the crypt, older than me, and I'm older than I look. Bess's family kept the book of it at the inn. Ask her. I'd sooner you heard it from someone who isn't me." },
+      { who: 'gravedigger', text: "And take this coat. It's warm. Mine never was." },
+    ],
+  },
+  {
+    n: 42,
+    act: 3,
+    title: 'The Hearth Book',
+    giver: 'bess',
+    needs: 41,
+    dungeon: { name: 'The Ice-House', floors: [12, 16], gifts: 3, look: 'frozen' },
+    souls: 400,
+    reward: 'The Hearthkeeper cloak and a title',
+    hint: "The inn's old ice-house stands on the shore of the Frozen Mere, south of the village. Bring back the Hearth Book.",
+    barred: 'The old ice-house. Bess has the key, and Bess has a grievance with the cold.',
+    offer: [
+      { who: 'bess', text: "My fire's gone cold. Oh, it's burning, I can see it burning, but you could warm your hands on a fish. Ale's frozen in the barrel. I've a pub full of people drinking tea. TEA." },
+      { who: 'bess', text: "Mortimer sent you about the Guest, didn't he. Course he did. He'd rather fight a ghoul than say that word out loud." },
+      { who: 'bess', text: 'My gran used to tell it. Every Midwinter, on the longest night, Gravesend set a chair by one fire, left one door on the latch, and carried a bowl of soup down to the mere. The Guest came up, sat the night by the fire, and in the morning the winter turned kind. Warm it for one night, and it keeps the cold down below all year.' },
+      { who: 'hero', text: 'And when did Gravesend stop?' },
+      { who: 'bess', text: "That's the thing, love. Nobody remembers. It's all written in the Hearth Book, and the Hearth Book's in the old ice-house down on the mere, where Gran hid it to keep it safe. Safe from what, she never said. Something's moved in down there. Go and get it back." },
+    ],
+    reminder: [{ who: 'bess', text: 'The old ice-house, on the mere, south out of the village. Mind the ice. Mind whatever has moved in.' }],
+    cleared: [
+      { who: 'narrator', text: 'Under the ice-house, between blocks of ice cut four hundred years ago, the Hearth Book lies wrapped in oilcloth. The last pages are in a careful, frightened hand.' },
+      { who: 'narrator', text: '"Midwinter. Chair set at the Last Orders. Door on the latch. The soup to be carried down to the Guest by the gravedigger\'s boy, as is his family\'s right."' },
+      { who: 'narrator', text: '"Plague in the cloister. The Abbot\'s bells have not stopped all night. The boy came back with the bowl still full. He would not say what he saw. The Guest did not come."' },
+      { who: 'narrator', text: '"The bells have rung every midnight since. Midwinter has not come again."' },
+    ],
+    turnIn: [
+      { who: 'bess', text: "The gravedigger's boy. Well, that's not Mortimer. Mortimer's old, but he's not THAT old." },
+      { who: 'bess', text: '...Is he?' },
+      { who: 'bess', text: 'Four hundred years of bells, love. They kept the monks up and walking. Who\'s to say they didn\'t keep a frightened little boy digging the same graves the whole time.' },
+      { who: 'bess', text: "Here. Gran's winter cloak, from behind the bar. Then go and talk to him. Gently. You'll want to be gentle." },
+    ],
+  },
+  {
+    n: 43,
+    act: 3,
+    title: "Mortimer's Errand",
+    giver: 'gravedigger',
+    needs: 42,
+    dungeon: { name: 'The Beacon Hearth', floors: [13, 17], gifts: 3, look: 'frozen', holdout: 5, summon: true },
+    souls: 500,
+    reward: 'The Beacon Fire aura and a title',
+    hint: 'The old Beacon stands on the shore of the Frozen Mere. Go down to its hearth and hold out on the last floor while the Midwinter fire catches.',
+    barred: 'The old Beacon, dark and drifted with snow. Nobody has lit it in four hundred years. Mortimer knows why.',
+    offer: [
+      { who: 'gravedigger', text: "She told you, then. Good. I couldn't." },
+      { who: 'gravedigger', text: "I was nine. Mum gave me the bowl and said, Mortimer, it's our family's honour. Carry it down, set it on the chair, say good evening and come straight home. Easy." },
+      { who: 'gravedigger', text: 'I got as far as the door. It knocked. From the inside. I dropped the spoon and I ran. And behind me, up at the cloister, the bells started, and they never stopped. Not that night, not for four hundred years.' },
+      { who: 'gravedigger', text: "Everyone got kept, you see. Not just the monks. Me too. Nine, then twelve, then forty, then this, and never a day older after. Same graves. Same shovel. Same kettle. Now the bells are quiet and my knees have caught up all at once. I'm not complaining. Well. I am a bit." },
+      { who: 'hero', text: 'What do you need?' },
+      { who: 'gravedigger', text: "The Beacon on the mere. That's where the Midwinter fire was lit at dusk, to show the Guest the way up, and every hearth in Gravesend was lit from it. That's why Bess's fire won't warm: it's waiting for the Beacon." },
+      { who: 'gravedigger', text: "Light it, and every bit of cold down there will come for the flame at once. Hold them off it until it catches. I'll be at the top, keeping the matches dry. Well. Holding them." },
+    ],
+    reminder: [{ who: 'gravedigger', text: 'The Beacon, on the mere. Five waves of cold, by my count. Keep them off the fire until it catches.' }],
+    cleared: [
+      { who: 'narrator', text: 'The Midwinter fire catches with a sound like a held breath let go. All over Gravesend, every hearth flares warm at once. Up at the Last Orders somebody cheers. Bess, probably. Then the ale.' },
+      { who: 'narrator', text: 'The cold falls back from the flame. And from far below, from under the mere, the knocking comes again. Softer now. Hopeful.' },
+      { who: 'guest', text: 'Thank you. That is much better. I can see the way up now.' },
+      { who: 'guest', text: 'May I come in?' },
+    ],
+    turnIn: [
+      { who: 'gravedigger', text: 'I heard it. All the way up here, through the snow. It asked nicely. It always asked nicely. That was the worst part.' },
+      { who: 'gravedigger', text: "Here. A bit of the Beacon, in a lantern. It'll keep you warm. You'll want warm. Down there is where we're going next, I'm afraid." },
+    ],
+  },
+  {
+    n: 44,
+    act: 3,
+    title: 'The Longest Night',
+    giver: 'bess',
+    needs: 43,
+    dungeon: {
+      name: 'The Frozen Mere',
+      floors: [15, 20],
+      gifts: 4,
+      look: 'frozen',
+      summon: true,
+      boss: { floor: 20, kind: 'guest' },
+      bossLines: [
+        { who: 'narrator', text: 'The bottom of the mere is a hall of black ice. At the far end stands the door with the knocker on the wrong side, and in front of it, far too tall, a figure in a robe of frost and a crown of icicles.' },
+        { who: 'hero', text: 'Good evening.' },
+        { who: 'guest', text: '...Good evening. Oh. Oh, nobody has said that to me in such a long time.' },
+        { who: 'guest', text: 'I knocked. Four hundred winters I knocked, and the bells said go away, go away, go away. I was so very polite. I am still polite. I am only so very, very hungry.' },
+        { who: 'guest', text: 'Forgive me. I do not think I can stop myself eating your warmth. Please do try to stop me.' },
+      ],
+    },
+    souls: 900,
+    reward: 'The Crown of Rime, the Long Night aura and a title',
+    hint: 'A hole has been cut in the middle of the Frozen Mere. Go down through the ice: twenty floors. The Guest is waiting by its door.',
+    barred: 'A hole cut in the middle of the mere, edged with old frost. Far below, something is waiting politely. Bess has made soup.',
+    offer: [
+      { who: 'narrator', text: 'Mortimer is at the Last Orders, by the fire, with a covered bowl on his knees. He has not taken his eyes off it.' },
+      { who: 'bess', text: "Soup. Proper soup, with things in it. Gran's way. I've made it every Midwinter of my life and never knew who for." },
+      { who: 'gravedigger', text: "Here's the trouble. Four hundred winters it's been knocking and nobody answered. That's a long time to be cold and polite. Anything that's been that hungry that long isn't only a guest any more. Part of it's just hunger now, with a crown of ice on." },
+      { who: 'hero', text: 'So I break the crown.' },
+      { who: 'gravedigger', text: "You break the crown. And after that there'll be a choice, and I'd sooner you made it than me. I've had one go at this already, and I dropped the spoon." },
+      { who: 'gravedigger', text: 'Down through the ice in the middle of the mere. Twenty floors. Take the hound. Take anyone the dead will lend you. And when you get to the door...' },
+      { who: 'gravedigger', text: 'Say good evening. It matters. Somebody should have said it four hundred years ago.' },
+    ],
+    reminder: [{ who: 'bess', text: "Down through the ice in the middle of the mere. Twenty floors. Mortimer says to say good evening. He's said it to me nine times. I'm passing it on." }],
+    cleared: [
+      { who: 'narrator', text: 'The crown of icicles cracks, and falls, and shatters on the black ice like a dropped bell. The hall goes quiet. The thing in front of you is smaller now, and old, and shivering.' },
+      { who: 'guest', text: 'Oh. Oh, that is better. I am sorry about all that. I was not myself. I was four hundred years of not being let in.' },
+      { who: 'narrator', text: 'Footsteps on the ice behind you. Mortimer, out of breath, carrying a covered bowl and a wooden spoon.' },
+      { who: 'gravedigger', text: "Sorry I'm late. Four hundred years late. Good evening." },
+      { who: 'guest', text: 'Good evening, little gravedigger. You grew.' },
+      { who: 'gravedigger', text: "Not as much as you'd think." },
+      {
+        key: 'guest',
+        prompt: 'The Guest looks at the bowl, then at the door, then at you.',
+        options: [
+          {
+            label: 'Bring it up to the inn. Give it the chair by the fire.',
+            value: 'chair',
+            then: [
+              { who: 'narrator', text: 'You lead it up through the ice, and Mortimer carries the soup the whole way, and does not spill a drop.' },
+              { who: 'narrator', text: 'At the Last Orders, Bess has set the chair by the fire. The Guest sits. It is shy about the soup, and then it is not. The whole village stays up. Somebody plays a fiddle badly, and nobody minds.' },
+              { who: 'narrator', text: 'Near dawn, Mortimer sits down by the fire, just for a moment, to rest his knees. He puts his head back. He smiles at the ceiling like a boy who carried the bowl all the way.' },
+              { who: 'guest', text: 'He is very tired. He has been on his errand a long time. May I take him with me, when I go? I will see that he is warm.' },
+              { who: 'narrator', text: 'When the sun comes up, the chair is empty, and so is the one beside it. The snow has stopped. On the table are two clean bowls and one wooden spoon.' },
+            ],
+          },
+          {
+            label: "Ring it back down with Pip's new bell, until next year.",
+            value: 'bell',
+            then: [
+              { who: 'narrator', text: "Pip's bell rings out over the mere: one clean note, the hour, and nothing else. The Guest listens with its head on one side." },
+              { who: 'guest', text: 'A kind bell. It does not say go away. It says, not tonight. I can wait for not tonight. I am very good at waiting.' },
+              { who: 'guest', text: 'Next Midwinter, then. Set the chair. Leave the door on the latch. Send the gravedigger with the soup.' },
+              { who: 'gravedigger', text: "I'll come. I promise. I'll bring two spoons, in case I drop one." },
+              { who: 'narrator', text: 'It sinks back into the dark, slowly, politely, and the ice closes over it like a door shut gently. Mortimer stands a long time out on the mere, holding the bowl, while the snow comes down.' },
+            ],
+          },
+        ],
+      },
+      { who: 'narrator', text: 'End of Act III. The longest night is over. Bess will want to hear how it went.' },
+    ],
+    turnIn: [
+      {
+        key: 'guest',
+        prompt: '',
+        options: [
+          {
+            label: '',
+            value: 'chair',
+            then: [
+              { who: 'bess', text: "He left his kettle on. I've brought it here. I'll keep it on. Somebody should." },
+              { who: 'bess', text: "Four hundred years, carrying that bowl around inside him. And he got there in the end. That's more than most of us manage, love." },
+              { who: 'bess', text: 'The Guest left this on the chair for you. Ice that will not melt. It said thank you for the soup, and that you were the first to say good evening.' },
+            ],
+          },
+          {
+            label: '',
+            value: 'bell',
+            then: [
+              { who: 'bess', text: "He came in at dawn and sat right there with the bowl on his knees. Said it was the best night he's had in four hundred years. Then he fell asleep in the chair and snored the place down." },
+              { who: 'bess', text: "He's going back next year. Two spoons. He's already practising good evening in the mirror. It's very irritating." },
+              { who: 'bess', text: 'This came up through the ice after the Guest went down. Frost that will not melt. I think it is a thank-you. It certainly is not mine.' },
+            ],
+          },
+        ],
+      },
+      { who: 'bess', text: "Happy Midwinter, love. First one in four hundred years. Let's do it properly." },
+    ],
+  },
+  {
+    n: 51,
+    act: 3,
+    title: 'Rime-Salt',
+    side: true,
+    giver: 'pip',
+    needs: 41,
+    dungeon: { name: 'The Salt Caves', floors: [11, 14], gifts: 2, look: 'frozen' },
+    souls: 300,
+    reward: "Pip's Earmuffs and a title",
+    hint: 'The Salt Caves open on the west shore of the Frozen Mere. Four floors down, the walls grow rime-salt.',
+    barred: 'The Salt Caves, glittering and very cold. Pip has been eyeing them, and not in a good way.',
+    offer: [
+      { who: 'pip', text: "Bad news. The new bell. The one I cast. With the bronze. The one I've polished every morning and talk to like a person." },
+      { who: 'pip', text: 'It cracked. The cold got into it. Right down the side. Ping. Like an egg.' },
+      { who: 'pip', text: "Marta's notes say a bell cast in winter wants rime-salt in the mould, or it sulks. Rime-salt grows in the caves by the mere. Grew. Grows. Marta's handwriting is not good." },
+      { who: 'hero', text: 'And the caves are full of something.' },
+      { who: 'pip', text: "Everything's full of something lately. Four floors down. Bring back a sack. A big sack. I'll mend the bell, and then it'll ring properly. Properly-properly." },
+    ],
+    reminder: [{ who: 'pip', text: "The Salt Caves, west side of the mere. Rime-salt. It glitters. It tastes of tears. Don't ask how I know." }],
+    cleared: [
+      { who: 'narrator', text: 'The walls of the lowest cave are furred with salt that glitters like frost and tastes like tears. You fill the sack.' },
+      { who: 'narrator', text: 'Somewhere above, a crack in a bell is about to have a very bad day.' },
+    ],
+    turnIn: [
+      { who: 'pip', text: "Rime-salt! Look at it! Don't lick it. I licked it." },
+      { who: 'pip', text: 'Give me a night with this and the bell will be better than new. Marta says a bell that has cracked and been mended never says go away. It says not tonight. Which is politer.' },
+      { who: 'pip', text: 'Here, earmuffs. I made them out of the old bellows. They only squeak a bit.' },
+    ],
+  },
+  {
+    n: 52,
+    act: 3,
+    title: 'The Waits',
+    side: true,
+    giver: 'agnes',
+    needs: 41,
+    dungeon: { name: 'The Carol Barrow', floors: [12, 15], gifts: 2, look: 'frozen', sleepers: true },
+    souls: 300,
+    reward: "Harold's Scarf and a title",
+    hint: 'The Carol Barrow is the old burial mound on the east shore of the Frozen Mere. Go quietly: everything down there is asleep.',
+    barred: 'The old barrow, with lantern-light still glowing faintly somewhere inside. Agnes has been watching it from her window.',
+    offer: [
+      { who: 'agnes', text: 'The waits went out carolling last night. They always used to, at Midwinter. Lanterns and terrible singing. Harold sang bass. Harold sang everything bass.' },
+      { who: 'agnes', text: "They went down to the old barrow by the mere to sing to the dead, which is a tradition, and which is daft, and they haven't come back." },
+      { who: 'hero', text: 'Lost?' },
+      { who: 'agnes', text: 'Asleep, I think. Frozen in the middle of a verse. The cold does that if you stand still long enough. Harold always said carols were dangerous.' },
+      { who: 'agnes', text: "Go quietly, dear. Whatever's down there is asleep too, and you don't want it joining in." },
+    ],
+    reminder: [{ who: 'agnes', text: 'The Carol Barrow, on the east shore. Tiptoe. If anything wakes up, do not, whatever you do, let it pick the next carol.' }],
+    cleared: [
+      { who: 'narrator', text: 'In the deepest chamber the waits stand in a ring, lanterns raised, mouths open, white with frost from head to foot. Among them, very faint, stands a bass-shaped ghost holding a hymn book.' },
+      { who: 'narrator', text: 'You light their lanterns from your own. One by one they thaw, blink, and finish the verse exactly where they left off. Slightly flat.' },
+      { who: 'narrator', text: 'The ghost sings the last line. He holds the low note a long time. Then he tips his hat to you, and goes up the stair ahead of them, towards a house with a warm chair in it.' },
+    ],
+    turnIn: [
+      { who: 'agnes', text: 'They came in stamping and singing and demanding cake. And there was a bass line under it. A good one. Wrong words, as usual.' },
+      { who: 'agnes', text: "He's home for Midwinter, I think. Just for the night. Isn't that nice?" },
+      { who: 'agnes', text: "Take Harold's scarf. He'd want someone to have it. He'd want it to be someone who can't sing." },
+    ],
+  },
 ];
 
 export const QUEST_BY_N = Object.fromEntries(QUESTS.map((q) => [q.n, q])) as Record<number, Quest>;
@@ -640,13 +905,15 @@ export const ACT1_QUESTS = QUESTS.filter((q) => !q.act);
 export const MAIN_QUESTS = ACT1_QUESTS.filter((q) => !q.side);
 export const ACT2_QUESTS = QUESTS.filter((q) => q.act === 2);
 export const ACT2_MAIN = ACT2_QUESTS.filter((q) => !q.side);
+export const ACT3_QUESTS = QUESTS.filter((q) => q.act === 3);
+export const ACT3_MAIN = ACT3_QUESTS.filter((q) => !q.side);
 
 /** Where the player stands in the story. */
 export interface StoryState {
   done: number[];
   active: number[];
   cleared: number[];
-  /** Choices made along the way (the hound's name, what became of Aldric). */
+  /** Choices made along the way (the hound's name, what became of Aldric, where the Guest spent Midwinter). */
   choices?: Record<string, string>;
 }
 
@@ -657,6 +924,7 @@ export function questStatus(q: Quest, s: StoryState): QuestStatus {
   if (s.cleared.includes(q.n)) return 'cleared';
   if (s.active.includes(q.n)) return 'active';
   if (q.act === 2 && !act2Open()) return 'locked';
+  if (q.act === 3 && !act3Open()) return 'locked';
   return !q.needs || s.done.includes(q.needs) ? 'available' : 'locked';
 }
 
@@ -665,6 +933,8 @@ export function npcPresent(npc: NpcId, s: StoryState): boolean {
   // ...and comes home to it once the bells are quiet (straight away, if you cut his rope).
   if (npc === 'aldric') return (s.done.includes(2) && !s.done.includes(4)) || s.done.includes(25) || (s.done.includes(24) && s.choices?.aldric === 'free');
   if (npc === 'ambrose') return s.done.includes(21);
+  // Act III: if the Guest had the chair by the fire, Mortimer went with it at dawn.
+  if (npc === 'gravedigger') return !(s.done.includes(44) && s.choices?.guest === 'chair');
   return true;
 }
 
@@ -691,8 +961,17 @@ export function conversation(npc: NpcId, s: StoryState): { lines: Line[]; accept
 
 function chatter(npc: NpcId, s: StoryState): Line[] {
   const has = (n: number) => s.done.includes(n);
+  const guest = s.choices?.guest;
   switch (npc) {
     case 'gravedigger':
+      // (after the longest night he is only here if the Guest went back down: see npcPresent)
+      if (has(44)) return [
+        { who: 'gravedigger', text: "Two spoons. I've practised. Good evening. Good evening. Good EVENING. Bess says I'm doing it too loud." },
+        { who: 'gravedigger', text: "Next Midwinter I'm carrying that bowl all the way. Four hundred years late, but you can't rush soup." },
+      ];
+      if (has(43)) return [{ who: 'gravedigger', text: "Every hearth in the village is warm, and I'm sat here shivering anyway. That's not the cold. That's nerves. Four hundred years of them." }];
+      if (has(42)) return [{ who: 'gravedigger', text: "Bess told you, then. I can see it on your face. Go on. Ask me how old I am. No. Don't." }];
+      if (has(41)) return [{ who: 'gravedigger', text: "I've moved the kettle back onto the trapdoor. Habit. It doesn't stop the knocking. It never did. It just made me feel better." }];
       if (has(25)) return [
         { who: 'gravedigger', text: "Not one grave's moved in a week. I've had to start a hobby. It's digging. Turns out I just like digging." },
         { who: 'gravedigger', text: "Knocking, you say. Under the Abbot's garden. Three times, polite. I don't like polite. Nothing good ever knocked." },
@@ -716,24 +995,38 @@ function chatter(npc: NpcId, s: StoryState): Line[] {
       ];
       return [{ who: 'gravedigger', text: 'Tea? No? More for me.' }];
     case 'aldric':
+      if (has(44)) return [{ who: 'aldric', text: guest === 'chair' ? 'I saw them go at dawn, the Guest and the gravedigger, out across the mere, arm in arm. He was walking like a boy. I saluted. It seemed right.' : 'Snow on the chapel floor, and the stars through the roof. A knight could keep a worse vigil.' }];
+      if (has(41)) return [{ who: 'aldric', text: 'The bells kept something else below, all those years. I felt it under the ropes. Cold. Patient. Very well brought up.' }];
       if (has(25)) return [{ who: 'aldric', text: 'It is quiet. I keep waiting for midnight, and then midnight comes, and nothing happens. It is the best thing that has ever not happened to me.' }];
       if (has(24)) return [{ who: 'aldric', text: 'I am home. The roof is still off. Finish it, friend. He is at the bottom, where the mist comes from.' }];
       return [{ who: 'aldric', text: 'The bell is quiet tonight. I do not trust it when it is quiet.' }];
     case 'bess':
+      if (has(44)) return guest === 'chair'
+        ? [{ who: 'bess', text: "I've kept his chair by the fire, and his kettle on the hob. Nobody sits in the chair. Nobody needs telling." }]
+        : [{ who: 'bess', text: "Mortimer's in every night now, practising good evening at the fire. The fire's got very polite." }];
+      if (has(43)) return [{ who: 'bess', text: "Fire's warm! Ale's flowing! I've a chair by the hearth that nobody's to sit in, so of course everyone wants to." }];
+      if (has(42)) return [{ who: 'bess', text: "I've read Gran's book cover to cover. There's a recipe for the soup. There's also a recipe for a pie that I think is mostly a threat." }];
+      if (has(41) && !has(42)) return [{ who: 'bess', text: 'Tea. TEA. In my pub.' }];
       if (has(25)) return [{ who: 'bess', text: "Slept right through, I did. First time since I was a girl. Woke up and didn't know what to do with myself, so I opened early." }];
       return has(13)
         ? [{ who: 'bess', text: "The usual, love? That's the ale. The usual's always the ale." }]
         : [{ who: 'bess', text: "Rumour has it Pip licked the blue coal. Rumour is Pip. He tells everyone." }];
     case 'agnes':
+      if (has(52)) return [{ who: 'agnes', text: "The chair was warm again last night. And somebody hummed the bass line of every carol we know. Wrong words. Isn't that nice?" }];
+      if (has(41)) return [{ who: 'agnes', text: 'Snow on the graves. Harold would have built a snowman and given it his hat. And then complained about the hat.' }];
       if (has(25)) return [{ who: 'agnes', text: "Harold says it's very peaceful now. He says it through the kettle, mostly. One whistle for yes." }];
       return has(11)
         ? [{ who: 'agnes', text: "I set a place for Harold every night. Last night the chair was warm. Isn't that nice?" }]
         : [{ who: 'agnes', text: "It's very quiet in the village these days. Even the dead are quiet. Mostly." }];
     case 'ambrose':
+      if (has(44)) return [{ who: 'ambrose', text: 'Ansel\'s bells kept the Guest out for four hundred years, and he never once knew it. I think he would have laughed. He did not laugh often. It was worth waiting for.' }];
+      if (has(41)) return [{ who: 'ambrose', text: 'Snow in the cloister garden. My red flower is wearing a little white hat. I am choosing to find this encouraging.' }];
       if (has(25)) return [{ who: 'ambrose', text: 'I went down to the garden. Grey flowers, every one of them. I have planted a red one. We shall see who wins.' }];
       if (has(22)) return [{ who: 'ambrose', text: 'Listen. No singing. I had forgotten what quiet sounded like. It sounds like dripping, mostly.' }];
       return [{ who: 'ambrose', text: 'The bell shaft is sealed. Only the Abbot opens it. Or a very large hammer. We have neither, for now.' }];
     case 'pip':
+      if (has(51)) return [{ who: 'pip', text: "Mended bell's hung. Rings like a spoon on a cup. Says not tonight, very politely. I've started saying it too. To customers. They don't like it." }];
+      if (has(41) && !has(34)) return [{ who: 'pip', text: "Forge is the only warm place in the village and everyone knows it. I've got eleven people in here. Three of them are ghouls. I'm not asking." }];
       if (has(34)) return [{ who: 'pip', text: has(25) ? "Hear that? Noon. Just noon. Nobody got up who shouldn't. Best bell I ever made. Only bell I ever made." : "Bell's cooling. Don't touch it. I touched it. Don't touch it." }];
       if (has(32)) return [{ who: 'pip', text: "Cough's gone. Village is pink again. Well, the usual grey. Healthy grey." }];
       if (has(21) && !has(32)) return [{ who: 'pip', text: '*cough* Sorry. Everyone has it. *cough*' }];
@@ -759,6 +1052,8 @@ export const LORE: Record<string, { title: string; text: string }> = {
   'agnes-letter': { title: 'A letter on the table', text: '"Dear Agnes, gone fishing in the well. Back for dinner. Love, H." The ink is forty years old.' },
   'ambrose-rule': { title: 'The Rule of the Cloister', text: '"Rise at the bell. Pray at the bell. Sleep at the bell. Do not, under any circumstances, ring the bell yourself." The last line is underlined four times.' },
   'ambrose-letter': { title: 'An unsent letter', text: '"Brother Ansel, they say you found a cure inside the plague. They say you hear it singing. Come home. The garden misses you. So do I. A."' },
+  'mort-kettle': { title: "Mortimer's kettle", text: 'Black with age and never once cold. It stands on a rug, and the rug lies over a trapdoor, and a draught comes up round the edges that smells of snow.' },
+  'guest-chair': { title: 'The chair by the fire', text: 'A high-backed chair, set a little apart from the others, with a cushion nobody sits on. Carved into the back, worn almost smooth: FOR THE GUEST.' },
   'marta-tongs': { title: "Marta's tongs", text: 'Black iron, burned blue at the tips. Hung on the wall like a sword. Pip dusts them every morning and talks to them.' },
 };
 export const LORE_COUNT = Object.keys(LORE).length;
@@ -776,6 +1071,12 @@ const PAL: Record<string, string> = {
 };
 
 const FACES: Partial<Record<Speaker, string[]>> = {
+  // Act III: the Midwinter Guest, pale and polite under a crown of icicles.
+  guest: [
+    '....a..a..a.....', '....aa.aa.aa....', '...kaaaaaaaak...', '...kwwwwwwwwk...', '..kwwwwwwwwwwk..', '..kwwkkwwkkwwk..',
+    '..kwwkdwwkdwwk..', '..kwwwwwwwwwwk..', '..kwwwwkkwwwwk..', '..kwwwwwwwwwwk..', '...kwwwwwwwwk...', '..kAkwwwwwwkAk..',
+    '.kAAAkkkkkkAAAk.', '.kAaaAAAAAAaaAk.', '.kAaaaAAAAaaaAk.', '.kAAAAAAAAAAAAk.',
+  ],
   gravedigger: [
     '................', '.....kkkkkk.....', '....khhhhhhk....', '....khhhhhhk....', '..kkHHHHHHHHkk..', '.khhhhhhhhhhhhk.',
     '..kkffffffffkk..', '...kfekffkefk...', '...kffffFfffk...', '...kwwfFFfwwk.s.', '..kwwwwwwwwwwks.', '..kcwwwWWwwwcks.',

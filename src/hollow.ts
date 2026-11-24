@@ -67,8 +67,8 @@ const VILLAGE_MAP = [
   '#.T......:.:...TT...#',
   '#..QQ....:.:......T.#',
   '#..QQ...::.::..T....#',
-  '#.T...:::...:::...T.#',
-  '#####################',
+  '#.T...:::.:.:::...T.#',
+  '##########_##########',
 ];
 const KENNELS_MAP = [
   '#####################',
@@ -116,19 +116,36 @@ const CLOISTER_MAP = [
   '#..g...:.........i..#',
   '#####################',
 ];
+// Act III: the Frozen Mere, south of the village. The ice-house, the Beacon, the Salt Caves,
+// the Carol Barrow, and out on an island in the middle of the ice, the way down.
+const MERE_MAP = [
+  '##########^##########',
+  '#T.III....:....BBB.T#',
+  '#..III....:....BBB..#',
+  '#...i.....:.....b...#',
+  '#:::::::::::::::::::#',
+  '#.SSS.:~~~~~~~~:CCC.#',
+  '#.SSS.:~~~~~~~~:CCC.#',
+  '#..s..:~~~~~~~~:.c..#',
+  '#:::::::~~~~~~::::::#',
+  '#T..:..~~MMM~~..:..T#',
+  '#...:...~MMM~...:...#',
+  '#...::::::m::::::...#',
+  '#####################',
+];
 const COTTAGE_MAP = [
   '###########',
   '#s.1..k..s#',
   '#.........#',
-  '#..tc.....#',
-  '#.......b.#',
+  '#..tc..z..#',
+  '#..3....b.#',
   '#r......2.#',
   '#####x#####',
 ];
 const TAVERN_MAP = [
   '###########',
   '#rr.1...rr#',
-  '#.........#',
+  '#.......2.#',
   '#.tc...tc.#',
   '#.........#',
   '#z.tc...r.#',
@@ -195,7 +212,7 @@ type Door =
   | { out: true }
   | { dungeon: number };
 
-type LoreLook = 'painting' | 'book' | 'board' | 'tongs' | 'letter' | 'bowl' | 'armour' | 'bed';
+type LoreLook = 'painting' | 'book' | 'board' | 'tongs' | 'letter' | 'bowl' | 'armour' | 'bed' | 'chair' | 'kettle';
 
 interface Building {
   letter: string;
@@ -272,7 +289,20 @@ const AREAS: Record<string, Area> = {
       { letter: 'Q', wall: '#2f2838', roof: '#241f2c', glow: '' },
     ],
     doors: { a: { interior: 'tavern' }, k: { interior: 'smithy' }, n: { interior: 'agnes' } },
-    exits: { '<': { to: 'graveyard', x: 19, y: 4 }, '>': { to: 'chapel', x: 1, y: 4 }, '^': { to: 'kennels', x: 11, y: 11 } },
+    exits: { '<': { to: 'graveyard', x: 19, y: 4 }, '>': { to: 'chapel', x: 1, y: 4 }, '^': { to: 'kennels', x: 11, y: 11 }, _: { to: 'mere', x: 10, y: 1 } },
+  },
+  mere: {
+    name: 'The Frozen Mere',
+    map: MERE_MAP,
+    buildings: [
+      { letter: 'I', wall: '#4f6680', roof: '#26344a', glow: '#bfe8ff', label: () => 'ICE-HOUSE', kind: 'mine' },
+      { letter: 'B', wall: '#4a4038', roof: '#2e2620', glow: '#ff8a2a', label: () => 'BEACON', kind: 'tower' },
+      { letter: 'S', wall: '#5d667a', roof: '#3a4c62', glow: '#e6f6ff', label: () => 'SALT CAVES', kind: 'mine' },
+      { letter: 'C', wall: '#3a4038', roof: '#26302a', glow: '#fff2c0', label: () => 'CAROL BARROW', kind: 'ruin' },
+      { letter: 'M', wall: '#3a4c62', roof: '#a8c8e0', glow: '#9fe8ff', label: () => 'THE ICE', kind: 'stairs' },
+    ],
+    doors: { i: { dungeon: 42 }, b: { dungeon: 43 }, s: { dungeon: 51 }, c: { dungeon: 52 }, m: { dungeon: 44 } },
+    exits: { '^': { to: 'village', x: 10, y: 11 } },
   },
   kennels: {
     name: 'The Old Kennels',
@@ -312,15 +342,15 @@ const AREAS: Record<string, Area> = {
   },
   cottage: {
     name: "Mortimer's Cottage", interior: true, map: COTTAGE_MAP, floor: '#3a2818',
-    doors: { x: { out: true } },
+    doors: { x: { out: true }, z: { dungeon: 41 } },
     npcs: [{ id: 'gravedigger', x: 5, y: 2 }],
-    lore: { '1': { id: 'mort-photo', look: 'painting' }, '2': { id: 'mort-ledger', look: 'book' } },
+    lore: { '1': { id: 'mort-photo', look: 'painting' }, '2': { id: 'mort-ledger', look: 'book' }, '3': { id: 'mort-kettle', look: 'kettle' } },
   },
   tavern: {
     name: 'The Last Orders', interior: true, map: TAVERN_MAP, floor: '#4a3020',
     doors: { x: { out: true }, z: { dungeon: 13 } },
     npcs: [{ id: 'bess', x: 5, y: 2 }],
-    lore: { '1': { id: 'tavern-board', look: 'board' } },
+    lore: { '1': { id: 'tavern-board', look: 'board' }, '2': { id: 'guest-chair', look: 'chair' } },
   },
   smithy: {
     name: 'The Smithy', interior: true, map: SMITHY_MAP, floor: '#2a2433',
@@ -362,7 +392,7 @@ const TILE = 16;
 const SCALE = 4;
 const SPAWN = { x: 8, y: 9 };
 const OUTDOOR_SOLID = new Set(['#', 'T', '+', 'W', '~', '@', 's', 'L']);
-const INDOOR_SOLID = new Set(['#', 'b', 't', 'c', 'k', 's', 'r', 'n', 'e', 'l', '1', '2']);
+const INDOOR_SOLID = new Set(['#', 'b', 't', 'c', 'k', 's', 'r', 'n', 'e', 'l', '1', '2', '3']);
 
 export interface HollowHooks {
   enter: (place: HollowPlace) => void;
@@ -564,7 +594,7 @@ function callFolk() {
 
 // ---------- the map in the quest log ----------
 
-const MAP_SPOTS: [string, number, number][] = [['isle', 0, 1], ['graveyard', 1, 1], ['village', 2, 1], ['chapel', 3, 1], ['kennels', 2, 0], ['cloister', 3, 2]];
+const MAP_SPOTS: [string, number, number][] = [['isle', 0, 1], ['graveyard', 1, 1], ['village', 2, 1], ['chapel', 3, 1], ['kennels', 2, 0], ['cloister', 3, 2], ['mere', 2, 2]];
 
 /** The outdoor place a room belongs to (or the place itself). */
 function outdoorsOf(id: string): string {
@@ -588,7 +618,7 @@ export function worldMapHtml(doors: number[], people: NpcId[], open: (id: string
     const known = open(id);
     return `<div class="wmap-spot${id === here ? ' here' : ''}${known ? '' : ' unknown'}${known && wanted(id) ? ' wanted' : ''}" style="grid-column:${x + 1};grid-row:${y + 1}"><b>${known ? esc(AREAS[id].name) : '???'}</b>${id === here ? '<small>You are here</small>' : known && wanted(id) ? '<small>❗ Quest</small>' : ''}</div>`;
   }).join('');
-  return `<div class="wmap" aria-label="Map"><i class="wmap-road h"></i><i class="wmap-road v1"></i><i class="wmap-road v2"></i>${cells}</div>`;
+  return `<div class="wmap" aria-label="Map"><i class="wmap-road h"></i><i class="wmap-road v1"></i><i class="wmap-road v2"></i>${open('mere') ? '<i class="wmap-road v3"></i>' : ''}${cells}</div>`;
 }
 
 const area = () => AREAS[areaId];
@@ -1526,6 +1556,7 @@ function step(dx: number, dy: number) {
     if (hooks.areaOpen && !hooks.areaOpen(exit.to)) {
       dialog = 'barred';
       if (exit.to === 'farm') return showDialog('<b>The old plot, overgrown</b>Nobody tends it now. The dead walk there at night: stand the Night Shift from the title screen.');
+      if (exit.to === 'mere') return showDialog('<b>A path down to the water</b>It runs south to the old mere, under a crust of frost. The ice groans in the dark. Not yet.');
       return showDialog('<b>An old stair, choked with rubble</b>It goes down past the lid. Something under there is singing. Open the lid first.');
     }
     build = null;
@@ -2808,6 +2839,27 @@ function drawLore(ctx: CanvasRenderingContext2D, px: Px, lore: { id: string; loo
       px(X + 3, Y + 6, 10, 6, '#c9d1e0');
       px(X + 6, Y + 3, 4, 1, '#141119');
       px(X + 7, Y + 8, 2, 2, '#5d667a');
+      break;
+    case 'chair':
+      // a high-backed chair, set apart, with a cushion nobody sits on
+      px(X + 4, Y + 1, 8, 9, '#6b4a2a');
+      px(X + 5, Y + 2, 6, 7, '#4a3020');
+      px(X + 3, Y + 9, 10, 2, '#7a5532');
+      px(X + 4, Y + 8, 8, 2, '#9fe8ff');
+      px(X + 4, Y + 11, 1, 4, '#3a2818');
+      px(X + 11, Y + 11, 1, 4, '#3a2818');
+      break;
+    case 'kettle':
+      px(X + 4, Y + 6, 8, 7, '#2a2433');
+      px(X + 5, Y + 5, 6, 1, '#5d667a');
+      px(X + 7, Y + 3, 2, 2, '#5d667a');
+      px(X + 12, Y + 7, 2, 2, '#2a2433');
+      px(X + 14, Y + 6, 1, 1, '#2a2433');
+      px(X + 2, Y + 13, 12, 2, '#6b4a2a');
+      ctx.globalAlpha = 0.35 + 0.25 * Math.sin(t * 3);
+      px(X + 14, Y + 3, 1, 2, '#e8dcc4');
+      px(X + 15, Y + 1, 1, 2, '#e8dcc4');
+      ctx.globalAlpha = 1;
       break;
     case 'bed':
       px(X + 1, Y + 2, 14, 12, '#3a2818');
