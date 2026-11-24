@@ -19,10 +19,15 @@ export interface Choice {
   /** Remembered in the player's story choices under this key. */
   key: string;
   prompt: string;
-  options: { label: string; value: string; then: Say[] }[];
+  options: { label: string; value: string; then: (Say | Cut)[] }[];
 }
 
-export type Line = Say | Choice;
+/** A cutscene: a few seconds of animated pixel scene, in the middle of a conversation. */
+export interface Cut {
+  scene: 'knock' | 'beacon' | 'chair' | 'sink';
+}
+
+export type Line = Say | Choice | Cut;
 
 export interface Dungeon {
   name: string;
@@ -661,8 +666,7 @@ export const QUESTS: Quest[] = [
     cleared: [
       { who: 'narrator', text: 'At the bottom the crypt is rimed white. Your breath hangs in the air and does not fall.' },
       { who: 'narrator', text: 'Set into the ice is a door, black and very old, with a brass knocker on the wrong side. Beside it stands a chair carved out of frost, and on the chair sits a wooden bowl, empty, with a child\'s spoon in it.' },
-      { who: 'narrator', text: 'As you watch, the knocker lifts on its own. Knock. Knock. Knock. Then, slowly, as if by a fingertip, words write themselves in the frost on the door:' },
-      { who: 'narrator', text: 'MAY I COME IN?' },
+      { scene: 'knock' },
       { who: 'narrator', text: '{pet} sits down and will not go any closer. You take the spoon. Mortimer will want to see it.' },
     ],
     turnIn: [
@@ -726,6 +730,7 @@ export const QUESTS: Quest[] = [
     ],
     reminder: [{ who: 'gravedigger', text: 'The Beacon, on the mere. Five waves of cold, by my count. Keep them off the fire until it catches.' }],
     cleared: [
+      { scene: 'beacon' },
       { who: 'narrator', text: 'The Midwinter fire catches with a sound like a held breath let go. All over Gravesend, every hearth flares warm at once. Up at the Last Orders somebody cheers. Bess, probably. Then the ale.' },
       { who: 'narrator', text: 'The cold falls back from the flame. And from far below, from under the mere, the knocking comes again. Softer now. Hopeful.' },
       { who: 'guest', text: 'Thank you. That is much better. I can see the way up now.' },
@@ -792,6 +797,7 @@ export const QUESTS: Quest[] = [
               { who: 'guest', text: 'He is very tired. He has been on his errand a long time. Shall I take him with me, when I go? I would see that he is warm.' },
               { who: 'gravedigger', text: "That's kind. It really is. But not yet. Someone's got to dig, and someone's got to carry the soup next year, and I've only just got the hang of it." },
               { who: 'guest', text: 'Next year, then. I shall look forward to it. I have never looked forward to anything before.' },
+              { scene: 'chair' },
               { who: 'narrator', text: 'When the sun comes up, the chair by the fire is empty and the snow has stopped. Mortimer is asleep in the chair beside it, holding an empty bowl, smiling like a boy who carried it all the way.' },
             ],
           },
@@ -803,6 +809,7 @@ export const QUESTS: Quest[] = [
               { who: 'guest', text: 'A kind bell. It does not say go away. It says, not tonight. I can wait for not tonight. I am very good at waiting.' },
               { who: 'guest', text: 'Next Midwinter, then. Set the chair. Leave the door on the latch. Send the gravedigger with the soup.' },
               { who: 'gravedigger', text: "I'll come. I promise. I'll bring two spoons, in case I drop one." },
+              { scene: 'sink' },
               { who: 'narrator', text: 'It sinks back into the dark, slowly, politely, and the ice closes over it like a door shut gently. Mortimer stands a long time out on the mere, holding the bowl, while the snow comes down.' },
             ],
           },

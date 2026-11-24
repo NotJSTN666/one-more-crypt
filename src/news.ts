@@ -27,7 +27,7 @@ export const NEWS: NewsDay[] = [
     title: 'Midwinter, and Act III: The Long Night',
     notes: [
       '❄️ Midwinter is here until January 6. Snow is falling on Gravesend for the first time in four hundred years, and over the menus too.',
-      '📖 Act III of the story, The Long Night: something under everything is knocking, three times a night, very politely. Four quests and two side quests take you to the Frozen Mere, a new place south of the village, deeper than ever (floors 11 to 20), with the Midwinter Guest waiting at the bottom and a choice to make at the end of the longest night. Finish Act II to begin.',
+      '📖 Act III of the story, The Long Night: something under everything is knocking, three times a night, very politely. Four quests and two side quests take you to the Frozen Mere, a new place south of the village, deeper than ever (floors 11 to 20), with the Midwinter Guest waiting at the bottom and a choice to make at the end of the longest night. Its biggest moments play out as short animated scenes. Finish Act II to begin.',
       '🎁 The Twelve Gifts of Midwinter: finish a run on any day of Midwinter, in any mode, to open the next of twelve gifts. Souls, two cloaks, a gift bow, a candle wreath, the Silent Night aura, and on the twelfth day the Twelfth Crown and the title Keeper of Midwinter.',
       '🎄 Every crypt is dressed for the season: snow on the walls, icicles, holly, and red candles in holly wreaths.',
       '🎶 Sleigh bells in the crypt\'s music while Midwinter lasts.',

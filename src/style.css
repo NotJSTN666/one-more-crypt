@@ -7345,3 +7345,29 @@ body.midwinter #overlay[data-screen='title'] .logo::before {
   .mw-garland i, .mw-garland::after { animation: none; }
 }
 :root.calm .mw-garland i, :root.calm .mw-garland::after { animation: none; }
+
+/* ---------- Story cutscenes ---------- */
+#overlay[data-screen='cutscene'] { background: #030206; }
+.cut-stage { display: flex; flex-direction: column; align-items: center; gap: 10px; padding-top: 4vh; }
+.cut-cv {
+  display: block;
+  width: 100%;
+  max-width: 640px;
+  aspect-ratio: 16 / 9;
+  image-rendering: pixelated;
+  border: 1px solid #2a3348;
+  box-shadow: 0 0 0 1px #000, 0 12px 40px rgba(0, 0, 0, 0.7);
+  cursor: pointer;
+}
+.cut-cap {
+  min-height: 2.6em;
+  margin: 0;
+  max-width: 560px;
+  font-family: var(--read);
+  font-size: 15px;
+  line-height: 1.35;
+  color: #e8dcc4;
+  text-align: center;
+  font-style: italic;
+}
+.cut-stage .btn { max-width: 320px; }

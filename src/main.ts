@@ -47,6 +47,7 @@ import { onAccountSynced, claimPodiums, claimWeekly, clearBeat, lastBeat, type P
 import { paintBoardNames, claimInlineHtml, wireClaimInline, keepNameHtml, wireKeepName, endlessRecord, ensureGuest, initSocial, needsName, unclaimed, playerName, rankLine, recordRun, session, showLeaderboard, onlineCountHtml, showLogin, showProfile, signedIn, syncNow } from './social';
 import { loadSave, recordDaily, streakStats, WARD_EVERY, writeSave, type RunResult } from './storage';
 import { flameView, runStreakFlame } from './streak-flame';
+import { playScene } from './cutscenes';
 import { $, calmChosen, calmMotion, esc, formStatus, hideOverlay, on, onSubmit, overlay, overlayShownAt, screen, setCalm, showOverlay, toast } from './ui';
 import { showTesterAsk, testerAskDue, testerOffer } from './testers';
 import { PODIUM_PRIZES, RACE_PRIZES } from './race-prizes';
@@ -5347,6 +5348,8 @@ function talk(lines: Line[], done: () => void, heading = '') {
   const next = () => {
     const line = lines[i++];
     if (!line) return done();
+    // A cutscene: a few seconds of animated scene, then the conversation carries on.
+    if ('scene' in line) return playScene(line.scene, next);
     if ('key' in line) {
       const picked = meta.story.choices[line.key];
       // Replays skip a choice already made, but still play out its result.
