@@ -3146,12 +3146,12 @@ function showDeath(r: RunResult, best: boolean) {
   // A moment after the Daily's results land, one ask at most: bring a friend (every third Daily),
   // or else help test the Android app (where that makes sense).
   if (daily) noteDailyForInvite(dailyNumber());
-  if (daily && ONLINE && inviteAskDue(PORTAL, dailyNumber()) && !testerAskDue(PORTAL)) {
+  if (daily && ONLINE && inviteAskDue(PORTAL, dailyNumber()) && !testerAskDue(PORTAL, save.totals.runs)) {
     const shownAt = overlayShownAt;
     window.setTimeout(() => {
       if (screen === 'death' && overlayShownAt === shownAt) openInviteAsk(r.floor, () => screen === 'death' && !overlay.hidden, dailyNumber());
     }, 1800);
-  } else if (daily && testerAskDue(PORTAL)) {
+  } else if (daily && testerAskDue(PORTAL, save.totals.runs)) {
     const shownAt = overlayShownAt;
     window.setTimeout(() => {
       if (screen === 'death' && overlayShownAt === shownAt) showTesterAsk(() => screen === 'death' && !overlay.hidden);

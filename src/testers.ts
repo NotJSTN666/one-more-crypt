@@ -48,9 +48,12 @@ export function testerOffer(portal: boolean, now = Date.now()): boolean {
   return !portal && now < ASK_UNTIL && !inAndroidApp() && !onApple();
 }
 
-/** Whether to ask after this Daily (the first one included). */
-export function testerAskDue(portal: boolean, now = Date.now()): boolean {
-  if (!testerOffer(portal, now)) return false;
+/** Runs a player must have finished (this one included) before the card is offered: not on their very first. */
+export const ASK_FROM_RUN = 2;
+
+/** Whether to ask after this Daily: from the player's second run on, never on their first. */
+export function testerAskDue(portal: boolean, runs: number, now = Date.now()): boolean {
+  if (!testerOffer(portal, now) || runs < ASK_FROM_RUN) return false;
   const s = stored();
   if (s === 'no' || s === 'joined') return false;
   const later = Number(s);
