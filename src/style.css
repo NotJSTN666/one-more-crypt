@@ -7371,3 +7371,9 @@ body.midwinter #overlay[data-screen='title'] .logo::before {
   font-style: italic;
 }
 .cut-stage .btn { max-width: 320px; }
+
+/* Sites the game is listed on, under the title's links. */
+.listing-badges { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
+.listing-badges img { display: block; width: 200px; height: auto; opacity: 0.85; }
+.listing-badges a:hover img, .listing-badges a:focus-visible img { opacity: 1; }
+.listing-badges a { color: var(--muted); font-size: 11px; text-decoration: none; }

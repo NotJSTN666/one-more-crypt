@@ -2117,6 +2117,7 @@ function showTitle() {
       </div>
     </details>
     <div class="foot-links">${followXHtml}${discordHtml}${kofiHtml}<a class="follow-x privacy" href="${PRIVACY_URL}" target="_blank" rel="noopener">${pxi('lock')} Privacy</a></div>
+    ${PORTAL ? '' : `<div class="listing-badges">${document.getElementById('listing-badges')?.innerHTML ?? ''}</div>`}
     ${testerOffer(PORTAL) ? '<button type="button" class="follow-x testers-link" id="title-testers">' + pxi('phone') + ' Android testers needed</button>' : ''}
   `);
   on('#title-testers', () => showTesterAsk(() => screen === 'title' && !overlay.hidden));

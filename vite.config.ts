@@ -24,6 +24,8 @@ export default defineConfig(({ mode }) => ({
       name: 'site-url',
       transformIndexHtml: (html: string) => {
         let out = html.replaceAll('__SITE_URL__', siteUrl());
+        // The portal builds (itch.io, CrazyGames) carry no badges linking out to other sites.
+        if (mode === 'itch' || mode === 'crazygames') out = out.replace(/\s*<!-- Sites the game is listed on[^\n]*\n\s*<div id="listing-badges"[\s\S]*?<\/div>/, '');
         // The CrazyGames build: their SDK first, and no app manifest (it isn't installable there).
         if (mode === 'crazygames') {
           out = out.replace(/<link rel="manifest"[^>]*>\s*/g, '');
