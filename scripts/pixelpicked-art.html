@@ -1,0 +1,170 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Silkscreen&display=block" rel="stylesheet" />
+    <style>body { margin: 0; background: #000; } canvas { display: block; margin-bottom: 20px; }</style>
+  </head>
+  <body>
+    <canvas id="banner" width="1920" height="1080"></canvas>
+    <canvas id="icon" width="512" height="512"></canvas>
+    <canvas id="icon2" width="512" height="512"></canvas>
+    <script type="module">
+      // The PixelPicked page art: a 1920x1080 cover made from a real crypt board, and two square icons.
+      // Regenerate with: node scripts/make-pixelpicked-art.mjs <board.png>
+      import { heroSprite } from '/src/hero.ts';
+      import { enemyFrames } from '/src/sprites.ts';
+      await document.fonts.load('120px "Pirata One"');
+      await document.fonts.load('28px Silkscreen');
+      const board = new Image();
+      board.src = window.BOARD;
+      await board.decode();
+      const knight = heroSprite('knight', { crown: 1, ember: 2, mirror: 1, fang: 1 }, ['fang', 'mirror', 'ember', 'crown']).normal;
+      const heroes = [
+        heroSprite('rogue', {}, [], '', '').normal,
+        heroSprite('mage', {}, [], 'royal', 'candles').normal,
+        knight,
+        heroSprite('barbarian', {}, [], 'ember', 'ironhorns').normal,
+        heroSprite('necro', {}, [], '', '').normal,
+      ];
+      const foe = (k) => enemyFrames(k).idle[0].normal;
+
+      function glow(ctx, x, y, r, color, a = 1) {
+        const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+        g.addColorStop(0, color);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.globalAlpha = a;
+        ctx.fillStyle = g;
+        ctx.fillRect(x - r, y - r, r * 2, r * 2);
+        ctx.globalAlpha = 1;
+      }
+      function figure(ctx, img, x, feet, size, shadow) {
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.beginPath();
+        ctx.ellipse(x, feet, size * 0.3, size * 0.07, 0, 0, Math.PI * 2);
+        ctx.fill();
+        if (shadow) { ctx.shadowColor = shadow; ctx.shadowBlur = size * 0.2; }
+        ctx.drawImage(img, x - size / 2, feet - size * 0.97, size, size);
+        ctx.shadowBlur = 0;
+      }
+      function logo(ctx, x, y, size, align = 'left') {
+        ctx.textAlign = align;
+        ctx.font = `${size}px "Pirata One"`;
+        ctx.fillStyle = '#3a0a10';
+        ctx.fillText('One More Crypt', x, y + size * 0.045);
+        ctx.shadowColor = 'rgba(210,58,70,0.7)';
+        ctx.shadowBlur = size * 0.35;
+        ctx.fillStyle = '#d23a46';
+        ctx.fillText('One More Crypt', x, y);
+        ctx.shadowBlur = 0;
+      }
+
+      // ---------- the cover ----------
+      {
+        const c = document.getElementById('banner');
+        const ctx = c.getContext('2d');
+        const W = c.width, H = c.height;
+        // the crypt itself, huge and dim, as the backdrop
+        ctx.filter = 'blur(10px) brightness(0.35) saturate(1.2)';
+        ctx.drawImage(board, -200, -500, 2400, 2400);
+        ctx.filter = 'none';
+        // the board, crisp, on the right, lit from within
+        const B = 880, bx = W - B - 110, by = (H - B) / 2 + 10;
+        glow(ctx, bx + B / 2, by + B / 2, B * 0.85, 'rgba(255,120,40,0.35)');
+        ctx.fillStyle = '#07040b';
+        ctx.fillRect(bx - 14, by - 14, B + 28, B + 28);
+        ctx.strokeStyle = '#5a4466';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(bx - 12, by - 12, B + 24, B + 24);
+        ctx.strokeStyle = '#c9a86a';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(bx - 5, by - 5, B + 10, B + 10);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(board, bx, by, B, B);
+        // the left side darkens toward the words
+        const fade = ctx.createLinearGradient(0, 0, bx, 0);
+        fade.addColorStop(0, 'rgba(7,4,11,0.96)');
+        fade.addColorStop(0.75, 'rgba(7,4,11,0.75)');
+        fade.addColorStop(1, 'rgba(7,4,11,0)');
+        ctx.fillStyle = fade;
+        ctx.fillRect(0, 0, bx - 20, H);
+        // words
+        const lx = 110;
+        ctx.textAlign = 'left';
+        ctx.font = '168px "Pirata One"';
+        for (const [t, y] of [['One More', 330], ['Crypt', 490]]) {
+          ctx.fillStyle = '#3a0a10';
+          ctx.fillText(t, lx, y + 8);
+          ctx.shadowColor = 'rgba(210,58,70,0.75)';
+          ctx.shadowBlur = 60;
+          ctx.fillStyle = '#d23a46';
+          ctx.fillText(t, lx, y);
+          ctx.shadowBlur = 0;
+        }
+        ctx.font = '34px Silkscreen';
+        ctx.fillStyle = '#e8dcc4';
+        ctx.fillText('ONE CRYPT. ONE TRY A DAY.', lx + 6, 580);
+        ctx.fillStyle = '#f2c14e';
+        ctx.font = '28px Silkscreen';
+        ctx.fillText('HOW DEEP CAN YOU GO?', lx + 6, 628);
+        // the heroes, standing in a row on a candlelit ledge
+        ctx.imageSmoothingEnabled = false;
+        const feet = 900, size = 132, gap = 158;
+        glow(ctx, lx + 2.5 * gap, feet - 40, 360, 'rgba(255,170,80,0.18)');
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.fillRect(lx - 20, feet, gap * 5, 3);
+        heroes.forEach((img, i) => figure(ctx, img, lx + 60 + i * gap, feet, i === 2 ? size * 1.2 : size, i === 2 ? 'rgba(255,200,120,0.6)' : null));
+        // vignette
+        const v = ctx.createRadialGradient(W / 2, H / 2, H * 0.45, W / 2, H / 2, W * 0.75);
+        v.addColorStop(0, 'rgba(0,0,0,0)');
+        v.addColorStop(1, 'rgba(0,0,0,0.6)');
+        ctx.fillStyle = v;
+        ctx.fillRect(0, 0, W, H);
+      }
+
+      // ---------- icon A: the crowned knight in candlelight, with the crypt behind ----------
+      {
+        const c = document.getElementById('icon');
+        const ctx = c.getContext('2d');
+        const S = c.width;
+        ctx.filter = 'blur(3px) brightness(0.4)';
+        ctx.drawImage(board, -300, -820, 1300, 1300);
+        ctx.filter = 'none';
+        glow(ctx, S / 2, S * 0.52, S * 0.5, 'rgba(255,140,60,0.55)');
+        ctx.imageSmoothingEnabled = false;
+        figure(ctx, knight, S / 2, S * 0.88, S * 0.68, 'rgba(255,200,120,0.55)');
+        const v = ctx.createRadialGradient(S / 2, S / 2, S * 0.3, S / 2, S / 2, S * 0.72);
+        v.addColorStop(0, 'rgba(0,0,0,0)');
+        v.addColorStop(1, 'rgba(7,4,11,0.85)');
+        ctx.fillStyle = v;
+        ctx.fillRect(0, 0, S, S);
+      }
+
+      // ---------- icon B: the knight facing a foe, with the name ----------
+      {
+        const c = document.getElementById('icon2');
+        const ctx = c.getContext('2d');
+        const S = c.width;
+        ctx.filter = 'blur(3px) brightness(0.35)';
+        ctx.drawImage(board, -300, -820, 1300, 1300);
+        ctx.filter = 'none';
+        glow(ctx, S / 2, S * 0.62, S * 0.5, 'rgba(255,140,60,0.45)');
+        ctx.imageSmoothingEnabled = false;
+        figure(ctx, knight, S * 0.5, S * 0.97, S * 0.5, 'rgba(255,200,120,0.5)');
+        ctx.textAlign = 'center';
+        ctx.font = `${S * 0.21}px "Pirata One"`;
+        for (const [t, y] of [['One More', S * 0.2], ['Crypt', S * 0.38]]) {
+          ctx.fillStyle = '#3a0a10';
+          ctx.fillText(t, S / 2, y + 5);
+          ctx.shadowColor = 'rgba(210,58,70,0.8)';
+          ctx.shadowBlur = 24;
+          ctx.fillStyle = '#d23a46';
+          ctx.fillText(t, S / 2, y);
+          ctx.shadowBlur = 0;
+        }
+      }
+      window.artReady = true;
+    </script>
+  </body>
+</html>
