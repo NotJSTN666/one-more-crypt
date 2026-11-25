@@ -37,6 +37,13 @@ export const NEWS: NewsDay[] = [
     go: ['story', 'daily'],
   },
   {
+    date: '2026-11-25',
+    title: 'Android testers can join again',
+    notes: [
+      '🤖 The link to join the Android app test now opens a page with a Join button. Before, it showed a "no permission" page to anyone not already in the group. If that stopped you, the "testers needed" link on the title screen will get you in now.',
+    ],
+  },
+  {
     date: '2026-11-24',
     title: 'No moving blind',
     notes: [

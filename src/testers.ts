@@ -8,7 +8,9 @@
 
 import { calmMotion } from './ui';
 
-export const TESTER_GROUP_URL = 'https://groups.google.com/g/one-more-crypt-testers';
+// The About page, not the group's main page: with conversations for members only, the main page
+// tells anyone outside the group they don't have permission, with no way to join. About has the Join button.
+export const TESTER_GROUP_URL = 'https://groups.google.com/g/one-more-crypt-testers/about';
 export const TESTER_OPTIN_URL = 'https://play.google.com/apps/testing/com.onemorecrypt.app';
 /** The test needs 14 days from 12 testers; after this the card stops showing. */
 const ASK_UNTIL = Date.UTC(2026, 11, 20);
