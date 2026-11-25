@@ -24,7 +24,7 @@ import { Renderer } from './render';
 import { enemyFrames, resetCanvases, sprites } from './sprites';
 import { RAID_TURNS, currentRaid, nextRaid, raidBossName, raidConfig, raidJoinable, type RaidSlot } from './raid';
 import { hashSeed } from './rng';
-import { ONLINE, loadCloudRuns, saveCloudRuns, type CloudRuns, communityKills, loadHall, submitHorde, hordeBoard, claimInvite, myInvites, raidHit, raidPlayer, raidState, type RaidState, challengeBoard, type BoardRow, emailReminderOff, sendFeedback, setEmailReminder, type FeedbackKind, challengeNews, createChallenge, dailyBoard, endlessBoard, getChallenge, mySummons, noteRun, noteSummon, pingActivity, setPresenceSource, startActivityPings, waitingGifts, claimGift, submitChallengeRun, type Challenge, type ChallengeRow } from './online';
+import { ONLINE, loadCloudRuns, saveCloudRuns, type CloudRuns, communityKills, loadHall, submitHorde, hordeBoard, claimInvite, myInvites, raidHit, raidPlayer, raidState, type RaidState, challengeBoard, type BoardRow, emailReminderOff, updateEmailsOff, sendFeedback, setEmailReminder, type FeedbackKind, challengeNews, createChallenge, dailyBoard, endlessBoard, getChallenge, mySummons, noteRun, noteSummon, pingActivity, setPresenceSource, startActivityPings, waitingGifts, claimGift, submitChallengeRun, type Challenge, type ChallengeRow } from './online';
 import {
   ACT2_MAIN, ACT2_QUESTS, ACT2_TITLE, act2Open, ACT3_MAIN, ACT3_QUESTS, ACT3_TITLE, act3Open, ACT_TITLE, ACT1_QUESTS, LORE, LORE_COUNT, MAIN_QUESTS, QUESTS, QUEST_BY_N, SPEAKERS, conversation, facePortrait, houndStats, npcMarker, npcPresent, petName, questStatus,
   type Line, type NpcId, type Quest, type StoryState,
@@ -5878,9 +5878,19 @@ if (unsub && ONLINE) {
     toast(ok ? '📧 Email reminders are off. You can turn them back on from your profile.' : '📧 Those email reminders were already off.');
   });
 }
+// The unsubscribe link in an update email (?unsubupdates=<token>): no more update emails.
+const unsubUpdates = new URLSearchParams(location.search).get('unsubupdates');
+if (unsubUpdates && ONLINE) {
+  const url = new URL(location.href);
+  url.searchParams.delete('unsubupdates');
+  history.replaceState(null, '', url.toString());
+  void updateEmailsOff(unsubUpdates).then((ok) => {
+    toast(ok ? "📧 Unsubscribed. You won't get any more update emails from One More Crypt." : "📧 That unsubscribe link didn't work. Email onemorecrypt@gmail.com and we'll take you off the list by hand.");
+  });
+}
 const playMode = visiting || challengeCode ? null : playFromLink();
 // Back again: tell them what's new (only on a plain visit, not a shared link).
-if (!visiting && !challengeCode && !unsub && !playMode && !savedRun()) {
+if (!visiting && !challengeCode && !unsub && !unsubUpdates && !playMode && !savedRun()) {
   if (midwinterNewsWaiting()) showMidwinterNews();
   else if (actTwoNewsWaiting()) showActTwoNews();
   else if (bellNewsWaiting()) showBellNews();

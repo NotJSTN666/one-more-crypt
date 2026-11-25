@@ -796,6 +796,13 @@ export async function emailReminderOff(token: string): Promise<boolean> {
   return !error && Boolean(data);
 }
 
+/** The unsubscribe link in an update email: no more update emails for that account. */
+export async function updateEmailsOff(token: string): Promise<boolean> {
+  const sb = await client();
+  const { data, error } = await sb.rpc('update_emails_off', { p_token: token });
+  return !error && Boolean(data);
+}
+
 export async function dropPush(endpoint: string): Promise<void> {
   const sb = await client();
   await sb.rpc('drop_push', { p_endpoint: endpoint });

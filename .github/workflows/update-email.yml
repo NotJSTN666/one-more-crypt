@@ -1,0 +1,44 @@
+# The Midwinter update email: at 8 AM Central on 27 November 2026, to accounts with a confirmed
+# email address that haven't unsubscribed, leaving out addresses that look UK or EU.
+# Needs the SUPABASE_URL and MAIL_POSTAL_ADDRESS variables and the SUPABASE_SERVICE_ROLE_KEY and
+# RESEND_API_KEY secrets. Run it by hand first as a dry run, then with a test address.
+name: Update email
+
+on:
+  schedule:
+    # 14:00 UTC is 8 AM Central (CST). The script only sends on the campaign's own day.
+    - cron: '0 14 27 11 *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Only list who would get it (nothing is sent)'
+        type: boolean
+        default: true
+      test_to:
+        description: 'Send one test copy to this address only'
+        type: string
+        default: ''
+      send_now:
+        description: 'Send to everyone now, whatever the date (if the scheduled run was missed)'
+        type: boolean
+        default: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/update-email.mjs
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          MAIL_POSTAL_ADDRESS: ${{ vars.MAIL_POSTAL_ADDRESS }}
+          CAMPAIGN: midwinter-2026
+          SEND_ON: '2026-11-27'
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
+          TEST_TO: ${{ github.event_name == 'workflow_dispatch' && inputs.test_to || '' }}
+          SEND_NOW: ${{ github.event_name == 'workflow_dispatch' && inputs.send_now && 'true' || 'false' }}
