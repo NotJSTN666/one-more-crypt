@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import { guidePage } from './src/guide-page';
 
 // Public address of the site, used for the link-preview tags in index.html.
 // In GitHub Actions it follows the repo name (https://<owner>.github.io/<repo>/), so
@@ -34,6 +35,16 @@ export default defineConfig(({ mode }) => ({
           out = out.replace('</head>', '    <script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>\n  </head>');
         }
         return out;
+      },
+    },
+    {
+      // The Guide (onemorecrypt.com/guide/), written from the game's own relic and hero lists on
+      // every build. Only on the site: the portal builds stay the game alone.
+      name: 'guide-page',
+      apply: 'build',
+      generateBundle() {
+        if (mode === 'itch' || mode === 'crazygames') return;
+        this.emitFile({ type: 'asset', fileName: 'guide/index.html', source: guidePage(siteUrl()) });
       },
     },
   ],

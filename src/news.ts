@@ -38,8 +38,9 @@ export const NEWS: NewsDay[] = [
   },
   {
     date: '2026-11-25',
-    title: 'Android testers can join again',
+    title: 'A Guide, and Android testers can join again',
     notes: [
+      '📚 A new Guide at onemorecrypt.com/guide: how to play, every mode and hero, all 52 relics, every Soul Forge fusion and combo, in one page you can read anywhere. Tap Guide at the bottom of the title screen.',
       '🤖 The link to join the Android app test now opens a page with a Join button. Before, it showed a "no permission" page to anyone not already in the group. If that stopped you, the "testers needed" link on the title screen will get you in now.',
     ],
   },

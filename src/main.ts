@@ -2116,7 +2116,7 @@ function showTitle() {
       </div>
       </div>
     </details>
-    <div class="foot-links">${followXHtml}${discordHtml}${kofiHtml}<a class="follow-x privacy" href="${PRIVACY_URL}" target="_blank" rel="noopener">${pxi('lock')} Privacy</a></div>
+    <div class="foot-links">${followXHtml}${discordHtml}${kofiHtml}${PORTAL ? '' : `<a class="follow-x" href="./guide/" target="_blank" rel="noopener">${pxi('book')} Guide</a>`}<a class="follow-x privacy" href="${PRIVACY_URL}" target="_blank" rel="noopener">${pxi('lock')} Privacy</a></div>
     ${PORTAL ? '' : `<div class="listing-badges">${document.getElementById('listing-badges')?.innerHTML ?? ''}</div>`}
     ${testerOffer(PORTAL) ? '<button type="button" class="follow-x testers-link" id="title-testers">' + pxi('phone') + ' Android testers needed</button>' : ''}
   `);
