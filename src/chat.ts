@@ -7,6 +7,7 @@ import { chatRecent, OnlineError, sendChat, watchChat, type ChatLine } from './o
 import { esc } from './ui';
 import { pxi } from './pixel-icons';
 import { sfx } from './audio';
+import { chatTime } from './chat-time';
 
 interface ChatHost {
   /** The signed-in player's account id and chosen name, or null for a guest or nobody. */
@@ -184,14 +185,15 @@ document.addEventListener('click', (e) => {
   }
 });
 
-const time = (iso: string) => {
+/** The full date and time, for a hover. */
+const fullTime = (iso: string) => {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString([], { dateStyle: 'full', timeStyle: 'short' });
 };
 
 function lineHtml(l: ChatLine): string {
   const mine = l.user_id === host?.me()?.id;
-  return `<li class="chat-line${mine ? ' mine' : ''}" data-id="${l.id}"><button class="chat-name" data-user="${esc(l.user_id)}" data-name="${esc(l.name)}" ${mine ? 'disabled' : ''}>${esc(l.name)}</button><time>${time(l.created_at)}</time><p>${esc(l.body)}</p></li>`;
+  return `<li class="chat-line${mine ? ' mine' : ''}" data-id="${l.id}"><button class="chat-name" data-user="${esc(l.user_id)}" data-name="${esc(l.name)}" ${mine ? 'disabled' : ''}>${esc(l.name)}</button><time datetime="${esc(l.created_at)}" title="${esc(fullTime(l.created_at))}">${chatTime(l.created_at)}</time><p>${esc(l.body)}</p></li>`;
 }
 
 function visible(): ChatLine[] {
