@@ -900,7 +900,7 @@ export const AURAS: AuraDef[] = [
   { id: 'deathsdance', name: "Death's Dance", style: 'bone', color: '#d3b0ff', unlock: { feat: 'hordedanced' }, how: 'Hold 10 Horde waves with Death in the arena.' },
   { id: 'deathsshadow', name: "Death's Shadow", style: 'reaper', color: '#9a6bff', unlock: { feat: 'horde30' }, how: 'Hold the crypt to wave 30 in Horde, with Death in the arena.' },
   // Given by hand by the Crypt Keeper, never earned or sold.
-  { id: 'keepersfavour', name: "Keeper's Favour", style: 'favour', color: '#ffd27a', unlock: { gift: 'keepersfavour' }, how: "A rare gift from the Crypt Keeper. It can't be earned or bought." },
+  { id: 'keepersfavour', name: "Keeper's Favour", style: 'favour', color: '#ffd27a', unlock: { gift: 'keepersfavour' }, how: 'A gift from the Crypt Keeper for finishing your first run.' },
   { id: 'bugzapper', name: 'Bug Zapper', style: 'zapper', color: '#5fe3ff', unlock: { gift: 'exterminator' }, how: 'A gift from the Crypt Keeper, for hunting down bugs and reporting them.' },
   { id: 'brightideas', name: 'Bright Ideas', style: 'bulbs', color: '#ffd23f', unlock: { gift: 'brightidea' }, how: 'A gift from the Crypt Keeper, for an idea that made it into the game.' },
   // The Bell Tolls: felling world bosses together.
@@ -1041,7 +1041,7 @@ export interface GiftDef {
 }
 
 export const GIFTS: GiftDef[] = [
-  { id: 'keepersfavour', name: "Keeper's Favour", why: "A rare gift from the Crypt Keeper. It can't be earned or bought.", aura: 'keepersfavour' },
+  { id: 'keepersfavour', name: "Keeper's Favour", why: 'For finishing your first run. Welcome to the crypt.', aura: 'keepersfavour' },
   { id: 'exterminator', name: 'Bug Exterminator', why: 'For hunting down bugs in the crypt and reporting them. Thank you!', head: 'bughelm', aura: 'bugzapper', title: 'gift:exterminator' },
   { id: 'brightidea', name: 'Bright Idea', why: 'Your idea made it into the crypt. Thank you!', aura: 'brightideas', title: 'gift:brightidea' },
 ];

@@ -32,6 +32,7 @@ export const NEWS: NewsDay[] = [
       '🎄 Every crypt is dressed for the season: snow on the walls, icicles, holly, and red candles in holly wreaths.',
       '🎶 Sleigh bells in the crypt\'s music while Midwinter lasts.',
       '👀 Each of the Twelve Gifts shows how it looks on your hero before you open it.',
+      '✨ The Crypt Keeper now gives every player the Keeper\'s Favour aura after their first run. Played before? It\'s waiting for you on the title screen.',
       '🏛️ Winter cloaks, headwear, auras and Hall pieces are in the Ossuary, this season only. The Midwinter Mantle is yours just for playing a run.',
       '✨ Act III\'s own rewards, never sold: the Rimewalker, the Hearthkeeper and Harold\'s Scarf cloaks, the Crown of Rime, Pip\'s Earmuffs, the Beacon Fire and Long Night auras, and six titles.',
     ],

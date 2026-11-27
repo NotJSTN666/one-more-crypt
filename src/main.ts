@@ -2215,6 +2215,14 @@ function showTitle() {
     });
   });
   tickCountdowns();
+  // The Keeper's Favour: every player's welcome gift from the Crypt Keeper, given once their first run is done.
+  if (save.totals.runs >= 1 && !meta.gifts.includes('keepersfavour')) {
+    receiveGift('keepersfavour');
+    window.setTimeout(() => {
+      if (screen === 'title') showGift('keepersfavour');
+    }, 900);
+    return;
+  }
   void checkGifts();
   // Finished on yesterday's podium? Celebrate once the result is in.
   // A world boss you fought in fell (or got away) while you were gone.
