@@ -12,8 +12,8 @@ source/HTML), and set the subject line shown below.
 
 The header image is the game's social card, served from https://onemorecrypt.com/og.png.
 `{{ .Token }}` is the 6-digit code players can type into the game when the link opens in
-a different browser (common in the X app). The change-email template has no code
-because that flow only uses the link.
+a different browser (common in the X and Reddit apps). All three templates carry it: the
+save-progress screen in the game has a box for the change-email code too.
 
 The sender shows as "Supabase Auth" until custom SMTP is set up
 (**Authentication → Emails → SMTP Settings**); then the sender name and address can be

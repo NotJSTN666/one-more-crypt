@@ -192,6 +192,17 @@ export async function linkEmail(email: string): Promise<void> {
   if (error) throw friendly(error, 'Could not link that email.');
 }
 
+/**
+ * The 6-digit code from the save-progress email, typed in by hand: for when the email's link
+ * opens in another browser (the Reddit, X or Mail app's), which knows nothing of this guest.
+ */
+export async function verifyLinkCode(email: string, code: string): Promise<Account> {
+  const sb = await client();
+  const { data, error } = await sb.auth.verifyOtp({ email, token: code.trim(), type: 'email_change' });
+  if (error || !data.user) throw friendly(error, 'That code did not work. Check it, or use the newest email.');
+  return toAccount(sb, data.user);
+}
+
 export async function signOut(): Promise<void> {
   const sb = await client();
   await sb.auth.signOut();

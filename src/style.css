@@ -516,7 +516,8 @@ button.wait.missile,
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
+  /* clear of the notch and status bar when added to an iPhone's home screen */
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   z-index: 10;
   overflow-y: auto;
   animation: fade 0.25s ease-out;
@@ -2719,7 +2720,7 @@ a.btn.share-btn { text-decoration: none; display: flex; align-items: center; jus
 /* A small Back that stays at the top while a long list scrolls. */
 .back-top {
   position: sticky;
-  top: 0;
+  top: env(safe-area-inset-top, 0px);
   z-index: 2;
   display: block;
   width: fit-content;
@@ -6543,7 +6544,7 @@ body.menu:has(#overlay[data-screen='title']:not([hidden])) #ghosts { opacity: 0.
 #overlay#overlay[data-screen='talk'] > .panel { animation: none; transform: none; opacity: 1; }
 #overlay[data-screen='talk'] .talk-stage { transform: translateX(-50%); }
 #overlay[data-screen='talk'] .talk-bar { animation: talk-bar-in 0.45s ease-out both; }
-#overlay[data-screen='talk'] .back-top { position: fixed; z-index: 3; top: calc(7vh + 10px); left: 12px; width: auto; }
+#overlay[data-screen='talk'] .back-top { position: fixed; z-index: 3; top: calc(7vh + 10px + env(safe-area-inset-top, 0px)); left: 12px; width: auto; }
 .talk-stage { position: fixed; z-index: 2; left: 50%; bottom: calc(7vh + 14px + env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(820px, calc(100vw - 24px)); }
 .talk-stage .talk { position: relative; gap: 18px; align-items: stretch; min-height: 140px; padding: 16px 18px; background: linear-gradient(180deg, rgba(28, 18, 38, 0.97), color-mix(in srgb, var(--shade) 97%, transparent)); border: 2px solid var(--who, var(--gold)); box-shadow: 0 0 0 1px var(--bg), 0 0 28px color-mix(in srgb, var(--who, var(--gold)) 35%, transparent), 0 10px 30px rgba(0, 0, 0, 0.7); cursor: pointer; }
 .talk-stage .talk img { width: 112px; height: 112px; align-self: flex-start; border: 2px solid var(--who, var(--gold)); background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--who, var(--gold)) 30%, #1c1226), var(--deep)); box-shadow: 0 0 14px color-mix(in srgb, var(--who, var(--gold)) 40%, transparent); animation: talk-face 3.2s ease-in-out infinite; }

@@ -35,6 +35,8 @@ export const NEWS: NewsDay[] = [
       '✨ The Crypt Keeper now gives every player the Keeper\'s Favour aura after their first run. Played before? It\'s waiting for you on the title screen.',
       '🎨 Most of the emoji left in the menus are now the game\'s own pixel icons: gifts, medals, crowns, coins, flames, ghosts, potions, dice and more, so every screen matches the crypt.',
       '💬 Chat messages older than today now show their date (or "Yesterday") next to the time.',
+      '🔒 Saving your progress with an email now works even when the email\'s button opens a different browser: the email has a 6-digit code, and the game has a box to type it in.',
+      '📱 Added to an iPhone home screen, the menus now stay clear of the notch and status bar, so the top buttons can be tapped again.',
       '🏛️ Winter cloaks, headwear, auras and Hall pieces are in the Ossuary, this season only. The Midwinter Mantle is yours just for playing a run.',
       '✨ Act III\'s own rewards, never sold: the Rimewalker, the Hearthkeeper and Harold\'s Scarf cloaks, the Crown of Rime, Pip\'s Earmuffs, the Beacon Fire and Long Night auras, and six titles.',
     ],

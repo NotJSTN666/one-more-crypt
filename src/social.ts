@@ -23,6 +23,7 @@ import {
   endlessBoard,
   type EndlessPeriod,
   linkEmail,
+  verifyLinkCode,
   getEmailReminder,
   setEmailReminder,
   myRuns,
@@ -643,7 +644,9 @@ export function keepNameHtml(nag = true): string {
   const name = esc(session.account!.name!);
   const sent = keepStore(KEEP_SENT_KEY);
   if (sent) {
-    return `<div class="keep-name sent" id="keep-name">📬 Check <b>${esc(sent)}</b> and tap the link to keep <b>${name}</b> for good. <button type="button" class="link-btn" id="keep-again">Use another email</button></div>`;
+    return `<div class="keep-name sent" id="keep-name">📬 Check <b>${esc(sent)}</b> and tap the link to keep <b>${name}</b> for good.
+      ${linkCodeHtml('keep-code')}
+      <button type="button" class="link-btn" id="keep-again">Use another email</button></div>`;
   }
   if (!nag && Date.now() - Number(keepStore(KEEP_LATER_KEY) || 0) < KEEP_LATER_MS) return '';
   return `
@@ -657,6 +660,31 @@ export function keepNameHtml(nag = true): string {
       <p class="form-status" role="status"></p>
       ${nag ? '' : '<button type="button" class="link-btn" id="keep-later">Not now</button>'}
     </form>`;
+}
+
+/** Where the email's link opens in another browser: type its code here instead. */
+function linkCodeHtml(id: string): string {
+  return `<form class="form link-code" id="${id}">
+      <small class="claim-sub">Link opened in a different browser? Type the 6-digit code from the email here instead.</small>
+      <div class="name-row">
+        <input name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="123456" aria-label="Code from the email" required />
+        <button class="btn" type="submit">Save</button>
+      </div>
+      <p class="form-status" role="status"></p>
+    </form>`;
+}
+
+/** Wire a code form: on success the guest is now a full account, and `done` runs. */
+function wireLinkCode(id: string, email: () => string, done: () => void) {
+  onSubmit(`#${id}`, async (form) => {
+    formStatus(form, 'Checking…', true);
+    try {
+      session.account = await verifyLinkCode(email(), field(form, 'code'));
+      done();
+    } catch (e) {
+      formStatus(form, (e as Error).message);
+    }
+  });
 }
 
 /** Wire the prompt. It redraws itself in place (to say "check your inbox", say). */
@@ -677,6 +705,12 @@ export function wireKeepName(nag = true) {
     } catch (e) {
       formStatus(form, (e as Error).message);
     }
+  });
+  wireLinkCode('keep-code', () => keepStore(KEEP_SENT_KEY), () => {
+    keepStore(KEEP_SENT_KEY, null);
+    toast('🔒 Saved! Sign in with that email on any device to pick up where you left off.');
+    redraw();
+    onChange();
   });
   on('#keep-again', () => {
     keepStore(KEEP_SENT_KEY, null);
@@ -846,8 +880,17 @@ export function showProfile(back: () => void) {
   onSubmit('#link-form', async (form) => {
     formStatus(form, 'Sending…', true);
     try {
-      await linkEmail(field(form, 'email'));
+      const email = field(form, 'email');
+      await linkEmail(email);
       formStatus(form, 'Check your inbox and tap the confirmation link.');
+      if (!document.getElementById('link-code')) {
+        form.insertAdjacentHTML('afterend', linkCodeHtml('link-code'));
+        wireLinkCode('link-code', () => email, () => {
+          toast('🔒 Saved! Sign in with that email on any device to pick up where you left off.');
+          onChange();
+          showProfile(back);
+        });
+      }
     } catch (e) {
       formStatus(form, (e as Error).message);
     }
