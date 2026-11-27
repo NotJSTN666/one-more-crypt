@@ -1,5 +1,7 @@
 // Small DOM helpers shared by every screen.
 
+import { screenTip } from './screen-tips';
+
 export const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
 export const overlay = $('overlay');
@@ -127,6 +129,13 @@ export function showOverlay(name: string, html: string) {
     top.textContent = '← Back';
     top.addEventListener('click', () => exit.click());
     overlay.querySelector('.panel')!.prepend(top);
+  }
+  const tip = screenTip(name, fresh);
+  if (tip) {
+    const panel = overlay.querySelector('.panel')!;
+    const head = panel.querySelector(':scope > h2');
+    if (head) head.after(tip);
+    else panel.prepend(tip);
   }
   overlay.hidden = false;
   overlay.scrollTop = keepScroll;
