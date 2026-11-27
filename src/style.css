@@ -7287,7 +7287,14 @@ body.menu:has(#overlay[data-screen='title']:not([hidden])) #ghosts { opacity: 0.
 /* The Twelve Gifts: two rows of six. */
 .midwinter-track { border-color: #4f6680; background: linear-gradient(180deg, rgba(159, 232, 255, 0.1), transparent), var(--panel); }
 .midwinter-track > b { color: #bfe8ff; }
-.wn-slots.twelve { display: grid; grid-template-columns: repeat(6, 36px); justify-content: center; }
+.wn-slots.twelve { display: grid; grid-template-columns: repeat(6, 44px); justify-content: center; }
+/* Each gift shows itself: the hero in the cloak, headwear or aura, or the Souls. */
+.wn-slot.gift { position: relative; width: 44px; min-height: 54px; justify-content: space-between; }
+.wn-slot.gift .wn-art { width: 32px; height: 32px; image-rendering: pixelated; }
+.wn-slot.gift .wn-souls { display: flex; flex-direction: column; align-items: center; font-size: 14px; line-height: 1; padding-top: 3px; }
+.wn-slot.gift .wn-souls em { font: 8px var(--pixel); font-style: normal; margin-top: 3px; color: var(--gold); }
+.wn-slot.gift .wn-got { position: absolute; top: -5px; right: -5px; width: 15px; height: 15px; display: grid; place-items: center; font-size: 10px; line-height: 1; color: #07040b; background: #bfe8ff; border-radius: 50%; }
+.wn-slot.gift.today .wn-souls em { color: var(--deep); }
 .midwinter-track .wn-slot.got { color: #bfe8ff; }
 .midwinter-track .wn-slot.today { background: #bfe8ff; border-color: #bfe8ff; box-shadow: 0 0 12px rgba(159, 232, 255, 0.55); }
 

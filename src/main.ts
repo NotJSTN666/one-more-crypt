@@ -3647,12 +3647,25 @@ function welcomeTrackHtml(): string {
 }
 
 /** The Twelve Gifts of Midwinter: twelve slots, today's opened (or waiting), and what's next. */
+/** A gift as it really looks: your hero in the cloak, the headwear or the aura, or the Souls. */
+function giftArt(r: (typeof MIDWINTER_GIFTS)[number]): string {
+  const hero = meta.hero as HeroId;
+  const img = (look: string, head: string, glow = { cls: '', style: '' }) =>
+    `<img class="wn-art ${glow.cls}" style="${glow.style}" src="${heroPortrait(hero, {}, [], 2, look, head)}" alt="" width="32" height="32" />`;
+  if ('look' in r) return img(r.look, '');
+  if ('head' in r) return img('', r.head);
+  if ('aura' in r) return img('', '', auraClass(r.aura));
+  if ('souls' in r) return `<i class="wn-souls">${pxi('skull')}<em>${r.souls}</em></i>`;
+  return `<i>${midwinterLabel(r).icon}</i>`;
+}
+
 function midwinterTrackHtml(): string {
   const opened = midwinterOpened();
   const slots = MIDWINTER_GIFTS.map((r, i) => {
     const n = i + 1;
     const state = n <= opened ? (lastMidwinter?.n === n ? 'today' : 'got') : n === opened + 1 ? 'next' : '';
-    return `<span class="wn-slot ${state}" title="Gift ${n}: ${esc(midwinterLabel(r).name)}"><i>${n <= opened ? '✓' : midwinterLabel(r).icon}</i><small>${n}</small></span>`;
+    const got = n <= opened ? '<b class="wn-got" aria-label="Opened">✓</b>' : '';
+    return `<span class="wn-slot gift ${state}" title="Gift ${n}: ${esc(midwinterLabel(r).name)}">${giftArt(r)}${got}<small>${n}</small></span>`;
   }).join('');
   const waiting = midwinterWaiting(dailyNumber());
   const next = opened < MIDWINTER_GIFTS.length ? MIDWINTER_GIFTS[opened] : null;

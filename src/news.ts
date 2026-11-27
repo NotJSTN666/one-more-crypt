@@ -31,6 +31,7 @@ export const NEWS: NewsDay[] = [
       '🎁 The Twelve Gifts of Midwinter: finish a run on any day of Midwinter, in any mode, to open the next of twelve gifts. Souls, two cloaks, a gift bow, a candle wreath, the Silent Night aura, and on the twelfth day the Twelfth Crown and the title Keeper of Midwinter.',
       '🎄 Every crypt is dressed for the season: snow on the walls, icicles, holly, and red candles in holly wreaths.',
       '🎶 Sleigh bells in the crypt\'s music while Midwinter lasts.',
+      '👀 Each of the Twelve Gifts shows how it looks on your hero before you open it.',
       '🏛️ Winter cloaks, headwear, auras and Hall pieces are in the Ossuary, this season only. The Midwinter Mantle is yours just for playing a run.',
       '✨ Act III\'s own rewards, never sold: the Rimewalker, the Hearthkeeper and Harold\'s Scarf cloaks, the Crown of Rime, Pip\'s Earmuffs, the Beacon Fire and Long Night auras, and six titles.',
     ],
