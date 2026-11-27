@@ -1,5 +1,6 @@
 import './style.css';
 import { relicIcon, boonIcon, iconCanvas, iconsFromEmoji } from './relic-icons';
+import { startEmojiIcons } from './emoji-icons';
 import { installPixelIcons, pxi } from './pixel-icons';
 import { THEMES, applyTheme, loadThemeFonts, onThemeMusic, savedTheme, setSeasonWeather, setThemeMusic, theme, themeMusicOn, type ThemeId } from './themes';
 import { installThemeFx } from './theme-fx';
@@ -5938,6 +5939,7 @@ if (firstVisit() && !visiting && !challengeCode && (!playMode || playMode === 'd
   } else openMode(playMode);
 }
 installPixelIcons();
+startEmojiIcons();
 startGhosts();
 requestAnimationFrame(loop);
 
