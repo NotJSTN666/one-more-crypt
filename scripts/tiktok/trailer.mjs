@@ -44,8 +44,8 @@ await p.evaluate(async () => {
   const { ACHIEVEMENTS } = await import('/src/content.ts');
   localStorage.clear();
   localStorage.setItem('cryptfall:v1', JSON.stringify({ seenLogin: true, seenOnlineLogin: true, tutorialDone: true, name: 'Gravekeeper', totals: { runs: 40 } }));
-  for (const [k, v] of [['omc:news-read-day', '2099-01-01'], ['omc:news', 'story-act1'], ['omc:news-bell', '1'], ['omc:ns-intro', '1'], ['omc:delve-clip', '1']]) localStorage.setItem(k, v);
-  localStorage.setItem('wardenfall:meta', JSON.stringify({
+  for (const [k, v] of [['omc:news-read-day', '2099-01-01'], ['omc:news', 'story-act1'], ['omc:news-bell', '1'], ['omc:ns-intro', '1'], ['omc:news-midwinter-2026', '1'], ['omc:delve-clip', '1']]) localStorage.setItem(k, v);
+  localStorage.setItem('wardenfall:meta', JSON.stringify({ gifts: ['keepersfavour'],
     heroes: ['knight', 'rogue', 'necro', 'paladin', 'ranger', 'mage', 'barbarian', 'bellringer'], hero: 'knight', souls: 4200, earned: 16000,
     achievements: Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, 1])), codex: { plasma: 1 }, fusions: { plasma: 1 },
   }));
@@ -224,7 +224,7 @@ const centre = async () => {
   if (shape !== 'tall') return;
   await p.addStyleTag({ content: '.ns-pad, .touch-pad, .dpad, #pad { visibility: hidden !important; }' });
   await p.evaluate(() => {
-    const big = [...document.querySelectorAll('canvas')].map((c) => c.getBoundingClientRect()).filter((r) => r.width > 200).sort((a, b) => b.width * b.height - a.width * a.height)[0];
+    const big = [...document.querySelectorAll('canvas')].map((c) => c.getBoundingClientRect()).filter((r) => r.width > 200 && !(r.width >= innerWidth - 2 && r.height >= innerHeight - 2)).sort((a, b) => b.width * b.height - a.width * a.height)[0];
     if (!big) return;
     const shift = Math.max(0, Math.round(innerHeight * 0.5 - (big.top + big.bottom) / 2));
     for (const el of document.body.children) if (!el.id.startsWith('tt-') && el.tagName !== 'SCRIPT' && el.tagName !== 'CANVAS') el.style.transform = `translateY(${shift}px)`;

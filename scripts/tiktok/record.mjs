@@ -46,8 +46,8 @@ await p.evaluate(async ({ hero, comp }) => {
   const achievements = Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, 1]));
   localStorage.clear();
   localStorage.setItem('cryptfall:v1', JSON.stringify({ seenLogin: true, seenOnlineLogin: true, tutorialDone: true, name: 'Gravekeeper', totals: { runs: 40 } }));
-  for (const [k, v] of [['omc:news-read-day', '2099-01-01'], ['omc:news', 'story-act1'], ['omc:news-bell', '1'], ['omc:ns-intro', '1'], ['omc:delve-clip', '1']]) localStorage.setItem(k, v);
-  localStorage.setItem('wardenfall:meta', JSON.stringify({
+  for (const [k, v] of [['omc:news-read-day', '2099-01-01'], ['omc:news', 'story-act1'], ['omc:news-bell', '1'], ['omc:ns-intro', '1'], ['omc:news-midwinter-2026', '1'], ['omc:delve-clip', '1']]) localStorage.setItem(k, v);
+  localStorage.setItem('wardenfall:meta', JSON.stringify({ gifts: ['keepersfavour'],
     heroes: ['knight', 'rogue', 'necro', 'paladin', 'ranger', 'mage', 'barbarian', 'bellringer'], hero, souls: 4200, earned: 16000, achievements,
     nightShrine: { vigor: 0, reroll: 0, banish: 0, arsenal: false, start: '', hero, companion: comp, blade: 3, banner: 3, oath: 2, bond: 2, charm: 3 },
     grave: { nightTotal: 90000, nights: 60, nightKills: 6000, at: 1 },
@@ -151,18 +151,20 @@ await p.evaluate(({ hook, endLines, hookStyle }) => {
     document.head.appendChild(c);
   }
 }, { hook: idea.hook, endLines: idea.endLines, hookStyle: idea.hookStyle });
+// (Finding the play area always skips canvases that fill the whole screen, like the falling snow
+// during Midwinter, which would otherwise count as the biggest canvas.)
 // The hook goes above the game, in the space left by centring it: clear of the action and of
 // TikTok's own buttons and caption.
 const placeHook = () => p.evaluate((wide) => {
   if (wide) {
-    const c = [...document.querySelectorAll('canvas')].map((x) => x.getBoundingClientRect()).filter((r) => r.width > 200).sort((a, b) => b.width * b.height - a.width * a.height)[0];
+    const c = [...document.querySelectorAll('canvas')].map((x) => x.getBoundingClientRect()).filter((r) => r.width > 200 && !(r.width >= innerWidth - 2 && r.height >= innerHeight - 2)).sort((a, b) => b.width * b.height - a.width * a.height)[0];
     const h = document.getElementById('tt-hook');
     const w = Math.max(160, (c ? c.left : 300) - 40);
     // low in the empty column left of the board, under the floor's panels
     Object.assign(h.style, { left: '20px', right: 'auto', width: `${w}px`, top: 'auto', bottom: '9%', fontSize: '30px', lineHeight: '1.25' });
     return;
   }
-  const big = [...document.querySelectorAll('canvas')].map((c) => c.getBoundingClientRect()).filter((r) => r.width > 200).sort((a, b) => b.width * b.height - a.width * a.height)[0];
+  const big = [...document.querySelectorAll('canvas')].map((c) => c.getBoundingClientRect()).filter((r) => r.width > 200 && !(r.width >= innerWidth - 2 && r.height >= innerHeight - 2)).sort((a, b) => b.width * b.height - a.width * a.height)[0];
   const h = document.getElementById('tt-hook');
   // just above the game's top bar, in the space the centring made
   // (the top of the bars stacked right over the play area)
@@ -179,7 +181,7 @@ if (!WIDE) await p.addStyleTag({ content: '.ns-pad, .touch-pad, .dpad, #pad { vi
 // The play area sits high on a phone with the controls below it. With the controls hidden, move
 // everything down so the action is in the middle of the frame, clear of TikTok's buttons.
 const centre = () => p.evaluate(() => {
-  const big = [...document.querySelectorAll('canvas')].map((c) => c.getBoundingClientRect()).filter((r) => r.width > 200).sort((a, b) => b.width * b.height - a.width * a.height)[0];
+  const big = [...document.querySelectorAll('canvas')].map((c) => c.getBoundingClientRect()).filter((r) => r.width > 200 && !(r.width >= innerWidth - 2 && r.height >= innerHeight - 2)).sort((a, b) => b.width * b.height - a.width * a.height)[0];
   if (!big) return;
   const shift = Math.max(0, Math.round(innerHeight * 0.5 - (big.top + big.bottom) / 2));
   for (const el of document.body.children) if (el.id !== 'tt-hook' && el.id !== 'tt-end' && el.tagName !== 'SCRIPT') el.style.transform = `translateY(${shift}px)`;

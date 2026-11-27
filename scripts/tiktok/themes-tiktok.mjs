@@ -41,8 +41,8 @@ await p.evaluate(async () => {
   const { ACHIEVEMENTS } = await import('/src/content.ts');
   localStorage.clear();
   localStorage.setItem('cryptfall:v1', JSON.stringify({ seenLogin: true, seenOnlineLogin: true, tutorialDone: true, name: 'Gravekeeper', totals: { runs: 40 } }));
-  for (const [k, v] of [['omc:news-read-day', '2099-01-01'], ['omc:news', 'story-act1'], ['omc:news-bell', '1'], ['omc:ns-intro', '1'], ['omc:delve-clip', '1'], ['omc:themes-seen', '2']]) localStorage.setItem(k, v);
-  localStorage.setItem('wardenfall:meta', JSON.stringify({ heroes: ['knight', 'rogue', 'necro', 'paladin', 'ranger', 'mage', 'barbarian', 'bellringer'], hero: 'knight', achievements: Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, 1])), heroStats: { knight: { runs: 5 } } }));
+  for (const [k, v] of [['omc:news-read-day', '2099-01-01'], ['omc:news', 'story-act1'], ['omc:news-bell', '1'], ['omc:ns-intro', '1'], ['omc:news-midwinter-2026', '1'], ['omc:delve-clip', '1'], ['omc:themes-seen', '2']]) localStorage.setItem(k, v);
+  localStorage.setItem('wardenfall:meta', JSON.stringify({ gifts: ['keepersfavour'], heroes: ['knight', 'rogue', 'necro', 'paladin', 'ranger', 'mage', 'barbarian', 'bellringer'], hero: 'knight', achievements: Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, 1])), heroStats: { knight: { runs: 5 } } }));
 });
 await p.goto(PAGE);
 await p.waitForTimeout(2500);
@@ -110,7 +110,7 @@ for (let i = 0; i < 300; i++) {
 }
 // centre the board in the frame, clear of the hook and the name
 await p.evaluate(() => {
-  const big = [...document.querySelectorAll('canvas')].map((c) => c.getBoundingClientRect()).filter((r) => r.width > 200).sort((a, b) => b.width - a.width)[0];
+  const big = [...document.querySelectorAll('canvas')].map((c) => c.getBoundingClientRect()).filter((r) => r.width > 200 && !(r.width >= innerWidth - 2 && r.height >= innerHeight - 2)).sort((a, b) => b.width - a.width)[0];
   if (!big) return;
   const shift = Math.round(innerHeight * 0.5 - (big.top + big.bottom) / 2);
   for (const el of document.body.children) if (!el.id.startsWith('tt-') && el.tagName !== 'SCRIPT' && el.tagName !== 'CANVAS') el.style.transform = `translateY(${shift}px)`;

@@ -80,8 +80,8 @@ await p.evaluate(async () => {
   const { ACHIEVEMENTS } = await import('/src/content.ts');
   localStorage.clear();
   localStorage.setItem('cryptfall:v1', JSON.stringify({ seenLogin: true, seenOnlineLogin: true, tutorialDone: true, name: 'Gravekeeper', totals: { runs: 40, kills: 900, bestDaily: 212 }, bestEndless: 212 }));
-  for (const [k, v] of [['omc:news-read-day', '2099-01-01'], ['omc:news', 'story-act1'], ['omc:news-bell', '1'], ['omc:ns-intro', '1'], ['omc:delve-clip', '1']]) localStorage.setItem(k, v);
-  localStorage.setItem('wardenfall:meta', JSON.stringify({
+  for (const [k, v] of [['omc:news-read-day', '2099-01-01'], ['omc:news', 'story-act1'], ['omc:news-bell', '1'], ['omc:ns-intro', '1'], ['omc:news-midwinter-2026', '1'], ['omc:delve-clip', '1']]) localStorage.setItem(k, v);
+  localStorage.setItem('wardenfall:meta', JSON.stringify({ gifts: ['keepersfavour'],
     heroes: ['knight', 'rogue', 'necro', 'paladin', 'ranger', 'mage', 'barbarian', 'bellringer'], hero: 'knight', souls: 4200, earned: 16000,
     achievements: Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, 1])), dailyTotal: 18, deepest: 212, streak: { best: 9, count: 3, last: 0 },
     welcome: { claimed: 7, last: 0 },

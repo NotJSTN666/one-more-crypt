@@ -44,8 +44,8 @@ const seed = async (extra = {}) => {
     const { ACHIEVEMENTS } = await import('/src/content.ts');
     localStorage.clear();
     localStorage.setItem('cryptfall:v1', JSON.stringify({ seenLogin: true, seenOnlineLogin: true, tutorialDone: true, name: 'Gravekeeper', bestEndless: 31, totals: { runs: 40, bestDaily: 12 } }));
-    for (const [k, v] of [['omc:news-read-day', '2099-01-01'], ['omc:news', 'story-act1'], ['omc:news-bell', '1'], ['omc:ns-intro', '1'], ['omc:delve-clip', '1'], ['omc:android-test', 'no'], ['omc:invite-ask', '{"no":9}']]) localStorage.setItem(k, v);
-    localStorage.setItem('wardenfall:meta', JSON.stringify({
+    for (const [k, v] of [['omc:news-read-day', '2099-01-01'], ['omc:news', 'story-act1'], ['omc:news-bell', '1'], ['omc:ns-intro', '1'], ['omc:news-midwinter-2026', '1'], ['omc:delve-clip', '1'], ['omc:android-test', 'no'], ['omc:invite-ask', '{"no":9}']]) localStorage.setItem(k, v);
+    localStorage.setItem('wardenfall:meta', JSON.stringify({ gifts: ['keepersfavour'],
       heroes: ['knight', 'rogue', 'necro', 'paladin', 'ranger', 'mage', 'barbarian', 'bellringer'], hero: 'knight', souls: 4200, earned: 16000,
       achievements: Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, 1])), codex: { plasma: 1 }, fusions: { plasma: 1 },
       story: { done: [1, 2, 3, 4, 11, 12, 13] }, race: { laurels: 60, races: 20, wins: 12, trail: 'ember', finisher: 'coins' }, pets: ['bat'], pet: 'bat',
