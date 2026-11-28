@@ -27,7 +27,9 @@ mkdirSync(`${OUT}/frames`, { recursive: true });
 const b = await chromium.launch(BROWSER);
 // SHAPE=wide records the desktop layout at 1920x1080 instead of the phone's 1080x1920.
 const WIDE = process.env.SHAPE === 'wide';
-const p = await b.newPage(WIDE ? { viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1.5 } : { viewport: { width: 360, height: 640 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
+// VIEW=<w>x<h> (wide only): a smaller page, scaled up to 1920x1080, so the board fills more of the frame.
+const [vw, vh] = (process.env.VIEW ?? '1280x720').split('x').map(Number);
+const p = await b.newPage(WIDE ? { viewport: { width: vw, height: vh }, deviceScaleFactor: 1920 / vw } : { viewport: { width: 360, height: 640 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
 const errs = [];
 p.on('pageerror', (e) => errs.push(String(e)));
 // AT=<ISO time>: the page's clock reads as this moment (say, to film tomorrow's crypt tonight).
