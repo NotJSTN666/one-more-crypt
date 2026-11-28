@@ -9,6 +9,8 @@
     </style>
   </head>
   <body>
+    <!-- the game modules expect the overlay to exist -->
+    <div id="overlay" hidden></div>
     <canvas id="c" width="1200" height="630"></canvas>
     <script type="module">
       // Social preview card, all about the Daily Crypt: what it is (one crypt a day, the same for
@@ -19,6 +21,8 @@
       import { dailyNumber } from '/src/daily.ts';
       import { hashSeed } from '/src/rng.ts';
       import { runConfig } from '/src/meta.ts';
+      import { seasonOpen } from '/src/progression.ts';
+      import { centralDate } from '/src/daily.ts';
       await document.fonts.load('120px "Pirata One"');
       await document.fonts.load('28px Silkscreen');
       const c = document.getElementById('c');
@@ -39,6 +43,20 @@
           ctx.fillRect(x, y + 45, 48, 3);
           ctx.fillRect(x + 45, y, 3, 48);
         }
+      }
+
+      // Midwinter: snow drifting over the whole card, and a ribbon on the crypt (drawn below)
+      const winter = seasonOpen('midwinter', centralDate());
+      if (winter) {
+        let seed = 11;
+        const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+        for (let i = 0; i < 140; i++) {
+          const sz = rnd() < 0.2 ? 4 : rnd() < 0.5 ? 3 : 2;
+          ctx.globalAlpha = 0.25 + rnd() * 0.55;
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(Math.round(rnd() * 1200), Math.round(rnd() * 630), sz, sz);
+        }
+        ctx.globalAlpha = 1;
       }
 
       // today's daily crypt, first floor, as everyone sees it
@@ -78,6 +96,21 @@
       ctx.strokeRect(bx + B / 2 - tw / 2, by + B - 4, tw, 34);
       ctx.fillStyle = '#f2c14e';
       ctx.fillText(tag, bx + B / 2, by + B + 19);
+
+      if (winter) {
+        // a frosty ribbon across the crypt's top corner
+        ctx.save();
+        ctx.translate(bx + B - 6, by + 6);
+        ctx.rotate(Math.PI / 4);
+        ctx.fillStyle = '#bfe8ff';
+        ctx.fillRect(-120, 18, 240, 34);
+        ctx.fillStyle = '#16324a';
+        ctx.font = '15px Silkscreen';
+        ctx.textAlign = 'center';
+        ctx.fillText('MIDWINTER', 0, 41);
+        ctx.restore();
+        ctx.textAlign = 'center';
+      }
 
       // the words
       const cx = 330;
