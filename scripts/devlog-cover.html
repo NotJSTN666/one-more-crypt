@@ -1,0 +1,120 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Silkscreen&display=block" rel="stylesheet" />
+    <style>body { margin: 0; background: #000; } canvas { display: block; }</style>
+  </head>
+  <body>
+    <canvas id="cover" width="630" height="500"></canvas>
+    <script type="module">
+      // The Midwinter devlog's cover (630x500, itch.io's size), drawn one frame at a time so it can
+      // be saved as a looping GIF. window.BG is a screenshot of a snowy crypt to sit behind it all.
+      // Render with: node scripts/make-devlog-cover.mjs <crypt.png>
+      import { heroSprite } from '/src/hero.ts';
+      import { drawAura } from '/src/aura.ts';
+      await document.fonts.load('120px "Pirata One"');
+      await document.fonts.load('14px Silkscreen');
+      const bg = new Image();
+      bg.src = window.BG;
+      await bg.decode();
+      const c = document.getElementById('cover');
+      const ctx = c.getContext('2d');
+      const W = c.width, H = c.height;
+      const heroes = [
+        { img: heroSprite('rogue', {}, [], 'carolscarf', 'pipmuffs').normal, x: 92, size: 112 },
+        { img: heroSprite('mage', {}, [], 'twelfthnight', 'candlewreath').normal, x: 210, size: 112 },
+        { img: heroSprite('knight', {}, [], 'rimewalker', 'rimecrown').normal, x: 330, size: 160, aura: 'silentnight' },
+        { img: heroSprite('paladin', {}, [], 'hearthkeeper', 'giftbow').normal, x: 452, size: 112 },
+        { img: heroSprite('barbarian', {}, [], 'firsthearth', 'twelfthcrown').normal, x: 560, size: 112 },
+      ];
+      // a seeded scatter of snowflakes; each falls exactly one screen per loop, so the GIF loops cleanly
+      let seed = 7;
+      const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+      const flakes = Array.from({ length: 70 }, () => ({ x: rnd() * W, y: rnd() * H, size: rnd() < 0.25 ? 3 : 2, sway: 4 + rnd() * 10, phase: rnd() * Math.PI * 2, laps: rnd() < 0.5 ? 1 : 2 }));
+
+      function glow(x, y, r, color) {
+        const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+        g.addColorStop(0, color);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(x - r, y - r, r * 2, r * 2);
+      }
+
+      /** Draw the frame at `p` (0 to 1) of the loop. */
+      window.frame = (p) => {
+        const t = p * 2.56;
+        ctx.clearRect(0, 0, W, H);
+        // the snowy crypt, dark, behind everything
+        ctx.imageSmoothingEnabled = false;
+        const k = Math.max(W / bg.width, H / bg.height);
+        ctx.globalAlpha = 0.32;
+        ctx.drawImage(bg, (W - bg.width * k) / 2, (H - bg.height * k) / 2, bg.width * k, bg.height * k);
+        ctx.globalAlpha = 1;
+        const v = ctx.createRadialGradient(W / 2, H * 0.55, H * 0.2, W / 2, H * 0.55, W * 0.7);
+        v.addColorStop(0, 'rgba(7,4,11,0.35)');
+        v.addColorStop(1, 'rgba(7,4,11,0.92)');
+        ctx.fillStyle = v;
+        ctx.fillRect(0, 0, W, H);
+        glow(W / 2, 140, 230, 'rgba(95,178,255,0.16)');
+        // words
+        ctx.textAlign = 'center';
+        ctx.font = '30px "Pirata One"';
+        ctx.fillStyle = '#d23a46';
+        ctx.fillText('One More Crypt', W / 2, 48);
+        ctx.font = '118px "Pirata One"';
+        ctx.fillStyle = '#16324a';
+        ctx.fillText('Midwinter', W / 2, 152 + 6);
+        ctx.shadowColor = 'rgba(159,232,255,0.8)';
+        ctx.shadowBlur = 26 + Math.sin(p * Math.PI * 2) * 6;
+        ctx.fillStyle = '#e6f6ff';
+        ctx.fillText('Midwinter', W / 2, 152);
+        ctx.shadowBlur = 0;
+        // NEW tag
+        ctx.save();
+        ctx.translate(548, 76);
+        ctx.rotate(0.12);
+        ctx.fillStyle = '#ff4d5a';
+        ctx.fillRect(-26, -12, 52, 22);
+        ctx.font = '11px Silkscreen';
+        ctx.fillStyle = '#fff';
+        ctx.fillText('NEW', 0, 4);
+        ctx.restore();
+        ctx.font = '13px Silkscreen';
+        ctx.fillStyle = '#e8dcc4';
+        ctx.fillText('ACT III: THE LONG NIGHT · THE TWELVE GIFTS', W / 2, 194);
+        // the heroes in their winter best, on a snowy ledge
+        const feet = 420;
+        glow(330, feet - 70, 170, 'rgba(255,190,110,0.18)');
+        for (const h of heroes) if (h.aura) drawAura(ctx, h.aura, h.x, feet, h.size, t, 'back');
+        for (const h of heroes) {
+          const bob = Math.round(Math.sin(p * Math.PI * 2 + h.x) * 1.5);
+          ctx.fillStyle = 'rgba(0,0,0,0.5)';
+          ctx.fillRect(h.x - h.size * 0.28, feet - 3, h.size * 0.56, 5);
+          ctx.drawImage(h.img, Math.round(h.x - h.size / 2), feet - h.size + bob, h.size, h.size);
+        }
+        for (const h of heroes) if (h.aura) drawAura(ctx, h.aura, h.x, feet, h.size, t, 'front');
+        ctx.globalAlpha = 1;
+        // ledge of snow
+        ctx.fillStyle = '#e6f6ff';
+        for (let x = 0; x < W; x += 16) ctx.fillRect(x, feet + 2, 10, 3);
+        // falling snow
+        ctx.fillStyle = '#ffffff';
+        for (const f of flakes) {
+          const y = (f.y + p * H * f.laps) % H;
+          const x = f.x + Math.sin(p * Math.PI * 2 * f.laps + f.phase) * f.sway;
+          ctx.globalAlpha = 0.85;
+          ctx.fillRect(Math.round(x), Math.round(y), f.size, f.size);
+        }
+        ctx.globalAlpha = 1;
+        ctx.font = '12px Silkscreen';
+        ctx.fillStyle = '#9a8fa8';
+        ctx.fillText('UNTIL JANUARY 6  ·  ', W / 2 - 92, 470);
+        ctx.fillStyle = '#7cf5c4';
+        ctx.fillText('THE DAILY NOW FIGHTS BACK', W / 2 + 92, 470);
+      };
+      window.frame(0);
+      window.coverReady = true;
+    </script>
+  </body>
+</html>
