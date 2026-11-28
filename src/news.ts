@@ -48,6 +48,7 @@ export const NEWS: NewsDay[] = [
       '🔒 Saving your progress with an email now works even when the email\'s button opens a different browser: the email has a 6-digit code, and the game has a box to type it in.',
       '📱 Added to an iPhone home screen, the menus now stay clear of the notch and status bar, so the top buttons can be tapped again.',
       '💡 The first time you open the Ossuary, Wardrobe, Hall, Grimoire, leaderboards, the Hollow and other screens, a short tip says what each one is for.',
+      '🔓 After a run, under the Souls you earned, the results now show what they can buy next in the Ossuary (a new hero or an Endless relic), or how many more you need. Tap it to go straight there.',
       '🏛️ Winter cloaks, headwear, auras and Hall pieces are in the Ossuary, this season only. The Midwinter Mantle is yours just for playing a run.',
       '✨ Act III\'s own rewards, never sold: the Rimewalker, the Hearthkeeper and Harold\'s Scarf cloaks, the Crown of Rime, Pip\'s Earmuffs, the Beacon Fire and Long Night auras, and six titles.',
     ],

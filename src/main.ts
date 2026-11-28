@@ -15,7 +15,7 @@ import { TRIAL_SOULS, trialProgressText, weekTrial } from './trials';
 import { ACHIEVEMENT_BY_ID, DAILY_TOTALS, ELITES, FEATURES, HERO_BY_ID, HEROES, dailyHero, hordeHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait, heroSprite } from './hero';
 import { BOON_BY_ID, ENEMY_INFO, W, MIST_BITE, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode, type EnemyKind } from './game';
-import { deepestFloor, podiumCount, acceptQuest, checkRun, grantFeats, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, claimMidwinter, midwinterOpened, midwinterWaiting, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, rerollCost, spendSouls, finishRace, racePrizeOwned, acceptPlayerGift, INVITE_SOULS, INVITE_PETS, type InviteGain, finishHordeMeta, receiveGift, equipTitle, FAIR_DAILY, LEAN_DAILY, MISSILE_DAILY, type RunReward } from './meta';
+import { deepestFloor, podiumCount, acceptQuest, checkRun, grantFeats, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, claimMidwinter, midwinterOpened, midwinterWaiting, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, rerollCost, spendSouls, finishRace, racePrizeOwned, acceptPlayerGift, INVITE_SOULS, INVITE_PETS, type InviteGain, finishHordeMeta, receiveGift, equipTitle, FAIR_DAILY, LEAN_DAILY, MISSILE_DAILY, nextUnlock, type RunReward } from './meta';
 import { drawGhosts, startGhosts, watching } from './ghosts';
 import { celebrate, celebrateNotes, holdCelebrations, setHallOpener, setOssuaryHost, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
 import { ASCEND_FLOOR, FUSION_BY_ID, RELIC_BY_ID, type FusedId, type RelicId } from './relics';
@@ -3076,6 +3076,7 @@ function showDeath(r: RunResult, best: boolean) {
     ${best ? '<p class="streak">New deepest descent!</p>' : ''}
     ${ONLINE && !ch ? `<p class="rank-line ${daily ? 'daily-rank' : ''}" id="rank">${signedIn() ? 'Carving your name into the crypt…' : daily ? 'Counting the fallen…' : ''}</p>` : ''}
     ${lastReward ? `<p class="earned-line"><b>+${lastReward.souls.toLocaleString()} Souls</b><span>💀 ${meta.souls.toLocaleString()} to spend</span></p>` : ''}
+    ${lastReward ? unlockHintHtml() : ''}
     ${earned.length ? `<p class="earned-feats">${earned.slice(0, 3).map((e) => `<span>${e}</span>`).join('')}${earned.length > 3 ? `<span>+${earned.length - 3} more</span>` : ''}</p>` : ''}
     ${lastWelcome ? seven : ''}
     ${lastMidwinter ? midwinterTrackHtml() : ''}
@@ -3167,6 +3168,7 @@ function showDeath(r: RunResult, best: boolean) {
     }, 1800);
   }
   on('#ossuary', () => showOssuary(backHere));
+  on('#unlock-hint', () => showOssuary(backHere));
   on('#hall', () => openHall(backHere));
   on('#invite', () => showInvite(backHere));
   on('#title', () => {
@@ -3685,6 +3687,18 @@ function midwinterTrackHtml(): string {
       : 'All twelve gifts opened. The Twelfth Crown and the title are yours.';
   const head = lastMidwinter ? `❄️ The Twelve Gifts · gift ${lastMidwinter.n} opened: ${esc(midwinterLabel(lastMidwinter.reward).name)}` : '❄️ The Twelve Gifts of Midwinter';
   return `<div class="welcome-track midwinter-track"><b>${head}</b><div class="wn-slots twelve">${slots}</div><p>${line}</p></div>`;
+}
+
+/** Under the Souls a run earned: what they can buy next in the Ossuary, a tap away. */
+function unlockHintHtml(): string {
+  const next = nextUnlock();
+  if (!next) return '';
+  const name = next.kind === 'hero' ? `the ${HERO_BY_ID[next.id as HeroId].name}` : RELIC_BY_ID[next.id as RelicId].name;
+  const what = next.kind === 'hero' ? 'a new hero for Endless' : 'a new relic for Endless';
+  const line = next.ready
+    ? `🔓 You can unlock <b>${esc(name)}</b> now, ${what}.`
+    : `🔒 <b>${(next.cost - meta.souls).toLocaleString()} more Souls</b> to unlock <b>${esc(name)}</b>, ${what}.`;
+  return `<button type="button" class="unlock-hint${next.ready ? ' ready' : ''}" id="unlock-hint">${line} <span class="unlock-go">Ossuary →</span></button>`;
 }
 
 /** The Midwinter card on the title: today's gift, and Act III. */

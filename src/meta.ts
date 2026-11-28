@@ -565,6 +565,21 @@ export function buyPet(id: string): boolean {
   return true;
 }
 
+/**
+ * What the Souls can buy next, for a nudge on the results screen: a hero first (the bigger
+ * change), else an Endless relic. Something affordable now if there is anything, else the
+ * cheapest thing left. Null once the Ossuary's heroes and relics are all yours.
+ */
+export function nextUnlock(): { kind: 'hero' | 'relic'; id: string; cost: number; ready: boolean } | null {
+  const heroes = HEROES.filter((h) => !h.story && h.cost > 0 && !heroUnlocked(h.id)).map((h) => ({ kind: 'hero' as const, id: h.id as string, cost: h.cost }));
+  const relics = (Object.entries(RELIC_COSTS) as [RelicId, number][]).filter(([id]) => !meta.relics.includes(id)).map(([id, cost]) => ({ kind: 'relic' as const, id: id as string, cost }));
+  const byCost = (a: { cost: number }, b: { cost: number }) => a.cost - b.cost;
+  const ready = [...heroes.sort(byCost), ...relics.sort(byCost)].find((u) => u.cost <= meta.souls);
+  if (ready) return { ...ready, ready: true };
+  const next = [...heroes, ...relics].sort(byCost)[0];
+  return next ? { ...next, ready: false } : null;
+}
+
 export function buyRelic(id: RelicId): boolean {
   const cost = RELIC_COSTS[id] ?? 0;
   if (meta.relics.includes(id) || meta.souls < cost) return false;
