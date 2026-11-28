@@ -1166,6 +1166,11 @@ document.addEventListener('click', (e) => {
   if ((e.target as HTMLElement).closest?.('#title-settings')) showSettings(showTitle);
 });
 
+// The title screen's 🏆 button: the leaderboards, one tap from the top.
+document.addEventListener('click', (e) => {
+  if ((e.target as HTMLElement).closest?.('#title-board')) showLeaderboard(showTitle);
+});
+
 /** A theme as the picker shows it: a strip of its colours, its name in its own lettering, and what it is. */
 function themeOptionHtml(t: (typeof THEMES)[number], head: boolean): string {
   const chosen = t.id === theme().id;
@@ -2382,6 +2387,7 @@ function accountChip(lead = ''): string {
   const mute = lead + muteChipHtml()
     + `<button class="account-chip mute-chip news-chip" id="title-news" aria-label="What's new${newsUnread() ? `, ${newsUnread()} unread` : ''}">${pxi('scroll')}${newsUnread() ? '<i class="news-dot"></i>' : ''}</button>`
     + chatChipHtml()
+    + (ONLINE ? `<button class="account-chip mute-chip" id="title-board" aria-label="Leaderboards">${pxi('trophy')}</button>` : '')
     + `<button class="account-chip mute-chip" id="title-settings" aria-label="Settings">${pxi('gear')}</button>`
     + (PORTAL ? '' : `<button class="account-chip mute-chip kofi-chip ${calmMotion() ? 'still' : ''}" id="title-kofi" aria-label="Support One More Crypt"><span class="kofi-heart" aria-hidden="true">${pxi('heart')}</span></button>`)
     // Install, up top beside the sound, wherever the browser can add the game to the home screen.

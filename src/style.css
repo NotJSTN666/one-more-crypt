@@ -832,7 +832,7 @@ h2.dead {
   flex-wrap: wrap;
   justify-content: flex-end;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   min-height: 32px;
   margin-bottom: 8px;
 }
@@ -840,7 +840,7 @@ h2.dead {
 .account-chip.mute-chip {
   align-self: stretch;
   flex: none;
-  padding: 4px 8px;
+  padding: 4px 6px;
   font-size: 14px;
   line-height: 1;
 }
@@ -7398,3 +7398,11 @@ body.midwinter #overlay[data-screen='title'] .logo::before {
 .screen-tip p { flex: 1; margin: 0; font-family: var(--read); font-size: 13px; line-height: 1.45; color: var(--text); text-transform: none; letter-spacing: 0; }
 .screen-tip-x { flex: none; padding: 2px 6px; background: none; border: 0; color: var(--muted); font-size: 14px; cursor: pointer; }
 .screen-tip-x:hover { color: var(--gold); }
+
+/* The title's top row stays one row on phones: the icon chips tighten, and a long name gives way
+   (cut short with an ellipsis) before anything wraps under it. */
+.account-row > .account-chip:not(.mute-chip) { flex: 0 1 auto; min-width: 88px; }
+@media (max-width: 420px) {
+  .account-row .icon-btn .pxi, .account-row .mute-chip .pxi { width: 20px; height: 20px; }
+  .account-chip.mute-chip { padding: 4px 5px; }
+}
