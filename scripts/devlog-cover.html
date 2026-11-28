@@ -15,6 +15,8 @@
       import { drawAura } from '/src/aura.ts';
       await document.fonts.load('120px "Pirata One"');
       await document.fonts.load('14px Silkscreen');
+      // window.PAGE: the itch page's own cover rather than the devlog's
+      const PAGE = Boolean(window.PAGE);
       const bg = new Image();
       bg.src = window.BG;
       await bg.decode();
@@ -59,18 +61,36 @@
         glow(W / 2, 140, 230, 'rgba(95,178,255,0.16)');
         // words
         ctx.textAlign = 'center';
-        ctx.font = '30px "Pirata One"';
-        ctx.fillStyle = '#d23a46';
-        ctx.fillText('One More Crypt', W / 2, 48);
-        ctx.font = '118px "Pirata One"';
-        ctx.fillStyle = '#16324a';
-        ctx.fillText('Midwinter', W / 2, 152 + 6);
-        ctx.shadowColor = 'rgba(159,232,255,0.8)';
-        ctx.shadowBlur = 26 + Math.sin(p * Math.PI * 2) * 6;
-        ctx.fillStyle = '#e6f6ff';
-        ctx.fillText('Midwinter', W / 2, 152);
-        ctx.shadowBlur = 0;
+        if (PAGE) {
+          // the game's own cover: its name big and red, with a frosty Midwinter tag
+          ctx.font = '96px "Pirata One"';
+          ctx.fillStyle = '#3a0a10';
+          ctx.fillText('One More Crypt', W / 2, 118 + 6);
+          ctx.shadowColor = 'rgba(210,58,70,0.75)';
+          ctx.shadowBlur = 28;
+          ctx.fillStyle = '#d23a46';
+          ctx.fillText('One More Crypt', W / 2, 118);
+          ctx.shadowColor = 'rgba(159,232,255,0.8)';
+          ctx.shadowBlur = 14;
+          ctx.font = '34px "Pirata One"';
+          ctx.fillStyle = '#e6f6ff';
+          ctx.fillText('Midwinter', W / 2, 46);
+          ctx.shadowBlur = 0;
+        } else {
+          ctx.font = '30px "Pirata One"';
+          ctx.fillStyle = '#d23a46';
+          ctx.fillText('One More Crypt', W / 2, 48);
+          ctx.font = '118px "Pirata One"';
+          ctx.fillStyle = '#16324a';
+          ctx.fillText('Midwinter', W / 2, 152 + 6);
+          ctx.shadowColor = 'rgba(159,232,255,0.8)';
+          ctx.shadowBlur = 26 + Math.sin(p * Math.PI * 2) * 6;
+          ctx.fillStyle = '#e6f6ff';
+          ctx.fillText('Midwinter', W / 2, 152);
+          ctx.shadowBlur = 0;
+        }
         // NEW tag
+        if (!PAGE) {
         ctx.save();
         ctx.translate(548, 76);
         ctx.rotate(0.12);
@@ -80,9 +100,14 @@
         ctx.fillStyle = '#fff';
         ctx.fillText('NEW', 0, 4);
         ctx.restore();
+        }
         ctx.font = '13px Silkscreen';
         ctx.fillStyle = '#e8dcc4';
-        ctx.fillText('ACT III: THE LONG NIGHT · THE TWELVE GIFTS', W / 2, 194);
+        ctx.fillText(PAGE ? 'ONE CRYPT. ONE TRY A DAY.' : 'ACT III: THE LONG NIGHT · THE TWELVE GIFTS', W / 2, PAGE ? 170 : 194);
+        if (PAGE) {
+          ctx.fillStyle = '#f2c14e';
+          ctx.fillText('HOW DEEP CAN YOU GO?', W / 2, 194);
+        }
         // the heroes in their winter best, on a snowy ledge
         const feet = 420;
         glow(330, feet - 70, 170, 'rgba(255,190,110,0.18)');
@@ -108,10 +133,15 @@
         }
         ctx.globalAlpha = 1;
         ctx.font = '12px Silkscreen';
-        ctx.fillStyle = '#9a8fa8';
-        ctx.fillText('UNTIL JANUARY 6  ·  ', W / 2 - 92, 470);
-        ctx.fillStyle = '#7cf5c4';
-        ctx.fillText('THE DAILY NOW FIGHTS BACK', W / 2 + 92, 470);
+        if (PAGE) {
+          ctx.fillStyle = '#9a8fa8';
+          ctx.fillText('FREE  ·  NO DOWNLOAD  ·  PLAYS IN YOUR BROWSER', W / 2, 470);
+        } else {
+          ctx.fillStyle = '#9a8fa8';
+          ctx.fillText('UNTIL JANUARY 6  ·  ', W / 2 - 92, 470);
+          ctx.fillStyle = '#7cf5c4';
+          ctx.fillText('THE DAILY NOW FIGHTS BACK', W / 2 + 92, 470);
+        }
       };
       window.frame(0);
       window.coverReady = true;
