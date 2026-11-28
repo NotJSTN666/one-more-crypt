@@ -30,6 +30,15 @@ const WIDE = process.env.SHAPE === 'wide';
 const p = await b.newPage(WIDE ? { viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1.5 } : { viewport: { width: 360, height: 640 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
 const errs = [];
 p.on('pageerror', (e) => errs.push(String(e)));
+// AT=<ISO time>: the page's clock reads as this moment (say, to film tomorrow's crypt tonight).
+if (process.env.AT) {
+  await p.addInitScript((at) => {
+    const shift = Date.parse(at) - Date.now();
+    const D = Date;
+    class Shifted extends D { constructor(...a) { super(...(a.length ? a : [D.now() + shift])); } static now() { return D.now() + shift; } }
+    globalThis.Date = Shifted;
+  }, process.env.AT);
+}
 await p.addInitScript({ path: new URL('./shim.js', import.meta.url).pathname });
 for (let i = 0; i < 40; i++) {
   try {

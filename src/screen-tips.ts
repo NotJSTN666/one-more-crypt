@@ -53,7 +53,9 @@ export function screenTip(name: string, fresh: boolean): HTMLElement | null {
   if (showing !== name) return null;
   markSeen(name);
   const card = document.createElement('aside');
-  card.className = 'screen-tip';
+  // Only the first drawing fades in: a screen that redraws itself every second (a race lobby
+  // waiting for players) would otherwise flash its tip each time.
+  card.className = fresh ? 'screen-tip enter' : 'screen-tip';
   card.setAttribute('role', 'note');
   card.innerHTML = `<span class="screen-tip-icon" aria-hidden="true">${tip[0]}</span><p>${tip[1]}</p><button type="button" class="screen-tip-x" aria-label="Got it">✕</button>`;
   card.querySelector('button')!.addEventListener('click', () => {

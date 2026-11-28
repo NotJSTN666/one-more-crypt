@@ -7394,7 +7394,8 @@ body.midwinter #overlay[data-screen='title'] .logo::before {
 .listing-badges a { color: var(--muted); font-size: 11px; text-decoration: none; }
 
 /* The first-visit tip on a screen (src/screen-tips.ts). */
-.screen-tip { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 12px; padding: 10px 10px 10px 12px; text-align: left; background: linear-gradient(180deg, color-mix(in srgb, var(--gold) 12%, transparent), transparent), var(--panel); border: 1px solid color-mix(in srgb, var(--gold) 55%, var(--line)); animation: fade 0.3s ease-out; }
+.screen-tip { display: flex; gap: 10px; align-items: flex-start; margin: 0 0 12px; padding: 10px 10px 10px 12px; text-align: left; background: linear-gradient(180deg, color-mix(in srgb, var(--gold) 12%, transparent), transparent), var(--panel); border: 1px solid color-mix(in srgb, var(--gold) 55%, var(--line)); }
+.screen-tip.enter { animation: fade 0.3s ease-out; }
 .screen-tip-icon { flex: none; font-size: 20px; line-height: 1; padding-top: 2px; }
 .screen-tip-icon .pxi { width: 24px; height: 24px; }
 .screen-tip p { flex: 1; margin: 0; font-family: var(--read); font-size: 13px; line-height: 1.45; color: var(--text); text-transform: none; letter-spacing: 0; }

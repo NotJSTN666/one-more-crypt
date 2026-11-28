@@ -55,6 +55,7 @@ export const NEWS: NewsDay[] = [
     ],
     fixes: [
       '🔙 On phones with a notch or status bar, the Back button no longer sits on top of each screen\'s title.',
+      '💡 A screen\'s first-visit tip no longer flashes on screens that keep refreshing, like a Crypt Race lobby.',
     ],
     go: ['story', 'daily'],
   },
