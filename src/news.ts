@@ -53,6 +53,9 @@ export const NEWS: NewsDay[] = [
       '🏛️ Winter cloaks, headwear, auras and Hall pieces are in the Ossuary, this season only. The Midwinter Mantle is yours just for playing a run.',
       '✨ Act III\'s own rewards, never sold: the Rimewalker, the Hearthkeeper and Harold\'s Scarf cloaks, the Crown of Rime, Pip\'s Earmuffs, the Beacon Fire and Long Night auras, and six titles.',
     ],
+    fixes: [
+      '🔙 On phones with a notch or status bar, the Back button no longer sits on top of each screen\'s title.',
+    ],
     go: ['story', 'daily'],
   },
   {

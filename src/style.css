@@ -2720,7 +2720,9 @@ a.btn.share-btn { text-decoration: none; display: flex; align-items: center; jus
 /* A small Back that stays at the top while a long list scrolls. */
 .back-top {
   position: sticky;
-  top: env(safe-area-inset-top, 0px);
+  /* 0, not the notch's inset: a sticky box is held inside the overlay's padding, which already
+     keeps clear of the notch (an inset here pushed Back down over each screen's title). */
+  top: 0;
   z-index: 2;
   display: block;
   width: fit-content;
