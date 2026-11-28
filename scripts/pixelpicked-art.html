@@ -114,6 +114,15 @@
         ctx.fillStyle = '#f2c14e';
         ctx.font = '28px Silkscreen';
         ctx.fillText('HOW DEEP CAN YOU GO?', lx + 6, 628);
+        // window.TAG: an optional ribbon under the words, e.g. for an update's devlog
+        if (window.TAG) {
+          ctx.font = '26px Silkscreen';
+          const tw = ctx.measureText(window.TAG).width + 36;
+          ctx.fillStyle = '#bfe8ff';
+          ctx.fillRect(lx, 662, tw, 46);
+          ctx.fillStyle = '#16324a';
+          ctx.fillText(window.TAG, lx + 18, 695);
+        }
         // the heroes, standing in a row on a candlelit ledge
         ctx.imageSmoothingEnabled = false;
         const feet = 900, size = 128, gap = 160;
