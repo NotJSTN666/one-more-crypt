@@ -14,7 +14,7 @@ import { liveNews, unreadNews, type NewsGo } from './news';
 import { TRIAL_SOULS, trialProgressText, weekTrial } from './trials';
 import { ACHIEVEMENT_BY_ID, DAILY_TOTALS, ELITES, FEATURES, HERO_BY_ID, HEROES, dailyHero, hordeHero, type ComboDef, type HeroId } from './content';
 import { heroPortrait, heroSprite } from './hero';
-import { BOON_BY_ID, ENEMY_INFO, W, MIST_BITE, REAPER_FLOOR, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode, type EnemyKind } from './game';
+import { BOON_BY_ID, ENEMY_INFO, W, MIST_BITE, Game, fullPool, isBoss, type GameEvent, type GhostInfo, type Mode, type EnemyKind } from './game';
 import { deepestFloor, podiumCount, acceptQuest, checkRun, grantFeats, chooseStory, clearQuest, completeQuest, equipOutfit, finishRunMeta, heroUnlocked, noteBond, noteChallengeSeen, noteDeepest, noteDuelWin, noteStreak, meta, readLore, saveMeta, noteFusion, noteRelic, outfitFor, readEpitaph, runConfig, runsPlayed, claimWelcome, claimMidwinter, midwinterOpened, midwinterWaiting, storyDone, welcomeNext, welcomeWaiting, noteRaidJoin, raidWins, settleRaid, unsettledRaids, noteInvitedBy, settleInvite, noteFriends, rerollCost, spendSouls, finishRace, racePrizeOwned, acceptPlayerGift, INVITE_SOULS, INVITE_PETS, type InviteGain, finishHordeMeta, receiveGift, equipTitle, FAIR_DAILY, LEAN_DAILY, MISSILE_DAILY, type RunReward } from './meta';
 import { drawGhosts, startGhosts, watching } from './ghosts';
 import { celebrate, celebrateNotes, holdCelebrations, setHallOpener, setOssuaryHost, showGrimoire, showHeroSelect, showOssuary } from './progress-ui';
@@ -816,7 +816,7 @@ function processEvents() {
     if (ev.t === 'surge') renderer.banner('POWER SURGE!', '#5fe3ff');
     if (ev.t === 'drop') renderer.banner(ev.kind === 'chest' ? 'A CHEST APPEARS' : ev.kind === 'shrine' ? 'A SHRINE RISES' : 'A FOUNTAIN SPRINGS UP', '#f2c14e');
     if (ev.t === 'wavecleared') renderer.banner(`WAVE ${ev.wave} HELD +${ev.bonus}`, '#7ee081');
-    if (ev.t === 'reaper' && game.floor === REAPER_FLOOR) renderer.banner('DEATH WALKS THESE FLOORS', '#d3b0ff');
+    if (ev.t === 'reaper' && game.floor === game.reaperFloor()) renderer.banner('DEATH WALKS THESE FLOORS', '#d3b0ff');
     if (ev.t === 'boon') renderer.banner(`${BOON_BY_ID[ev.id].name.toUpperCase()}`, '#b07cff');
     if (ev.t === 'fuse') {
       const def = RELIC_BY_ID[ev.id];
@@ -1618,9 +1618,9 @@ function updateTip() {
     tip.innerHTML = `🛡️ Wave <b>${h.wave}</b>${game.alive.length ? '' : ` · next in <b>${h.next}</b>`} · <b style="color:${mult > 1 ? '#f2c14e' : 'inherit'}">×${mult}</b> · <b>${h.score.toLocaleString()}</b> pts${game.reaper ? ' · ☠️ Death walks' : ''}`;
   } else if (game.reaper?.waiting) tip.innerHTML = `☠️ Death waits in the corner. He walks in <b>${game.reaperIn} turn${game.reaperIn === 1 ? '' : 's'}</b>. Don't touch him.`;
   else if (game.reaper) tip.innerHTML = game.stairsOpen ? '☠️ <b>Death is coming.</b> Run for the stairs!' : '☠️ <b>Death is coming.</b> His touch is the end. Clear the floor and reach the stairs.';
-  else if (game.config.reaper && game.floor >= REAPER_FLOOR && game.reaperIn > 0)
+  else if (game.config.reaper && game.floor >= game.reaperFloor() && game.reaperIn > 0)
     tip.innerHTML = `☠️ Death rises in <b>${game.reaperIn} turn${game.reaperIn === 1 ? '' : 's'}</b>. Be gone before he does.`;
-  else if (game.config.reaper && game.floor >= REAPER_FLOOR - 5 && game.floor < REAPER_FLOOR) tip.innerHTML = `You hear footsteps behind you… <b>Death walks from floor ${REAPER_FLOOR}.</b>`;
+  else if (game.config.reaper && game.floor >= game.reaperFloor() - 5 && game.floor < game.reaperFloor()) tip.innerHTML = `You hear footsteps behind you… <b>Death walks from floor ${game.reaperFloor()}.</b>`;
   else if (game.holdout) tip.innerHTML = `<b>Vespers, wave ${game.holdout.wave} of ${game.holdout.of}.</b> Hold out: the stairs open after the last wave.`;
   else if (game.enemies.some((e) => e.asleep && !e.dead)) tip.innerHTML = 'The monks <b>sleep</b> and the stairs are open. Don\'t end a turn beside one.';
   else if (game.stairsOpen) tip.innerHTML = 'The seal is broken. <b>Take the stairs</b> to descend.';

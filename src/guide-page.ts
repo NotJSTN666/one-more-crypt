@@ -29,7 +29,7 @@ const FAQ: [string, string][] = [
   ['When does the Daily Crypt reset?', 'A new Daily Crypt opens every day at midnight Central Time (US). Everyone gets the same crypt, and you get one try.'],
   ['How long is a run?', 'A few minutes, which is why there is always time for one more.'],
   ['Does it work on phones?', 'Yes. Swipe or tap a tile to move, and tap your hero to wait. You can add it to your home screen and it plays like an app.'],
-  ['What happens at floor 150?', 'Death appears in a far corner with a countdown, then walks straight at you through walls. Nothing stops his touch: clear the floor and take the stairs before he reaches you.'],
+  ['When does Death come?', 'From floor 60 in the Daily, and floor 150 in Endless. He appears in a far corner with a countdown, then walks straight at you through walls. Nothing stops his touch: clear the floor and take the stairs before he reaches you.'],
 ];
 
 function relicTags(r: RelicDef): string {
@@ -163,7 +163,7 @@ footer a { margin: 0 8px; }
     <li><b>Strike a deal.</b> Chests, shrines and fountains offer a deal: a relic for a little blood, a rare relic for max HP, or a full heal.</li>
   </ol>
   <h3>Deeper down</h3>
-  <p>Every 20 floors the crypt becomes somewhere new: the Flooded Catacombs, where foes in water lose every other turn; the Charnel Halls, full of bone piles to smash; the Burning Depths, where lava burns anything that walks in; and the Abyss, where you only see what's near you. Cracked walls hide secret vaults: bump one twice. From floor 150, Death comes for you.</p>
+  <p>Every 20 floors the crypt becomes somewhere new: the Flooded Catacombs, where foes in water lose every other turn; the Charnel Halls, full of bone piles to smash; the Burning Depths, where lava burns anything that walks in; and the Abyss, where you only see what's near you. Cracked walls hide secret vaults: bump one twice. In the Daily, foes grow far tougher past floor 30 and Death comes for you from floor 60; in Endless he waits until floor 150.</p>
 </section>
 
 <section id="modes">

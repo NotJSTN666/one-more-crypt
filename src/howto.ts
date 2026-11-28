@@ -3,7 +3,7 @@ import { relicIcon } from './relic-icons';
 // renderer, each looping a few scripted moves so new players can see each rule.
 // Below them, picture cards for the modes, the deeper crypt, every hero and every foe.
 
-import { ENEMY_INFO, Game, REAPER_FLOOR, fullPool, type EnemyKind } from './game';
+import { ENEMY_INFO, Game, HUNT_REAPER_FLOOR, REAPER_FLOOR, fullPool, type EnemyKind } from './game';
 import { HEROES, type EliteMod } from './content';
 import { heroPortrait } from './hero';
 import { RELIC_BY_ID, type RelicId } from './relics';
@@ -218,14 +218,14 @@ export function howToHtml(links: { discord: string; kofi: string }): string {
     <div class="hcards">
       ${ZONES.map(([k, name, color, text]) => card(foeImg(k), name, text, ` style="--zone:${color}"`)).join('')}
     </div>
-    ${demo('death', `8 · From floor ${REAPER_FLOOR}, Death`, 'He waits in a far corner with a countdown, then rises and walks straight at you, through walls. Nothing stops his touch. Clear the floor and take the stairs first.')}
+    ${demo('death', `8 · From floor ${HUNT_REAPER_FLOOR} in the Daily (${REAPER_FLOOR} in Endless), Death`, 'He waits in a far corner with a countdown, then rises and walks straight at you, through walls. Nothing stops his touch. Clear the floor and take the stairs first.')}
 
     ${head('Heroes')}
     <div class="hcards">${heroes}</div>
 
     ${head('Foes')}
     <div class="hcards">${FOES.map(([k, t]) => card(foeImg(k), ENEMY_INFO[k].name, t)).join('')}</div>
-    <div class="hcards bosses">${BOSSES.map(([k, t]) => card(foeImg(k), ENEMY_INFO[k].name.replace(/^The /, ''), t)).join('')}${card(deathImg(), 'Death', `From floor ${REAPER_FLOOR}, and wave 25 of the Horde. Run.`)}</div>
+    <div class="hcards bosses">${BOSSES.map(([k, t]) => card(foeImg(k), ENEMY_INFO[k].name.replace(/^The /, ''), t)).join('')}${card(deathImg(), 'Death', `From floor ${HUNT_REAPER_FLOOR} in the Daily, ${REAPER_FLOOR} in Endless, and wave 25 of the Horde. Run.`)}</div>
 
     ${head('Between runs')}
     <div class="hcards">

@@ -4,7 +4,7 @@
 import { drawAura as drawAuraFx } from './aura';
 import { companionFrames } from './companion-art';
 import { ELITES, type HeroId } from './content';
-import { ENEMY_INFO, Game, H, HORDE_SPARK, ORBIT_RING, REAPER_FLOOR, W, isBoss, type EnemyKind, type GameEvent, type MagnetPull, type Pos } from './game';
+import { ENEMY_INFO, Game, H, HORDE_SPARK, ORBIT_RING, W, isBoss, type EnemyKind, type GameEvent, type MagnetPull, type Pos } from './game';
 import { hashSeed, mulberry32 } from './rng';
 import { heroSprite, relicColor } from './hero';
 import { LOOK_BY_ID, seasonDress, type Outfit } from './progression';
@@ -1372,7 +1372,7 @@ export class Renderer {
     if (this.quiet || g.phase === 'dead') return;
     const ctx = this.ctx;
     const r = g.reaper;
-    if ((!r || r.waiting) && g.reaperIn > 0 && g.mode !== 'horde' && g.config.reaper && g.floor >= REAPER_FLOOR) {
+    if ((!r || r.waiting) && g.reaperIn > 0 && g.mode !== 'horde' && g.config.reaper && g.floor >= g.reaperFloor()) {
       const urgent = g.reaperIn <= 3;
       const text = `DEATH IN ${g.reaperIn}`;
       const beat = urgent ? 0.6 + 0.4 * Math.sin(this.time * 10) : 0.85;
@@ -2698,8 +2698,8 @@ export class Renderer {
     const outer = dark ? 40 + light * 12 + flicker * 2 : 95 + light * 14 + flicker * 2;
     // The Abyss's darkness is part of its challenge, so it stays even in high contrast;
     // elsewhere the dark is softer, and gone in high contrast.
-    // Where Death walks (floor 150 and down) the light reaches less far, so depth reads at a glance.
-    const deathly = !dark && Boolean(g.config.reaper) && g.floor >= REAPER_FLOOR && g.mode !== 'horde';
+    // Where Death walks (floor 150 and down, 60 in the Daily's Hunt) the light reaches less far, so depth reads at a glance.
+    const deathly = !dark && Boolean(g.config.reaper) && g.floor >= g.reaperFloor() && g.mode !== 'horde';
     if (dark || !this.contrast) this.drawLightMap(g, cx, cy, deathly ? inner * 0.8 : inner, deathly ? outer * 0.62 : outer, dark, [themedLight(zone.light[0]), themedDark(zone.light[1])]);
     if (this.contrast) return;
     if (deathly) {

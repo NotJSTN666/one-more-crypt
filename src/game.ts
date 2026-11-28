@@ -259,6 +259,13 @@ export interface RunConfig {
   lean?: boolean;
   /** The Mage's Magic Missile: waiting a turn casts one at the nearest foe in sight (log version 20 and later). */
   missile?: boolean;
+  /**
+   * The Hunt (log version 21, the Daily from #46): Death comes from HUNT_REAPER_FLOOR with a
+   * countdown that shrinks twice as fast, and past HUNT_FROM foes grow much tougher, hit harder
+   * and are more often elites, so a strong build still meets real danger and a run ends in
+   * minutes, not an hour.
+   */
+  hunt?: boolean;
 }
 
 /** Something the Grave Magnet pulled, and where from. */
@@ -405,6 +412,14 @@ const FAIR_LOG_VERSION = 18;
 const LEAN_LOG_VERSION = 19;
 /** Adds the Mage's Magic Missile: see RunConfig.missile. */
 const MISSILE_LOG_VERSION = 20;
+/**
+ * Adds the Hunt: see RunConfig.hunt. Only the Daily sets it; Endless runs stay at version 20,
+ * so a later version must keep this rule for every run logged with it.
+ */
+const HUNT_LOG_VERSION = 21;
+/** The Hunt: Death walks from this floor, and foes grow much tougher past HUNT_FROM. */
+export const HUNT_REAPER_FLOOR = 60;
+export const HUNT_FROM = 30;
 /** The Magic Missile: how far it reaches, and how many turns between casts. */
 export const MISSILE_RANGE = 4;
 export const MISSILE_GAP = 2;
@@ -453,7 +468,9 @@ export const HORDE_SPARK = 3;
 /** The chance a held wave leaves a chest, shrine or fountain in the arena. */
 const HORDE_DROP_CHANCE = 0.4;
 /** Turns on a floor before Death rises: plenty at first, one fewer every 4 floors, none from floor 250. */
-export function reaperDelay(floor: number): number {
+export function reaperDelay(floor: number, hunt = false): number {
+  // In the Hunt he comes from floor 60, and one turn sooner every 2 floors (none left by floor 110).
+  if (hunt) return Math.max(0, 25 - Math.floor((floor - HUNT_REAPER_FLOOR) / 2));
   return Math.max(0, 25 - Math.floor((floor - REAPER_FLOOR) / 4));
 }
 /** One input character per Soul Forge option. */
@@ -685,6 +702,7 @@ export class Game {
   header(): string {
     const unlocked = UNLOCKABLE_RELICS.filter((id) => this.config.pool.includes(id));
     // Pools without any post-launch relic are logged as version 2 so they replay with the launch set.
+    if (this.config.hunt) return `#${HUNT_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.missile) return `#${MISSILE_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.lean) return `#${LEAN_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
     if (this.config.fair) return `#${FAIR_LOG_VERSION}|${this.config.hero}|${unlocked.join(',')}|${this.config.vigor ?? 0}|`;
@@ -708,7 +726,7 @@ export class Game {
   private enterFloor(floor: number) {
     this.floor = floor;
     this.reaper = null;
-    this.reaperIn = this.reaperDue() ? reaperDelay(floor) + 3 * this.boons.dusk : 0;
+    this.reaperIn = this.reaperDue() ? reaperDelay(floor, this.config.hunt) + 3 * this.boons.dusk : 0;
     if (this.reaperDue()) this.events.push({ t: 'reaper', turns: this.reaperIn });
     // He's there from the start, waiting in the corner farthest from where you arrive.
     if (this.reaperDue() && this.config.lurk) this.reaper = { ...this.farCorner(), frozen: 0, waiting: this.reaperIn > 0 };
@@ -900,7 +918,8 @@ export class Game {
     if (this.config.story?.monks) roster.push({ kind: 'monk', from: 1, w: 14 });
     const pool = roster.filter((p) => f >= p.from);
     const count = Math.min(MAX_ENEMIES - 1, 2 + Math.floor(f / 2));
-    const eliteChance = f >= 3 ? Math.min(0.35, 0.06 + 0.025 * f) : 0;
+    // In the Hunt, past floor 30 more and more of them are elites.
+    const eliteChance = this.config.hunt && f > HUNT_FROM ? Math.min(0.8, 0.35 + 0.015 * (f - HUNT_FROM)) : f >= 3 ? Math.min(0.35, 0.06 + 0.025 * f) : 0;
     for (let i = 0; i < count; i++) {
       const spot = this.randomFreeTile(rng, 3);
       if (!spot) break;
@@ -1052,8 +1071,11 @@ export class Game {
     // Gentle scaling early, then steep past floor 15 so broken builds still meet an end.
     const late = Math.max(0, this.floor - 15);
     const scaled = !isBoss({ kind }) && kind !== 'thrall';
-    const hpBonus = scaled ? Math.floor((this.floor - 1) / 4) + late : 0;
-    const dmgBonus = scaled ? Math.floor((this.floor - 1) / 6) + Math.floor(late / 3) : 0;
+    // The Hunt: past floor 30, 5% more health per floor on top (double by floor 50, two and a
+    // half times by 60) and 1 more damage every 3 floors, so passive damage alone can't clear a floor.
+    const hunted = this.config.hunt && scaled ? Math.max(0, this.floor - HUNT_FROM) : 0;
+    const hpBonus = scaled ? Math.floor(((this.floor - 1) / 4 + late) * (1 + 0.05 * hunted) + info.hp * 0.05 * hunted) : 0;
+    const dmgBonus = scaled ? Math.floor((this.floor - 1) / 6) + Math.floor(late / 3) + Math.floor(hunted / 3) : 0;
     const e: Enemy = {
       id: this.nextId++,
       kind,
@@ -2067,7 +2089,12 @@ export class Game {
 
   private reaperDue(): boolean {
     if (this.mode === 'horde') return this.horde.wave >= this.hordeDeathWave();
-    return Boolean(this.config.reaper) && this.floor >= REAPER_FLOOR;
+    return Boolean(this.config.reaper) && this.floor >= this.reaperFloor();
+  }
+
+  /** The floor Death walks from: 150, or 60 in the Hunt. */
+  reaperFloor(): number {
+    return this.config.hunt ? HUNT_REAPER_FLOOR : REAPER_FLOOR;
   }
 
   /** Death rises in the far corner when his time comes, then walks straight at you through the walls. */
@@ -2093,7 +2120,7 @@ export class Game {
     // In the Horde he walks every other turn: something to keep away from while you fight.
     if (this.mode === 'horde' && this.turns % 2) return;
     // From floor 275 he quickens: two steps every other turn.
-    const steps = this.floor >= REAPER_FLOOR + 125 && this.turns % 2 === 0 ? 2 : 1;
+    const steps = this.floor >= this.reaperFloor() + 125 && this.turns % 2 === 0 ? 2 : 1;
     for (let i = 0; i < steps; i++) {
       const gx = p.x - r.x;
       const gy = p.y - r.y;
@@ -2822,7 +2849,8 @@ export class Game {
     const fair = Number(m[1]) >= FAIR_LOG_VERSION;
     const lean = Number(m[1]) >= LEAN_LOG_VERSION;
     const missile = Number(m[1]) >= MISSILE_LOG_VERSION;
-    const config: RunConfig = { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy, ...(depths ? { depths } : {}), ...(boons ? { boons } : {}), ...(reaper ? { reaper } : {}), ...(deep ? { deep } : {}), ...(lurk ? { lurk } : {}), ...(surge ? { surge } : {}), ...(waves ? { waves } : {}), ...(magnet ? { magnet } : {}), ...(armory ? { armory } : {}), ...(arsenal ? { arsenal } : {}), ...(volley ? { volley } : {}), ...(fair ? { fair } : {}), ...(lean ? { lean } : {}), ...(missile ? { missile } : {}) };
+    const hunt = Number(m[1]) >= HUNT_LOG_VERSION;
+    const config: RunConfig = { hero: m[2] as HeroId, pool: basePool(unlocked, legacy), forge, mercy, ...(depths ? { depths } : {}), ...(boons ? { boons } : {}), ...(reaper ? { reaper } : {}), ...(deep ? { deep } : {}), ...(lurk ? { lurk } : {}), ...(surge ? { surge } : {}), ...(waves ? { waves } : {}), ...(magnet ? { magnet } : {}), ...(armory ? { armory } : {}), ...(arsenal ? { arsenal } : {}), ...(volley ? { volley } : {}), ...(fair ? { fair } : {}), ...(lean ? { lean } : {}), ...(missile ? { missile } : {}), ...(hunt ? { hunt } : {}) };
     let rest = full.slice(m[0].length);
     // Version 7 adds one field: the isle's extra max HP.
     const isle = Number(m[1]) >= ISLE_LOG_VERSION ? /^(\d+)\|/.exec(rest) : null;

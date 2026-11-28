@@ -593,6 +593,8 @@ export const FAIR_DAILY = 18;
 export const LEAN_DAILY = 19;
 /** The Mage's Magic Missile joins the Daily and the Horde from this crypt. */
 export const MISSILE_DAILY = 23;
+/** The Hunt (Death from floor 60, far tougher foes past 30) is the Daily's rule from this crypt. */
+export const HUNT_DAILY = 46;
 
 /** The daily crypt is identical for everyone; Endless uses your hero and unlocks. */
 export function runConfig(mode: Mode, dailyNo: number): RunConfig {
@@ -610,6 +612,7 @@ export function runConfig(mode: Mode, dailyNo: number): RunConfig {
     if (dailyNo >= FAIR_DAILY) config.fair = true;
     if (dailyNo >= LEAN_DAILY) config.lean = true;
     if (dailyNo >= MISSILE_DAILY) config.missile = true;
+    if (dailyNo >= HUNT_DAILY) config.hunt = true;
     return config;
   }
   const hero = heroUnlocked(meta.hero) ? meta.hero : 'knight';

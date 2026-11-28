@@ -23,6 +23,16 @@ export interface NewsDay {
 
 export const NEWS: NewsDay[] = [
   {
+    date: '2026-11-28',
+    title: 'The Daily turns into a hunt',
+    notes: [
+      '☠️ Death now comes for you from floor 60 in the Daily, not 150, and his countdown shrinks faster the deeper you go. A great run is a tense chase to the finish, over in about twenty minutes instead of an hour.',
+      '⚔️ Past floor 30 in the Daily, the crypt fights back: foes grow much tougher with every floor, hit harder, and more and more of them are elites. A strong build can no longer just wait for a floor to clear itself.',
+      '♾️ Endless is unchanged: Death still waits until floor 150 for anyone who wants the long haul.',
+    ],
+    go: ['daily'],
+  },
+  {
     date: '2026-11-27',
     title: 'Midwinter, and Act III: The Long Night',
     notes: [
